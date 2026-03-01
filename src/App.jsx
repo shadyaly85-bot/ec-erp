@@ -21,22 +21,26 @@ const fmt         = d => d.toISOString().slice(0,10);
 const today       = new Date();
 const fmtCurrency = n => `$${(n||0).toLocaleString(undefined,{minimumFractionDigits:0})}`;
 const fmtPct      = n => `${Math.round(n||0)}%`;
-const TARGET_HRS  = 22 * 8;
+const DAY_NAMES   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const DEFAULT_WEEKEND = [5,6]; // Fri+Sat default (Egypt/Middle East)
 
-const getWeekDays = date => {
+// All 7 days of the week starting from Sunday of the week containing date
+const getWeekDays7 = date => {
   const d=new Date(date), day=d.getDay();
-  const mon=new Date(d); mon.setDate(d.getDate()-(day===0?6:day-1));
-  return Array.from({length:5},(_,i)=>{const x=new Date(mon);x.setDate(mon.getDate()+i);return fmt(x);});
+  const sun=new Date(d); sun.setDate(d.getDate()-day);
+  return Array.from({length:7},(_,i)=>{const x=new Date(sun);x.setDate(sun.getDate()+i);return fmt(x);});
 };
-const getDaysInMonth = (y,m) => {
+// Working days in month excluding configured weekends
+const getWorkDaysInMonth = (y,m,weekendDays=[5,6]) => {
   const days=[];
   const total=new Date(y,m+1,0).getDate();
   for(let d=1;d<=total;d++){
     const date=new Date(y,m,d);
-    if(date.getDay()!==0&&date.getDay()!==6) days.push(fmt(date));
+    if(!weekendDays.includes(date.getDay())) days.push(fmt(date));
   }
   return days;
 };
+const getTargetHrs = (y,m,weekendDays=[5,6]) => getWorkDaysInMonth(y,m,weekendDays).length*8;
 
 /* ─── PDF ─── */
 function generatePDF(title, sections, subtitle="Engineering Center Egypt"){
@@ -175,11 +179,19 @@ export default function App(){
   const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer"});
 
   const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3500);};
-  const weekDays=useMemo(()=>getWeekDays(weekOf),[weekOf]);
+
+  // Weekend config — stored in localStorage so it persists per browser
+  // Each day: 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
+  const [weekendDays,setWeekendDays] = useState(()=>{
+    try{ const s=localStorage.getItem("erp_weekend"); return s?JSON.parse(s):DEFAULT_WEEKEND; }
+    catch{ return DEFAULT_WEEKEND; }
+  });
+  const saveWeekend = days => { setWeekendDays(days); localStorage.setItem("erp_weekend",JSON.stringify(days)); };
+
+  const weekDays=useMemo(()=>getWeekDays7(weekOf),[weekOf]);
+  const targetHrs=useMemo(()=>getTargetHrs(year,month,weekendDays),[year,month,weekendDays]);
   const isAdmin=myProfile?.role_type==="admin";
 
-  // The engineer whose timesheet is shown
-  // Admin can browse any engineer; regular engineer only sees themselves
   const viewEngId = isAdmin ? (browseEngId || myProfile?.id) : myProfile?.id;
   const viewEng   = engineers.find(e=>e.id===viewEngId);
 
@@ -355,7 +367,7 @@ export default function App(){
   const totalRevenue  = workEntries.filter(e=>e.billable).reduce((s,e)=>{
     const p=projects.find(x=>x.id===e.project_id); return s+(p?p.rate_per_hour*e.hours:0);},0);
   const billabilityPct= totalWorkHrs?Math.round(totalBillable/totalWorkHrs*100):0;
-  const overallUtil   = engineers.length?Math.min(100,Math.round(totalWorkHrs/(engineers.length*TARGET_HRS)*100)):0;
+  const overallUtil   = engineers.length?Math.min(100,Math.round(totalWorkHrs/(engineers.length*targetHrs)*100)):0;
 
   const engStats=useMemo(()=>engineers.map(eng=>{
     const we=monthEntries.filter(e=>e.engineer_id===eng.id);
@@ -365,7 +377,7 @@ export default function App(){
     const rev=we.filter(e=>e.entry_type==="work"&&e.billable).reduce((s,e)=>{
       const p=projects.find(x=>x.id===e.project_id); return s+(p?p.rate_per_hour*e.hours:0);},0);
     return{...eng,workHrs:wh,billableHrs:bh,leaveDays:ld,revenue:rev,
-      utilization:Math.min(100,Math.round(wh/TARGET_HRS*100)),
+      utilization:Math.min(100,Math.round(wh/targetHrs*100)),
       billability:wh?Math.round(bh/wh*100):0};
   }),[engineers,monthEntries,projects]);
 
@@ -613,14 +625,14 @@ export default function App(){
                 <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Dashboard</h1>
                 <p style={{color:"#2e4a66",fontSize:12,marginTop:3,fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year} · Live Overview</p>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11,marginBottom:18}}>
+              <div style={{display:"grid",gridTemplateColumns:`repeat(${isAdmin?5:3},1fr)`,gap:11,marginBottom:18}}>
                 {[
-                  {l:"Team Utilization",v:fmtPct(overallUtil),c:"#38bdf8"},
-                  {l:"Billability",     v:fmtPct(billabilityPct),c:"#34d399"},
-                  {l:"Revenue Billed",  v:fmtCurrency(totalRevenue),c:"#a78bfa"},
-                  {l:"Active Projects", v:projects.filter(p=>p.status==="Active").length,c:"#fb923c"},
-                  {l:"Absence Days",    v:leaveEntries.length,c:"#f472b6"},
-                ].map((m,i)=>(
+                  {l:"Team Utilization",v:fmtPct(overallUtil),c:"#38bdf8",adminOnly:false},
+                  {l:"Billability",     v:fmtPct(billabilityPct),c:"#34d399",adminOnly:true},
+                  {l:"Revenue Billed",  v:fmtCurrency(totalRevenue),c:"#a78bfa",adminOnly:true},
+                  {l:"Active Projects", v:projects.filter(p=>p.status==="Active").length,c:"#fb923c",adminOnly:false},
+                  {l:"Absence Days",    v:leaveEntries.length,c:"#f472b6",adminOnly:false},
+                ].filter(m=>!m.adminOnly||isAdmin).map((m,i)=>(
                   <div key={i} className="metric">
                     <div style={{fontSize:9,color:"#2e4a66",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{m.l}</div>
                     <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:24,fontWeight:700,color:m.c,marginTop:8,lineHeight:1}}>{m.v}</div>
@@ -661,18 +673,18 @@ export default function App(){
                     </div>);})}
                 </div>
               </div>
-              <div className="card">
+                <div className="card">
                 <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>Projects — {MONTHS[month]} {year}</h3>
                 <table>
-                  <thead><tr><th>No.</th><th>Name</th><th>Phase</th><th>Hours</th><th>Billing</th><th>Revenue</th></tr></thead>
+                  <thead><tr><th>No.</th><th>Name</th><th>Phase</th><th>Hours</th>{isAdmin&&<><th>Billing</th><th>Revenue</th></>}</tr></thead>
                   <tbody>{projStats.filter(p=>p.hours>0).map(p=>(
                     <tr key={p.id}>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
                       <td style={{fontSize:11}}>{p.name}</td>
                       <td style={{color:"#7a8faa",fontSize:11}}>{p.phase}</td>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.hours}h</td>
-                      <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"#0c2b4e":"#1a0a00",color:p.billable?"#38bdf8":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{p.billable?fmtCurrency(p.revenue):"—"}</td>
+                      {isAdmin&&<><td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"#0c2b4e":"#1a0a00",color:p.billable?"#38bdf8":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
+                      <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{p.billable?fmtCurrency(p.revenue):"—"}</td></>}
                     </tr>
                   ))}</tbody>
                 </table>
@@ -726,7 +738,7 @@ export default function App(){
                   {[
                     {l:"Week Hrs", v:weekDays.reduce((s,d)=>s+entries.filter(e=>e.date===d&&e.engineer_id===viewEngId).reduce((ss,e)=>ss+e.hours,0),0)+"h", c:"#38bdf8"},
                     {l:"Month Hrs",v:monthEntries.filter(e=>e.engineer_id===viewEngId&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0)+"h", c:"#34d399"},
-                    {l:"Utilization",v:fmtPct(Math.min(100,Math.round(monthEntries.filter(e=>e.engineer_id===viewEngId&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0)/TARGET_HRS*100))),c:"#a78bfa"},
+                    {l:"Utilization",v:fmtPct(Math.min(100,Math.round(monthEntries.filter(e=>e.engineer_id===viewEngId&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0)/targetHrs*100))),c:"#a78bfa"},
                   ].map((s,i)=><div key={i} style={{textAlign:"center"}}>
                     <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c}}>{s.v}</div>
                     <div style={{fontSize:10,color:"#253a52"}}>{s.l}</div>
@@ -734,25 +746,37 @@ export default function App(){
                 </div>
               </div>}
 
-              {/* Week grid */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+              {/* Week grid — 7 days, weekends styled differently */}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8}}>
                 {weekDays.map(day=>{
+                  const dayOfWeek=new Date(day).getDay();
+                  const isWeekend=weekendDays.includes(dayOfWeek);
                   const de=entries.filter(e=>e.date===day&&e.engineer_id===viewEngId);
                   const dh=de.reduce((s,e)=>s+e.hours,0);
                   const lbl=new Date(day).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
                   const isToday=day===fmt(today);
                   const isFuture=day>fmt(today);
                   return(
-                    <div key={day} className="wc" style={isToday?{borderColor:"#0ea5e9"}:isFuture?{borderColor:"#a78bfa40",background:"#0a0e1f"}:{}}>
+                    <div key={day} className="wc" style={
+                      isToday?{borderColor:"#0ea5e9"}:
+                      isWeekend?{borderColor:"#f4721830",background:"#0f0a06",opacity:0.75}:
+                      isFuture?{borderColor:"#a78bfa40",background:"#0a0e1f"}:{}
+                    }>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
                         <div>
-                          <div style={{fontSize:11,fontWeight:600,color:isToday?"#38bdf8":isFuture?"#a78bfa":"#7a8faa"}}>
-                            {lbl}
-                            {isFuture&&<span style={{fontSize:8,marginLeft:4,color:"#a78bfa",fontFamily:"'IBM Plex Mono',monospace"}}>FUTURE</span>}
+                          <div style={{fontSize:10,fontWeight:600,
+                            color:isToday?"#38bdf8":isWeekend?"#f47218":isFuture?"#a78bfa":"#7a8faa"}}>
+                            {DAY_NAMES[dayOfWeek]}
+                            {isWeekend&&<span style={{fontSize:8,marginLeft:3,color:"#f47218",fontFamily:"'IBM Plex Mono',monospace"}}> WE</span>}
+                            {isFuture&&!isWeekend&&<span style={{fontSize:8,marginLeft:3,color:"#a78bfa",fontFamily:"'IBM Plex Mono',monospace"}}> →</span>}
                           </div>
-                          {dh>0&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{dh}h</div>}
+                          <div style={{fontSize:9,color:"#253a52"}}>{new Date(day).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                          {dh>0&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8",marginTop:2}}>{dh}h</div>}
                         </div>
-                        <button className="bp" style={{padding:"2px 7px",fontSize:11,background:isFuture?"linear-gradient(135deg,#7c3aed,#6d28d9)":undefined}} onClick={()=>setModalDate(day)}>+</button>
+                        <button className="bp" style={{padding:"2px 6px",fontSize:10,
+                          background:isWeekend?"linear-gradient(135deg,#b45309,#92400e)":
+                          isFuture?"linear-gradient(135deg,#7c3aed,#6d28d9)":undefined
+                        }} onClick={()=>setModalDate(day)}>+</button>
                       </div>
                       {de.map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
@@ -850,7 +874,7 @@ export default function App(){
                         <div><span style={{color:"#2e4a66"}}>Client: </span>{p.client}</div>
                         <div><span style={{color:"#2e4a66"}}>Origin: </span>{p.origin}</div>
                         <div><span style={{color:"#2e4a66"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase}</span></div>
-                        <div><span style={{color:"#2e4a66"}}>Rate: </span><span style={{fontFamily:"'IBM Plex Mono',monospace",color:p.billable?"#a78bfa":"#253a52"}}>{p.billable?`$${p.rate_per_hour}/h`:"Non-Billable"}</span></div>
+                        {isAdmin&&<div><span style={{color:"#2e4a66"}}>Rate: </span><span style={{fontFamily:"'IBM Plex Mono',monospace",color:p.billable?"#a78bfa":"#253a52"}}>{p.billable?`$${p.rate_per_hour}/h`:"Non-Billable"}</span></div>}
                       </div>
                       {topTasks.length>0&&<div style={{background:"#060e1c",borderRadius:5,padding:"7px 9px",marginBottom:10}}>
                         {topTasks.map(([task,hrs])=>(
@@ -863,7 +887,7 @@ export default function App(){
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:9,borderTop:"1px solid #192d47"}}>
                         <div>
                           <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:"#38bdf8"}}>{ps?.hours||0}h</div>
-                          {p.billable&&<div style={{fontSize:10,color:"#a78bfa"}}>{fmtCurrency(ps?.revenue||0)}</div>}
+                          {isAdmin&&p.billable&&<div style={{fontSize:10,color:"#a78bfa"}}>{fmtCurrency(ps?.revenue||0)}</div>}
                         </div>
                       </div>
                     </div>
@@ -894,10 +918,10 @@ export default function App(){
                       </div>
                     </div>
                     <div style={{fontSize:10,display:"flex",justifyContent:"space-between",color:"#4e6479",paddingBottom:6}}>
-                      <span>Bill: <span style={{color:"#a78bfa",fontWeight:600}}>{fmtPct(eng.billability)}</span></span>
+                      {isAdmin&&<span>Bill: <span style={{color:"#a78bfa",fontWeight:600}}>{fmtPct(eng.billability)}</span></span>}
                       {eng.leaveDays>0&&<span style={{color:"#fb923c"}}>✈{eng.leaveDays}d</span>}
                     </div>
-                    <div style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",marginBottom:5}}>{fmtCurrency(eng.revenue)}</div>
+                    {isAdmin&&<div style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",marginBottom:5}}>{fmtCurrency(eng.revenue)}</div>}
                     <div style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"#152639",color:"#4e6479",display:"inline-block"}}>{eng.level}</div>
                   </div>
                 ))}
@@ -913,8 +937,8 @@ export default function App(){
                 <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{MONTHS[month]} {year} — Select report then export to PDF</p>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:18}}>
-                {[{id:"utilization",icon:"◉",label:"Utilization",desc:"Individual & team utilization + billability"},
-                  {id:"billable",icon:"$",label:"Billable & Revenue",desc:"Revenue per project & engineer"},
+                {[{id:"utilization",icon:"◉",label:"Utilization",desc:"Individual & team utilization"},
+                  ...(isAdmin?[{id:"billable",icon:"$",label:"Billable & Revenue",desc:"Revenue per project & engineer"}]:[]),
                   {id:"task",icon:"⊟",label:"Task Analysis",desc:"Task categories, activity log"},
                   {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary for HQ"},
                 ].map(r=>(
@@ -1018,10 +1042,72 @@ export default function App(){
 
               {/* Tabs */}
               <div style={{display:"flex",gap:4,marginBottom:18,background:"#060e1c",borderRadius:8,padding:4,width:"fit-content"}}>
-                {[{id:"engineers",label:"👥 Engineers"},{id:"projects",label:"◈ Projects"},{id:"entries",label:"⏱ All Entries"}].map(t=>(
+                {[{id:"engineers",label:"👥 Engineers"},{id:"projects",label:"◈ Projects"},{id:"entries",label:"⏱ All Entries"},{id:"settings",label:"⚙ Settings"}].map(t=>(
                   <button key={t.id} className={`atab ${adminTab===t.id?"a":""}`} onClick={()=>setAdminTab(t.id)}>{t.label}</button>
                 ))}
               </div>
+
+              {/* ── ADMIN: SETTINGS ── */}
+              {adminTab==="settings"&&(
+                <div>
+                  <div className="card" style={{maxWidth:520}}>
+                    <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:4}}>⚙ Weekend Configuration</h3>
+                    <p style={{fontSize:11,color:"#2e4a66",marginBottom:18,lineHeight:1.6}}>
+                      Select which days are the weekend for your office. These days will be highlighted in orange on the timesheet.
+                      Engineers can still post hours on weekend days if needed (e.g. overtime or site work).
+                    </p>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,marginBottom:18}}>
+                      {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((name,i)=>{
+                        const isWe=weekendDays.includes(i);
+                        return(
+                          <button key={i} onClick={()=>{
+                            const next=isWe?weekendDays.filter(d=>d!==i):[...weekendDays,i];
+                            saveWeekend(next);
+                          }} style={{
+                            padding:"10px 4px",borderRadius:7,border:`2px solid ${isWe?"#f47218":"#192d47"}`,
+                            background:isWe?"#1a0a00":"#060e1c",
+                            color:isWe?"#f47218":"#4e6479",
+                            cursor:"pointer",fontSize:12,fontWeight:700,
+                            fontFamily:"'IBM Plex Sans',sans-serif",
+                            transition:"all .2s"
+                          }}>
+                            {name}
+                            {isWe&&<div style={{fontSize:9,marginTop:3,color:"#f47218"}}>OFF</div>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:8,padding:"12px 14px",fontSize:11}}>
+                      <div style={{color:"#4e6479",marginBottom:8,fontWeight:600}}>Common weekend configurations:</div>
+                      <div style={{display:"grid",gap:6}}>
+                        {[
+                          {label:"🇪🇬 Egypt / Middle East",days:[5,6],desc:"Friday + Saturday"},
+                          {label:"🇷🇴 Romania / Europe",days:[0,6],desc:"Saturday + Sunday"},
+                          {label:"🌍 Western (Mon–Fri)",days:[0,6],desc:"Saturday + Sunday"},
+                          {label:"No Weekend Days",days:[],desc:"All 7 days available"},
+                        ].map(preset=>(
+                          <button key={preset.label} onClick={()=>saveWeekend(preset.days)} style={{
+                            display:"flex",justifyContent:"space-between",alignItems:"center",
+                            background:"transparent",border:"1px solid #192d47",borderRadius:6,
+                            padding:"8px 12px",cursor:"pointer",textAlign:"left",
+                            fontFamily:"'IBM Plex Sans',sans-serif",color:"#dde3ef",
+                            transition:"all .2s"
+                          }}
+                          onMouseEnter={e=>e.currentTarget.style.borderColor="#38bdf8"}
+                          onMouseLeave={e=>e.currentTarget.style.borderColor="#192d47"}>
+                            <span style={{fontSize:12,fontWeight:600}}>{preset.label}</span>
+                            <span style={{fontSize:10,color:"#4e6479",fontFamily:"'IBM Plex Mono',monospace"}}>{preset.desc}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{marginTop:14,padding:"9px 12px",background:"#022c22",border:"1px solid #34d399",borderRadius:6,fontSize:11,color:"#34d399"}}>
+                      ✓ Current weekend: {weekendDays.length===0?"None (all days work)":weekendDays.map(d=>["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d]).join(" + ")}
+                      {" "}· Working days this month: {getWorkDaysInMonth(year,month,weekendDays).length} days · Target: {getTargetHrs(year,month,weekendDays)}h
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* ── ADMIN: ENGINEERS ── */}
               {adminTab==="engineers"&&(
