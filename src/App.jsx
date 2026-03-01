@@ -291,6 +291,14 @@ export default function App(){
   const [rptEngId,setRptEngId]       = useState(null); // for individual timesheet export
   const [invoiceProjId,setInvoiceProjId] = useState("ALL"); // ALL or specific project id
   const [pendingRoles,setPendingRoles]     = useState({}); // eng.id -> role_type pending save
+  // Filters (shared across pages)
+  const [filterEngineer,setFilterEngineer] = useState("ALL");
+  const [filterProject,setFilterProject]   = useState("ALL");
+  // Import modal
+  const [showImport,setShowImport]         = useState(false);
+  const [importFiles,setImportFiles]       = useState([]);
+  const [importLog,setImportLog]           = useState([]);
+  const [importing,setImporting]           = useState(false);
   const [showProjModal,setShowProjModal]   = useState(false);
   const [editProjModal,setEditProjModal]   = useState(null);
   const [showEngModal,setShowEngModal]     = useState(false);
@@ -402,17 +410,20 @@ export default function App(){
 
   const saveEditEntry=async()=>{
     if(!editEntry) return;
-    // Engineers can only edit own entries; lead/admin can edit any
     if(!canEditAny && editEntry.engineer_id !== myProfile?.id) { showToast("You can only edit your own entries",false); return; }
     const proj=projects.find(p=>p.id===editEntry.projectId);
+    // Support both camelCase (from modal) and snake_case (from DB) field names
+    const taskCat = editEntry.taskCategory || editEntry.task_category || "Engineering";
+    const taskTyp = editEntry.taskType || editEntry.task_type || "Basic Engineering";
+    const lvType  = editEntry.leaveType || editEntry.leave_type || "Annual Leave";
     const payload={
       project_id:   editEntry.type==="leave"?null:editEntry.projectId,
-      task_category:editEntry.type==="leave"?null:editEntry.taskCategory,
-      task_type:    editEntry.type==="leave"?null:editEntry.taskType,
+      task_category:editEntry.type==="leave"?null:taskCat,
+      task_type:    editEntry.type==="leave"?null:taskTyp,
       hours:        +editEntry.hours,
-      activity:     editEntry.activity,
+      activity:     editEntry.activity||"",
       entry_type:   editEntry.type,
-      leave_type:   editEntry.type==="leave"?editEntry.leaveType:null,
+      leave_type:   editEntry.type==="leave"?lvType:null,
       billable:     editEntry.type==="leave"?false:(proj?.billable||false),
       date:         editEntry.date,
     };
@@ -429,6 +440,141 @@ export default function App(){
     if(error){showToast("Error",false);return;}
     setEntries(prev=>prev.filter(e=>e.id!==id));
     showToast("Deleted",false);
+  };
+
+  /* ── EXCEL IMPORT ── */
+  const importTimesheets=async files=>{
+    setImporting(true);
+    setImportLog([]);
+    const log=[];
+    const addLog=(type,msg)=>{ log.push({type,msg}); setImportLog([...log]); };
+
+    for(const file of files){
+      addLog("info",`📂 Processing: ${file.name}`);
+      try{
+        const data=await file.arrayBuffer();
+        // Parse xlsx in browser using SheetJS (loaded below)
+        const XLSX=window._XLSX;
+        if(!XLSX){ addLog("error","SheetJS not loaded — refresh and try again"); break; }
+        const wb=XLSX.read(data,{type:"array",cellDates:true});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,dateNF:"yyyy-mm-dd"});
+
+        // Parse header info (rows 0-2)
+        const engName=(rows[0]?.[1]||"").trim();
+        const engEmail=(rows[1]?.[1]||"").trim().toLowerCase();
+        const engRole=(rows[0]?.[4]||"").trim();
+        const monthStr=rows[2]?.[1]||"";
+
+        if(!engName||!engEmail){ addLog("error",`  ✕ Missing name or email`); continue; }
+        addLog("info",`  👤 Engineer: ${engName} (${engEmail})`);
+
+        // Find or create engineer
+        let eng=engineers.find(e=>e.email?.toLowerCase()===engEmail);
+        if(!eng){
+          const {data:newEng,error:engErr}=await supabase.from("engineers").insert({
+            name:engName, email:engEmail,
+            role:engRole||"Automation Engineer",
+            level:"Mid", role_type:"engineer",
+            weekend_days:JSON.stringify([5,6])
+          }).select().single();
+          if(engErr){ addLog("error",`  ✕ Could not create engineer: ${engErr.message}`); continue; }
+          eng=newEng;
+          setEngineers(prev=>[...prev,newEng].sort((a,b)=>a.name.localeCompare(b.name)));
+          addLog("ok",`  ✓ Created engineer: ${engName}`);
+        } else {
+          addLog("info",`  → Found existing engineer: ${eng.name}`);
+        }
+
+        // Parse daily rows (starting row index 4, after header row 3)
+        let inserted=0, skipped=0;
+        for(let i=4;i<rows.length;i++){
+          const row=rows[i];
+          if(!row||!row[0]) continue;
+          // Skip summary rows
+          if(typeof row[0]==="string"&&(row[0].toLowerCase().includes("subtotal")||row[0].toLowerCase().includes("signature"))) break;
+
+          // Parse date
+          let dateStr="";
+          const rawDate=row[0];
+          if(rawDate instanceof Date){ dateStr=rawDate.toISOString().slice(0,10); }
+          else if(typeof rawDate==="string"&&rawDate.match(/\d{4}-\d{2}-\d{2}/)){dateStr=rawDate.slice(0,10);}
+          else if(typeof rawDate==="string"&&rawDate.includes("/")){
+            const parts=rawDate.split("/");
+            if(parts.length===3) dateStr=`${parts[2]}-${parts[1].padStart(2,"0")}-${parts[0].padStart(2,"0")}`;
+          }
+          if(!dateStr) continue;
+
+          const task=(row[2]||"").trim();
+          const hoursRaw=row[3];
+          const projName=(row[4]||"").trim();
+          const taskDetails=(row[5]||"").trim();
+
+          // Determine entry type
+          const isWeekend=projName.toLowerCase()==="weekend"||(!task&&!hoursRaw&&!projName);
+          const isHoliday=taskDetails.toLowerCase().includes("holiday")||(!task&&!hoursRaw&&taskDetails.toLowerCase().includes("holiday"));
+          const isLeave=!task&&!hoursRaw&&!projName&&!isWeekend;
+
+          if(isWeekend) continue; // skip weekends
+
+          const hours=parseFloat(hoursRaw)||0;
+
+          if(isHoliday||isLeave){
+            // Insert leave entry
+            const lvType=taskDetails.toLowerCase().includes("holiday")?"Public Holiday":"Annual Leave";
+            const {error}=await supabase.from("time_entries").insert({
+              engineer_id:eng.id, date:dateStr, hours:8,
+              entry_type:"leave", leave_type:lvType, billable:false
+            });
+            if(!error) inserted++;
+            else skipped++;
+            continue;
+          }
+
+          if(!task||hours<=0||!projName) continue;
+
+          // Match project by name (fuzzy)
+          const projNameClean=projName.trim().toLowerCase();
+          let proj=projects.find(p=>
+            p.name.toLowerCase()===projNameClean||
+            p.id.toLowerCase()===projNameClean||
+            p.name.toLowerCase().includes(projNameClean)||
+            projNameClean.includes(p.name.toLowerCase())
+          );
+
+          // Map task to category
+          let taskCategory="Software", taskType="SCADA Development";
+          const taskLower=task.toLowerCase();
+          if(taskLower.includes("scada")||taskLower.includes("hmi")){taskCategory="Software";taskType=taskLower.includes("hmi")?"HMI Development":"SCADA Development";}
+          else if(taskLower.includes("database")){taskCategory="Software";taskType="OPC Configuration";}
+          else if(taskLower.includes("plc")||taskLower.includes("program")){taskCategory="Software";taskType="PLC Programming";}
+          else if(taskLower.includes("engineer")||taskLower.includes("design")){taskCategory="Engineering";taskType="Detailed Engineering";}
+          else if(taskLower.includes("commission")){taskCategory="Commissioning";taskType="System Integration Test";}
+          else if(taskLower.includes("doc")||taskLower.includes("fds")||taskLower.includes("report")){taskCategory="Documentation";taskType="Technical Writing";}
+          else if(taskLower.includes("meeting")||taskLower.includes("project")){taskCategory="Project Mgmt";taskType="Client Meeting";}
+
+          const activity=taskDetails||(task+(projName?` on ${projName}`:""));
+
+          const {error}=await supabase.from("time_entries").insert({
+            engineer_id:eng.id,
+            project_id: proj?.id||null,
+            date:dateStr, hours,
+            task_category:taskCategory, task_type:taskType,
+            activity, entry_type:"work",
+            billable:proj?.billable||false,
+          });
+          if(!error) inserted++;
+          else skipped++;
+        }
+        addLog("ok",`  ✓ Imported ${inserted} entries (${skipped} skipped)`);
+        if(inserted>0) addLog("warn","  ⚠ Check entries without matched projects — assign projects manually");
+      }catch(err){
+        addLog("error",`  ✕ Error reading file: ${err.message}`);
+      }
+    }
+    addLog("info","✅ Import complete — refreshing data...");
+    await loadAll();
+    setImporting(false);
   };
 
   /* ── PROJECT CRUD ── */
@@ -631,6 +777,7 @@ export default function App(){
     ...(canReport?[{id:"reports",icon:"⊞",label:"Reports & PDF"}]:[]),
     ...(isAdmin||role==="lead"?[{id:"admin",icon:"⚙",label:isAdmin?"Admin Panel":"Lead Panel"}]:[]),
     {id:"mysettings",icon:"☰",label:"My Settings"},
+    ...(isAdmin?[{id:"import",icon:"⬆",label:"Import Excel"}]:[]),
   ];
 
   return(
@@ -884,7 +1031,7 @@ export default function App(){
                                   </>}
                               </div>
                               {canEdit&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
-                                <button className="be" style={{padding:"1px 4px",fontSize:9}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type})}>✎</button>
+                                <button className="be" style={{padding:"1px 4px",fontSize:9}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
                                 <button className="bd" style={{padding:"1px 4px",fontSize:9}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
                               </div>}
                             </div>
@@ -903,14 +1050,26 @@ export default function App(){
 
               {/* Full month table */}
               <div style={{marginTop:22}}>
-                <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa",marginBottom:10}}>Full Month — {MONTHS[month]} {year}</h3>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Full Month — {MONTHS[month]} {year}</h3>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <select style={{fontSize:11,padding:"4px 8px",width:"auto"}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
+                      <option value="ALL">All Projects</option>
+                      {projects.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
+                    </select>
+                    {filterProject!=="ALL"&&<button className="bg" style={{fontSize:10,padding:"4px 8px"}} onClick={()=>setFilterProject("ALL")}>✕ Clear</button>}
+                    <span style={{fontSize:10,color:"#253a52",fontFamily:"'IBM Plex Mono',monospace"}}>
+                      {monthEntries.filter(e=>e.engineer_id===viewEngId&&(filterProject==="ALL"||e.project_id===filterProject)).reduce((s,e)=>s+e.hours,0)}h total
+                    </span>
+                  </div>
+                </div>
                 <div className="card">
                   <table>
                     <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th><th>Type</th><th style={{width:80}}>Actions</th></tr></thead>
                     <tbody>
-                      {monthEntries.filter(e=>e.engineer_id===viewEngId).length===0&&
+                      {monthEntries.filter(e=>e.engineer_id===viewEngId&&(filterProject==="ALL"||e.project_id===filterProject)).length===0&&
                         <tr><td colSpan={7} style={{textAlign:"center",color:"#253a52",padding:20}}>No entries for {MONTHS[month]} {year}</td></tr>}
-                      {monthEntries.filter(e=>e.engineer_id===viewEngId).sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
+                      {monthEntries.filter(e=>e.engineer_id===viewEngId&&(filterProject==="ALL"||e.project_id===filterProject)).sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
                         return(
                           <tr key={e.id}>
@@ -921,7 +1080,7 @@ export default function App(){
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{e.hours}h</td>
                             <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
                             {canEdit&&<td><div style={{display:"flex",gap:5}}>
-                              <button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type})}>✎</button>
+                              <button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
                               <button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
                             </div></td>}
                           </tr>
@@ -983,19 +1142,93 @@ export default function App(){
           )}
 
           {/* ════ TEAM ════ */}
-          {view==="team"&&(
+          {view==="team"&&(()=>{
+            const filteredTeam=filterEngineer==="ALL"?engStats:engStats.filter(e=>e.id===+filterEngineer);
+            const teamMonthEntries=monthEntries.filter(e=>filterProject==="ALL"||e.project_id===filterProject);
+            const selectedEng=filterEngineer!=="ALL"?engStats.find(e=>e.id===+filterEngineer):null;
+            return(
             <div>
-              <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff",marginBottom:18}}>Team — {engineers.length} Members</h1>
+              {/* Filter bar */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:18}}>
+                <div>
+                  <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Team</h1>
+                  <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{engineers.length} members · {MONTHS[month]} {year}</p>
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+                  <div><Lbl>Engineer</Lbl>
+                    <select style={{width:160}} value={filterEngineer} onChange={e=>setFilterEngineer(e.target.value)}>
+                      <option value="ALL">All Engineers</option>
+                      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+                    </select>
+                  </div>
+                  <div><Lbl>Project</Lbl>
+                    <select style={{width:160}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
+                      <option value="ALL">All Projects</option>
+                      {projects.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
+                    </select>
+                  </div>
+                  {(filterEngineer!=="ALL"||filterProject!=="ALL")&&
+                    <button className="bg" style={{fontSize:11}} onClick={()=>{setFilterEngineer("ALL");setFilterProject("ALL");}}>✕ Clear Filters</button>}
+                </div>
+              </div>
+
+              {/* Individual detail view when one engineer selected */}
+              {selectedEng&&(
+                <div className="card" style={{marginBottom:16}}>
+                  <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:14}}>
+                    <div className="av" style={{width:50,height:50,fontSize:15}}>{selectedEng.name?.slice(0,2).toUpperCase()}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:17,fontWeight:700}}>{selectedEng.name}</div>
+                      <div style={{fontSize:12,color:"#2e4a66"}}>{selectedEng.role} · {selectedEng.level}</div>
+                      <span className="role-badge" style={{background:ROLE_COLORS[selectedEng.role_type]+"20",color:ROLE_COLORS[selectedEng.role_type]||"#4e6479",marginTop:4,display:"inline-block"}}>{ROLE_LABELS[selectedEng.role_type]}</span>
+                    </div>
+                    <div style={{display:"flex",gap:20,textAlign:"center"}}>
+                      {[
+                        {l:"Work Hrs",v:selectedEng.workHrs+"h",c:"#38bdf8"},
+                        {l:"Utilization",v:fmtPct(selectedEng.utilization),c:selectedEng.utilization>=80?"#34d399":selectedEng.utilization>=60?"#fb923c":"#f87171"},
+                        {l:"Leave Days",v:selectedEng.leaveDays+"d",c:"#fb923c"},
+                        ...(isAdmin||isAcct?[{l:"Revenue",v:fmtCurrency(selectedEng.revenue),c:"#a78bfa"}]:[]),
+                      ].map((s,i)=>(
+                        <div key={i} style={{background:"#060e1c",borderRadius:6,padding:"8px 16px"}}>
+                          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:s.c}}>{s.v}</div>
+                          <div style={{fontSize:9,color:"#253a52"}}>{s.l}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Project breakdown for selected engineer */}
+                  <table>
+                    <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th></tr></thead>
+                    <tbody>
+                      {teamMonthEntries.filter(e=>e.engineer_id===selectedEng.id&&e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
+                        const p=projects.find(x=>x.id===e.project_id);
+                        return<tr key={e.id}>
+                          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>{e.date}</td>
+                          <td style={{fontSize:11,color:"#38bdf8"}}>{p?.id||<span style={{color:"#7a8faa"}}>—</span>}</td>
+                          <td style={{fontSize:11,color:"#7a8faa"}}>{e.task_type||"—"}</td>
+                          <td style={{fontSize:11,color:"#4e6479",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#38bdf8"}}>{e.hours}h</td>
+                        </tr>;
+                      })}
+                      {teamMonthEntries.filter(e=>e.engineer_id===selectedEng.id&&e.entry_type==="work").length===0&&
+                        <tr><td colSpan={5} style={{textAlign:"center",color:"#253a52",padding:16}}>No work entries</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Cards grid */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
-                {engStats.map(eng=>(
-                  <div key={eng.id} className="card" style={{textAlign:"center"}}>
+                {filteredTeam.map(eng=>(
+                  <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",border:filterEngineer===String(eng.id)?"1px solid #38bdf8":"1px solid #192d47"}}
+                    onClick={()=>setFilterEngineer(filterEngineer===String(eng.id)?"ALL":String(eng.id))}>
                     <div className="av" style={{width:44,height:44,fontSize:13,margin:"0 auto 8px"}}>{eng.name?.slice(0,2).toUpperCase()}</div>
                     <div style={{fontSize:13,fontWeight:600}}>{eng.name}</div>
                     <div style={{fontSize:10,color:"#2e4a66",marginBottom:4}}>{eng.role}</div>
                     <div style={{marginBottom:8}}><span className="role-badge" style={{background:ROLE_COLORS[eng.role_type]+"20",color:ROLE_COLORS[eng.role_type]||"#4e6479"}}>{ROLE_LABELS[eng.role_type]||eng.role_type}</span></div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:7}}>
                       <div style={{background:"#060e1c",borderRadius:5,padding:"6px 4px"}}>
-                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:"#38bdf8"}}>{eng.workHrs}h</div>
+                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:"#38bdf8"}}>{(filterProject==="ALL"?eng.workHrs:teamMonthEntries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0))}h</div>
                         <div style={{fontSize:9,color:"#253a52"}}>work hrs</div>
                       </div>
                       <div style={{background:"#060e1c",borderRadius:5,padding:"6px 4px"}}>
@@ -1013,7 +1246,7 @@ export default function App(){
                 ))}
               </div>
             </div>
-          )}
+          );})()}
 
           {/* ════ REPORTS ════ */}
           {view==="reports"&&canReport&&(
@@ -1437,7 +1670,7 @@ export default function App(){
                                 <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{e.hours}h</td>
                                 <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
                                 {canEditAny&&<td><div style={{display:"flex",gap:4}}>
-                                  <button className="be" style={{fontSize:10}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type})}>✎</button>
+                                  <button className="be" style={{fontSize:10}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
                                   <button className="bd" style={{fontSize:10}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
                                 </div></td>}
                               </tr>
@@ -1526,6 +1759,93 @@ export default function App(){
             </div>
           )}
 
+
+          {/* ════ IMPORT EXCEL ════ */}
+          {view==="import"&&isAdmin&&(
+            <div>
+              {/* Load SheetJS on mount */}
+              {!window._XLSX&&(()=>{
+                const s=document.createElement("script");
+                s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+                s.onload=()=>{window._XLSX=window.XLSX;};
+                document.head.appendChild(s);
+              })()}
+              <div style={{marginBottom:20}}>
+                <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Import Excel Timesheets</h1>
+                <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>Upload ENEVOEGY timesheet files · Engineers are created automatically if not found</p>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+                {/* Upload panel */}
+                <div>
+                  <div className="card" style={{marginBottom:14}}>
+                    <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:12}}>📂 Upload Timesheet Files</h3>
+                    <div style={{border:"2px dashed #192d47",borderRadius:8,padding:"28px",textAlign:"center",marginBottom:14,cursor:"pointer",transition:"border-color .2s"}}
+                      onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="#38bdf8";}}
+                      onDragLeave={e=>{e.currentTarget.style.borderColor="#192d47";}}
+                      onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor="#192d47";const f=[...e.dataTransfer.files].filter(f=>f.name.endsWith(".xlsx")||f.name.endsWith(".xls"));setImportFiles(prev=>[...prev,...f]);}}
+                      onClick={()=>document.getElementById("xlsxInput").click()}>
+                      <div style={{fontSize:32,marginBottom:8}}>📊</div>
+                      <div style={{fontSize:13,fontWeight:600,color:"#f0f6ff",marginBottom:4}}>Drop .xlsx files here or click to browse</div>
+                      <div style={{fontSize:11,color:"#2e4a66"}}>Supports ENEVOEGY timesheet format · Multiple files at once</div>
+                      <input id="xlsxInput" type="file" accept=".xlsx,.xls" multiple style={{display:"none"}}
+                        onChange={e=>setImportFiles(prev=>[...prev,...Array.from(e.target.files)])}/>
+                    </div>
+                    {importFiles.length>0&&(
+                      <div>
+                        <div style={{fontSize:11,color:"#7a8faa",marginBottom:8,fontWeight:700}}>{importFiles.length} FILE{importFiles.length>1?"S":""} QUEUED:</div>
+                        {importFiles.map((f,i)=>(
+                          <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#060e1c",borderRadius:5,padding:"7px 10px",marginBottom:5}}>
+                            <div>
+                              <div style={{fontSize:12,fontWeight:600}}>{f.name}</div>
+                              <div style={{fontSize:10,color:"#2e4a66"}}>{(f.size/1024).toFixed(1)} KB</div>
+                            </div>
+                            <button className="bd" style={{fontSize:10}} onClick={()=>setImportFiles(prev=>prev.filter((_,j)=>j!==i))}>✕</button>
+                          </div>
+                        ))}
+                        <div style={{display:"flex",gap:10,marginTop:12}}>
+                          <button className="bp" style={{flex:1,justifyContent:"center"}} disabled={importing} onClick={()=>importTimesheets(importFiles)}>
+                            {importing?"⏳ Importing...":"⬆ Import All Files"}
+                          </button>
+                          <button className="bg" onClick={()=>{setImportFiles([]);setImportLog([]);}}>Clear</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="card">
+                    <h3 style={{fontSize:12,fontWeight:700,color:"#f0f6ff",marginBottom:10}}>📋 What Gets Imported</h3>
+                    {[
+                      ["👤","Engineer","Created automatically from Name + Email in the sheet header"],
+                      ["⏱","Work Hours","Daily task + hours + project mapped to entries"],
+                      ["✈","Leave Days","Public holidays and leave days detected automatically"],
+                      ["◈","Projects","Matched by project name — assign missing ones after import"],
+                      ["🔤","Task Types","Auto-detected from task description (SCADA, HMI, PLC, etc.)"],
+                    ].map(([icon,label,desc])=>(
+                      <div key={label} style={{display:"flex",gap:10,marginBottom:10}}>
+                        <div style={{fontSize:16,width:24,flexShrink:0}}>{icon}</div>
+                        <div><div style={{fontSize:12,fontWeight:600}}>{label}</div><div style={{fontSize:11,color:"#2e4a66",lineHeight:1.5}}>{desc}</div></div>
+                      </div>
+                    ))}
+                    <div style={{background:"#1a0a00",border:"1px solid #fb923c30",borderRadius:6,padding:"9px 12px",fontSize:11,color:"#fb923c",marginTop:8}}>
+                      ⚠ After importing, go to Admin → All Entries to review and assign project numbers to any unmatched entries.
+                    </div>
+                  </div>
+                </div>
+                {/* Log panel */}
+                <div className="card" style={{maxHeight:600,overflowY:"auto"}}>
+                  <h3 style={{fontSize:12,fontWeight:700,color:"#f0f6ff",marginBottom:12}}>📋 Import Log</h3>
+                  {importLog.length===0&&<div style={{color:"#253a52",fontSize:12,textAlign:"center",padding:30}}>No import started yet</div>}
+                  {importLog.map((entry,i)=>(
+                    <div key={i} style={{display:"flex",gap:8,marginBottom:5,fontSize:11,padding:"4px 0",borderBottom:"1px solid #0d1a2d"}}>
+                      <span style={{width:8,height:8,borderRadius:"50%",marginTop:4,flexShrink:0,background:entry.type==="ok"?"#34d399":entry.type==="error"?"#f87171":entry.type==="warn"?"#fb923c":"#38bdf8"}}/>
+                      <span style={{color:entry.type==="ok"?"#34d399":entry.type==="error"?"#f87171":entry.type==="warn"?"#fb923c":"#7a8faa",lineHeight:1.4}}>{entry.msg}</span>
+                    </div>
+                  ))}
+                  {importing&&<div style={{textAlign:"center",padding:10,color:"#38bdf8",fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>Processing…</div>}
+                </div>
+              </div>
+            </div>
+          )}
+
           </>}
         </div>
       </div>
@@ -1609,13 +1929,13 @@ export default function App(){
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <div><Lbl>Task Category</Lbl>
-                    <select value={editEntry.task_category||"Engineering"} onChange={e=>setEditEntry(p=>({...p,task_category:e.target.value,task_type:TASK_CATEGORIES[e.target.value][0]}))}>
+                    <select value={editEntry.taskCategory||editEntry.task_category||"Engineering"} onChange={e=>setEditEntry(p=>({...p,taskCategory:e.target.value,taskType:TASK_CATEGORIES[e.target.value][0]}))}>
                       {Object.keys(TASK_CATEGORIES).map(c=><option key={c}>{c}</option>)}
                     </select>
                   </div>
                   <div><Lbl>Task Type</Lbl>
-                    <select value={editEntry.task_type||""} onChange={e=>setEditEntry(p=>({...p,task_type:e.target.value}))}>
-                      {(TASK_CATEGORIES[editEntry.task_category||"Engineering"]||[]).map(t=><option key={t}>{t}</option>)}
+                    <select value={editEntry.taskType||editEntry.task_type||""} onChange={e=>setEditEntry(p=>({...p,taskType:e.target.value}))}>
+                      {(TASK_CATEGORIES[editEntry.taskCategory||editEntry.task_category||"Engineering"]||[]).map(t=><option key={t}>{t}</option>)}
                     </select>
                   </div>
                 </div>
@@ -1625,7 +1945,7 @@ export default function App(){
                 </div>
               </>:(
                 <div><Lbl>Leave Type</Lbl>
-                  <select value={editEntry.leave_type||LEAVE_TYPES[0]} onChange={e=>setEditEntry(p=>({...p,leave_type:e.target.value}))}>
+                  <select value={editEntry.leaveType||editEntry.leave_type||LEAVE_TYPES[0]} onChange={e=>setEditEntry(p=>({...p,leaveType:e.target.value}))}>
                     {LEAVE_TYPES.map(t=><option key={t}>{t}</option>)}
                   </select>
                 </div>
