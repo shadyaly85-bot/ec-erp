@@ -317,11 +317,12 @@ export default function App(){
   const isAdmin   = role==="admin";
   const isLead    = role==="lead"||role==="admin";
   const isAcct    = role==="accountant"||role==="admin";
-  const canEdit   = isLead; // admin + lead can edit entries
+  const canEditAny= isLead; // admin + lead can edit any engineer's entries
+  const canEdit   = true;   // everyone can edit/delete their own entries
   const canReport = isLead||isAcct; // admin + lead + accountant can see reports
   const canInvoice= isAcct; // admin + accountant can see invoices
 
-  const viewEngId = canEdit ? (browseEngId||myProfile?.id) : myProfile?.id;
+  const viewEngId = canEditAny ? (browseEngId||myProfile?.id) : myProfile?.id;
   const viewEng   = engineers.find(e=>e.id===viewEngId);
 
   /* ── AUTH ── */
@@ -378,7 +379,7 @@ export default function App(){
   const addEntry=async date=>{
     if(!isDateAllowed(date)){showToast("Cannot post hours outside the allowed date range",false);return;}
     const proj=projects.find(p=>p.id===newEntry.projectId);
-    const engId=canEdit?viewEngId:myProfile.id;
+    const engId=canEditAny?viewEngId:myProfile.id;
     const payload={
       engineer_id:engId,
       project_id: newEntry.type==="leave"?null:newEntry.projectId,
@@ -400,7 +401,9 @@ export default function App(){
   };
 
   const saveEditEntry=async()=>{
-    if(!editEntry||!canEdit) return;
+    if(!editEntry) return;
+    // Engineers can only edit own entries; lead/admin can edit any
+    if(!canEditAny && editEntry.engineer_id !== myProfile?.id) { showToast("You can only edit your own entries",false); return; }
     const proj=projects.find(p=>p.id===editEntry.projectId);
     const payload={
       project_id:   editEntry.type==="leave"?null:editEntry.projectId,
@@ -419,8 +422,8 @@ export default function App(){
     setEditEntry(null); showToast("Entry updated ✓");
   };
 
-  const deleteEntry=async id=>{
-    if(!canEdit) return;
+  const deleteEntry=async(id, engineerId)=>{
+    if(!canEditAny && engineerId !== myProfile?.id) { showToast("You can only delete your own entries",false); return; }
     if(!window.confirm("Delete this entry?")) return;
     const {error}=await supabase.from("time_entries").delete().eq("id",id);
     if(error){showToast("Error",false);return;}
@@ -627,7 +630,7 @@ export default function App(){
     {id:"team",     icon:"◉",label:"Team"},
     ...(canReport?[{id:"reports",icon:"⊞",label:"Reports & PDF"}]:[]),
     ...(isAdmin||role==="lead"?[{id:"admin",icon:"⚙",label:isAdmin?"Admin Panel":"Lead Panel"}]:[]),
-    ...(!canReport&&!isAdmin?[{id:"mysettings",icon:"☰",label:"My Settings"}]:[]),
+    {id:"mysettings",icon:"☰",label:"My Settings"},
   ];
 
   return(
@@ -800,7 +803,7 @@ export default function App(){
                   </p>
                 </div>
                 <div style={{display:"flex",gap:12,alignItems:"flex-end"}}>
-                  {canEdit&&(
+                  {canEditAny&&(
                     <div><Lbl>Browse Engineer</Lbl>
                       <select style={{width:190}} value={viewEngId||""} onChange={e=>setBrowseEngId(+e.target.value)}>
                         {engineers.map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
@@ -882,7 +885,7 @@ export default function App(){
                               </div>
                               {canEdit&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
                                 <button className="be" style={{padding:"1px 4px",fontSize:9}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type})}>✎</button>
-                                <button className="bd" style={{padding:"1px 4px",fontSize:9}} onClick={()=>deleteEntry(e.id)}>✕</button>
+                                <button className="bd" style={{padding:"1px 4px",fontSize:9}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
                               </div>}
                             </div>
                             <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
@@ -903,7 +906,7 @@ export default function App(){
                 <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa",marginBottom:10}}>Full Month — {MONTHS[month]} {year}</h3>
                 <div className="card">
                   <table>
-                    <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th><th>Type</th>{canEdit&&<th style={{width:80}}>Actions</th>}</tr></thead>
+                    <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th><th>Type</th><th style={{width:80}}>Actions</th></tr></thead>
                     <tbody>
                       {monthEntries.filter(e=>e.engineer_id===viewEngId).length===0&&
                         <tr><td colSpan={7} style={{textAlign:"center",color:"#253a52",padding:20}}>No entries for {MONTHS[month]} {year}</td></tr>}
@@ -919,7 +922,7 @@ export default function App(){
                             <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
                             {canEdit&&<td><div style={{display:"flex",gap:5}}>
                               <button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type})}>✎</button>
-                              <button className="bd" onClick={()=>deleteEntry(e.id)}>✕</button>
+                              <button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
                             </div></td>}
                           </tr>
                         );
@@ -1433,10 +1436,10 @@ export default function App(){
                                 <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                                 <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{e.hours}h</td>
                                 <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
-                                <td><div style={{display:"flex",gap:4}}>
+                                {canEditAny&&<td><div style={{display:"flex",gap:4}}>
                                   <button className="be" style={{fontSize:10}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type})}>✎</button>
-                                  <button className="bd" style={{fontSize:10}} onClick={()=>deleteEntry(e.id)}>✕</button>
-                                </div></td>
+                                  <button className="bd" style={{fontSize:10}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
+                                </div></td>}
                               </tr>
                             );
                           })}
@@ -1475,7 +1478,7 @@ export default function App(){
           )}
 
           {/* ════ MY SETTINGS (engineer only) ════ */}
-          {(view==="mysettings"||(view==="admin"&&!isAdmin&&role!=="lead"))&&(
+          {view==="mysettings"&&(
             <div>
               <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff",marginBottom:20}}>My Settings</h1>
               <div className="card" style={{maxWidth:480}}>
