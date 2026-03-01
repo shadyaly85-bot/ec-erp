@@ -1750,9 +1750,6 @@ export default function App(){
           {toast.ok?"✓":"✕"} {toast.msg}
         </div>
       )}
-      </div>
-      </div>
-      </div>
     </div>
   );
 }
