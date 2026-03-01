@@ -146,11 +146,12 @@ function buildTimesheetPDF(eng, monthEntries, projects, m, y){
 }
 
 /* ─── INVOICE PDF ─── */
-function buildInvoicePDF(projects, entries, engineers, m, y){
-  const billableProjs=projects.filter(p=>p.billable);
+// filterId: undefined = all projects, or a specific project id
+function buildInvoicePDF(projects, entries, engineers, m, y, filterId){
+  const billableProjs=projects.filter(p=>p.billable&&(!filterId||p.id===filterId));
   const monthE=entries.filter(e=>{const d=new Date(e.date);return d.getFullYear()===y&&d.getMonth()===m&&e.entry_type==="work"&&e.billable;});
   const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-  const invoiceNo=`INV-${y}-${String(m+1).padStart(2,"0")}`;
+  const invoiceNo=filterId?`INV-${y}-${String(m+1).padStart(2,"0")}-${filterId}`:`INV-${y}-${String(m+1).padStart(2,"0")}`;
 
   const projInvoice=billableProjs.map(p=>{
     const pe=monthE.filter(e=>e.project_id===p.id);
@@ -288,6 +289,7 @@ export default function App(){
   const [editEntry,setEditEntry]     = useState(null);
   const [activeRpt,setActiveRpt]     = useState("utilization");
   const [rptEngId,setRptEngId]       = useState(null); // for individual timesheet export
+  const [invoiceProjId,setInvoiceProjId] = useState("ALL"); // ALL or specific project id
   const [showProjModal,setShowProjModal]   = useState(false);
   const [editProjModal,setEditProjModal]   = useState(null);
   const [showEngModal,setShowEngModal]     = useState(false);
@@ -1036,20 +1038,52 @@ export default function App(){
 
               {/* Individual timesheet export */}
               {activeRpt==="individual"&&(
-                <div className="card">
-                  <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa",marginBottom:14}}>Individual Monthly Timesheet — {MONTHS[month]} {year}</h3>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"flex-end",marginBottom:18}}>
-                    <div><Lbl>Select Engineer</Lbl>
-                      <select value={rptEngId||""} onChange={e=>setRptEngId(+e.target.value)}>
-                        <option value="">— Select Engineer —</option>
-                        {engineers.map(e=><option key={e.id} value={e.id}>{e.name} · {e.role}</option>)}
-                      </select>
+                <div>
+                  <div className="card" style={{marginBottom:14}}>
+                    <h3 style={{fontSize:13,fontWeight:600,color:"#f0f6ff",marginBottom:14}}>👤 Timesheet Export — {MONTHS[month]} {year}</h3>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:12,alignItems:"flex-end",marginBottom:6}}>
+                      <div><Lbl>Select Engineer (or export all)</Lbl>
+                        <select value={rptEngId||"ALL"} onChange={e=>setRptEngId(e.target.value==="ALL"?null:+e.target.value)}>
+                          <option value="ALL">📋 All Engineers (separate PDFs)</option>
+                          {engineers.map(e=><option key={e.id} value={e.id}>{e.name} · {e.role}</option>)}
+                        </select>
+                      </div>
+                      <button className="bp" onClick={()=>{
+                        if(!rptEngId){
+                          // Export all engineers one by one
+                          engineers.forEach((eng,i)=>setTimeout(()=>buildTimesheetPDF(eng,monthEntries,projects,month,year),i*600));
+                          showToast(`Exporting ${engineers.length} timesheets — check your browser tabs`);
+                        } else {
+                          const eng=engineers.find(e=>e.id===rptEngId);
+                          if(eng) buildTimesheetPDF(eng,monthEntries,projects,month,year);
+                        }
+                      }}>⬇ Export PDF{!rptEngId?" (All)":""}</button>
                     </div>
-                    <button className="bp" disabled={!rptEngId} onClick={()=>{
-                      const eng=engineers.find(e=>e.id===rptEngId);
-                      if(eng) buildTimesheetPDF(eng,monthEntries,projects,month,year);
-                    }}>⬇ Export PDF</button>
+                    <div style={{fontSize:11,color:"#2e4a66"}}>
+                      {!rptEngId?"Will open one PDF per engineer in separate browser tabs — allow popups if prompted":"Select an engineer above to preview their timesheet"}
+                    </div>
                   </div>
+                  <div className="card">
+                  <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:14}}>{rptEngId?"Timesheet Preview":"All Engineers Summary"}</h3>
+                  {!rptEngId&&(
+                    <table>
+                      <thead><tr><th>Engineer</th><th>Role</th><th>Work Hrs</th><th>Projects</th><th>Leave Days</th><th>Quick Export</th></tr></thead>
+                      <tbody>{engineers.map(eng=>{
+                        const ee=monthEntries.filter(e=>e.engineer_id===eng.id);
+                        const wh=ee.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
+                        const ld=ee.filter(e=>e.entry_type==="leave").length;
+                        const prjs=[...new Set(ee.filter(e=>e.entry_type==="work").map(e=>e.project_id))].length;
+                        return<tr key={eng.id}>
+                          <td><div style={{display:"flex",alignItems:"center",gap:7}}><div className="av" style={{fontSize:9,width:24,height:24}}>{eng.name?.slice(0,2).toUpperCase()}</div><span style={{fontWeight:500}}>{eng.name}</span></div></td>
+                          <td style={{fontSize:11,color:"#7a8faa"}}>{eng.role}</td>
+                          <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{wh}h</td>
+                          <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{prjs}</td>
+                          <td style={{color:ld>0?"#fb923c":"#253a52"}}>{ld}</td>
+                          <td><button className="be" style={{fontSize:11}} onClick={()=>buildTimesheetPDF(eng,monthEntries,projects,month,year)}>⬇ PDF</button></td>
+                        </tr>;
+                      })}</tbody>
+                    </table>
+                  )}
                   {rptEngId&&(()=>{
                     const eng=engineers.find(e=>e.id===rptEngId);
                     const engEntries=monthEntries.filter(e=>e.engineer_id===rptEngId);
@@ -1066,7 +1100,6 @@ export default function App(){
                               <div key={i}><div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c}}>{s.v}</div><div style={{fontSize:9,color:"#253a52"}}>{s.l}</div></div>
                             ))}
                           </div>
-                        </div>
                         <table>
                           <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th></tr></thead>
                           <tbody>{engEntries.filter(e=>e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
@@ -1150,40 +1183,77 @@ export default function App(){
               )}
 
               {/* Invoice */}
-              {activeRpt==="invoice"&&canInvoice&&(
-                <div className="card">
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                    <div>
-                      <h3 style={{fontSize:13,fontWeight:600,color:"#f0f6ff"}}>Invoice — {MONTHS[month]} {year}</h3>
-                      <p style={{fontSize:11,color:"#2e4a66",marginTop:3}}>Billable hours consolidated into an invoice document</p>
+              {activeRpt==="invoice"&&canInvoice&&(()=>{
+                const billableActive=projStats.filter(p=>p.billable&&p.hours>0);
+                const filteredProjs=invoiceProjId==="ALL"?billableActive:billableActive.filter(p=>p.id===invoiceProjId);
+                const invTotal=filteredProjs.reduce((s,p)=>s+p.revenue,0);
+                const invHrs=filteredProjs.reduce((s,p)=>s+p.hours,0);
+                return(
+                <div>
+                  {/* Invoice selector */}
+                  <div className="card" style={{marginBottom:14}}>
+                    <h3 style={{fontSize:13,fontWeight:600,color:"#f0f6ff",marginBottom:14}}>🧾 Invoice Export — {MONTHS[month]} {year}</h3>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"flex-end",marginBottom:16}}>
+                      <div><Lbl>Invoice Scope</Lbl>
+                        <select value={invoiceProjId} onChange={e=>setInvoiceProjId(e.target.value)}>
+                          <option value="ALL">📋 All Billable Projects (Combined Invoice)</option>
+                          {billableActive.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name} · {p.hours}h · {fmtCurrency(p.revenue)}</option>)}
+                        </select>
+                      </div>
+                      <button className="bp" style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)",whiteSpace:"nowrap"}}
+                        onClick={()=>buildInvoicePDF(projects,entries,engineers,month,year,invoiceProjId==="ALL"?undefined:invoiceProjId)}>
+                        🧾 Export PDF
+                      </button>
                     </div>
-                    <button className="bp" style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)"}} onClick={()=>buildInvoicePDF(projects,entries,engineers,month,year)}>🧾 Export Invoice PDF</button>
+                    {/* KPI strip */}
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+                      {[
+                        {l:invoiceProjId==="ALL"?"Total Billable":"Project Total",v:fmtCurrency(invTotal),c:"#a78bfa"},
+                        {l:"Billable Hours",v:invHrs+"h",c:"#38bdf8"},
+                        {l:invoiceProjId==="ALL"?"Projects":"Engineers",v:invoiceProjId==="ALL"?filteredProjs.length:[...new Set(entries.filter(e=>e.project_id===invoiceProjId&&new Date(e.date).getMonth()===month&&new Date(e.date).getFullYear()===year).map(e=>e.engineer_id))].length,c:"#34d399"},
+                      ].map((s,i)=><div key={i} className="metric" style={{textAlign:"center"}}>
+                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:s.c}}>{s.v}</div>
+                        <div style={{fontSize:10,color:"#2e4a66",marginTop:4}}>{s.l}</div>
+                      </div>)}
+                    </div>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
-                    {[
-                      {l:"Total Billable",v:fmtCurrency(totalRevenue),c:"#a78bfa"},
-                      {l:"Billable Hours",v:totalBillable+"h",c:"#38bdf8"},
-                      {l:"Projects Billed",v:projStats.filter(p=>p.billable&&p.hours>0).length,c:"#34d399"},
-                    ].map((s,i)=><div key={i} className="metric" style={{textAlign:"center"}}>
-                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:s.c}}>{s.v}</div>
-                      <div style={{fontSize:10,color:"#2e4a66",marginTop:4}}>{s.l}</div>
-                    </div>)}
+                  {/* Preview table */}
+                  <div className="card">
+                    <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>
+                      {invoiceProjId==="ALL"?"All Billable Projects Preview":"Project Invoice Preview"}
+                    </h3>
+                    <table>
+                      <thead><tr><th>Project No.</th><th>Name</th><th>Client</th><th>Hours</th><th>Rate</th><th>Amount</th></tr></thead>
+                      <tbody>
+                        {filteredProjs.map(p=>(
+                          <tr key={p.id} style={{cursor:"pointer"}} onClick={()=>setInvoiceProjId(p.id)}>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
+                            <td style={{fontSize:11,fontWeight:500}}>{p.name}</td>
+                            <td style={{fontSize:11,color:"#7a8faa"}}>{p.client}</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.hours}h</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#7a8faa"}}>${p.rate_per_hour}/h</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:700}}>{fmtCurrency(p.revenue)}</td>
+                          </tr>
+                        ))}
+                        {filteredProjs.length>1&&(
+                          <tr style={{background:"#0d1e34"}}>
+                            <td colSpan={3} style={{fontWeight:700,color:"#f0f6ff"}}>TOTAL</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#38bdf8"}}>{invHrs}h</td>
+                            <td></td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa",fontSize:13}}>{fmtCurrency(invTotal)}</td>
+                          </tr>
+                        )}
+                        {filteredProjs.length===0&&<tr><td colSpan={6} style={{textAlign:"center",color:"#253a52",padding:20}}>No billable hours for {MONTHS[month]} {year}</td></tr>}
+                      </tbody>
+                    </table>
+                    {invoiceProjId!=="ALL"&&billableActive.length>1&&(
+                      <div style={{marginTop:10,textAlign:"right"}}>
+                        <button className="bg" style={{fontSize:11}} onClick={()=>setInvoiceProjId("ALL")}>← Back to All Projects</button>
+                      </div>
+                    )}
                   </div>
-                  <table>
-                    <thead><tr><th>Project No.</th><th>Name</th><th>Client</th><th>Hours</th><th>Rate</th><th>Amount</th></tr></thead>
-                    <tbody>{projStats.filter(p=>p.billable&&p.hours>0).map(p=>(
-                      <tr key={p.id}>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
-                        <td style={{fontSize:11,fontWeight:500}}>{p.name}</td>
-                        <td style={{fontSize:11,color:"#7a8faa"}}>{p.client}</td>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.hours}h</td>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#7a8faa"}}>${p.rate_per_hour}/h</td>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:700}}>{fmtCurrency(p.revenue)}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
                 </div>
-              )}
+              );})()}
             </div>
           )}
 
@@ -1250,14 +1320,21 @@ export default function App(){
                           <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#152639",color:"#4e6479"}}>{eng.level}</span></td>
                           <td style={{color:"#4e6479",fontSize:11}}>{eng.email||"—"}</td>
                           <td>
-                            <select value={eng.role_type||"engineer"} style={{padding:"3px 6px",fontSize:11,width:"auto"}}
-                              onChange={async e=>{
-                                const {data}=await supabase.from("engineers").update({role_type:e.target.value}).eq("id",eng.id).select().single();
+                            <div style={{display:"flex",gap:5,alignItems:"center"}}>
+                              <select defaultValue={eng.role_type||"engineer"} id={`role-${eng.id}`}
+                                style={{padding:"3px 6px",fontSize:11,width:"auto",background:"#060e1c",border:"1px solid #192d47",color:"#dde3ef",borderRadius:4,outline:"none"}}>
+                                {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                              </select>
+                              <button className="be" style={{fontSize:10,padding:"3px 8px"}} onClick={async()=>{
+                                const sel=document.getElementById(`role-${eng.id}`);
+                                if(!sel) return;
+                                const newRole=sel.value;
+                                const {data,error}=await supabase.from("engineers").update({role_type:newRole}).eq("id",eng.id).select().single();
+                                if(error){showToast("Error: "+error.message+" — did you run fix_rls_roles.sql?",false);return;}
                                 if(data) setEngineers(prev=>prev.map(x=>x.id===data.id?data:x));
-                                showToast(`${eng.name} role updated to ${e.target.value} ✓`);
-                              }}>
-                              {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                            </select>
+                                showToast(`${eng.name} → ${ROLE_LABELS[newRole]} ✓`);
+                              }}>Save</button>
+                            </div>
                           </td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#f47218"}}>{wdStr||"—"}</td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{es?.workHrs||0}h</td>
