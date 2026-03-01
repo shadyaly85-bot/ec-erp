@@ -698,8 +698,19 @@ export default function App(){
                       </select>
                     </div>
                   )}
-                  <div><Lbl>Week of</Lbl>
-                    <input type="date" style={{width:150}} value={weekOf} onChange={e=>setWeekOf(e.target.value)}/>
+                  {/* Week navigator — no restrictions, can go past or future */}
+                  <div>
+                    <Lbl>Week</Lbl>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <button className="bg" style={{padding:"7px 10px",fontSize:13}} onClick={()=>{
+                        const d=new Date(weekOf); d.setDate(d.getDate()-7); setWeekOf(fmt(d));
+                      }}>←</button>
+                      <input type="date" style={{width:145}} value={weekOf} onChange={e=>setWeekOf(e.target.value)}/>
+                      <button className="bg" style={{padding:"7px 10px",fontSize:13}} onClick={()=>{
+                        const d=new Date(weekOf); d.setDate(d.getDate()+7); setWeekOf(fmt(d));
+                      }}>→</button>
+                      <button className="bg" style={{padding:"7px 10px",fontSize:11,whiteSpace:"nowrap"}} onClick={()=>setWeekOf(fmt(today))}>Today</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -729,14 +740,19 @@ export default function App(){
                   const de=entries.filter(e=>e.date===day&&e.engineer_id===viewEngId);
                   const dh=de.reduce((s,e)=>s+e.hours,0);
                   const lbl=new Date(day).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+                  const isToday=day===fmt(today);
+                  const isFuture=day>fmt(today);
                   return(
-                    <div key={day} className="wc" style={day===fmt(today)?{borderColor:"#0ea5e9"}:{}}>
+                    <div key={day} className="wc" style={isToday?{borderColor:"#0ea5e9"}:isFuture?{borderColor:"#a78bfa40",background:"#0a0e1f"}:{}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
                         <div>
-                          <div style={{fontSize:11,fontWeight:600,color:day===fmt(today)?"#38bdf8":"#7a8faa"}}>{lbl}</div>
+                          <div style={{fontSize:11,fontWeight:600,color:isToday?"#38bdf8":isFuture?"#a78bfa":"#7a8faa"}}>
+                            {lbl}
+                            {isFuture&&<span style={{fontSize:8,marginLeft:4,color:"#a78bfa",fontFamily:"'IBM Plex Mono',monospace"}}>FUTURE</span>}
+                          </div>
                           {dh>0&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{dh}h</div>}
                         </div>
-                        <button className="bp" style={{padding:"2px 7px",fontSize:11}} onClick={()=>setModalDate(day)}>+</button>
+                        <button className="bp" style={{padding:"2px 7px",fontSize:11,background:isFuture?"linear-gradient(135deg,#7c3aed,#6d28d9)":undefined}} onClick={()=>setModalDate(day)}>+</button>
                       </div>
                       {de.map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
