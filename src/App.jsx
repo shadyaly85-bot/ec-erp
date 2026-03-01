@@ -290,6 +290,7 @@ export default function App(){
   const [activeRpt,setActiveRpt]     = useState("utilization");
   const [rptEngId,setRptEngId]       = useState(null); // for individual timesheet export
   const [invoiceProjId,setInvoiceProjId] = useState("ALL"); // ALL or specific project id
+  const [pendingRoles,setPendingRoles]     = useState({}); // eng.id -> role_type pending save
   const [showProjModal,setShowProjModal]   = useState(false);
   const [editProjModal,setEditProjModal]   = useState(null);
   const [showEngModal,setShowEngModal]     = useState(false);
@@ -1100,6 +1101,7 @@ export default function App(){
                               <div key={i}><div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c}}>{s.v}</div><div style={{fontSize:9,color:"#253a52"}}>{s.l}</div></div>
                             ))}
                           </div>
+                        </div>
                         <table>
                           <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th></tr></thead>
                           <tbody>{engEntries.filter(e=>e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
@@ -1116,6 +1118,7 @@ export default function App(){
                       </div>
                     );
                   })()}
+                  </div>
                 </div>
               )}
 
@@ -1321,19 +1324,21 @@ export default function App(){
                           <td style={{color:"#4e6479",fontSize:11}}>{eng.email||"—"}</td>
                           <td>
                             <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                              <select defaultValue={eng.role_type||"engineer"} id={`role-${eng.id}`}
-                                style={{padding:"3px 6px",fontSize:11,width:"auto",background:"#060e1c",border:"1px solid #192d47",color:"#dde3ef",borderRadius:4,outline:"none"}}>
+                              <select value={pendingRoles[eng.id]??eng.role_type??"engineer"}
+                                style={{padding:"3px 6px",fontSize:11,width:"auto",background:"#060e1c",border:"1px solid #192d47",color:"#dde3ef",borderRadius:4,outline:"none"}}
+                                onChange={e=>setPendingRoles(p=>({...p,[eng.id]:e.target.value}))}>
                                 {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                               </select>
-                              <button className="be" style={{fontSize:10,padding:"3px 8px"}} onClick={async()=>{
-                                const sel=document.getElementById(`role-${eng.id}`);
-                                if(!sel) return;
-                                const newRole=sel.value;
-                                const {data,error}=await supabase.from("engineers").update({role_type:newRole}).eq("id",eng.id).select().single();
-                                if(error){showToast("Error: "+error.message+" — did you run fix_rls_roles.sql?",false);return;}
-                                if(data) setEngineers(prev=>prev.map(x=>x.id===data.id?data:x));
-                                showToast(`${eng.name} → ${ROLE_LABELS[newRole]} ✓`);
-                              }}>Save</button>
+                              {pendingRoles[eng.id]&&pendingRoles[eng.id]!==eng.role_type&&(
+                                <button className="be" style={{fontSize:10,padding:"3px 8px"}} onClick={async()=>{
+                                  const newRole=pendingRoles[eng.id];
+                                  const {data,error}=await supabase.from("engineers").update({role_type:newRole}).eq("id",eng.id).select().single();
+                                  if(error){showToast("RLS error — run fix_rls_roles.sql in Supabase first",false);return;}
+                                  if(data) setEngineers(prev=>prev.map(x=>x.id===data.id?data:x));
+                                  setPendingRoles(p=>{const n={...p};delete n[eng.id];return n;});
+                                  showToast(`${eng.name} → ${ROLE_LABELS[newRole]} ✓`);
+                                }}>Save</button>
+                              )}
                             </div>
                           </td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#f47218"}}>{wdStr||"—"}</td>
@@ -1745,6 +1750,9 @@ export default function App(){
           {toast.ok?"✓":"✕"} {toast.msg}
         </div>
       )}
+      </div>
+      </div>
+      </div>
     </div>
   );
 }
