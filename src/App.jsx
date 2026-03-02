@@ -386,6 +386,10 @@ export default function App(){
   const [filterProject,setFilterProject]   = useState("ALL");
   const [projSearch,setProjSearch]         = useState("");
   const [projStatusFilter,setProjStatusFilter] = useState("ALL");
+  // Dashboard filters
+  const [dashProjFilter,setDashProjFilter] = useState("ALL");
+  // Multi-select for bulk delete
+  const [selectedEntries,setSelectedEntries] = useState(new Set());
   // Import modal
   const [showImport,setShowImport]         = useState(false);
   const [importFiles,setImportFiles]       = useState([]);
@@ -631,6 +635,27 @@ export default function App(){
           addLog("info",`  → Existing engineer: ${eng.name}`);
         }
 
+        // ── Deduplication: wipe existing entries for this engineer+month before re-import ──
+        // Determine month from the sheet header (row 2 col 1)
+        let importYear=year, importMonth=month;
+        try{
+          const rawMonth=rows[2]?.[1];
+          let mDate=null;
+          if(rawMonth instanceof Date) mDate=rawMonth;
+          else if(typeof rawMonth==="number"&&rawMonth>40000) mDate=new Date(Math.round((rawMonth-25569)*86400*1000));
+          if(mDate){ importYear=mDate.getFullYear(); importMonth=mDate.getMonth(); }
+        }catch(_){}
+        const monthStart=`${importYear}-${String(importMonth+1).padStart(2,"0")}-01`;
+        const monthEnd  =`${importYear}-${String(importMonth+1).padStart(2,"0")}-31`;
+        addLog("info",`  🗑 Clearing existing entries for ${eng.name} in ${MONTHS[importMonth]} ${importYear}…`);
+        const {error:delErr}=await supabase.from("time_entries")
+          .delete()
+          .eq("engineer_id",eng.id)
+          .gte("date",monthStart)
+          .lte("date",monthEnd);
+        if(delErr) addLog("warn",`  ⚠ Could not clear old entries: ${delErr.message}`);
+        else addLog("ok",`  ✓ Old entries cleared`);
+
         // Parse rows starting at index 4 (0-based), row 3 is header
         let inserted=0, skipped=0, leaveCnt=0;
         for(let i=4;i<rows.length;i++){
@@ -669,17 +694,25 @@ export default function App(){
           const projName=String(row[4]||"").trim();
           const taskDetails=String(row[5]||"").trim();
 
-          const projLower=projName.toLowerCase();
-          const isWeekend=projLower==="weekend"||(!task&&!hoursRaw&&!projName);
-          const isHoliday=taskDetails.toLowerCase().includes("holiday")&&!task&&!hoursRaw;
-          const isLeave=!task&&!projName&&!hoursRaw&&!isWeekend;
-
-          if(isWeekend) continue;
-
+          const projLower=projName.toLowerCase().trim();
+          const detailsLower=taskDetails.toLowerCase().trim();
           const hours=typeof hoursRaw==="number"?hoursRaw:parseFloat(String(hoursRaw||"0"));
 
-          if(isHoliday||isLeave||(taskDetails.toLowerCase().includes("holiday")&&hours===0)){
-            const lvType=taskDetails.toLowerCase().includes("holiday")?"Public Holiday":"Annual Leave";
+          // ── Classify the row ──
+          // Weekend: project column says "Weekend"
+          const isWeekend=projLower==="weekend";
+          if(isWeekend) continue;
+
+          // Public holiday: task details contains "holiday" AND no work hours
+          const isPublicHoliday=detailsLower.includes("holiday")&&!task&&(isNaN(hours)||hours===0);
+
+          // Vacation / annual leave: all of task, hours, project are empty (not weekend)
+          // This handles Khaled's empty rows on his off-days
+          const isEmpty=!task&&(!hoursRaw||hours===0)&&!projName;
+          const isVacation=isEmpty&&!isPublicHoliday;
+
+          if(isPublicHoliday||isVacation){
+            const lvType=isPublicHoliday?"Public Holiday":"Annual Leave";
             const {error:lErr}=await supabase.from("time_entries").insert({
               engineer_id:eng.id,date:dateStr,hours:8,
               entry_type:"leave",leave_type:lvType,billable:false
@@ -689,7 +722,8 @@ export default function App(){
             continue;
           }
 
-          if(!task||hours<=0||!projName) continue;
+          // Skip rows with no work data
+          if(!task||isNaN(hours)||hours<=0||!projName) continue;
 
           // Find or auto-create project
           const proj=await findOrCreateProject(projName);
@@ -729,6 +763,17 @@ export default function App(){
     addLog("info","✅ All files processed — refreshing...");
     await loadAll();
     setImporting(false);
+  };
+
+  const bulkDeleteEntries=async()=>{
+    if(selectedEntries.size===0) return;
+    if(!window.confirm(`Delete ${selectedEntries.size} selected entries?`)) return;
+    const ids=[...selectedEntries];
+    const {error}=await supabase.from("time_entries").delete().in("id",ids);
+    if(error){showToast("Error: "+error.message,false);return;}
+    setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id)));
+    setSelectedEntries(new Set());
+    showToast(`Deleted ${ids.length} entries`);
   };
 
   /* ── PROJECT CRUD ── */
@@ -1049,14 +1094,51 @@ export default function App(){
                 </>;
               })()}
               {/* Admin/Lead/Accountant see full team dashboard */}
-              {(isAdmin||isAcct||isLead)&&<>
-              <div style={{display:"grid",gridTemplateColumns:`repeat(${isAdmin||isAcct?5:3},1fr)`,gap:11,marginBottom:18}}>
+              {(isAdmin||isAcct||isLead)&&(()=>{
+                // Filtered entries for dashboard
+                const dEntries=dashProjFilter==="ALL"?monthEntries:monthEntries.filter(e=>e.project_id===dashProjFilter);
+                const dWork=dEntries.filter(e=>e.entry_type==="work");
+                const dBill=dWork.filter(e=>e.billable);
+                const dNonBill=dWork.filter(e=>!e.billable);
+                const dWorkHrs=dWork.reduce((s,e)=>s+e.hours,0);
+                const dBillHrs=dBill.reduce((s,e)=>s+e.hours,0);
+                const dNonHrs=dNonBill.reduce((s,e)=>s+e.hours,0);
+                const dRevenue=dBill.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p?.rate_per_hour||0)*e.hours;},0);
+                const dBillPct=dWorkHrs?Math.round(dBillHrs/dWorkHrs*100):0;
+                const dLeave=dEntries.filter(e=>e.entry_type==="leave").length;
+                return<>
+              {/* Month + Project filter bar */}
+              <div style={{display:"flex",gap:10,alignItems:"flex-end",marginBottom:16,background:"#060e1c",borderRadius:8,padding:"10px 14px",border:"1px solid #192d47"}}>
+                <div style={{marginRight:"auto"}}>
+                  <div style={{fontSize:10,color:"#2e4a66",fontWeight:700,marginBottom:4}}>MONTH</div>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <button style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#dde3ef",cursor:"pointer",fontSize:11}} onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}}>←</button>
+                    <select value={month} onChange={e=>setMonth(+e.target.value)} style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                      {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+                    </select>
+                    <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                      {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+                    </select>
+                    <button style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#dde3ef",cursor:"pointer",fontSize:11}} onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}>→</button>
+                  </div>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:"#2e4a66",fontWeight:700,marginBottom:4}}>PROJECT FILTER</div>
+                  <select value={dashProjFilter} onChange={e=>setDashProjFilter(e.target.value)} style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:5,padding:"4px 10px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif",width:220}}>
+                    <option value="ALL">All Projects</option>
+                    {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
+                  </select>
+                </div>
+                {dashProjFilter!=="ALL"&&<button style={{background:"transparent",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#7a8faa",cursor:"pointer",fontSize:10}} onClick={()=>setDashProjFilter("ALL")}>✕ All</button>}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:11,marginBottom:18}}>
                 {[
-                  {l:"Team Utilization",v:fmtPct(overallUtil),c:"#38bdf8",show:true},
-                  {l:"Billability",v:fmtPct(billabilityPct),c:"#34d399",show:isAdmin||isAcct},
-                  {l:"Revenue Billed",v:fmtCurrency(totalRevenue),c:"#a78bfa",show:isAdmin||isAcct},
-                  {l:"Active Projects",v:projects.filter(p=>p.status==="Active").length,c:"#fb923c",show:true},
-                  {l:"Absence Days",v:leaveEntries.length,c:"#f472b6",show:true},
+                  {l:"Total Work Hrs",v:dWorkHrs+"h",c:"#f0f6ff",show:true},
+                  {l:"Billable Hrs",v:dBillHrs+"h",c:"#34d399",show:isAdmin||isAcct},
+                  {l:"Non-Billable",v:dNonHrs+"h",c:"#fb923c",show:isAdmin||isAcct},
+                  {l:"Billability",v:fmtPct(dBillPct),c:"#38bdf8",show:isAdmin||isAcct},
+                  {l:"Revenue Billed",v:fmtCurrency(dRevenue),c:"#a78bfa",show:isAdmin||isAcct},
+                  {l:"Absence Days",v:dLeave+"d",c:"#f472b6",show:true},
                 ].filter(m=>m.show).map((m,i)=>(
                   <div key={i} className="metric">
                     <div style={{fontSize:9,color:"#2e4a66",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{m.l}</div>
@@ -1100,10 +1182,10 @@ export default function App(){
                 </div>
               </div>
               <div className="card">
-                <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>Projects — {MONTHS[month]} {year}</h3>
+                <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>Projects — {MONTHS[month]} {year}{dashProjFilter!=="ALL"&&` · Filtered`}</h3>
                 <table>
                   <thead><tr><th>No.</th><th>Name</th><th>Phase</th><th>Hours</th>{(isAdmin||isAcct)&&<><th>Billing</th><th>Revenue</th></>}</tr></thead>
-                  <tbody>{projStats.filter(p=>p.hours>0).map(p=>(
+                  <tbody>{projStats.filter(p=>p.hours>0&&(dashProjFilter==="ALL"||p.id===dashProjFilter)).map(p=>(
                     <tr key={p.id}>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
                       <td style={{fontSize:11}}>{p.name}</td>
@@ -1115,7 +1197,7 @@ export default function App(){
                   ))}</tbody>
                 </table>
               </div>
-              </>}
+              </>;})()}
             </div>
           )}
 
@@ -1231,45 +1313,59 @@ export default function App(){
 
               {/* Full month table */}
               <div style={{marginTop:22}}>
+                {(()=>{
+                  const visEntries=monthEntries.filter(e=>e.engineer_id===viewEngId&&(filterProject==="ALL"||e.project_id===filterProject)).sort((a,b)=>a.date.localeCompare(b.date));
+                  const visIds=new Set(visEntries.map(e=>e.id));
+                  const allChecked=visIds.size>0&&[...visIds].every(id=>selectedEntries.has(id));
+                  const toggleAll=()=>{
+                    if(allChecked) setSelectedEntries(prev=>{const n=new Set(prev);visIds.forEach(id=>n.delete(id));return n;});
+                    else setSelectedEntries(prev=>{const n=new Set(prev);visIds.forEach(id=>n.add(id));return n;});
+                  };
+                  return<>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                   <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Full Month — {MONTHS[month]} {year}</h3>
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                    <select style={{fontSize:11,padding:"4px 8px",width:"auto"}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
+                    {selectedEntries.size>0&&<button style={{background:"#ef4444",border:"none",borderRadius:5,padding:"4px 10px",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}} onClick={bulkDeleteEntries}>🗑 Delete {selectedEntries.size} selected</button>}
+                    <select style={{fontSize:11,padding:"4px 8px",width:"auto",background:"#060e1c",border:"1px solid #192d47",borderRadius:5,color:"#f0f6ff",fontFamily:"'IBM Plex Sans',sans-serif"}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
                       <option value="ALL">All Projects</option>
                       {projects.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
                     </select>
-                    {filterProject!=="ALL"&&<button className="bg" style={{fontSize:10,padding:"4px 8px"}} onClick={()=>setFilterProject("ALL")}>✕ Clear</button>}
-                    <span style={{fontSize:10,color:"#253a52",fontFamily:"'IBM Plex Mono',monospace"}}>
-                      {monthEntries.filter(e=>e.engineer_id===viewEngId&&(filterProject==="ALL"||e.project_id===filterProject)).reduce((s,e)=>s+e.hours,0)}h total
-                    </span>
+                    {filterProject!=="ALL"&&<button style={{background:"transparent",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#7a8faa",cursor:"pointer",fontSize:10}} onClick={()=>setFilterProject("ALL")}>✕</button>}
+                    <span style={{fontSize:10,color:"#253a52",fontFamily:"'IBM Plex Mono',monospace"}}>{visEntries.reduce((s,e)=>s+e.hours,0)}h</span>
                   </div>
                 </div>
                 <div className="card">
                   <table>
-                    <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th><th>Type</th><th style={{width:80}}>Actions</th></tr></thead>
+                    <thead><tr>
+                      <th style={{width:28}}><input type="checkbox" checked={allChecked} onChange={toggleAll} style={{cursor:"pointer"}}/></th>
+                      <th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th><th>Type</th><th style={{width:80}}>Actions</th>
+                    </tr></thead>
                     <tbody>
-                      {monthEntries.filter(e=>e.engineer_id===viewEngId&&(filterProject==="ALL"||e.project_id===filterProject)).length===0&&
-                        <tr><td colSpan={7} style={{textAlign:"center",color:"#253a52",padding:20}}>No entries for {MONTHS[month]} {year}</td></tr>}
-                      {monthEntries.filter(e=>e.engineer_id===viewEngId&&(filterProject==="ALL"||e.project_id===filterProject)).sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
+                      {visEntries.length===0&&<tr><td colSpan={8} style={{textAlign:"center",color:"#253a52",padding:20}}>No entries for {MONTHS[month]} {year}</td></tr>}
+                      {visEntries.map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
+                        const checked=selectedEntries.has(e.id);
                         return(
-                          <tr key={e.id}>
+                          <tr key={e.id} style={{background:checked?"#0d1e3440":"transparent"}}>
+                            <td><input type="checkbox" checked={checked} onChange={()=>setSelectedEntries(prev=>{const n=new Set(prev);checked?n.delete(e.id):n.add(e.id);return n;})} style={{cursor:"pointer"}}/></td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>{e.date}</td>
                             <td style={{fontSize:11,color:"#38bdf8"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
                             <td style={{fontSize:11,color:"#7a8faa"}}>{e.task_type||"—"}</td>
-                            <td style={{fontSize:11,color:"#4e6479",fontStyle:"italic",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                            <td style={{fontSize:11,color:"#4e6479",fontStyle:"italic",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{e.hours}h</td>
                             <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
-                            {canEdit&&<td><div style={{display:"flex",gap:5}}>
+                            <td><div style={{display:"flex",gap:5}}>
                               <button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
                               <button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
-                            </div></td>}
+                            </div></td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
                 </div>
+                </>;
+                })()}
               </div>
             </div>
           )}
