@@ -847,13 +847,16 @@ export default function App(){
           let d=null;
           if(rd instanceof Date) d=rd;
           else if(typeof rd==="number"&&rd>40000) d=new Date(Math.round((rd-25569)*86400*1000));
-          else if(typeof rd==="string"&&rd.match(/\d{4}-\d{2}-\d{2}/)) d=new Date(rd.slice(0,10));
+          else if(typeof rd==="string"&&rd.match(/\d{4}-\d{2}-\d{2}/)) d=new Date(rd.slice(0,10)+"T12:00:00");
+          // Use LOCAL date to avoid UTC timezone shift
           if(d&&!isNaN(d)){ importYear=d.getFullYear(); importMonth=d.getMonth(); break; }
         }
         const yrStr=String(importYear);
         const moStr=String(importMonth+1).padStart(2,"0");
         const monthStart=`${yrStr}-${moStr}-01`;
-        const monthEnd  =`${yrStr}-${moStr}-31`;
+        // Last day of the month — works for all months including Feb
+        const lastDay=new Date(importYear,importMonth+1,0).getDate();
+        const monthEnd=`${yrStr}-${moStr}-${String(lastDay).padStart(2,"0")}`;
         addLog("info",`  📅 Detected month: ${moStr}/${yrStr} — engineer id: ${eng.id}`);
 
         // Fetch all existing IDs for this engineer in this month
@@ -891,15 +894,23 @@ export default function App(){
           if(!col0) continue;
           if(col0.toLowerCase().includes("subtotal")||col0.toLowerCase().includes("signature")) break;
 
-          // Parse date - handles Excel serial numbers, Date objects, and strings
+          // Parse date — always use LOCAL year/month/day to avoid UTC timezone shift
+          // SheetJS cellDates:true returns Date objects at local midnight
+          // .toISOString() would shift the date backward in UTC+ timezones (e.g. Egypt UTC+2/3)
+          const localDateStr=(d)=>{
+            const yy=d.getFullYear();
+            const mm=String(d.getMonth()+1).padStart(2,"0");
+            const dd=String(d.getDate()).padStart(2,"0");
+            return `${yy}-${mm}-${dd}`;
+          };
           let dateStr="";
           const rawD=row[0];
           if(rawD instanceof Date){
-            dateStr=rawD.toISOString().slice(0,10);
+            dateStr=localDateStr(rawD);
           } else if(typeof rawD==="number"&&rawD>40000){
-            // Excel serial date
+            // Excel serial date — build local date
             const d=new Date(Math.round((rawD-25569)*86400*1000));
-            dateStr=d.toISOString().slice(0,10);
+            dateStr=localDateStr(d);
           } else if(typeof rawD==="string"){
             const m=rawD.match(/(\d{4})-(\d{2})-(\d{2})/);
             if(m) dateStr=rawD.slice(0,10);
@@ -925,23 +936,34 @@ export default function App(){
           const detailsLower=(taskDetails||"").toLowerCase().trim();
           const hours=typeof hoursRaw==="number"?hoursRaw:(hoursRaw?parseFloat(String(hoursRaw)):0);
 
-          // ── Step 1: Skip weekends (project column = "Weekend") ──
+          // ── Step 1: Determine day-of-week (0=Sun,1=Mon,...,5=Fri,6=Sat) ──
+          // Parse as local noon to avoid UTC midnight shifting the day in UTC+ timezones
+          const dow=new Date(dateStr+"T12:00:00").getDay();
+          // Engineer weekend_days: parse from DB (default [5,6] = Fri+Sat)
+          let engWeekend=[5,6];
+          try{ engWeekend=eng.weekend_days?JSON.parse(eng.weekend_days):[5,6]; }catch(_){}
+
+          // ── Step 2: Skip explicit "Weekend" label ──
           if(projLower==="weekend") continue;
 
-          // ── Step 2: Classify leave types ──
+          // ── Step 3: Skip actual weekend days (all-empty rows on engineer's off days) ──
+          const allEmpty=!task&&!projName&&(!hoursRaw||hours===0)&&!taskDetails;
+          if(allEmpty&&engWeekend.includes(dow)) continue;
+
+          // ── Step 4: Classify leave types ──
           // Public holiday: task details OR task contains "holiday" with no project work
           const isPublicHoliday=(detailsLower.includes("holiday")||taskLower.includes("holiday"))&&!projName;
 
-          // Explicit vacation: task column says "vacation" or "leave" with no project
+          // Explicit vacation: task column says "vacation" / "leave" with no project
           const isExplicitVacation=(taskLower==="vacation"||taskLower.includes("annual leave")||
             taskLower.includes("sick leave")||detailsLower.includes("vacation"))&&!projName;
 
-          // Implicit absence: all of task, project, hours are empty/zero (non-weekend workday)
-          const isImplicitAbsence=!task&&!projName&&(!hoursRaw||hours===0);
+          // Implicit absence: all-empty row on a WORK day (not weekend)
+          const isImplicitAbsence=allEmpty&&!engWeekend.includes(dow);
 
           if(isPublicHoliday||isExplicitVacation||isImplicitAbsence){
             const lvType=isPublicHoliday?"Public Holiday":
-              taskLower.includes("sick")||detailsLower.includes("sick")?"Sick Leave":"Annual Leave";
+              (taskLower.includes("sick")||detailsLower.includes("sick"))?"Sick Leave":"Annual Leave";
             const leaveHours=(hours>0&&hours<=24)?hours:8;
             const {error:lErr}=await supabase.from("time_entries").insert({
               engineer_id:eng.id,date:dateStr,hours:leaveHours,
@@ -952,7 +974,7 @@ export default function App(){
             continue;
           }
 
-          // ── Step 3: Work entry — must have task, hours, project ──
+          // ── Step 5: Work entry — must have task, hours, project ──
           if(!task||isNaN(hours)||hours<=0||!projName) continue;
 
           // Find or auto-create project
