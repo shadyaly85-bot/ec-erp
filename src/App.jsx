@@ -472,8 +472,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
           : <table style={{minWidth:600}}>
               <thead><tr>
                 <th style={{textAlign:"left"}}>Engineer</th>
-                {leaveTypes.map(lt=><th key={lt} style={{textAlign:"center",color:typeColors[lt],fontSize:10,minWidth:60}}>{lt.replace(" ","
-")}</th>)}
+                {leaveTypes.map(lt=><th key={lt} style={{textAlign:"center",color:typeColors[lt],fontSize:10,minWidth:60}}>{lt}</th>)}
                 <th style={{textAlign:"center"}}>Total</th>
               </tr></thead>
               <tbody>{monthly.map(eng=>(
@@ -507,8 +506,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
           : <table style={{minWidth:600}}>
               <thead><tr>
                 <th style={{textAlign:"left"}}>Engineer</th>
-                {leaveTypes.map(lt=><th key={lt} style={{textAlign:"center",color:typeColors[lt],fontSize:10,minWidth:60}}>{lt.replace(" ","
-")}</th>)}
+                {leaveTypes.map(lt=><th key={lt} style={{textAlign:"center",color:typeColors[lt],fontSize:10,minWidth:60}}>{lt}</th>)}
                 <th style={{textAlign:"center"}}>YTD Total</th>
               </tr></thead>
               <tbody>{ytd.map(eng=>(
