@@ -965,10 +965,10 @@ export default function App(){
             const lvType=isPublicHoliday?"Public Holiday":
               (taskLower.includes("sick")||detailsLower.includes("sick"))?"Sick Leave":"Annual Leave";
             const leaveHours=(hours>0&&hours<=24)?hours:8;
-            const {error:lErr}=await supabase.from("time_entries").insert({
+            const {error:lErr}=await supabase.from("time_entries").upsert({
               engineer_id:eng.id,date:dateStr,hours:leaveHours,
               entry_type:"leave",leave_type:lvType,billable:false
-            });
+            },{onConflict:"engineer_id,date,entry_type,leave_type",ignoreDuplicates:false});
             if(!lErr){inserted++;leaveCnt++;}
             else addLog("warn",`  ⚠ Leave(${lvType}) ${dateStr}: ${lErr.message}`);
             continue;
@@ -996,14 +996,14 @@ export default function App(){
 
           const activity=taskDetails||(task+(projName?` — ${projName}`:""));
 
-          const {error:eErr}=await supabase.from("time_entries").insert({
+          const {error:eErr}=await supabase.from("time_entries").upsert({
             engineer_id:eng.id,
             project_id:proj?.id||null,
             date:dateStr,hours,
             task_category:cat,task_type:typ,
             activity,entry_type:"work",
             billable:proj?.billable||false,
-          });
+          },{onConflict:"engineer_id,date,project_id,task_type",ignoreDuplicates:false});
           if(!eErr) inserted++;
           else{addLog("warn",`  ⚠ Entry ${dateStr} failed: ${eErr.message}`);skipped++;}
         }
