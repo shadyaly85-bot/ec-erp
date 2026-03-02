@@ -85,6 +85,76 @@ function generatePDF(title, sections, subtitle="Engineering Center Egypt"){
   win.document.write(html); win.document.close();
 }
 
+/* ─── VACATION / LEAVE REPORT PDF ─── */
+function buildVacationPDF(engineers, allEntries, leaveEntries, projects, m, y){
+  const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
+  const typeColors={"Annual Leave":"#0ea5e9","Sick Leave":"#ef4444","Public Holiday":"#f97316","Business Travel":"#8b5cf6","Training External":"#10b981","Unpaid Leave":"#6b7280"};
+
+  // Monthly data
+  const leaveByEng=engineers.map(eng=>{
+    const engLeave=leaveEntries.filter(e=>e.engineer_id===eng.id);
+    const byType={};
+    engLeave.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
+    return{...eng,totalDays:engLeave.length,byType,entries:engLeave.sort((a,b)=>a.date.localeCompare(b.date))};
+  }).filter(e=>e.totalDays>0);
+
+  // YTD data
+  const ytdByEng=engineers.map(eng=>{
+    const all=allEntries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="leave"&&new Date(e.date).getFullYear()===y);
+    const byType={};
+    all.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
+    return{...eng,total:all.length,byType};
+  }).filter(e=>e.total>0);
+
+  const thStyle=`style="background:#f0f7ff;color:#0f2a50;font-size:9px;padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0"`;
+  const tdStyle=`style="font-size:9px;padding:5px 8px;text-align:center;border-bottom:1px solid #f1f5f9"`;
+  const nameTd=`style="font-size:9px;padding:5px 8px;font-weight:600;border-bottom:1px solid #f1f5f9"`;
+
+  const monthlyRows=leaveByEng.map(eng=>{
+    const cells=leaveTypes.map(lt=>{
+      const n=eng.byType[lt]||0;
+      return`<td ${tdStyle} style="font-size:9px;padding:5px 8px;text-align:center;border-bottom:1px solid #f1f5f9;color:${n>0?typeColors[lt]:"#94a3b8"};font-weight:${n>0?700:400}">${n||"—"}</td>`;
+    }).join("");
+    return`<tr><td ${nameTd}>${eng.name}<br><span style="font-weight:400;color:#64748b;font-size:8px">${eng.role||""}</span></td>${cells}<td ${tdStyle} style="font-size:9px;padding:5px 8px;text-align:center;border-bottom:1px solid #f1f5f9;font-weight:700;color:#0f2a50">${eng.totalDays}d</td></tr>`;
+  }).join("");
+
+  const ytdRows=ytdByEng.map(eng=>{
+    const cells=leaveTypes.map(lt=>{
+      const n=eng.byType[lt]||0;
+      return`<td ${tdStyle} style="font-size:9px;padding:5px 8px;text-align:center;border-bottom:1px solid #f1f5f9;color:${n>0?typeColors[lt]:"#94a3b8"};font-weight:${n>0?700:400}">${n||"—"}</td>`;
+    }).join("");
+    return`<tr><td ${nameTd}>${eng.name}</td>${cells}<td ${tdStyle} style="font-size:9px;padding:5px 8px;text-align:center;border-bottom:1px solid #f1f5f9;font-weight:700;color:#0f2a50">${eng.total}d</td></tr>`;
+  }).join("");
+
+  const detailRows=leaveByEng.map(eng=>{
+    const chips=eng.entries.map(e=>`<span style="display:inline-block;margin:2px;padding:2px 7px;border-radius:3px;font-size:8px;background:${typeColors[e.leave_type||"Annual Leave"]}20;color:${typeColors[e.leave_type||"Annual Leave"]};border:1px solid ${typeColors[e.leave_type||"Annual Leave"]}40;font-family:'IBM Plex Mono',monospace">${e.date} · ${e.leave_type||"Annual Leave"}</span>`).join("");
+    return`<tr><td style="padding:8px;border-bottom:1px solid #f1f5f9;vertical-align:top;width:120px;font-size:9px;font-weight:600">${eng.name}</td><td style="padding:8px;border-bottom:1px solid #f1f5f9">${chips}</td></tr>`;
+  }).join("");
+
+  const thCols=leaveTypes.map(lt=>`<th ${thStyle} style="background:#f0f7ff;color:${typeColors[lt]};font-size:9px;padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0">${lt}</th>`).join("");
+
+  generatePDF(
+    `Vacation & Leave Report — ${MONTHS_[m]} ${y}`,
+    [
+      `<div class="section"><div class="st">${MONTHS_[m]} ${y} — Leave Summary</div>
+      ${leaveByEng.length===0?`<p style="color:#94a3b8;font-size:11px;text-align:center;padding:20px">No leave recorded for ${MONTHS_[m]} ${y}.</p>`:`
+      <table><thead><tr><th style="background:#f0f7ff;color:#0f2a50;font-size:9px;padding:6px 8px;border-bottom:2px solid #e2e8f0">Engineer</th>${thCols}<th ${thStyle} style="background:#f0f7ff;color:#0f2a50;font-size:9px;padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0">Total</th></tr></thead>
+      <tbody>${monthlyRows}</tbody></table>`}
+      </div>`,
+      `<div class="section"><div class="st">Year-to-Date ${y} — All Leave</div>
+      ${ytdByEng.length===0?`<p style="color:#94a3b8;font-size:11px;text-align:center;padding:20px">No leave recorded for ${y}.</p>`:`
+      <table><thead><tr><th style="background:#f0f7ff;color:#0f2a50;font-size:9px;padding:6px 8px;border-bottom:2px solid #e2e8f0">Engineer</th>${thCols}<th ${thStyle} style="background:#f0f7ff;color:#0f2a50;font-size:9px;padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0">YTD Total</th></tr></thead>
+      <tbody>${ytdRows}</tbody></table>`}
+      </div>`,
+      leaveByEng.length>0?`<div class="section"><div class="st">Leave Detail — ${MONTHS_[m]} ${y}</div>
+      <table><thead><tr><th style="background:#f0f7ff;font-size:9px;padding:6px 8px;border-bottom:2px solid #e2e8f0;width:120px">Engineer</th><th style="background:#f0f7ff;font-size:9px;padding:6px 8px;border-bottom:2px solid #e2e8f0">Leave Days</th></tr></thead>
+      <tbody>${detailRows}</tbody></table></div>`:""
+    ],
+    `Leave & Vacation Report · ${MONTHS_[m]} ${y}`
+  );
+}
+
 /* ─── INDIVIDUAL TIMESHEET PDF ─── */
 function buildTimesheetPDF(eng, monthEntries, projects, m, y){
   const workE = monthEntries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date));
@@ -350,6 +420,141 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
           );
         })}
       </div>
+    </div>
+  );
+}
+
+
+/* ── VacationReport Component ── */
+function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onExport}){
+  const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
+  const typeColors={"Annual Leave":"#38bdf8","Sick Leave":"#f87171","Public Holiday":"#fb923c","Business Travel":"#a78bfa","Training External":"#34d399","Unpaid Leave":"#6b7280"};
+
+  // Monthly breakdown
+  const monthly=engineers.map(eng=>{
+    const el=leaveEntries.filter(e=>e.engineer_id===eng.id);
+    const byType={};
+    el.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
+    return{...eng,total:el.length,byType,days:el.sort((a,b)=>a.date.localeCompare(b.date))};
+  }).filter(e=>e.total>0);
+
+  // Year-to-date
+  const ytd=engineers.map(eng=>{
+    const el=allEntries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="leave"&&new Date(e.date).getFullYear()===year);
+    const byType={};
+    el.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
+    return{...eng,total:el.length,byType};
+  }).filter(e=>e.total>0);
+
+  return(
+    <div>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+        <div>
+          <h2 style={{fontSize:18,fontWeight:700,color:"#f0f6ff",margin:0}}>✈ Vacation & Leave Report</h2>
+          <p style={{fontSize:12,color:"#2e4a66",marginTop:4}}>{MONTHS[month]} {year} · {monthly.length} engineers with leave recorded</p>
+        </div>
+        <button style={{background:"#0ea5e9",border:"none",borderRadius:6,padding:"8px 16px",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={onExport}>⬇ Export PDF</button>
+      </div>
+
+      {/* Leave type legend */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+        {leaveTypes.map(lt=>(
+          <span key={lt} style={{fontSize:10,padding:"3px 10px",borderRadius:12,border:`1px solid ${typeColors[lt]}50`,color:typeColors[lt],fontWeight:600,background:typeColors[lt]+"15"}}>{lt}</span>
+        ))}
+      </div>
+
+      {/* Monthly summary */}
+      <div className="card" style={{marginBottom:14,overflowX:"auto"}}>
+        <h4 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>📅 {MONTHS[month]} {year} — Monthly Summary</h4>
+        {monthly.length===0
+          ? <p style={{color:"#253a52",fontSize:12,textAlign:"center",padding:20}}>No leave recorded for {MONTHS[month]} {year}. Import timesheets first.</p>
+          : <table style={{minWidth:600}}>
+              <thead><tr>
+                <th style={{textAlign:"left"}}>Engineer</th>
+                {leaveTypes.map(lt=><th key={lt} style={{textAlign:"center",color:typeColors[lt],fontSize:10,minWidth:60}}>{lt.replace(" ","
+")}</th>)}
+                <th style={{textAlign:"center"}}>Total</th>
+              </tr></thead>
+              <tbody>{monthly.map(eng=>(
+                <tr key={eng.id}>
+                  <td>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:28,height:28,borderRadius:"50%",background:"#0d1e34",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#38bdf8",flexShrink:0}}>{(eng.name||"?").slice(0,2).toUpperCase()}</div>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:600}}>{eng.name}</div>
+                        <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role}</div>
+                      </div>
+                    </div>
+                  </td>
+                  {leaveTypes.map(lt=>(
+                    <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"#253a52",fontWeight:eng.byType[lt]?700:400}}>
+                      {eng.byType[lt]||"—"}
+                    </td>
+                  ))}
+                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#f0f6ff"}}>{eng.total}d</td>
+                </tr>
+              ))}</tbody>
+            </table>
+        }
+      </div>
+
+      {/* YTD summary */}
+      <div className="card" style={{marginBottom:14,overflowX:"auto"}}>
+        <h4 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>📊 Year-to-Date {year} — All Leave</h4>
+        {ytd.length===0
+          ? <p style={{color:"#253a52",fontSize:12,textAlign:"center",padding:20}}>No leave recorded for {year}.</p>
+          : <table style={{minWidth:600}}>
+              <thead><tr>
+                <th style={{textAlign:"left"}}>Engineer</th>
+                {leaveTypes.map(lt=><th key={lt} style={{textAlign:"center",color:typeColors[lt],fontSize:10,minWidth:60}}>{lt.replace(" ","
+")}</th>)}
+                <th style={{textAlign:"center"}}>YTD Total</th>
+              </tr></thead>
+              <tbody>{ytd.map(eng=>(
+                <tr key={eng.id}>
+                  <td style={{fontSize:12,fontWeight:600}}>{eng.name}</td>
+                  {leaveTypes.map(lt=>(
+                    <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"#253a52",fontWeight:eng.byType[lt]?700:400}}>
+                      {eng.byType[lt]||"—"}
+                    </td>
+                  ))}
+                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#f0f6ff"}}>{eng.total}d</td>
+                </tr>
+              ))}</tbody>
+            </table>
+        }
+      </div>
+
+      {/* Per-engineer day detail */}
+      {monthly.length>0&&<div>
+        <h4 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:10}}>📋 Detail — Leave Days {MONTHS[month]} {year}</h4>
+        {monthly.map(eng=>(
+          <div key={eng.id} className="card" style={{marginBottom:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"#0d1e34",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#38bdf8"}}>{(eng.name||"?").slice(0,2).toUpperCase()}</div>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600}}>{eng.name}</div>
+                  <div style={{fontSize:10,color:"#2e4a66"}}>{eng.total} day{eng.total!==1?"s":""} of leave</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                {Object.entries(eng.byType).map(([lt,n])=>(
+                  <span key={lt} style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:typeColors[lt]+"25",color:typeColors[lt],fontWeight:600}}>{lt}: {n}d</span>
+                ))}
+              </div>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {eng.days.map(e=>(
+                <span key={e.id} style={{fontSize:10,padding:"3px 9px",borderRadius:4,background:"#060e1c",border:`1px solid ${typeColors[e.leave_type||"Annual Leave"]}40`,color:typeColors[e.leave_type||"Annual Leave"],fontFamily:"'IBM Plex Mono',monospace"}}>
+                  {e.date}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>}
     </div>
   );
 }
@@ -635,32 +840,49 @@ export default function App(){
           addLog("info",`  → Existing engineer: ${eng.name}`);
         }
 
-        // ── Deduplication: wipe existing entries for this engineer+month before re-import ──
-        // Parse month from sheet header row 2, col B (index 1)
+        // ── DEDUPLICATION: delete all existing entries for this engineer+month ──
+        // Get the month from the first date row (row index 4) — most reliable source
         let importYear=year, importMonth=month;
-        try{
-          const rawMonth=rows[2]?.[1];
-          let mDate=null;
-          if(rawMonth instanceof Date) mDate=rawMonth;
-          else if(typeof rawMonth==="number"&&rawMonth>40000){
-            mDate=new Date(Math.round((rawMonth-25569)*86400*1000));
-          } else if(typeof rawMonth==="string"&&rawMonth.length>0){
-            mDate=new Date(rawMonth);
-          }
-          if(mDate&&!isNaN(mDate)){importYear=mDate.getFullYear();importMonth=mDate.getMonth();}
-        }catch(_){}
+        for(let ri=4;ri<Math.min(rows.length,10);ri++){
+          const rd=rows[ri]?.[0];
+          if(!rd) continue;
+          let d=null;
+          if(rd instanceof Date) d=rd;
+          else if(typeof rd==="number"&&rd>40000) d=new Date(Math.round((rd-25569)*86400*1000));
+          else if(typeof rd==="string"&&rd.match(/\d{4}-\d{2}-\d{2}/)) d=new Date(rd.slice(0,10));
+          if(d&&!isNaN(d)){ importYear=d.getFullYear(); importMonth=d.getMonth(); break; }
+        }
         const yrStr=String(importYear);
         const moStr=String(importMonth+1).padStart(2,"0");
         const monthStart=`${yrStr}-${moStr}-01`;
         const monthEnd  =`${yrStr}-${moStr}-31`;
-        addLog("info",`  🗑 Clearing ${eng.name} entries for ${moStr}/${yrStr}…`);
-        const {count:delCount,error:delErr}=await supabase.from("time_entries")
-          .delete()
+        addLog("info",`  📅 Detected month: ${moStr}/${yrStr} — engineer id: ${eng.id}`);
+
+        // Fetch all existing IDs for this engineer in this month
+        const {data:existingRows,error:fetchErr}=await supabase
+          .from("time_entries")
+          .select("id")
           .eq("engineer_id",eng.id)
           .gte("date",monthStart)
           .lte("date",monthEnd);
-        if(delErr) addLog("warn",`  ⚠ Could not clear: ${delErr.message}`);
-        else addLog("ok",`  ✓ Cleared ${delCount||0} old entries`);
+
+        if(fetchErr){
+          addLog("warn",`  ⚠ Fetch error: ${fetchErr.message}`);
+        } else {
+          addLog("info",`  🔍 Found ${existingRows?.length||0} existing entries`);
+          if(existingRows&&existingRows.length>0){
+            const ids=existingRows.map(r=>r.id);
+            const {error:delErr}=await supabase.from("time_entries").delete().in("id",ids);
+            if(delErr){
+              addLog("warn",`  ⚠ Delete failed: ${delErr.message} — import will create duplicates!`);
+            } else {
+              setEntries(prev=>prev.filter(e=>!ids.includes(e.id)));
+              addLog("ok",`  ✓ Deleted ${ids.length} old entries — re-importing fresh`);
+            }
+          } else {
+            addLog("ok",`  ✓ No existing entries — fresh import`);
+          }
+        }
 
         // Parse rows starting at index 4 (0-based), row 3 is header
         let inserted=0, skipped=0, leaveCnt=0;
@@ -1672,125 +1894,11 @@ export default function App(){
               )}
 
               {/* Vacation Report */}
-              {activeRpt==="vacation"&&(()=>{
-                // All leave entries for selected month, grouped by engineer
-                const leaveByEng=engineers.map(eng=>{
-                  const engLeave=leaveEntries.filter(e=>e.engineer_id===eng.id);
-                  const byType={};
-                  engLeave.forEach(e=>{
-                    const lt=e.leave_type||"Annual Leave";
-                    byType[lt]=(byType[lt]||0)+1;
-                  });
-                  return{...eng,totalDays:engLeave.length,byType,entries:engLeave.sort((a,b)=>a.date.localeCompare(b.date))};
-                }).filter(e=>e.totalDays>0);
-                // Year-to-date leave (all months)
-                const ytdByEng=engineers.map(eng=>{
-                  const all=entries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="leave"&&new Date(e.date).getFullYear()===year);
-                  const byType={};
-                  all.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
-                  return{id:eng.id,name:eng.name,total:all.length,byType};
-                });
-                const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
-                const typeColors={"Annual Leave":"#38bdf8","Sick Leave":"#f87171","Public Holiday":"#fb923c","Business Travel":"#a78bfa","Training External":"#34d399","Unpaid Leave":"#6b7280"};
-                return(
-                  <div>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                      <div>
-                        <h3 style={{fontSize:14,fontWeight:700,color:"#f0f6ff"}}>Vacation & Leave Report</h3>
-                        <p style={{fontSize:12,color:"#2e4a66",marginTop:3}}>{MONTHS[month]} {year} · {leaveByEng.length} engineers with leave</p>
-                      </div>
-                    </div>
-                    {/* Legend */}
-                    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:16}}>
-                      {leaveTypes.map(lt=>(
-                        <span key={lt} style={{fontSize:10,padding:"2px 8px",borderRadius:12,border:`1px solid ${typeColors[lt]}40`,color:typeColors[lt],fontWeight:600}}>{lt}</span>
-                      ))}
-                    </div>
-                    {/* Monthly summary table */}
-                    <div className="card" style={{marginBottom:14}}>
-                      <h4 style={{fontSize:11,fontWeight:600,color:"#7a8faa",marginBottom:12}}>📅 {MONTHS[month]} {year} — Leave Summary</h4>
-                      {leaveByEng.length===0?<p style={{color:"#253a52",fontSize:12}}>No leave recorded for this month.</p>:(
-                        <table>
-                          <thead><tr>
-                            <th>Engineer</th>
-                            {leaveTypes.map(lt=><th key={lt} style={{fontSize:10,color:typeColors[lt]}}>{lt.split(" ")[0]}</th>)}
-                            <th>Total Days</th>
-                          </tr></thead>
-                          <tbody>{leaveByEng.map(eng=>(
-                            <tr key={eng.id}>
-                              <td><div style={{display:"flex",alignItems:"center",gap:8}}>
-                                <div className="av" style={{fontSize:9,width:24,height:24}}>{eng.name?.slice(0,2).toUpperCase()}</div>
-                                <div>
-                                  <div style={{fontSize:12,fontWeight:500}}>{eng.name}</div>
-                                  <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role}</div>
-                                </div>
-                              </div></td>
-                              {leaveTypes.map(lt=>(
-                                <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"#253a52",fontWeight:eng.byType[lt]?700:400}}>
-                                  {eng.byType[lt]||"—"}
-                                </td>
-                              ))}
-                              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#f0f6ff"}}>{eng.totalDays}d</td>
-                            </tr>
-                          ))}</tbody>
-                        </table>
-                      )}
-                    </div>
-                    {/* Year-to-date table */}
-                    <div className="card" style={{marginBottom:14}}>
-                      <h4 style={{fontSize:11,fontWeight:600,color:"#7a8faa",marginBottom:12}}>📊 Year-to-Date {year} — All Leave</h4>
-                      <table>
-                        <thead><tr>
-                          <th>Engineer</th>
-                          {leaveTypes.map(lt=><th key={lt} style={{fontSize:10,color:typeColors[lt]}}>{lt.split(" ")[0]}</th>)}
-                          <th>YTD Total</th>
-                        </tr></thead>
-                        <tbody>{ytdByEng.filter(e=>e.total>0).map(eng=>(
-                          <tr key={eng.id}>
-                            <td style={{fontSize:12,fontWeight:500}}>{eng.name}</td>
-                            {leaveTypes.map(lt=>(
-                              <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"#253a52",fontWeight:eng.byType[lt]?700:400}}>
-                                {eng.byType[lt]||"—"}
-                              </td>
-                            ))}
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#f0f6ff"}}>{eng.total}d</td>
-                          </tr>
-                        ))}{ytdByEng.filter(e=>e.total>0).length===0&&<tr><td colSpan={8} style={{textAlign:"center",color:"#253a52",padding:16}}>No leave recorded for {year}.</td></tr>}
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Detail per engineer */}
-                    {leaveByEng.map(eng=>(
-                      <div key={eng.id} className="card" style={{marginBottom:10}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                          <div style={{display:"flex",alignItems:"center",gap:10}}>
-                            <div className="av" style={{fontSize:9,width:28,height:28}}>{eng.name?.slice(0,2).toUpperCase()}</div>
-                            <div>
-                              <div style={{fontSize:13,fontWeight:600}}>{eng.name}</div>
-                              <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role}</div>
-                            </div>
-                          </div>
-                          <div style={{display:"flex",gap:8}}>
-                            {Object.entries(eng.byType).map(([lt,days])=>(
-                              <span key={lt} style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:typeColors[lt]+"20",color:typeColors[lt],fontWeight:600}}>
-                                {lt}: {days}d
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                          {eng.entries.map(e=>(
-                            <span key={e.id} style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:"#060e1c",border:`1px solid ${typeColors[e.leave_type||"Annual Leave"]}40`,color:typeColors[e.leave_type||"Annual Leave"]}}>
-                              {e.date}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    {leaveByEng.length===0&&<div className="card" style={{textAlign:"center",padding:40,color:"#253a52"}}>No leave entries for {MONTHS[month]} {year}. Import timesheets or add leave via Post Hours.</div>}
-                  </div>
-                );
-              })()}
+              {activeRpt==="vacation"&&<VacationReport
+                engineers={engineers} leaveEntries={leaveEntries} allEntries={entries}
+                month={month} year={year} MONTHS={MONTHS}
+                onExport={()=>buildVacationPDF(engineers,entries,leaveEntries,projects,month,year)}
+              />}
 
               {/* Monthly mgmt */}
               {activeRpt==="monthly"&&(
