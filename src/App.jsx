@@ -557,30 +557,40 @@ export default function App(){
     let localProjects=[...projects];
     let localEngineers=[...engineers];
 
+    // Cache of name→project to avoid duplicate inserts across rows
+    const projCache={};
     const findOrCreateProject=async(rawName)=>{
       const clean=rawName.trim().replace(/\s+/g," ");
       const cleanLower=clean.toLowerCase();
-      // Try to match existing
+      // Return from cache first (handles failed inserts too)
+      if(projCache[cleanLower]!==undefined) return projCache[cleanLower];
+      // Match against existing DB projects
       let proj=localProjects.find(p=>
         p.name.toLowerCase()===cleanLower||
         p.id.toLowerCase()===cleanLower||
-        p.name.toLowerCase().includes(cleanLower)||
+        p.name.toLowerCase().replace(/\s+/g," ")===cleanLower||
         cleanLower.includes(p.name.toLowerCase().replace(/\s+/g," "))
       );
-      if(proj) return proj;
-      // Auto-create project with name as both id and name (admin can fill details later)
-      const projId=clean.replace(/[^a-zA-Z0-9\-]/g,"-").replace(/-+/g,"-").substring(0,30);
-      addLog("info",`    📁 Creating project: ${clean} (ID: ${projId})`);
+      if(proj){ projCache[cleanLower]=proj; return proj; }
+      // Auto-create — use "Industrial" type (matches DB constraint)
+      // Make a safe ID: alphanumeric + hyphens only, max 30 chars
+      const projId=clean.replace(/[^a-zA-Z0-9]/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").substring(0,30);
+      addLog("info",`    📁 Creating project: ${clean}`);
       const {data:newPArr,error:pErr}=await supabase.from("projects").insert({
-        id:projId, name:clean, client:"", type:"Industrial Automation",
-        status:"Active", phase:"Software", billable:false, rate_per_hour:0,
+        id:projId, name:clean, client:"(imported)", type:"Industrial",
+        status:"Active", phase:"Design", billable:false, rate_per_hour:0,
       }).select();
-      if(pErr){addLog("warn",`    ⚠ Project create failed: ${pErr.message}`);return null;}
+      if(pErr){
+        addLog("warn",`    ⚠ Project failed: ${pErr.message}`);
+        projCache[cleanLower]=null; // cache failure to avoid retrying every row
+        return null;
+      }
       const newP=Array.isArray(newPArr)?newPArr[0]:newPArr;
-      if(!newP){addLog("warn","    ⚠ Project insert returned no data");return null;}
+      if(!newP){ projCache[cleanLower]=null; return null; }
       localProjects=[...localProjects,newP];
       setProjects(prev=>[...prev,newP].sort((a,b)=>a.id.localeCompare(b.id)));
-      addLog("ok",`    ✓ Project created: ${clean}`);
+      addLog("ok",`    ✓ Project created: ${clean} (${projId})`);
+      projCache[cleanLower]=newP;
       return newP;
     };
 
