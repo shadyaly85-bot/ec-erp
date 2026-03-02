@@ -1086,7 +1086,9 @@ export default function App(){
 
   /* ── DERIVED STATS ── */
   const monthEntries=useMemo(()=>entries.filter(e=>{
-    const d=new Date(e.date); return d.getFullYear()===year&&d.getMonth()===month;
+    // Parse as local noon to avoid UTC midnight shifting month/year in UTC+ timezones
+    const d=new Date(e.date+"T12:00:00");
+    return d.getFullYear()===year&&d.getMonth()===month;
   }),[entries,year,month]);
 
   // Helper: is an entry billable? Always derive from CURRENT project status, not stale e.billable
@@ -1143,7 +1145,7 @@ export default function App(){
   },[workEntries,projects]);
 
   const adminBrowseEntries=useMemo(()=>entries.filter(e=>{
-    const d=new Date(e.date);
+    const d=new Date(e.date+"T12:00:00"); // noon avoids UTC midnight date shift in UTC+ timezones
     return (entryFilter.engineer==="ALL"||e.engineer_id===+entryFilter.engineer)
       &&(entryFilter.project==="ALL"||e.project_id===entryFilter.project)
       &&d.getMonth()===entryFilter.month&&d.getFullYear()===entryFilter.year;
@@ -1650,7 +1652,7 @@ export default function App(){
             return(
             <div>
               {/* Filter bar */}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:18}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:12}}>
                 <div>
                   <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Team</h1>
                   <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{engineers.length} members · {MONTHS[month]} {year}</p>
@@ -1669,9 +1671,56 @@ export default function App(){
                     </select>
                   </div>
                   {(filterEngineer!=="ALL"||filterProject!=="ALL")&&
-                    <button className="bg" style={{fontSize:11}} onClick={()=>{setFilterEngineer("ALL");setFilterProject("ALL");}}>✕ Clear Filters</button>}
+                    <button className="bg" style={{fontSize:11}} onClick={()=>{setFilterEngineer("ALL");setFilterProject("ALL");}}>✕ Clear</button>}
                 </div>
               </div>
+
+              {/* ── TOTAL HOURS SUMMARY BOX (shows when any filter active) ── */}
+              {(()=>{
+                // Entries matching both filters
+                const fEntries=monthEntries.filter(e=>
+                  (filterEngineer==="ALL"||e.engineer_id===+filterEngineer)&&
+                  (filterProject==="ALL"||e.project_id===filterProject)
+                );
+                const fWork=fEntries.filter(e=>e.entry_type==="work");
+                const fLeave=fEntries.filter(e=>e.entry_type==="leave");
+                const totalW=fWork.reduce((s,e)=>s+e.hours,0);
+                const totalB=fWork.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?e.hours:0);},0);
+                const totalNB=totalW-totalB;
+                const totalL=fLeave.length;
+                // Target hours based on filtered engineers
+                const filtEngs=filterEngineer==="ALL"?engineers:engineers.filter(e=>e.id===+filterEngineer);
+                const targetW=filtEngs.reduce((s,eng)=>{
+                  try{const wd=eng.weekend_days?JSON.parse(eng.weekend_days):DEFAULT_WEEKEND;return s+getTargetHrs(year,month,wd);}catch{return s+getTargetHrs(year,month,DEFAULT_WEEKEND);}
+                },0);
+                const util=targetW?Math.round(totalW/targetW*100):0;
+                const selProjName=filterProject!=="ALL"?projects.find(p=>p.id===filterProject)?.name:"";
+                const selEngName=filterEngineer!=="ALL"?engineers.find(e=>e.id===+filterEngineer)?.name:"";
+                const label=[selEngName,selProjName].filter(Boolean).join(" · ")||"All";
+                return(
+                  <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:8,padding:"12px 16px",marginBottom:16,display:"flex",gap:0,alignItems:"center"}}>
+                    <div style={{marginRight:20,minWidth:120}}>
+                      <div style={{fontSize:10,color:"#2e4a66",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>Filter Summary</div>
+                      <div style={{fontSize:12,color:"#7a8faa",fontWeight:600}}>{label}</div>
+                      <div style={{fontSize:10,color:"#253a52"}}>{MONTHS[month]} {year}</div>
+                    </div>
+                    <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+                      {[
+                        {l:"Total Work",v:totalW+"h",c:"#f0f6ff"},
+                        {l:"Billable",v:totalB+"h",c:"#34d399",show:isAdmin||isAcct},
+                        {l:"Non-Billable",v:totalNB+"h",c:"#fb923c",show:isAdmin||isAcct},
+                        {l:"Leave Days",v:totalL+"d",c:"#f472b6"},
+                        {l:"Utilization",v:util+"%",c:util>=80?"#34d399":util>=60?"#fb923c":"#f87171"},
+                      ].filter(m=>m.show!==false).map((m,i)=>(
+                        <div key={i} style={{background:"#0b1526",borderRadius:6,padding:"8px 10px",textAlign:"center",border:"1px solid #192d47"}}>
+                          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:m.c,lineHeight:1}}>{m.v}</div>
+                          <div style={{fontSize:9,color:"#2e4a66",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{m.l}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Individual detail view when one engineer selected */}
               {selectedEng&&(
