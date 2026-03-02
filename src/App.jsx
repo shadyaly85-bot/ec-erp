@@ -264,6 +264,96 @@ const Lbl=({children})=><div style={{fontSize:11,color:"#4e6479",marginBottom:4}
 /* ════════════════════════════════════════════
    MAIN APP
 ════════════════════════════════════════════ */
+
+/* ── Projects Page Component (extracted to avoid IIFE hook issues) ── */
+function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setProjStatusFilter,
+  monthEntries,projStats,isAdmin,isAcct,setShowProjModal,setEditProjModal,deleteProject,fmtCurrency}){
+  const filteredProjects=projects.filter(p=>{
+    const ms=projStatusFilter==="ALL"||p.status===projStatusFilter;
+    const mq=!projSearch||p.name.toLowerCase().includes(projSearch.toLowerCase())||
+      p.id.toLowerCase().includes(projSearch.toLowerCase())||
+      (p.client||"").toLowerCase().includes(projSearch.toLowerCase());
+    return ms&&mq;
+  });
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:18}}>
+        <div>
+          <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Projects</h1>
+          <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{filteredProjects.length} of {projects.length} projects</p>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+          <div>
+            <div style={{fontSize:10,color:"#2e4a66",fontWeight:600,marginBottom:4}}>SEARCH</div>
+            <input value={projSearch} onChange={e=>setProjSearch(e.target.value)}
+              placeholder="Name, ID, client…" style={{width:180,background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"7px 10px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:"#2e4a66",fontWeight:600,marginBottom:4}}>STATUS</div>
+            <select value={projStatusFilter} onChange={e=>setProjStatusFilter(e.target.value)}
+              style={{width:130,background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"7px 10px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+              <option value="ALL">All Statuses</option>
+              {["Active","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
+            </select>
+          </div>
+          {isAdmin&&<button style={{background:"#0ea5e9",border:"none",borderRadius:6,padding:"8px 14px",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={()=>setShowProjModal(true)}>+ New Project</button>}
+        </div>
+      </div>
+      {filteredProjects.length===0&&<div style={{textAlign:"center",padding:60,color:"#253a52",fontSize:13}}>No projects match your filter.</div>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
+        {filteredProjects.map(p=>{
+          const ps=projStats.find(x=>x.id===p.id);
+          const topTasks=Object.entries(
+            monthEntries.filter(e=>e.project_id===p.id&&e.entry_type==="work")
+              .reduce((acc,e)=>{acc[e.task_type||"Other"]=(acc[e.task_type||"Other"]||0)+e.hours;return acc;},{})
+          ).sort((a,b)=>b[1]-a[1]).slice(0,3);
+          return(
+            <div key={p.id} style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:10,padding:16,borderLeft:`3px solid ${p.type==="Renewable Energy"?"#34d399":"#818cf8"}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                <div>
+                  <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</div>
+                  <div style={{fontSize:13,fontWeight:600,marginTop:2,lineHeight:1.3,color:"#f0f6ff"}}>{p.name}</div>
+                </div>
+                <div style={{display:"flex",gap:5,alignItems:"flex-start"}}>
+                  <span style={{fontSize:9,padding:"2px 7px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,
+                    background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"#1e3a5f",
+                    color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span>
+                  {isAdmin&&<>
+                    <button style={{background:"#0ea5e9",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:10,cursor:"pointer"}} onClick={()=>setEditProjModal({...p})}>✎</button>
+                    <button style={{background:"#ef4444",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:10,cursor:"pointer"}} onClick={()=>deleteProject(p.id)}>✕</button>
+                  </>}
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,fontSize:11,marginBottom:10,color:"#dde3ef"}}>
+                {p.client&&<div><span style={{color:"#2e4a66"}}>Client: </span>{p.client}</div>}
+                {p.origin&&<div><span style={{color:"#2e4a66"}}>Origin: </span>{p.origin}</div>}
+                <div><span style={{color:"#2e4a66"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase||"—"}</span></div>
+                {(isAdmin||isAcct)&&<div><span style={{color:"#2e4a66"}}>Rate: </span>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",color:p.billable?"#a78bfa":"#253a52"}}>
+                    {p.billable?`$${p.rate_per_hour}/h`:"Non-Billable"}
+                  </span>
+                </div>}
+              </div>
+              {topTasks.length>0&&<div style={{background:"#060e1c",borderRadius:5,padding:"6px 9px",marginBottom:10}}>
+                {topTasks.map(([task,hrs])=>(
+                  <div key={task} style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:2}}>
+                    <span style={{color:"#7a8faa"}}>{task}</span>
+                    <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{hrs}h</span>
+                  </div>
+                ))}
+              </div>}
+              <div style={{paddingTop:9,borderTop:"1px solid #192d47"}}>
+                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:"#38bdf8"}}>{ps?.hours||0}h</div>
+                {(isAdmin||isAcct)&&p.billable&&<div style={{fontSize:10,color:"#a78bfa"}}>{fmtCurrency(ps?.revenue||0)}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function App(){
   const [session,setSession]         = useState(null);
   const [authLoading,setAuthLoading] = useState(true);
@@ -294,11 +384,14 @@ export default function App(){
   // Filters (shared across pages)
   const [filterEngineer,setFilterEngineer] = useState("ALL");
   const [filterProject,setFilterProject]   = useState("ALL");
+  const [projSearch,setProjSearch]         = useState("");
+  const [projStatusFilter,setProjStatusFilter] = useState("ALL");
   // Import modal
   const [showImport,setShowImport]         = useState(false);
   const [importFiles,setImportFiles]       = useState([]);
   const [importLog,setImportLog]           = useState([]);
   const [importing,setImporting]           = useState(false);
+  const [xlsxReady,setXlsxReady]           = useState(!!window.XLSX);
   const [showProjModal,setShowProjModal]   = useState(false);
   const [editProjModal,setEditProjModal]   = useState(null);
   const [showEngModal,setShowEngModal]     = useState(false);
@@ -340,6 +433,15 @@ export default function App(){
     return ()=>subscription.unsubscribe();
   },[]);
   useEffect(()=>{if(session)loadAll();},[session]);
+  // Load SheetJS once on mount
+  useEffect(()=>{
+    if(window.XLSX){setXlsxReady(true);return;}
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload=()=>{setXlsxReady(true);};
+    s.onerror=()=>console.error("Failed to load SheetJS");
+    document.head.appendChild(s);
+  },[]);
 
   const loadAll=useCallback(async()=>{
     setLoading(true);
@@ -449,137 +551,172 @@ export default function App(){
     setImporting(true);
     setImportLog([]);
     const log=[];
-    const addLog=(type,msg)=>{ log.push({type,msg}); setImportLog([...log]); };
+    const addLog=(type,msg)=>{log.push({type,msg});setImportLog([...log]);};
+
+    // Working copies of projects/engineers (updated during import as new ones are created)
+    let localProjects=[...projects];
+    let localEngineers=[...engineers];
+
+    const findOrCreateProject=async(rawName)=>{
+      const clean=rawName.trim().replace(/\s+/g," ");
+      const cleanLower=clean.toLowerCase();
+      // Try to match existing
+      let proj=localProjects.find(p=>
+        p.name.toLowerCase()===cleanLower||
+        p.id.toLowerCase()===cleanLower||
+        p.name.toLowerCase().includes(cleanLower)||
+        cleanLower.includes(p.name.toLowerCase().replace(/\s+/g," "))
+      );
+      if(proj) return proj;
+      // Auto-create project with name as both id and name (admin can fill details later)
+      const projId=clean.replace(/[^a-zA-Z0-9\-]/g,"-").replace(/-+/g,"-").substring(0,30);
+      addLog("info",`    📁 Creating project: ${clean} (ID: ${projId})`);
+      const {data:newPArr,error:pErr}=await supabase.from("projects").insert({
+        id:projId, name:clean, client:"", type:"Industrial Automation",
+        status:"Active", phase:"Software", billable:false, rate_per_hour:0,
+      }).select();
+      if(pErr){addLog("warn",`    ⚠ Project create failed: ${pErr.message}`);return null;}
+      const newP=Array.isArray(newPArr)?newPArr[0]:newPArr;
+      if(!newP){addLog("warn","    ⚠ Project insert returned no data");return null;}
+      localProjects=[...localProjects,newP];
+      setProjects(prev=>[...prev,newP].sort((a,b)=>a.id.localeCompare(b.id)));
+      addLog("ok",`    ✓ Project created: ${clean}`);
+      return newP;
+    };
 
     for(const file of files){
       addLog("info",`📂 Processing: ${file.name}`);
       try{
-        const data=await file.arrayBuffer();
-        // Parse xlsx in browser using SheetJS (loaded below)
-        const XLSX=window._XLSX;
-        if(!XLSX){ addLog("error","SheetJS not loaded — refresh and try again"); break; }
-        const wb=XLSX.read(data,{type:"array",cellDates:true});
+        const buf=await file.arrayBuffer();
+        const XLSX=window.XLSX;
+        if(!XLSX){addLog("error","SheetJS not loaded — go back and wait for ✓ XLSX READY, then try again");break;}
+        const wb=XLSX.read(new Uint8Array(buf),{type:"array",cellDates:true});
         const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,dateNF:"yyyy-mm-dd"});
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
 
-        // Parse header info (rows 0-2)
-        const engName=(rows[0]?.[1]||"").trim();
-        const engEmail=(rows[1]?.[1]||"").trim().toLowerCase();
-        const engRole=(rows[0]?.[4]||"").trim();
-        const monthStr=rows[2]?.[1]||"";
+        // Parse header (row 0=Name, row 1=Email, row 2=Month)
+        const engName=String(rows[0]?.[1]||"").trim();
+        const engEmail=String(rows[1]?.[1]||"").trim().toLowerCase();
+        const engRole=String(rows[0]?.[4]||"").trim();
 
-        if(!engName||!engEmail){ addLog("error",`  ✕ Missing name or email`); continue; }
-        addLog("info",`  👤 Engineer: ${engName} (${engEmail})`);
+        if(!engName||!engEmail){addLog("error","  ✕ Missing name/email in rows 1-2");continue;}
+        addLog("info",`  👤 ${engName} <${engEmail}>`);
 
         // Find or create engineer
-        let eng=engineers.find(e=>e.email?.toLowerCase()===engEmail);
+        let eng=localEngineers.find(e=>(e.email||"").toLowerCase()===engEmail);
         if(!eng){
-          const {data:newEngArr,error:engErr}=await supabase.from("engineers").insert({
-            name:engName, email:engEmail,
+          const {data:eArr,error:eErr}=await supabase.from("engineers").insert({
+            name:engName,email:engEmail,
             role:engRole||"Automation Engineer",
-            level:"Mid", role_type:"engineer",
+            level:"Mid",role_type:"engineer",
             weekend_days:JSON.stringify([5,6])
           }).select();
-          if(engErr){ addLog("error",`  ✕ Could not create engineer: ${engErr.message} — check Supabase RLS`); continue; }
-          const newEng=Array.isArray(newEngArr)?newEngArr[0]:newEngArr;
-          if(!newEng){ addLog("error","  ✕ Engineer insert returned no data"); continue; }
-          eng=newEng;
-          setEngineers(prev=>[...prev,newEng].sort((a,b)=>a.name.localeCompare(b.name)));
-          addLog("ok",`  ✓ Created engineer: ${engName} (id: ${eng.id})`);
+          if(eErr){addLog("error",`  ✕ Engineer failed: ${eErr.message}`);continue;}
+          eng=Array.isArray(eArr)?eArr[0]:eArr;
+          if(!eng){addLog("error","  ✕ Engineer insert returned no data");continue;}
+          localEngineers=[...localEngineers,eng];
+          setEngineers(prev=>[...prev,eng].sort((a,b)=>a.name.localeCompare(b.name)));
+          addLog("ok",`  ✓ Created engineer: ${engName}`);
         } else {
-          addLog("info",`  → Found existing engineer: ${eng.name} (id: ${eng.id})`);
+          addLog("info",`  → Existing engineer: ${eng.name}`);
         }
 
-        // Parse daily rows (starting row index 4, after header row 3)
-        let inserted=0, skipped=0;
+        // Parse rows starting at index 4 (0-based), row 3 is header
+        let inserted=0, skipped=0, leaveCnt=0;
         for(let i=4;i<rows.length;i++){
           const row=rows[i];
-          if(!row||!row[0]) continue;
-          // Skip summary rows
-          if(typeof row[0]==="string"&&(row[0].toLowerCase().includes("subtotal")||row[0].toLowerCase().includes("signature"))) break;
+          if(!row) continue;
+          const col0=String(row[0]||"").trim();
+          if(!col0) continue;
+          if(col0.toLowerCase().includes("subtotal")||col0.toLowerCase().includes("signature")) break;
 
-          // Parse date
+          // Parse date - handles Excel serial numbers, Date objects, and strings
           let dateStr="";
-          const rawDate=row[0];
-          if(rawDate instanceof Date){ dateStr=rawDate.toISOString().slice(0,10); }
-          else if(typeof rawDate==="string"&&rawDate.match(/\d{4}-\d{2}-\d{2}/)){dateStr=rawDate.slice(0,10);}
-          else if(typeof rawDate==="string"&&rawDate.includes("/")){
-            const parts=rawDate.split("/");
-            if(parts.length===3) dateStr=`${parts[2]}-${parts[1].padStart(2,"0")}-${parts[0].padStart(2,"0")}`;
+          const rawD=row[0];
+          if(rawD instanceof Date){
+            dateStr=rawD.toISOString().slice(0,10);
+          } else if(typeof rawD==="number"&&rawD>40000){
+            // Excel serial date
+            const d=new Date(Math.round((rawD-25569)*86400*1000));
+            dateStr=d.toISOString().slice(0,10);
+          } else if(typeof rawD==="string"){
+            const m=rawD.match(/(\d{4})-(\d{2})-(\d{2})/);
+            if(m) dateStr=rawD.slice(0,10);
+            else {
+              const parts=rawD.split(/[/\-]/);
+              if(parts.length===3){
+                const y=parts[0].length===4?parts[0]:parts[2];
+                const mo=parts[0].length===4?parts[1]:parts[1];
+                const da=parts[0].length===4?parts[2]:parts[0];
+                dateStr=`${y}-${mo.padStart(2,"0")}-${da.padStart(2,"0")}`;
+              }
+            }
           }
-          if(!dateStr) continue;
+          if(!dateStr||dateStr==="NaN-NaN-NaN") continue;
 
-          const task=(row[2]||"").trim();
+          const task=String(row[2]||"").trim();
           const hoursRaw=row[3];
-          const projName=(row[4]||"").trim();
-          const taskDetails=(row[5]||"").trim();
+          const projName=String(row[4]||"").trim();
+          const taskDetails=String(row[5]||"").trim();
 
-          // Determine entry type
-          const isWeekend=projName.toLowerCase()==="weekend"||(!task&&!hoursRaw&&!projName);
-          const isHoliday=taskDetails.toLowerCase().includes("holiday")||(!task&&!hoursRaw&&taskDetails.toLowerCase().includes("holiday"));
-          const isLeave=!task&&!hoursRaw&&!projName&&!isWeekend;
+          const projLower=projName.toLowerCase();
+          const isWeekend=projLower==="weekend"||(!task&&!hoursRaw&&!projName);
+          const isHoliday=taskDetails.toLowerCase().includes("holiday")&&!task&&!hoursRaw;
+          const isLeave=!task&&!projName&&!hoursRaw&&!isWeekend;
 
-          if(isWeekend) continue; // skip weekends
+          if(isWeekend) continue;
 
-          const hours=parseFloat(hoursRaw)||0;
+          const hours=typeof hoursRaw==="number"?hoursRaw:parseFloat(String(hoursRaw||"0"));
 
-          if(isHoliday||isLeave){
-            // Insert leave entry
+          if(isHoliday||isLeave||(taskDetails.toLowerCase().includes("holiday")&&hours===0)){
             const lvType=taskDetails.toLowerCase().includes("holiday")?"Public Holiday":"Annual Leave";
-            const {error:leaveErr}=await supabase.from("time_entries").insert({
-              engineer_id:eng.id, date:dateStr, hours:8,
-              entry_type:"leave", leave_type:lvType, billable:false
+            const {error:lErr}=await supabase.from("time_entries").insert({
+              engineer_id:eng.id,date:dateStr,hours:8,
+              entry_type:"leave",leave_type:lvType,billable:false
             });
-            if(!leaveErr) inserted++;
-            else { addLog("warn",`  ⚠ Leave entry failed ${dateStr}: ${leaveErr.message}`); skipped++; }
+            if(!lErr){inserted++;leaveCnt++;}
+            else addLog("warn",`  ⚠ Leave ${dateStr}: ${lErr.message}`);
             continue;
           }
 
           if(!task||hours<=0||!projName) continue;
 
-          // Match project by name (fuzzy)
-          const projNameClean=projName.trim().replace(/\s+/g," ").toLowerCase();
-          let proj=projects.find(p=>{
-            const pn=p.name.toLowerCase().replace(/\s+/g," ");
-            const pi=p.id.toLowerCase();
-            return pn===projNameClean||pi===projNameClean||pn.includes(projNameClean)||projNameClean.includes(pn);
-          });
-          if(!proj) addLog("warn",`  ⚠ No project match for "${projName}" on ${dateStr} — saved without project`);
+          // Find or auto-create project
+          const proj=await findOrCreateProject(projName);
 
-          // Map task to category/type
-          let taskCategory="Software", taskType="SCADA Development";
-          const taskLower=task.toLowerCase();
-          if(taskLower.includes("hmi")){taskCategory="Software";taskType="HMI Development";}
-          else if(taskLower.includes("scada")){taskCategory="Software";taskType="SCADA Development";}
-          else if(taskLower.includes("database")||taskLower.includes("symbol")){taskCategory="Software";taskType="OPC Configuration";}
-          else if(taskLower.includes("plc")||taskLower.includes("program")){taskCategory="Software";taskType="PLC Programming";}
-          else if(taskLower.includes("ppc")){taskCategory="Software";taskType="PPC Configuration";}
-          else if(taskLower.includes("relay")||taskLower.includes("signal")){taskCategory="Software";taskType="Control Logic";}
-          else if(taskLower.includes("engineer")||taskLower.includes("design")||taskLower.includes("basic")){taskCategory="Engineering";taskType="Detailed Engineering";}
-          else if(taskLower.includes("commission")){taskCategory="Commissioning";taskType="System Integration Test";}
-          else if(taskLower.includes("fds")||taskLower.includes("doc")){taskCategory="Documentation";taskType="Technical Writing";}
-          else if(taskLower.includes("meeting")||taskLower.includes("project mgmt")){taskCategory="Project Mgmt";taskType="Client Meeting";}
+          // Map task description → category/type
+          let cat="Software", typ="SCADA Development";
+          const tl=task.toLowerCase();
+          if(tl.includes("hmi")){cat="Software";typ="HMI Development";}
+          else if(tl.includes("scada")){cat="Software";typ="SCADA Development";}
+          else if(tl.includes("symbol")||tl.includes("database")){cat="Software";typ="OPC Configuration";}
+          else if(tl.includes("plc")||tl.includes("program")){cat="Software";typ="PLC Programming";}
+          else if(tl.includes("ppc")){cat="Software";typ="PPC Configuration";}
+          else if(tl.includes("relay")||tl.includes("signal")){cat="Software";typ="Control Logic";}
+          else if(tl.includes("fds")||tl.includes("document")){cat="Documentation";typ="Technical Writing";}
+          else if(tl.includes("commission")){cat="Commissioning";typ="System Integration Test";}
+          else if(tl.includes("engineer")||tl.includes("design")){cat="Engineering";typ="Detailed Engineering";}
+          else if(tl.includes("meeting")){cat="Project Mgmt";typ="Client Meeting";}
 
           const activity=taskDetails||(task+(projName?` — ${projName}`:""));
 
-          const {error:entryErr}=await supabase.from("time_entries").insert({
+          const {error:eErr}=await supabase.from("time_entries").insert({
             engineer_id:eng.id,
-            project_id: proj?.id||null,
-            date:dateStr, hours,
-            task_category:taskCategory, task_type:taskType,
-            activity, entry_type:"work",
+            project_id:proj?.id||null,
+            date:dateStr,hours,
+            task_category:cat,task_type:typ,
+            activity,entry_type:"work",
             billable:proj?.billable||false,
           });
-          if(!entryErr) inserted++;
-          else { addLog("warn",`  ⚠ Entry failed ${dateStr}: ${entryErr.message}`); skipped++; }
+          if(!eErr) inserted++;
+          else{addLog("warn",`  ⚠ Entry ${dateStr} failed: ${eErr.message}`);skipped++;}
         }
-        addLog("ok",`  ✓ Imported ${inserted} entries (${skipped} skipped)`);
-        if(inserted>0) addLog("warn","  ⚠ Check entries without matched projects — assign projects manually");
+        addLog("ok",`  ✓ Done: ${inserted} entries (${leaveCnt} leave, ${skipped} failed)`);
       }catch(err){
-        addLog("error",`  ✕ Error reading file: ${err.message}`);
+        addLog("error",`  ✕ Parse error: ${err.message}`);
       }
     }
-    addLog("info","✅ Import complete — refreshing data...");
+    addLog("info","✅ All files processed — refreshing...");
     await loadAll();
     setImporting(false);
   };
@@ -1128,72 +1265,14 @@ export default function App(){
           )}
 
           {/* ════ PROJECTS ════ */}
-          {view==="projects"&&(()=>{
-            const [projSearch,setProjSearch]=React.useState("");
-            const [projStatusFilter,setProjStatusFilter]=React.useState("ALL");
-            const filteredProjects=projects.filter(p=>{
-              const matchStatus=projStatusFilter==="ALL"||p.status===projStatusFilter;
-              const matchSearch=!projSearch||p.name.toLowerCase().includes(projSearch.toLowerCase())||p.id.toLowerCase().includes(projSearch.toLowerCase())||p.client?.toLowerCase().includes(projSearch.toLowerCase());
-              return matchStatus&&matchSearch;
-            });
-            return(
-            <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:18}}>
-                <div>
-                  <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Projects</h1>
-                  <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{filteredProjects.length} of {projects.length} projects</p>
-                </div>
-                <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
-                  <div><Lbl>Search</Lbl><input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="Name, ID, client…" style={{width:180}}/></div>
-                  <div><Lbl>Status</Lbl>
-                    <select value={projStatusFilter} onChange={e=>setProjStatusFilter(e.target.value)} style={{width:130}}>
-                      <option value="ALL">All Statuses</option>
-                      {["Active","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  {isAdmin&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
-                </div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
-                {filteredProjects.map(p=>{
-                  const ps=projStats.find(x=>x.id===p.id);
-                  const topTasks=Object.entries(monthEntries.filter(e=>e.project_id===p.id).reduce((acc,e)=>{acc[e.task_type]=(acc[e.task_type]||0)+e.hours;return acc;},{})).sort((a,b)=>b[1]-a[1]).slice(0,3);
-                  return(
-                    <div key={p.id} className="card" style={{borderLeft:`3px solid ${p.type==="Renewable Energy"?"#34d399":"#818cf8"}`}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                        <div>
-                          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</div>
-                          <div style={{fontSize:13,fontWeight:600,marginTop:2,lineHeight:1.3}}>{p.name}</div>
-                        </div>
-                        <div style={{display:"flex",gap:5,alignItems:"flex-start"}}>
-                          <span style={{fontSize:9,padding:"2px 7px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"#1e3a5f",color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span>
-                          {isAdmin&&<><button className="be" style={{fontSize:10}} onClick={()=>setEditProjModal({...p})}>✎</button><button className="bd" style={{fontSize:10}} onClick={()=>deleteProject(p.id)}>✕</button></>}
-                        </div>
-                      </div>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,fontSize:11,marginBottom:10}}>
-                        <div><span style={{color:"#2e4a66"}}>Client: </span>{p.client}</div>
-                        <div><span style={{color:"#2e4a66"}}>Origin: </span>{p.origin}</div>
-                        <div><span style={{color:"#2e4a66"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase}</span></div>
-                        {(isAdmin||isAcct)&&<div><span style={{color:"#2e4a66"}}>Rate: </span><span style={{fontFamily:"'IBM Plex Mono',monospace",color:p.billable?"#a78bfa":"#253a52"}}>{p.billable?`$${p.rate_per_hour}/h`:"Non-Billable"}</span></div>}
-                      </div>
-                      {topTasks.length>0&&<div style={{background:"#060e1c",borderRadius:5,padding:"6px 9px",marginBottom:10}}>
-                        {topTasks.map(([task,hrs])=>(
-                          <div key={task} style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:2}}>
-                            <span style={{color:"#7a8faa"}}>{task}</span>
-                            <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{hrs}h</span>
-                          </div>
-                        ))}
-                      </div>}
-                      <div style={{paddingTop:9,borderTop:"1px solid #192d47"}}>
-                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:"#38bdf8"}}>{ps?.hours||0}h</div>
-                        {(isAdmin||isAcct)&&p.billable&&<div style={{fontSize:10,color:"#a78bfa"}}>{fmtCurrency(ps?.revenue||0)}</div>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );})()}
+          {view==="projects"&&<ProjectsView
+            projects={projects} projSearch={projSearch} setProjSearch={setProjSearch}
+            projStatusFilter={projStatusFilter} setProjStatusFilter={setProjStatusFilter}
+            monthEntries={monthEntries} projStats={projStats}
+            isAdmin={isAdmin} isAcct={isAcct}
+            setShowProjModal={setShowProjModal} setEditProjModal={setEditProjModal} deleteProject={deleteProject}
+            fmtCurrency={fmtCurrency}
+          />}
 
           {/* ════ TEAM ════ */}
           {view==="team"&&(()=>{
@@ -1817,16 +1896,14 @@ export default function App(){
           {/* ════ IMPORT EXCEL ════ */}
           {view==="import"&&isAdmin&&(
             <div>
-              {/* Load SheetJS on mount */}
-              {!window._XLSX&&(()=>{
-                const s=document.createElement("script");
-                s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-                s.onload=()=>{window._XLSX=window.XLSX;};
-                document.head.appendChild(s);
-              })()}
               <div style={{marginBottom:20}}>
                 <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Import Excel Timesheets</h1>
-                <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>Upload ENEVOEGY timesheet files · Engineers are created automatically if not found</p>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
+                  <p style={{color:"#2e4a66",fontSize:12}}>Upload ENEVOEGY timesheet files · Engineers &amp; projects created automatically</p>
+                  <span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:xlsxReady?"#024b36":"#1a0a00",color:xlsxReady?"#34d399":"#fb923c",fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"}}>
+                    {xlsxReady?"✓ XLSX READY":"⏳ LOADING XLSX..."}
+                  </span>
+                </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
                 {/* Upload panel */}
@@ -1856,9 +1933,10 @@ export default function App(){
                             <button className="bd" style={{fontSize:10}} onClick={()=>setImportFiles(prev=>prev.filter((_,j)=>j!==i))}>✕</button>
                           </div>
                         ))}
+                        {!xlsxReady&&<div style={{background:"#1a0a00",border:"1px solid #fb923c30",borderRadius:6,padding:"8px 12px",fontSize:11,color:"#fb923c",marginBottom:8}}>⏳ XLSX library loading... wait a moment then try again.</div>}
                         <div style={{display:"flex",gap:10,marginTop:12}}>
-                          <button className="bp" style={{flex:1,justifyContent:"center"}} disabled={importing} onClick={()=>importTimesheets(importFiles)}>
-                            {importing?"⏳ Importing...":"⬆ Import All Files"}
+                          <button className="bp" style={{flex:1,justifyContent:"center"}} disabled={importing||!xlsxReady} onClick={()=>importTimesheets(importFiles)}>
+                            {importing?"⏳ Importing...":!xlsxReady?"⏳ Loading XLSX...":"⬆ Import All Files"}
                           </button>
                           <button className="bg" onClick={()=>{setImportFiles([]);setImportLog([]);}}>Clear</button>
                         </div>
