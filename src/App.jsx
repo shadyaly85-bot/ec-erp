@@ -636,25 +636,31 @@ export default function App(){
         }
 
         // ── Deduplication: wipe existing entries for this engineer+month before re-import ──
-        // Determine month from the sheet header (row 2 col 1)
+        // Parse month from sheet header row 2, col B (index 1)
         let importYear=year, importMonth=month;
         try{
           const rawMonth=rows[2]?.[1];
           let mDate=null;
           if(rawMonth instanceof Date) mDate=rawMonth;
-          else if(typeof rawMonth==="number"&&rawMonth>40000) mDate=new Date(Math.round((rawMonth-25569)*86400*1000));
-          if(mDate){ importYear=mDate.getFullYear(); importMonth=mDate.getMonth(); }
+          else if(typeof rawMonth==="number"&&rawMonth>40000){
+            mDate=new Date(Math.round((rawMonth-25569)*86400*1000));
+          } else if(typeof rawMonth==="string"&&rawMonth.length>0){
+            mDate=new Date(rawMonth);
+          }
+          if(mDate&&!isNaN(mDate)){importYear=mDate.getFullYear();importMonth=mDate.getMonth();}
         }catch(_){}
-        const monthStart=`${importYear}-${String(importMonth+1).padStart(2,"0")}-01`;
-        const monthEnd  =`${importYear}-${String(importMonth+1).padStart(2,"0")}-31`;
-        addLog("info",`  🗑 Clearing existing entries for ${eng.name} in ${MONTHS[importMonth]} ${importYear}…`);
-        const {error:delErr}=await supabase.from("time_entries")
+        const yrStr=String(importYear);
+        const moStr=String(importMonth+1).padStart(2,"0");
+        const monthStart=`${yrStr}-${moStr}-01`;
+        const monthEnd  =`${yrStr}-${moStr}-31`;
+        addLog("info",`  🗑 Clearing ${eng.name} entries for ${moStr}/${yrStr}…`);
+        const {count:delCount,error:delErr}=await supabase.from("time_entries")
           .delete()
           .eq("engineer_id",eng.id)
           .gte("date",monthStart)
           .lte("date",monthEnd);
-        if(delErr) addLog("warn",`  ⚠ Could not clear old entries: ${delErr.message}`);
-        else addLog("ok",`  ✓ Old entries cleared`);
+        if(delErr) addLog("warn",`  ⚠ Could not clear: ${delErr.message}`);
+        else addLog("ok",`  ✓ Cleared ${delCount||0} old entries`);
 
         // Parse rows starting at index 4 (0-based), row 3 is header
         let inserted=0, skipped=0, leaveCnt=0;
@@ -694,35 +700,39 @@ export default function App(){
           const projName=String(row[4]||"").trim();
           const taskDetails=String(row[5]||"").trim();
 
-          const projLower=projName.toLowerCase().trim();
-          const detailsLower=taskDetails.toLowerCase().trim();
-          const hours=typeof hoursRaw==="number"?hoursRaw:parseFloat(String(hoursRaw||"0"));
+          const projLower=(projName||"").toLowerCase().trim();
+          const taskLower=(task||"").toLowerCase().trim();
+          const detailsLower=(taskDetails||"").toLowerCase().trim();
+          const hours=typeof hoursRaw==="number"?hoursRaw:(hoursRaw?parseFloat(String(hoursRaw)):0);
 
-          // ── Classify the row ──
-          // Weekend: project column says "Weekend"
-          const isWeekend=projLower==="weekend";
-          if(isWeekend) continue;
+          // ── Step 1: Skip weekends (project column = "Weekend") ──
+          if(projLower==="weekend") continue;
 
-          // Public holiday: task details contains "holiday" AND no work hours
-          const isPublicHoliday=detailsLower.includes("holiday")&&!task&&(isNaN(hours)||hours===0);
+          // ── Step 2: Classify leave types ──
+          // Public holiday: task details OR task contains "holiday" with no project work
+          const isPublicHoliday=(detailsLower.includes("holiday")||taskLower.includes("holiday"))&&!projName;
 
-          // Vacation / annual leave: all of task, hours, project are empty (not weekend)
-          // This handles Khaled's empty rows on his off-days
-          const isEmpty=!task&&(!hoursRaw||hours===0)&&!projName;
-          const isVacation=isEmpty&&!isPublicHoliday;
+          // Explicit vacation: task column says "vacation" or "leave" with no project
+          const isExplicitVacation=(taskLower==="vacation"||taskLower.includes("annual leave")||
+            taskLower.includes("sick leave")||detailsLower.includes("vacation"))&&!projName;
 
-          if(isPublicHoliday||isVacation){
-            const lvType=isPublicHoliday?"Public Holiday":"Annual Leave";
+          // Implicit absence: all of task, project, hours are empty/zero (non-weekend workday)
+          const isImplicitAbsence=!task&&!projName&&(!hoursRaw||hours===0);
+
+          if(isPublicHoliday||isExplicitVacation||isImplicitAbsence){
+            const lvType=isPublicHoliday?"Public Holiday":
+              taskLower.includes("sick")||detailsLower.includes("sick")?"Sick Leave":"Annual Leave";
+            const leaveHours=(hours>0&&hours<=24)?hours:8;
             const {error:lErr}=await supabase.from("time_entries").insert({
-              engineer_id:eng.id,date:dateStr,hours:8,
+              engineer_id:eng.id,date:dateStr,hours:leaveHours,
               entry_type:"leave",leave_type:lvType,billable:false
             });
             if(!lErr){inserted++;leaveCnt++;}
-            else addLog("warn",`  ⚠ Leave ${dateStr}: ${lErr.message}`);
+            else addLog("warn",`  ⚠ Leave(${lvType}) ${dateStr}: ${lErr.message}`);
             continue;
           }
 
-          // Skip rows with no work data
+          // ── Step 3: Work entry — must have task, hours, project ──
           if(!task||isNaN(hours)||hours<=0||!projName) continue;
 
           // Find or auto-create project
@@ -837,11 +847,17 @@ export default function App(){
     const d=new Date(e.date); return d.getFullYear()===year&&d.getMonth()===month;
   }),[entries,year,month]);
 
+  // Helper: is an entry billable? Always derive from CURRENT project status, not stale e.billable
+  const isEntryBillable=useCallback((e)=>{
+    const p=projects.find(x=>x.id===e.project_id);
+    return !!(p&&p.billable);
+  },[projects]);
+
   const workEntries   = monthEntries.filter(e=>e.entry_type==="work");
   const leaveEntries  = monthEntries.filter(e=>e.entry_type==="leave");
   const totalWorkHrs  = workEntries.reduce((s,e)=>s+e.hours,0);
-  const totalBillable = workEntries.filter(e=>e.billable).reduce((s,e)=>s+e.hours,0);
-  const totalRevenue  = workEntries.filter(e=>e.billable).reduce((s,e)=>{
+  const totalBillable = workEntries.filter(e=>isEntryBillable(e)).reduce((s,e)=>s+e.hours,0);
+  const totalRevenue  = workEntries.filter(e=>isEntryBillable(e)).reduce((s,e)=>{
     const p=projects.find(x=>x.id===e.project_id);return s+(p?p.rate_per_hour*e.hours:0);},0);
   const billabilityPct= totalWorkHrs?Math.round(totalBillable/totalWorkHrs*100):0;
   const overallUtil   = engineers.length?Math.min(100,Math.round(totalWorkHrs/(engineers.length*targetHrs)*100)):0;
@@ -849,10 +865,13 @@ export default function App(){
   const engStats=useMemo(()=>engineers.map(eng=>{
     const we=monthEntries.filter(e=>e.engineer_id===eng.id);
     const wh=we.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
-    const bh=we.filter(e=>e.entry_type==="work"&&e.billable).reduce((s,e)=>s+e.hours,0);
+    // Billable hours derived from CURRENT project billable flag
+    const bh=we.filter(e=>e.entry_type==="work").reduce((s,e)=>{
+      const p=projects.find(x=>x.id===e.project_id);
+      return s+(p&&p.billable?e.hours:0);},0);
     const ld=we.filter(e=>e.entry_type==="leave").length;
-    const rev=we.filter(e=>e.entry_type==="work"&&e.billable).reduce((s,e)=>{
-      const p=projects.find(x=>x.id===e.project_id);return s+(p?p.rate_per_hour*e.hours:0);},0);
+    const rev=we.filter(e=>e.entry_type==="work").reduce((s,e)=>{
+      const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
     const engWd=()=>{try{return eng.weekend_days?JSON.parse(eng.weekend_days):DEFAULT_WEEKEND;}catch{return DEFAULT_WEEKEND;}};
     const engTarget=getTargetHrs(year,month,engWd());
     return{...eng,workHrs:wh,billableHrs:bh,leaveDays:ld,revenue:rev,
@@ -861,9 +880,9 @@ export default function App(){
   }),[engineers,monthEntries,projects,year,month]);
 
   const projStats=useMemo(()=>projects.map(p=>{
-    const pe=monthEntries.filter(e=>e.project_id===p.id);
+    const pe=monthEntries.filter(e=>e.project_id===p.id&&e.entry_type==="work");
     const hrs=pe.reduce((s,e)=>s+e.hours,0);
-    const rev=pe.reduce((s,e)=>s+(p.billable?p.rate_per_hour*e.hours:0),0);
+    const rev=p.billable?pe.reduce((s,e)=>s+p.rate_per_hour*e.hours,0):0;
     return{...p,hours:hrs,revenue:rev,engCount:[...new Set(pe.map(e=>e.engineer_id))].length};
   }),[projects,monthEntries]);
 
@@ -873,11 +892,13 @@ export default function App(){
       if(!e.task_category) return;
       if(!map[e.task_category]) map[e.task_category]={category:e.task_category,hours:0,billable:0,tasks:{}};
       map[e.task_category].hours+=e.hours;
-      if(e.billable) map[e.task_category].billable+=e.hours;
+      // Derive billable from project
+      const p=projects.find(x=>x.id===e.project_id);
+      if(p&&p.billable) map[e.task_category].billable+=e.hours;
       map[e.task_category].tasks[e.task_type]=(map[e.task_category].tasks[e.task_type]||0)+e.hours;
     });
     return Object.values(map).sort((a,b)=>b.hours-a.hours);
-  },[workEntries]);
+  },[workEntries,projects]);
 
   const adminBrowseEntries=useMemo(()=>entries.filter(e=>{
     const d=new Date(e.date);
@@ -1098,12 +1119,11 @@ export default function App(){
                 // Filtered entries for dashboard
                 const dEntries=dashProjFilter==="ALL"?monthEntries:monthEntries.filter(e=>e.project_id===dashProjFilter);
                 const dWork=dEntries.filter(e=>e.entry_type==="work");
-                const dBill=dWork.filter(e=>e.billable);
-                const dNonBill=dWork.filter(e=>!e.billable);
                 const dWorkHrs=dWork.reduce((s,e)=>s+e.hours,0);
-                const dBillHrs=dBill.reduce((s,e)=>s+e.hours,0);
-                const dNonHrs=dNonBill.reduce((s,e)=>s+e.hours,0);
-                const dRevenue=dBill.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p?.rate_per_hour||0)*e.hours;},0);
+                // Always derive billable from current project status
+                const dBillHrs=dWork.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?e.hours:0);},0);
+                const dNonHrs=dWorkHrs-dBillHrs;
+                const dRevenue=dWork.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
                 const dBillPct=dWorkHrs?Math.round(dBillHrs/dWorkHrs*100):0;
                 const dLeave=dEntries.filter(e=>e.entry_type==="leave").length;
                 return<>
@@ -1501,6 +1521,7 @@ export default function App(){
                   {id:"utilization",icon:"◉",label:"Team Utilization",desc:"All engineers utilization & billability",show:isAdmin||isAcct},
                   {id:"individual",icon:"👤",label:"Individual Timesheet",desc:"One engineer — full monthly timesheet PDF",show:true},
                   {id:"task",icon:"⊟",label:"Task Analysis",desc:"Task categories & activity log",show:true},
+                  {id:"vacation",icon:"✈",label:"Vacation Report",desc:"Leave & absence summary per engineer",show:true},
                   {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct},
                   {id:"invoice",icon:"🧾",label:"Invoice Export",desc:"Billable invoice per month",show:canInvoice},
                 ].filter(r=>r.show).map(r=>(
@@ -1649,6 +1670,127 @@ export default function App(){
                   );})}
                 </div>
               )}
+
+              {/* Vacation Report */}
+              {activeRpt==="vacation"&&(()=>{
+                // All leave entries for selected month, grouped by engineer
+                const leaveByEng=engineers.map(eng=>{
+                  const engLeave=leaveEntries.filter(e=>e.engineer_id===eng.id);
+                  const byType={};
+                  engLeave.forEach(e=>{
+                    const lt=e.leave_type||"Annual Leave";
+                    byType[lt]=(byType[lt]||0)+1;
+                  });
+                  return{...eng,totalDays:engLeave.length,byType,entries:engLeave.sort((a,b)=>a.date.localeCompare(b.date))};
+                }).filter(e=>e.totalDays>0);
+                // Year-to-date leave (all months)
+                const ytdByEng=engineers.map(eng=>{
+                  const all=entries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="leave"&&new Date(e.date).getFullYear()===year);
+                  const byType={};
+                  all.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
+                  return{id:eng.id,name:eng.name,total:all.length,byType};
+                });
+                const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
+                const typeColors={"Annual Leave":"#38bdf8","Sick Leave":"#f87171","Public Holiday":"#fb923c","Business Travel":"#a78bfa","Training External":"#34d399","Unpaid Leave":"#6b7280"};
+                return(
+                  <div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                      <div>
+                        <h3 style={{fontSize:14,fontWeight:700,color:"#f0f6ff"}}>Vacation & Leave Report</h3>
+                        <p style={{fontSize:12,color:"#2e4a66",marginTop:3}}>{MONTHS[month]} {year} · {leaveByEng.length} engineers with leave</p>
+                      </div>
+                    </div>
+                    {/* Legend */}
+                    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:16}}>
+                      {leaveTypes.map(lt=>(
+                        <span key={lt} style={{fontSize:10,padding:"2px 8px",borderRadius:12,border:`1px solid ${typeColors[lt]}40`,color:typeColors[lt],fontWeight:600}}>{lt}</span>
+                      ))}
+                    </div>
+                    {/* Monthly summary table */}
+                    <div className="card" style={{marginBottom:14}}>
+                      <h4 style={{fontSize:11,fontWeight:600,color:"#7a8faa",marginBottom:12}}>📅 {MONTHS[month]} {year} — Leave Summary</h4>
+                      {leaveByEng.length===0?<p style={{color:"#253a52",fontSize:12}}>No leave recorded for this month.</p>:(
+                        <table>
+                          <thead><tr>
+                            <th>Engineer</th>
+                            {leaveTypes.map(lt=><th key={lt} style={{fontSize:10,color:typeColors[lt]}}>{lt.split(" ")[0]}</th>)}
+                            <th>Total Days</th>
+                          </tr></thead>
+                          <tbody>{leaveByEng.map(eng=>(
+                            <tr key={eng.id}>
+                              <td><div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <div className="av" style={{fontSize:9,width:24,height:24}}>{eng.name?.slice(0,2).toUpperCase()}</div>
+                                <div>
+                                  <div style={{fontSize:12,fontWeight:500}}>{eng.name}</div>
+                                  <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role}</div>
+                                </div>
+                              </div></td>
+                              {leaveTypes.map(lt=>(
+                                <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"#253a52",fontWeight:eng.byType[lt]?700:400}}>
+                                  {eng.byType[lt]||"—"}
+                                </td>
+                              ))}
+                              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#f0f6ff"}}>{eng.totalDays}d</td>
+                            </tr>
+                          ))}</tbody>
+                        </table>
+                      )}
+                    </div>
+                    {/* Year-to-date table */}
+                    <div className="card" style={{marginBottom:14}}>
+                      <h4 style={{fontSize:11,fontWeight:600,color:"#7a8faa",marginBottom:12}}>📊 Year-to-Date {year} — All Leave</h4>
+                      <table>
+                        <thead><tr>
+                          <th>Engineer</th>
+                          {leaveTypes.map(lt=><th key={lt} style={{fontSize:10,color:typeColors[lt]}}>{lt.split(" ")[0]}</th>)}
+                          <th>YTD Total</th>
+                        </tr></thead>
+                        <tbody>{ytdByEng.filter(e=>e.total>0).map(eng=>(
+                          <tr key={eng.id}>
+                            <td style={{fontSize:12,fontWeight:500}}>{eng.name}</td>
+                            {leaveTypes.map(lt=>(
+                              <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"#253a52",fontWeight:eng.byType[lt]?700:400}}>
+                                {eng.byType[lt]||"—"}
+                              </td>
+                            ))}
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#f0f6ff"}}>{eng.total}d</td>
+                          </tr>
+                        ))}{ytdByEng.filter(e=>e.total>0).length===0&&<tr><td colSpan={8} style={{textAlign:"center",color:"#253a52",padding:16}}>No leave recorded for {year}.</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Detail per engineer */}
+                    {leaveByEng.map(eng=>(
+                      <div key={eng.id} className="card" style={{marginBottom:10}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <div className="av" style={{fontSize:9,width:28,height:28}}>{eng.name?.slice(0,2).toUpperCase()}</div>
+                            <div>
+                              <div style={{fontSize:13,fontWeight:600}}>{eng.name}</div>
+                              <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role}</div>
+                            </div>
+                          </div>
+                          <div style={{display:"flex",gap:8}}>
+                            {Object.entries(eng.byType).map(([lt,days])=>(
+                              <span key={lt} style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:typeColors[lt]+"20",color:typeColors[lt],fontWeight:600}}>
+                                {lt}: {days}d
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                          {eng.entries.map(e=>(
+                            <span key={e.id} style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:"#060e1c",border:`1px solid ${typeColors[e.leave_type||"Annual Leave"]}40`,color:typeColors[e.leave_type||"Annual Leave"]}}>
+                              {e.date}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    {leaveByEng.length===0&&<div className="card" style={{textAlign:"center",padding:40,color:"#253a52"}}>No leave entries for {MONTHS[month]} {year}. Import timesheets or add leave via Post Hours.</div>}
+                  </div>
+                );
+              })()}
 
               {/* Monthly mgmt */}
               {activeRpt==="monthly"&&(
