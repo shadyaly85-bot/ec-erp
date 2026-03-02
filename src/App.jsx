@@ -427,9 +427,11 @@ export default function App(){
       billable:     editEntry.type==="leave"?false:(proj?.billable||false),
       date:         editEntry.date,
     };
-    const {data,error}=await supabase.from("time_entries").update(payload).eq("id",editEntry.id).select().single();
+    const {data:updArr,error}=await supabase.from("time_entries").update(payload).eq("id",editEntry.id).select();
     if(error){showToast("Error: "+error.message,false);return;}
-    setEntries(prev=>prev.map(e=>e.id===data.id?data:e));
+    const upd=Array.isArray(updArr)?updArr[0]:updArr;
+    if(upd) setEntries(prev=>prev.map(e=>e.id===upd.id?upd:e));
+    else setEntries(prev=>prev.map(e=>e.id===editEntry.id?{...e,...payload}:e));
     setEditEntry(null); showToast("Entry updated ✓");
   };
 
@@ -472,18 +474,20 @@ export default function App(){
         // Find or create engineer
         let eng=engineers.find(e=>e.email?.toLowerCase()===engEmail);
         if(!eng){
-          const {data:newEng,error:engErr}=await supabase.from("engineers").insert({
+          const {data:newEngArr,error:engErr}=await supabase.from("engineers").insert({
             name:engName, email:engEmail,
             role:engRole||"Automation Engineer",
             level:"Mid", role_type:"engineer",
             weekend_days:JSON.stringify([5,6])
-          }).select().single();
-          if(engErr){ addLog("error",`  ✕ Could not create engineer: ${engErr.message}`); continue; }
+          }).select();
+          if(engErr){ addLog("error",`  ✕ Could not create engineer: ${engErr.message} — check Supabase RLS`); continue; }
+          const newEng=Array.isArray(newEngArr)?newEngArr[0]:newEngArr;
+          if(!newEng){ addLog("error","  ✕ Engineer insert returned no data"); continue; }
           eng=newEng;
           setEngineers(prev=>[...prev,newEng].sort((a,b)=>a.name.localeCompare(b.name)));
-          addLog("ok",`  ✓ Created engineer: ${engName}`);
+          addLog("ok",`  ✓ Created engineer: ${engName} (id: ${eng.id})`);
         } else {
-          addLog("info",`  → Found existing engineer: ${eng.name}`);
+          addLog("info",`  → Found existing engineer: ${eng.name} (id: ${eng.id})`);
         }
 
         // Parse daily rows (starting row index 4, after header row 3)
@@ -522,40 +526,43 @@ export default function App(){
           if(isHoliday||isLeave){
             // Insert leave entry
             const lvType=taskDetails.toLowerCase().includes("holiday")?"Public Holiday":"Annual Leave";
-            const {error}=await supabase.from("time_entries").insert({
+            const {error:leaveErr}=await supabase.from("time_entries").insert({
               engineer_id:eng.id, date:dateStr, hours:8,
               entry_type:"leave", leave_type:lvType, billable:false
             });
-            if(!error) inserted++;
-            else skipped++;
+            if(!leaveErr) inserted++;
+            else { addLog("warn",`  ⚠ Leave entry failed ${dateStr}: ${leaveErr.message}`); skipped++; }
             continue;
           }
 
           if(!task||hours<=0||!projName) continue;
 
           // Match project by name (fuzzy)
-          const projNameClean=projName.trim().toLowerCase();
-          let proj=projects.find(p=>
-            p.name.toLowerCase()===projNameClean||
-            p.id.toLowerCase()===projNameClean||
-            p.name.toLowerCase().includes(projNameClean)||
-            projNameClean.includes(p.name.toLowerCase())
-          );
+          const projNameClean=projName.trim().replace(/\s+/g," ").toLowerCase();
+          let proj=projects.find(p=>{
+            const pn=p.name.toLowerCase().replace(/\s+/g," ");
+            const pi=p.id.toLowerCase();
+            return pn===projNameClean||pi===projNameClean||pn.includes(projNameClean)||projNameClean.includes(pn);
+          });
+          if(!proj) addLog("warn",`  ⚠ No project match for "${projName}" on ${dateStr} — saved without project`);
 
-          // Map task to category
+          // Map task to category/type
           let taskCategory="Software", taskType="SCADA Development";
           const taskLower=task.toLowerCase();
-          if(taskLower.includes("scada")||taskLower.includes("hmi")){taskCategory="Software";taskType=taskLower.includes("hmi")?"HMI Development":"SCADA Development";}
-          else if(taskLower.includes("database")){taskCategory="Software";taskType="OPC Configuration";}
+          if(taskLower.includes("hmi")){taskCategory="Software";taskType="HMI Development";}
+          else if(taskLower.includes("scada")){taskCategory="Software";taskType="SCADA Development";}
+          else if(taskLower.includes("database")||taskLower.includes("symbol")){taskCategory="Software";taskType="OPC Configuration";}
           else if(taskLower.includes("plc")||taskLower.includes("program")){taskCategory="Software";taskType="PLC Programming";}
-          else if(taskLower.includes("engineer")||taskLower.includes("design")){taskCategory="Engineering";taskType="Detailed Engineering";}
+          else if(taskLower.includes("ppc")){taskCategory="Software";taskType="PPC Configuration";}
+          else if(taskLower.includes("relay")||taskLower.includes("signal")){taskCategory="Software";taskType="Control Logic";}
+          else if(taskLower.includes("engineer")||taskLower.includes("design")||taskLower.includes("basic")){taskCategory="Engineering";taskType="Detailed Engineering";}
           else if(taskLower.includes("commission")){taskCategory="Commissioning";taskType="System Integration Test";}
-          else if(taskLower.includes("doc")||taskLower.includes("fds")||taskLower.includes("report")){taskCategory="Documentation";taskType="Technical Writing";}
-          else if(taskLower.includes("meeting")||taskLower.includes("project")){taskCategory="Project Mgmt";taskType="Client Meeting";}
+          else if(taskLower.includes("fds")||taskLower.includes("doc")){taskCategory="Documentation";taskType="Technical Writing";}
+          else if(taskLower.includes("meeting")||taskLower.includes("project mgmt")){taskCategory="Project Mgmt";taskType="Client Meeting";}
 
-          const activity=taskDetails||(task+(projName?` on ${projName}`:""));
+          const activity=taskDetails||(task+(projName?` — ${projName}`:""));
 
-          const {error}=await supabase.from("time_entries").insert({
+          const {error:entryErr}=await supabase.from("time_entries").insert({
             engineer_id:eng.id,
             project_id: proj?.id||null,
             date:dateStr, hours,
@@ -563,8 +570,8 @@ export default function App(){
             activity, entry_type:"work",
             billable:proj?.billable||false,
           });
-          if(!error) inserted++;
-          else skipped++;
+          if(!entryErr) inserted++;
+          else { addLog("warn",`  ⚠ Entry failed ${dateStr}: ${entryErr.message}`); skipped++; }
         }
         addLog("ok",`  ✓ Imported ${inserted} entries (${skipped} skipped)`);
         if(inserted>0) addLog("warn","  ⚠ Check entries without matched projects — assign projects manually");
@@ -867,9 +874,35 @@ export default function App(){
           {view==="dashboard"&&(
             <div>
               <div style={{marginBottom:20}}>
-                <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Dashboard</h1>
-                <p style={{color:"#2e4a66",fontSize:12,marginTop:3,fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year} · Live Overview</p>
+                <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>{isAdmin||isAcct||isLead?"Team Dashboard":"My Summary"}</h1>
+                <p style={{color:"#2e4a66",fontSize:12,marginTop:3,fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year} · {isAdmin||isAcct||isLead?"Live Overview":"Your personal stats"}</p>
               </div>
+              {/* Engineers only see their own summary */}
+              {!isAdmin&&!isAcct&&!isLead&&(()=>{
+                const myE=monthEntries.filter(e=>e.engineer_id===myProfile?.id);
+                const myWork=myE.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
+                const myLeave=myE.filter(e=>e.entry_type==="leave").length;
+                const myProjs=[...new Set(myE.filter(e=>e.entry_type==="work").map(e=>e.project_id).filter(Boolean))].length;
+                const myTarget=getTargetHrs(year,month,myWeekend);
+                const myUtil=myTarget>0?Math.round(myWork/myTarget*100):0;
+                return<>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11,marginBottom:18}}>
+                    {[{l:"My Work Hours",v:myWork+"h",c:"#38bdf8"},{l:"Utilization",v:fmtPct(myUtil),c:myUtil>=80?"#34d399":myUtil>=60?"#fb923c":"#f87171"},{l:"Leave Days",v:myLeave+"d",c:"#fb923c"},{l:"Projects",v:myProjs,c:"#a78bfa"}].map((s,i)=>(
+                      <div key={i} className="metric"><div style={{fontSize:9,color:"#2e4a66",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{s.l}</div><div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:s.c,marginTop:8,lineHeight:1}}>{s.v}</div></div>
+                    ))}
+                  </div>
+                  <div className="card"><h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:10}}>My {MONTHS[month]} Work Log</h3>
+                    <table><thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th></tr></thead>
+                    <tbody>{myE.filter(e=>e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
+                      const p=projects.find(x=>x.id===e.project_id);
+                      return<tr key={e.id}><td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>{e.date}</td><td style={{color:"#38bdf8",fontSize:11}}>{p?.id||"—"}</td><td style={{fontSize:11,color:"#7a8faa"}}>{e.task_type||"—"}</td><td style={{fontSize:11,color:"#4e6479",fontStyle:"italic",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td><td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#38bdf8"}}>{e.hours}h</td></tr>;
+                    })}{myE.length===0&&<tr><td colSpan={5} style={{textAlign:"center",color:"#253a52",padding:16}}>No entries for {MONTHS[month]} {year}. Go to Post Hours to log time.</td></tr>}
+                    </tbody></table>
+                  </div>
+                </>;
+              })()}
+              {/* Admin/Lead/Accountant see full team dashboard */}
+              {(isAdmin||isAcct||isLead)&&<>
               <div style={{display:"grid",gridTemplateColumns:`repeat(${isAdmin||isAcct?5:3},1fr)`,gap:11,marginBottom:18}}>
                 {[
                   {l:"Team Utilization",v:fmtPct(overallUtil),c:"#38bdf8",show:true},
@@ -935,6 +968,7 @@ export default function App(){
                   ))}</tbody>
                 </table>
               </div>
+              </>}
             </div>
           )}
 
@@ -1094,14 +1128,34 @@ export default function App(){
           )}
 
           {/* ════ PROJECTS ════ */}
-          {view==="projects"&&(
+          {view==="projects"&&(()=>{
+            const [projSearch,setProjSearch]=React.useState("");
+            const [projStatusFilter,setProjStatusFilter]=React.useState("ALL");
+            const filteredProjects=projects.filter(p=>{
+              const matchStatus=projStatusFilter==="ALL"||p.status===projStatusFilter;
+              const matchSearch=!projSearch||p.name.toLowerCase().includes(projSearch.toLowerCase())||p.id.toLowerCase().includes(projSearch.toLowerCase())||p.client?.toLowerCase().includes(projSearch.toLowerCase());
+              return matchStatus&&matchSearch;
+            });
+            return(
             <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-                <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Projects</h1>
-                {isAdmin&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:18}}>
+                <div>
+                  <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Projects</h1>
+                  <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{filteredProjects.length} of {projects.length} projects</p>
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+                  <div><Lbl>Search</Lbl><input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="Name, ID, client…" style={{width:180}}/></div>
+                  <div><Lbl>Status</Lbl>
+                    <select value={projStatusFilter} onChange={e=>setProjStatusFilter(e.target.value)} style={{width:130}}>
+                      <option value="ALL">All Statuses</option>
+                      {["Active","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  {isAdmin&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
+                </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
-                {projects.map(p=>{
+                {filteredProjects.map(p=>{
                   const ps=projStats.find(x=>x.id===p.id);
                   const topTasks=Object.entries(monthEntries.filter(e=>e.project_id===p.id).reduce((acc,e)=>{acc[e.task_type]=(acc[e.task_type]||0)+e.hours;return acc;},{})).sort((a,b)=>b[1]-a[1]).slice(0,3);
                   return(
@@ -1139,7 +1193,7 @@ export default function App(){
                 })}
               </div>
             </div>
-          )}
+          );})()}
 
           {/* ════ TEAM ════ */}
           {view==="team"&&(()=>{
@@ -1259,10 +1313,10 @@ export default function App(){
               {/* Report type cards */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:18}}>
                 {[
-                  {id:"utilization",icon:"◉",label:"Team Utilization",desc:"All engineers utilization & billability",show:true},
+                  {id:"utilization",icon:"◉",label:"Team Utilization",desc:"All engineers utilization & billability",show:isAdmin||isAcct},
                   {id:"individual",icon:"👤",label:"Individual Timesheet",desc:"One engineer — full monthly timesheet PDF",show:true},
                   {id:"task",icon:"⊟",label:"Task Analysis",desc:"Task categories & activity log",show:true},
-                  {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:true},
+                  {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct},
                   {id:"invoice",icon:"🧾",label:"Invoice Export",desc:"Billable invoice per month",show:canInvoice},
                 ].filter(r=>r.show).map(r=>(
                   <div key={r.id} className={`rpt-card ${activeRpt===r.id?"sel":""}`} onClick={()=>setActiveRpt(r.id)}>
