@@ -811,12 +811,20 @@ export default function App(){
         const ws=wb.Sheets[wb.SheetNames[0]];
         const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
 
-        // Parse header (row 0=Name, row 1=Email, row 2=Month)
-        const engName=String(rows[0]?.[1]||"").trim();
-        const engEmail=String(rows[1]?.[1]||"").trim().toLowerCase();
-        const engRole=String(rows[0]?.[4]||"").trim();
+        // ── FIX: Detect column layout — standard (col 0) vs shifted (col 4, Shehab-style) ──
+        // Standard: row[0]=Date/Name, row[1]=email value, row[2]=task...
+        // Shifted:  row[4]=Name label, row[5]=Name value, row[6]=task...
+        let colOffset=0;
+        const r0=String(rows[0]?.[0]||"").trim().toLowerCase();
+        const r0c4=String(rows[0]?.[4]||"").trim().toLowerCase();
+        if(!r0&&r0c4==="name"){ colOffset=4; addLog("info","  ℹ Shifted column layout detected (offset +4)"); }
 
-        if(!engName||!engEmail){addLog("error","  ✕ Missing name/email in rows 1-2");continue;}
+        // Parse header (row 0=Name, row 1=Email, row 2=Month)
+        const engName=String(rows[0]?.[colOffset+1]||"").trim();
+        const engEmail=String(rows[1]?.[colOffset+1]||"").trim().toLowerCase();
+        const engRole=String(rows[0]?.[colOffset+4]||"").trim();
+
+        if(!engName||!engEmail){addLog("error","  ✕ Missing name/email in header rows");continue;}
         addLog("info",`  👤 ${engName} <${engEmail}>`);
 
         // Find or create engineer
@@ -838,35 +846,53 @@ export default function App(){
           addLog("info",`  → Existing engineer: ${eng.name}`);
         }
 
-        // ── DEDUPLICATION: delete all existing entries for this engineer+month ──
-        // Get the month from the first date row (row index 4) — most reliable source
+        // ── LOCAL DATE HELPER: always use local year/month/day, never toISOString() ──
+        // SheetJS cellDates:true returns Date at local midnight — toISOString() shifts in UTC+ zones
+        const localDateStr=(d)=>{
+          const yy=d.getFullYear();
+          const mm=String(d.getMonth()+1).padStart(2,"0");
+          const dd=String(d.getDate()).padStart(2,"0");
+          return `${yy}-${mm}-${dd}`;
+        };
+        const parseCellDate=(raw)=>{
+          if(raw instanceof Date) return localDateStr(raw);
+          if(typeof raw==="number"&&raw>40000) return localDateStr(new Date(Math.round((raw-25569)*86400*1000)));
+          if(typeof raw==="string"){
+            const m=raw.match(/(\d{4})-(\d{2})-(\d{2})/);
+            if(m) return raw.slice(0,10);
+            const parts=raw.split(/[/\-]/);
+            if(parts.length===3){
+              const y=parts[0].length===4?parts[0]:parts[2];
+              const mo=parts[0].length===4?parts[1]:parts[1];
+              const da=parts[0].length===4?parts[2]:parts[0];
+              return `${y}-${mo.padStart(2,"0")}-${da.padStart(2,"0")}`;
+            }
+          }
+          return "";
+        };
+
+        // ── DEDUP: detect import month from first real date in data rows ──
         let importYear=year, importMonth=month;
-        for(let ri=4;ri<Math.min(rows.length,10);ri++){
-          const rd=rows[ri]?.[0];
-          if(!rd) continue;
-          let d=null;
-          if(rd instanceof Date) d=rd;
-          else if(typeof rd==="number"&&rd>40000) d=new Date(Math.round((rd-25569)*86400*1000));
-          else if(typeof rd==="string"&&rd.match(/\d{4}-\d{2}-\d{2}/)) d=new Date(rd.slice(0,10)+"T12:00:00");
-          // Use LOCAL date to avoid UTC timezone shift
-          if(d&&!isNaN(d)){ importYear=d.getFullYear(); importMonth=d.getMonth(); break; }
+        for(let ri=4;ri<Math.min(rows.length,12);ri++){
+          const rd=rows[ri]?.[colOffset];
+          if(!rd||typeof rd==="string") continue;
+          const ds=parseCellDate(rd);
+          if(ds&&ds!=="NaN-NaN-NaN"){
+            const tmp=new Date(ds+"T12:00:00");
+            if(!isNaN(tmp)){ importYear=tmp.getFullYear(); importMonth=tmp.getMonth(); break; }
+          }
         }
         const yrStr=String(importYear);
         const moStr=String(importMonth+1).padStart(2,"0");
         const monthStart=`${yrStr}-${moStr}-01`;
-        // Last day of the month — works for all months including Feb
         const lastDay=new Date(importYear,importMonth+1,0).getDate();
         const monthEnd=`${yrStr}-${moStr}-${String(lastDay).padStart(2,"0")}`;
-        addLog("info",`  📅 Detected month: ${moStr}/${yrStr} — engineer id: ${eng.id}`);
+        addLog("info",`  📅 Month: ${moStr}/${yrStr} (${monthStart} → ${monthEnd})`);
 
-        // Fetch all existing IDs for this engineer in this month
+        // Delete existing entries for this engineer+month
         const {data:existingRows,error:fetchErr}=await supabase
-          .from("time_entries")
-          .select("id")
-          .eq("engineer_id",eng.id)
-          .gte("date",monthStart)
-          .lte("date",monthEnd);
-
+          .from("time_entries").select("id")
+          .eq("engineer_id",eng.id).gte("date",monthStart).lte("date",monthEnd);
         if(fetchErr){
           addLog("warn",`  ⚠ Fetch error: ${fetchErr.message}`);
         } else {
@@ -874,125 +900,159 @@ export default function App(){
           if(existingRows&&existingRows.length>0){
             const ids=existingRows.map(r=>r.id);
             const {error:delErr}=await supabase.from("time_entries").delete().in("id",ids);
-            if(delErr){
-              addLog("warn",`  ⚠ Delete failed: ${delErr.message} — import will create duplicates!`);
-            } else {
-              setEntries(prev=>prev.filter(e=>!ids.includes(e.id)));
-              addLog("ok",`  ✓ Deleted ${ids.length} old entries — re-importing fresh`);
-            }
-          } else {
-            addLog("ok",`  ✓ No existing entries — fresh import`);
-          }
+            if(delErr) addLog("warn",`  ⚠ Delete failed: ${delErr.message}`);
+            else{ setEntries(prev=>prev.filter(e=>!ids.includes(e.id))); addLog("ok",`  ✓ Cleared ${ids.length} old entries`); }
+          } else { addLog("ok","  ✓ No existing entries — fresh import"); }
         }
 
-        // Parse rows starting at index 4 (0-based), row 3 is header
+        // ── PARSE DATA ROWS ──
         let inserted=0, skipped=0, leaveCnt=0;
+        let firstDaySeen=false; // track when engineer's first working day appears
+
         for(let i=4;i<rows.length;i++){
           const row=rows[i];
           if(!row) continue;
-          const col0=String(row[0]||"").trim();
-          if(!col0) continue;
-          if(col0.toLowerCase().includes("subtotal")||col0.toLowerCase().includes("signature")) break;
 
-          // Parse date — always use LOCAL year/month/day to avoid UTC timezone shift
-          // SheetJS cellDates:true returns Date objects at local midnight
-          // .toISOString() would shift the date backward in UTC+ timezones (e.g. Egypt UTC+2/3)
-          const localDateStr=(d)=>{
-            const yy=d.getFullYear();
-            const mm=String(d.getMonth()+1).padStart(2,"0");
-            const dd=String(d.getDate()).padStart(2,"0");
-            return `${yy}-${mm}-${dd}`;
-          };
-          let dateStr="";
-          const rawD=row[0];
-          if(rawD instanceof Date){
-            dateStr=localDateStr(rawD);
-          } else if(typeof rawD==="number"&&rawD>40000){
-            // Excel serial date — build local date
-            const d=new Date(Math.round((rawD-25569)*86400*1000));
-            dateStr=localDateStr(d);
-          } else if(typeof rawD==="string"){
-            const m=rawD.match(/(\d{4})-(\d{2})-(\d{2})/);
-            if(m) dateStr=rawD.slice(0,10);
-            else {
-              const parts=rawD.split(/[/\-]/);
-              if(parts.length===3){
-                const y=parts[0].length===4?parts[0]:parts[2];
-                const mo=parts[0].length===4?parts[1]:parts[1];
-                const da=parts[0].length===4?parts[2]:parts[0];
-                dateStr=`${y}-${mo.padStart(2,"0")}-${da.padStart(2,"0")}`;
-              }
-            }
-          }
+          // Stop at subtotal/signature rows
+          const sentinelVal=String(row[colOffset]||row[0]||"").trim().toLowerCase();
+          if(sentinelVal.includes("subtotal")||sentinelVal.includes("signature")) break;
+
+          // Parse the date cell (use colOffset for shifted layouts)
+          const rawD=row[colOffset];
+          if(!rawD) continue;
+          const dateStr=parseCellDate(rawD);
           if(!dateStr||dateStr==="NaN-NaN-NaN") continue;
 
-          const task=String(row[2]||"").trim();
-          const hoursRaw=row[3];
-          const projName=String(row[4]||"").trim();
-          const taskDetails=String(row[5]||"").trim();
+          // ── STOP: skip rows outside the import month (e.g. Mar rows in a Feb sheet) ──
+          if(dateStr<monthStart||dateStr>monthEnd){ skipped++; continue; }
 
-          const projLower=(projName||"").toLowerCase().trim();
-          const taskLower=(task||"").toLowerCase().trim();
-          const detailsLower=(taskDetails||"").toLowerCase().trim();
+          // Read task/hours/project/details — use colOffset for shifted layouts
+          const task       =String(row[colOffset+2]||"").trim();
+          const hoursRaw   =row[colOffset+3];
+          const projName   =String(row[colOffset+4]||"").trim();
+          const taskDetails=String(row[colOffset+5]||"").trim();
+
+          const projLower   =projName.toLowerCase();
+          const taskLower   =task.toLowerCase();
+          const detailsLower=taskDetails.toLowerCase();
           const hours=typeof hoursRaw==="number"?hoursRaw:(hoursRaw?parseFloat(String(hoursRaw)):0);
 
-          // ── Step 1: Determine day-of-week (0=Sun,1=Mon,...,5=Fri,6=Sat) ──
-          // Parse as local noon to avoid UTC midnight shifting the day in UTC+ timezones
-          const dow=new Date(dateStr+"T12:00:00").getDay();
-          // Engineer weekend_days: parse from DB (default [5,6] = Fri+Sat)
+          // ── WEEKEND: day-of-week check (local noon to avoid UTC shift) ──
+          const dow=new Date(dateStr+"T12:00:00").getDay(); // 0=Sun…5=Fri,6=Sat
           let engWeekend=[5,6];
           try{ engWeekend=eng.weekend_days?JSON.parse(eng.weekend_days):[5,6]; }catch(_){}
 
-          // ── Step 2: Skip explicit "Weekend" label ──
-          if(projLower==="weekend") continue;
+          // Skip if weekend keyword in task OR project column
+          const weekendKeyword=projLower==="weekend"||taskLower==="weekend"
+            ||projLower==="week end"||taskLower==="week end";
+          if(weekendKeyword) continue;
 
-          // ── Step 3: Skip actual weekend days (all-empty rows on engineer's off days) ──
+          // All-empty: no task, no project, no hours, no details
           const allEmpty=!task&&!projName&&(!hoursRaw||hours===0)&&!taskDetails;
+
+          // Skip empty weekend rows
           if(allEmpty&&engWeekend.includes(dow)) continue;
 
-          // ── Step 4: Classify leave types ──
-          // Public holiday: task details OR task contains "holiday" with no project work
-          const isPublicHoliday=(detailsLower.includes("holiday")||taskLower.includes("holiday"))&&!projName;
+          // ── VACATION: explicit vacation keyword in task, regardless of project column ──
+          // (some engineers put "Vacation" in both task AND project — detect by task only)
+          const isVacationTask=taskLower==="vacation"||taskLower==="annual leave"
+            ||taskLower==="sick leave"||taskLower==="unpaid leave";
+          const isVacationDetail=detailsLower.includes("vacation");
 
-          // Explicit vacation: task column says "vacation" / "leave" with no project
-          const isExplicitVacation=(taskLower==="vacation"||taskLower.includes("annual leave")||
-            taskLower.includes("sick leave")||detailsLower.includes("vacation"))&&!projName;
+          // ── PUBLIC HOLIDAY / NATIONAL DAY ──
+          const isHoliday=(taskLower.includes("holiday")||taskLower.includes("national day")
+            ||detailsLower.includes("holiday"))&&!projName;
 
-          // Implicit absence: all-empty row on a WORK day (not weekend)
-          const isImplicitAbsence=allEmpty&&!engWeekend.includes(dow);
+          // ── TRAINING with no project → Training External leave ──
+          const isTrainingNoProj=(taskLower==="training"||taskLower.includes("training"))
+            &&!projName&&hours>0;
 
-          if(isPublicHoliday||isExplicitVacation||isImplicitAbsence){
-            const lvType=isPublicHoliday?"Public Holiday":
-              (taskLower.includes("sick")||detailsLower.includes("sick"))?"Sick Leave":"Annual Leave";
+          // ── FIRST DAY marker → skip it as a plain note (no leave, no work) ──
+          const isFirstDayMarker=taskLower.includes("first day")||taskLower.includes("(first day)");
+
+          // ── IMPLICIT ABSENCE: empty workday row ──
+          // Only count as absence if we've seen at least one working day (avoids pre-employment period)
+          const isImplicitAbsence=allEmpty&&!engWeekend.includes(dow)&&firstDaySeen;
+
+          // ── CLASSIFY ──
+          if(isHoliday){
+            const {error:lErr}=await supabase.from("time_entries").upsert({
+              engineer_id:eng.id,date:dateStr,hours:8,
+              entry_type:"leave",leave_type:"Public Holiday",billable:false
+            },{onConflict:"engineer_id,date,entry_type,leave_type",ignoreDuplicates:false});
+            if(!lErr){inserted++;leaveCnt++; firstDaySeen=true;}
+            else addLog("warn",`  ⚠ Holiday ${dateStr}: ${lErr.message}`);
+            continue;
+          }
+
+          if(isVacationTask||isVacationDetail){
+            const lvType=taskLower.includes("sick")||detailsLower.includes("sick")?"Sick Leave":"Annual Leave";
             const leaveHours=(hours>0&&hours<=24)?hours:8;
             const {error:lErr}=await supabase.from("time_entries").upsert({
               engineer_id:eng.id,date:dateStr,hours:leaveHours,
               entry_type:"leave",leave_type:lvType,billable:false
             },{onConflict:"engineer_id,date,entry_type,leave_type",ignoreDuplicates:false});
-            if(!lErr){inserted++;leaveCnt++;}
+            if(!lErr){inserted++;leaveCnt++; firstDaySeen=true;}
             else addLog("warn",`  ⚠ Leave(${lvType}) ${dateStr}: ${lErr.message}`);
             continue;
           }
 
-          // ── Step 5: Work entry — must have task, hours, project ──
-          if(!task||isNaN(hours)||hours<=0||!projName) continue;
+          if(isTrainingNoProj){
+            const {error:lErr}=await supabase.from("time_entries").upsert({
+              engineer_id:eng.id,date:dateStr,hours,
+              entry_type:"leave",leave_type:"Training External",billable:false
+            },{onConflict:"engineer_id,date,entry_type,leave_type",ignoreDuplicates:false});
+            if(!lErr){inserted++;leaveCnt++; firstDaySeen=true;}
+            else addLog("warn",`  ⚠ Training ${dateStr}: ${lErr.message}`);
+            continue;
+          }
 
-          // Find or auto-create project
+          if(isFirstDayMarker){
+            // First day orientation — log as Training External, mark employment start
+            const leaveHours=(hours>0&&hours<=24)?hours:8;
+            const {error:lErr}=await supabase.from("time_entries").upsert({
+              engineer_id:eng.id,date:dateStr,hours:leaveHours,
+              entry_type:"leave",leave_type:"Training External",billable:false
+            },{onConflict:"engineer_id,date,entry_type,leave_type",ignoreDuplicates:false});
+            if(!lErr){inserted++;leaveCnt++;}
+            firstDaySeen=true;
+            continue;
+          }
+
+          if(isImplicitAbsence){
+            const {error:lErr}=await supabase.from("time_entries").upsert({
+              engineer_id:eng.id,date:dateStr,hours:8,
+              entry_type:"leave",leave_type:"Annual Leave",billable:false
+            },{onConflict:"engineer_id,date,entry_type,leave_type",ignoreDuplicates:false});
+            if(!lErr){inserted++;leaveCnt++;}
+            else addLog("warn",`  ⚠ Absence ${dateStr}: ${lErr.message}`);
+            continue;
+          }
+
+          // ── WORK ENTRY: must have task + hours + project ──
+          if(!task||isNaN(hours)||hours<=0||!projName) continue;
+          firstDaySeen=true;
+
           const proj=await findOrCreateProject(projName);
 
-          // Map task description → category/type
+          // Map task → category/type
           let cat="Software", typ="SCADA Development";
           const tl=task.toLowerCase();
-          if(tl.includes("hmi")){cat="Software";typ="HMI Development";}
-          else if(tl.includes("scada")){cat="Software";typ="SCADA Development";}
-          else if(tl.includes("symbol")||tl.includes("database")){cat="Software";typ="OPC Configuration";}
-          else if(tl.includes("plc")||tl.includes("program")){cat="Software";typ="PLC Programming";}
-          else if(tl.includes("ppc")){cat="Software";typ="PPC Configuration";}
-          else if(tl.includes("relay")||tl.includes("signal")){cat="Software";typ="Control Logic";}
-          else if(tl.includes("fds")||tl.includes("document")){cat="Documentation";typ="Technical Writing";}
-          else if(tl.includes("commission")){cat="Commissioning";typ="System Integration Test";}
+          if(tl.includes("hmi"))                         {cat="Software";typ="HMI Development";}
+          else if(tl.includes("scada"))                  {cat="Software";typ="SCADA Development";}
+          else if(tl.includes("display"))                {cat="Software";typ="HMI Development";}
+          else if(tl.includes("database")||tl.includes("symbol")){cat="Software";typ="OPC Configuration";}
+          else if(tl.includes("plc")||tl.includes("program")||tl.includes("control logic")){cat="Software";typ="PLC Programming";}
+          else if(tl.includes("ppc"))                    {cat="Software";typ="PPC Configuration";}
+          else if(tl.includes("relay")||tl.includes("config")){cat="Engineering";typ="Control Logic";}
+          else if(tl.includes("fds")||tl.includes("document")||tl.includes("schematic")){cat="Documentation";typ="Technical Writing";}
+          else if(tl.includes("commission"))             {cat="Commissioning";typ="System Integration Test";}
           else if(tl.includes("engineer")||tl.includes("design")){cat="Engineering";typ="Detailed Engineering";}
-          else if(tl.includes("meeting")){cat="Project Mgmt";typ="Client Meeting";}
+          else if(tl.includes("training"))               {cat="Training";typ="Internal Training";}
+          else if(tl.includes("meeting"))                {cat="Project Mgmt";typ="Client Meeting";}
+          else if(tl.includes("review")||tl.includes("revision")){cat="Engineering";typ="Detailed Engineering";}
+          else if(tl.includes("site")||tl.includes("support")){cat="Commissioning";typ="Site Support";}
+          else if(tl.includes("bess")||tl.includes("a8000")||tl.includes("a 8000")){cat="Software";typ="PLC Programming";}
 
           const activity=taskDetails||(task+(projName?` — ${projName}`:""));
 
@@ -1007,7 +1067,7 @@ export default function App(){
           if(!eErr) inserted++;
           else{addLog("warn",`  ⚠ Entry ${dateStr} failed: ${eErr.message}`);skipped++;}
         }
-        addLog("ok",`  ✓ Done: ${inserted} entries (${leaveCnt} leave, ${skipped} failed)`);
+        addLog("ok",`  ✓ Done: ${inserted} entries (${leaveCnt} leave, ${skipped} skipped)`);
       }catch(err){
         addLog("error",`  ✕ Parse error: ${err.message}`);
       }
