@@ -810,14 +810,7 @@ export default function App(){
         const wb=XLSX.read(new Uint8Array(buf),{type:"array",cellDates:true});
         const ws=wb.Sheets[wb.SheetNames[0]];
         const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
-        // DIAGNOSTIC: full inspection of month cell and first data cell
-        const _mc0=rows[2]?.[1]; const _mc4=rows[2]?.[5];
-        const _mc=(_mc0&&_mc0!=="")?_mc0:_mc4;
-        const _isD=!!(typeof _mc==="object"&&_mc&&typeof _mc.getFullYear==="function");
-        addLog("info",`  🔍 MC type=${typeof _mc} isDate=${_isD} `+(_isD?`getTime=${_mc.getTime()} Y=${_mc.getFullYear()} M=${_mc.getMonth()} D=${_mc.getDate()} utcM=${_mc.getUTCMonth()}`:`val=${JSON.stringify(_mc)}`));
-        const _rd=rows[4]?.[colOffset];
-        const _isRD=!!(typeof _rd==="object"&&_rd&&typeof _rd.getFullYear==="function");
-        addLog("info",`  🔍 Row4 type=${typeof _rd} isDate=${_isRD} `+(_isRD?`Y=${_rd.getFullYear()} M=${_rd.getMonth()} utcM=${_rd.getUTCMonth()}`:(typeof _rd==="number"?`serial=${_rd}`:`val=${JSON.stringify(_rd)}`)));
+
 
         // ── FIX: Detect column layout — standard (col 0) vs shifted (col 4, Shehab-style) ──
         // Standard: row[0]=Date/Name, row[1]=email value, row[2]=task...
@@ -857,9 +850,13 @@ export default function App(){
         // ── LOCAL DATE HELPER: always use local year/month/day, never toISOString() ──
         // SheetJS cellDates:true returns Date at local midnight — toISOString() shifts in UTC+ zones
         const localDateStr=(d)=>{
-          const yy=d.getFullYear();
-          const mm=String(d.getMonth()+1).padStart(2,"0");
-          const dd=String(d.getDate()).padStart(2,"0");
+          // Add 12 hours then use UTC methods — handles SheetJS storing local midnight as UTC
+          // e.g. Egypt UTC+2: "2026-02-01 local" stored as "2026-01-31T22:00Z"
+          // +12h → "2026-02-01T10:00Z" → getUTCFullYear/Month/Date = 2026/1/1 = Feb 1 ✓
+          const shifted=new Date(d.getTime()+12*3600*1000);
+          const yy=shifted.getUTCFullYear();
+          const mm=String(shifted.getUTCMonth()+1).padStart(2,"0");
+          const dd=String(shifted.getUTCDate()).padStart(2,"0");
           return `${yy}-${mm}-${dd}`;
         };
         const parseCellDate=(raw)=>{
@@ -888,19 +885,22 @@ export default function App(){
 
         const extractYearMonth=(raw)=>{
           if(!raw) return null;
-          // Case 1: JS Date object (cellDates:true returns this, but instanceof may fail cross-frame)
-          // Use duck typing instead of instanceof
+          // SheetJS stores date cells as UTC midnight of the LOCAL date
+          // e.g. Egypt UTC+2: Feb 1 00:00 local = Jan 31 22:00 UTC
+          // getMonth() on this UTC date returns January — WRONG
+          // Fix: add 12 hours before reading so we safely land in the correct UTC day
           if(typeof raw==="object"&&raw!==null&&typeof raw.getFullYear==="function"){
-            const y=raw.getFullYear(), m=raw.getMonth();
+            const shifted=new Date(raw.getTime()+12*3600*1000);
+            const y=shifted.getUTCFullYear(), m=shifted.getUTCMonth();
             if(y>2000&&y<2100&&m>=0&&m<=11) return {y,m};
           }
-          // Case 2: Excel serial number (raw:true returns this when cellDates is ignored)
+          // Excel serial number
           if(typeof raw==="number"&&raw>40000&&raw<100000){
-            const d=new Date(Math.round((raw-25569)*86400*1000));
-            const y=d.getFullYear(), m=d.getMonth();
+            const d=new Date(Math.round((raw-25569)*86400*1000)+12*3600*1000);
+            const y=d.getUTCFullYear(), m=d.getUTCMonth();
             if(y>2000&&y<2100&&m>=0&&m<=11) return {y,m};
           }
-          // Case 3: ISO string "2026-02-01"
+          // ISO string "2026-02-01"
           if(typeof raw==="string"){
             const match=raw.match(/(\d{4})-(\d{2})/);
             if(match){const y=+match[1],m=+match[2]-1;if(y>2000&&y<2100&&m>=0&&m<=11)return{y,m};}
