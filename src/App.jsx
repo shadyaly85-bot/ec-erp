@@ -871,15 +871,28 @@ export default function App(){
           return "";
         };
 
-        // ── DEDUP: detect import month from first real date in data rows ──
+        // ── DEDUP: detect import month ──
+        // PRIMARY: use the dedicated "Month" cell in row 2 (always present, always a date)
+        // FALLBACK: scan first data rows
         let importYear=year, importMonth=month;
-        for(let ri=4;ri<Math.min(rows.length,12);ri++){
-          const rd=rows[ri]?.[colOffset];
-          if(!rd||typeof rd==="string") continue;
-          const ds=parseCellDate(rd);
-          if(ds&&ds!=="NaN-NaN-NaN"){
-            const tmp=new Date(ds+"T12:00:00");
-            if(!isNaN(tmp)){ importYear=tmp.getFullYear(); importMonth=tmp.getMonth(); break; }
+        const monthCellRaw=rows[2]?.[colOffset+1]; // row3 col B (or shifted col F)
+        if(monthCellRaw){
+          const mds=parseCellDate(monthCellRaw);
+          if(mds&&mds!=="NaN-NaN-NaN"){
+            const tmp=new Date(mds+"T12:00:00");
+            if(!isNaN(tmp)){ importYear=tmp.getFullYear(); importMonth=tmp.getMonth(); }
+          }
+        }
+        // If month cell failed, scan first data rows as fallback
+        if(importYear===year&&importMonth===month){
+          for(let ri=4;ri<Math.min(rows.length,12);ri++){
+            const rd=rows[ri]?.[colOffset];
+            if(!rd||typeof rd==="string") continue;
+            const ds=parseCellDate(rd);
+            if(ds&&ds!=="NaN-NaN-NaN"){
+              const tmp=new Date(ds+"T12:00:00");
+              if(!isNaN(tmp)){ importYear=tmp.getFullYear(); importMonth=tmp.getMonth(); break; }
+            }
           }
         }
         const yrStr=String(importYear);
