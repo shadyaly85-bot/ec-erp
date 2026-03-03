@@ -785,7 +785,7 @@ export default function App(){
       addLog("info",`    📁 Creating project: ${clean}`);
       const {data:newPArr,error:pErr}=await supabase.from("projects").insert({
         id:projId, name:clean, client:"(imported)", type:"Industrial",
-        status:"Active", phase:"Design", billable:false, rate_per_hour:0,
+        status:"Active", phase:"Design", billable:true, rate_per_hour:0,
       }).select();
       if(pErr){
         addLog("warn",`    ⚠ Project failed: ${pErr.message}`);
@@ -2077,10 +2077,12 @@ export default function App(){
 
               {/* Invoice */}
               {activeRpt==="invoice"&&canInvoice&&(()=>{
-                const billableActive=projStats.filter(p=>p.billable&&p.hours>0);
-                const filteredProjs=invoiceProjId==="ALL"?billableActive:billableActive.filter(p=>p.id===invoiceProjId);
-                const invTotal=filteredProjs.reduce((s,p)=>s+p.revenue,0);
-                const invHrs=filteredProjs.reduce((s,p)=>s+p.hours,0);
+                // All projects with hours — billable ones count toward invoice total
+                const allWithHours=projStats.filter(p=>p.hours>0);
+                const billableActive=allWithHours.filter(p=>p.billable);
+                const filteredProjs=invoiceProjId==="ALL"?allWithHours:allWithHours.filter(p=>p.id===invoiceProjId);
+                const invTotal=filteredProjs.filter(p=>p.billable).reduce((s,p)=>s+p.revenue,0);
+                const invHrs=filteredProjs.filter(p=>p.billable).reduce((s,p)=>s+p.hours,0);
                 return(
                 <div>
                   {/* Invoice selector */}
@@ -2112,34 +2114,56 @@ export default function App(){
                   </div>
                   {/* Preview table */}
                   <div className="card">
-                    <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>
-                      {invoiceProjId==="ALL"?"All Billable Projects Preview":"Project Invoice Preview"}
-                    </h3>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                      <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",margin:0}}>
+                        {invoiceProjId==="ALL"?"All Projects — Feb "+year+" (billable highlighted)":"Project Invoice Preview"}
+                      </h3>
+                      {allWithHours.filter(p=>!p.billable||p.rate_per_hour===0).length>0&&(
+                        <span style={{fontSize:10,color:"#fb923c",background:"#2a1a0a",border:"1px solid #fb923c40",borderRadius:4,padding:"2px 8px"}}>
+                          ⚠ {allWithHours.filter(p=>!p.billable||p.rate_per_hour===0).length} projects need rate set — go to Projects page to edit
+                        </span>
+                      )}
+                    </div>
                     <table>
-                      <thead><tr><th>Project No.</th><th>Name</th><th>Client</th><th>Hours</th><th>Rate</th><th>Amount</th></tr></thead>
+                      <thead><tr><th>Project No.</th><th>Name</th><th>Client</th><th>Hours</th><th>Rate</th><th>Amount</th><th>Status</th></tr></thead>
                       <tbody>
-                        {filteredProjs.map(p=>(
-                          <tr key={p.id} style={{cursor:"pointer"}} onClick={()=>setInvoiceProjId(p.id)}>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
-                            <td style={{fontSize:11,fontWeight:500}}>{p.name}</td>
+                        {filteredProjs.map(p=>{
+                          const needsRate=p.billable&&p.rate_per_hour===0;
+                          const notBillable=!p.billable;
+                          const rowStyle={cursor:"pointer",opacity:notBillable?0.45:1,background:notBillable?"#07101e":"inherit"};
+                          return(
+                          <tr key={p.id} style={rowStyle} onClick={()=>setInvoiceProjId(p.id)}>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:notBillable?"#4e6479":"#38bdf8"}}>{p.id}</td>
+                            <td style={{fontSize:11,fontWeight:500,color:notBillable?"#4e6479":"#f0f6ff"}}>{p.name}</td>
                             <td style={{fontSize:11,color:"#7a8faa"}}>{p.client}</td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.hours}h</td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#7a8faa"}}>${p.rate_per_hour}/h</td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:700}}>{fmtCurrency(p.revenue)}</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"#4e6479":"#f0f6ff"}}>{p.hours}h</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:needsRate?"#fb923c":notBillable?"#4e6479":"#7a8faa"}}>
+                              {notBillable?"—":`$${p.rate_per_hour}/h`}
+                            </td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"#4e6479":"#a78bfa",fontWeight:700}}>
+                              {notBillable?"—":fmtCurrency(p.revenue)}
+                            </td>
+                            <td style={{fontSize:10}}>
+                              {notBillable&&<span style={{color:"#4e6479",background:"#192d47",borderRadius:3,padding:"1px 5px"}}>not billable</span>}
+                              {needsRate&&<span style={{color:"#fb923c",background:"#2a1a0a",borderRadius:3,padding:"1px 5px"}}>set rate ⚠</span>}
+                              {p.billable&&p.rate_per_hour>0&&<span style={{color:"#34d399",background:"#0a2a1a",borderRadius:3,padding:"1px 5px"}}>✓ billable</span>}
+                            </td>
                           </tr>
-                        ))}
-                        {filteredProjs.length>1&&(
+                          );
+                        })}
+                        {filteredProjs.filter(p=>p.billable).length>0&&(
                           <tr style={{background:"#0d1e34"}}>
-                            <td colSpan={3} style={{fontWeight:700,color:"#f0f6ff"}}>TOTAL</td>
+                            <td colSpan={3} style={{fontWeight:700,color:"#f0f6ff"}}>BILLABLE TOTAL</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#38bdf8"}}>{invHrs}h</td>
                             <td></td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa",fontSize:13}}>{fmtCurrency(invTotal)}</td>
+                            <td></td>
                           </tr>
                         )}
-                        {filteredProjs.length===0&&<tr><td colSpan={6} style={{textAlign:"center",color:"#253a52",padding:20}}>No billable hours for {MONTHS[month]} {year}</td></tr>}
+                        {filteredProjs.length===0&&<tr><td colSpan={7} style={{textAlign:"center",color:"#253a52",padding:20}}>No hours logged for {MONTHS[month]} {year}</td></tr>}
                       </tbody>
                     </table>
-                    {invoiceProjId!=="ALL"&&billableActive.length>1&&(
+                    {invoiceProjId!=="ALL"&&allWithHours.length>1&&(
                       <div style={{marginTop:10,textAlign:"right"}}>
                         <button className="bg" style={{fontSize:11}} onClick={()=>setInvoiceProjId("ALL")}>← Back to All Projects</button>
                       </div>
