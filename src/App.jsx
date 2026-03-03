@@ -810,6 +810,10 @@ export default function App(){
         const wb=XLSX.read(new Uint8Array(buf),{type:"array",cellDates:true});
         const ws=wb.Sheets[wb.SheetNames[0]];
         const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
+        // DIAGNOSTIC: log what SheetJS returns for the month cell (row 2)
+        const _mc0=rows[2]?.[1]; const _mc4=rows[2]?.[5];
+        const _mc=(_mc0&&_mc0!=="")?_mc0:_mc4;
+        addLog("info",`  🔍 MonthCell raw: typeof=${typeof _mc} isDateObj=${!!(typeof _mc==="object"&&_mc&&_mc.getFullYear)} serial=${typeof _mc==="number"?_mc:"n/a"} str=${typeof _mc==="string"?_mc:"n/a"}`);
 
         // ── FIX: Detect column layout — standard (col 0) vs shifted (col 4, Shehab-style) ──
         // Standard: row[0]=Date/Name, row[1]=email value, row[2]=task...
@@ -855,7 +859,8 @@ export default function App(){
           return `${yy}-${mm}-${dd}`;
         };
         const parseCellDate=(raw)=>{
-          if(raw instanceof Date) return localDateStr(raw);
+          // Use duck typing for Date (instanceof fails cross-frame in some browsers)
+          if(raw&&typeof raw==="object"&&typeof raw.getFullYear==="function") return localDateStr(raw);
           if(typeof raw==="number"&&raw>40000) return localDateStr(new Date(Math.round((raw-25569)*86400*1000)));
           if(typeof raw==="string"){
             const m=raw.match(/(\d{4})-(\d{2})-(\d{2})/);
@@ -871,28 +876,42 @@ export default function App(){
           return "";
         };
 
-        // ── DEDUP: detect import month ──
-        // PRIMARY: use the dedicated "Month" cell in row 2 (always present, always a date)
-        // FALLBACK: scan first data rows
+        // ── DETECT IMPORT MONTH ──
+        // SheetJS with cellDates:true + raw:true returns date cells as Date objects OR serial numbers
+        // depending on browser/version. Handle all cases explicitly.
+        // Strategy: try every possible representation of the Month cell and all early data rows.
         let importYear=year, importMonth=month;
-        const monthCellRaw=rows[2]?.[colOffset+1]; // row3 col B (or shifted col F)
-        if(monthCellRaw){
-          const mds=parseCellDate(monthCellRaw);
-          if(mds&&mds!=="NaN-NaN-NaN"){
-            const tmp=new Date(mds+"T12:00:00");
-            if(!isNaN(tmp)){ importYear=tmp.getFullYear(); importMonth=tmp.getMonth(); }
+
+        const extractYearMonth=(raw)=>{
+          if(!raw) return null;
+          // Case 1: JS Date object (cellDates:true returns this, but instanceof may fail cross-frame)
+          // Use duck typing instead of instanceof
+          if(typeof raw==="object"&&raw!==null&&typeof raw.getFullYear==="function"){
+            const y=raw.getFullYear(), m=raw.getMonth();
+            if(y>2000&&y<2100&&m>=0&&m<=11) return {y,m};
           }
-        }
-        // If month cell failed, scan first data rows as fallback
-        if(importYear===year&&importMonth===month){
+          // Case 2: Excel serial number (raw:true returns this when cellDates is ignored)
+          if(typeof raw==="number"&&raw>40000&&raw<100000){
+            const d=new Date(Math.round((raw-25569)*86400*1000));
+            const y=d.getFullYear(), m=d.getMonth();
+            if(y>2000&&y<2100&&m>=0&&m<=11) return {y,m};
+          }
+          // Case 3: ISO string "2026-02-01"
+          if(typeof raw==="string"){
+            const match=raw.match(/(\d{4})-(\d{2})/);
+            if(match){const y=+match[1],m=+match[2]-1;if(y>2000&&y<2100&&m>=0&&m<=11)return{y,m};}
+          }
+          return null;
+        };
+
+        // Try Month cell first (rows[2] col B for standard, col F for shifted)
+        const monthCellResult=extractYearMonth(rows[2]?.[colOffset+1]);
+        if(monthCellResult){ importYear=monthCellResult.y; importMonth=monthCellResult.m; }
+        else {
+          // Fallback: scan data rows 4-11
           for(let ri=4;ri<Math.min(rows.length,12);ri++){
-            const rd=rows[ri]?.[colOffset];
-            if(!rd||typeof rd==="string") continue;
-            const ds=parseCellDate(rd);
-            if(ds&&ds!=="NaN-NaN-NaN"){
-              const tmp=new Date(ds+"T12:00:00");
-              if(!isNaN(tmp)){ importYear=tmp.getFullYear(); importMonth=tmp.getMonth(); break; }
-            }
+            const r=extractYearMonth(rows[ri]?.[colOffset]);
+            if(r){ importYear=r.y; importMonth=r.m; break; }
           }
         }
         const yrStr=String(importYear);
