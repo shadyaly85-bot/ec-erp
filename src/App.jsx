@@ -810,10 +810,14 @@ export default function App(){
         const wb=XLSX.read(new Uint8Array(buf),{type:"array",cellDates:true});
         const ws=wb.Sheets[wb.SheetNames[0]];
         const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
-        // DIAGNOSTIC: log what SheetJS returns for the month cell (row 2)
+        // DIAGNOSTIC: full inspection of month cell and first data cell
         const _mc0=rows[2]?.[1]; const _mc4=rows[2]?.[5];
         const _mc=(_mc0&&_mc0!=="")?_mc0:_mc4;
-        addLog("info",`  🔍 MonthCell raw: typeof=${typeof _mc} isDateObj=${!!(typeof _mc==="object"&&_mc&&_mc.getFullYear)} serial=${typeof _mc==="number"?_mc:"n/a"} str=${typeof _mc==="string"?_mc:"n/a"}`);
+        const _isD=!!(typeof _mc==="object"&&_mc&&typeof _mc.getFullYear==="function");
+        addLog("info",`  🔍 MC type=${typeof _mc} isDate=${_isD} `+(_isD?`getTime=${_mc.getTime()} Y=${_mc.getFullYear()} M=${_mc.getMonth()} D=${_mc.getDate()} utcM=${_mc.getUTCMonth()}`:`val=${JSON.stringify(_mc)}`));
+        const _rd=rows[4]?.[colOffset];
+        const _isRD=!!(typeof _rd==="object"&&_rd&&typeof _rd.getFullYear==="function");
+        addLog("info",`  🔍 Row4 type=${typeof _rd} isDate=${_isRD} `+(_isRD?`Y=${_rd.getFullYear()} M=${_rd.getMonth()} utcM=${_rd.getUTCMonth()}`:(typeof _rd==="number"?`serial=${_rd}`:`val=${JSON.stringify(_rd)}`)));
 
         // ── FIX: Detect column layout — standard (col 0) vs shifted (col 4, Shehab-style) ──
         // Standard: row[0]=Date/Name, row[1]=email value, row[2]=task...
