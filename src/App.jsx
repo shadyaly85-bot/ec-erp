@@ -218,8 +218,15 @@ function buildTimesheetPDF(eng, monthEntries, projects, m, y){
 /* ─── INVOICE PDF ─── */
 // filterId: undefined = all projects, or a specific project id
 function buildInvoicePDF(projects, entries, engineers, m, y, filterId){
+  // Include all billable projects (filter by id if specified)
   const billableProjs=projects.filter(p=>p.billable&&(!filterId||p.id===filterId));
-  const monthE=entries.filter(e=>{const d=new Date(e.date);return d.getFullYear()===y&&d.getMonth()===m&&e.entry_type==="work"&&e.billable;});
+  // Derive billability from CURRENT project flag, not stale entry.billable
+  // Use UTC+12h shift to match the import date parsing
+  const monthE=entries.filter(e=>{
+    const d=new Date(new Date(e.date+"T12:00:00").getTime());
+    return d.getFullYear()===y&&d.getMonth()===m&&e.entry_type==="work"
+      &&projects.find(p=>p.id===e.project_id&&p.billable);
+  });
   const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
   const invoiceNo=filterId?`INV-${y}-${String(m+1).padStart(2,"0")}-${filterId}`:`INV-${y}-${String(m+1).padStart(2,"0")}`;
 
@@ -2088,11 +2095,27 @@ export default function App(){
                   {/* Invoice selector */}
                   <div className="card" style={{marginBottom:14}}>
                     <h3 style={{fontSize:13,fontWeight:600,color:"#f0f6ff",marginBottom:14}}>🧾 Invoice Export — {MONTHS[month]} {year}</h3>
+                    {/* Quick-fix: bulk mark all active projects as billable */}
+                    {allWithHours.some(p=>!p.billable)&&(
+                      <div style={{background:"#1a0f00",border:"1px solid #fb923c40",borderRadius:6,padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                        <span style={{fontSize:11,color:"#fb923c"}}>
+                          ⚠ {allWithHours.filter(p=>!p.billable).length} project(s) marked as non-billable — excluded from invoice
+                        </span>
+                        <button className="bg" style={{fontSize:11,borderColor:"#fb923c",color:"#fb923c",whiteSpace:"nowrap"}} onClick={async()=>{
+                          const ids=allWithHours.filter(p=>!p.billable).map(p=>p.id);
+                          for(const id of ids){
+                            await supabase.from("projects").update({billable:true}).eq("id",id);
+                          }
+                          await loadAll();
+                          showToast(`Marked ${ids.length} project(s) as billable ✓`);
+                        }}>Mark all as billable</button>
+                      </div>
+                    )}
                     <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"flex-end",marginBottom:16}}>
                       <div><Lbl>Invoice Scope</Lbl>
                         <select value={invoiceProjId} onChange={e=>setInvoiceProjId(e.target.value)}>
                           <option value="ALL">📋 All Billable Projects (Combined Invoice)</option>
-                          {billableActive.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name} · {p.hours}h · {fmtCurrency(p.revenue)}</option>)}
+                          {allWithHours.filter(p=>p.billable).map(p=><option key={p.id} value={p.id}>{p.id} — {p.name} · {p.hours}h · {fmtCurrency(p.revenue)}</option>)}
                         </select>
                       </div>
                       <button className="bp" style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)",whiteSpace:"nowrap"}}
