@@ -448,6 +448,208 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
 }
 
 
+/* ─── PROJECT TASKS ANALYSIS PDF ─── */
+function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurrency, isAdmin, isAcct){
+  const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+  const p=pm.proj;
+  const pct=grandTotal?Math.round(pm.totalHrs/grandTotal*100):100;
+  const billPct=pm.totalHrs?Math.round(pm.billableHrs/pm.totalHrs*100):0;
+  const tasksSorted=Object.entries(pm.tasks).sort((a,b)=>b[1].hrs-a[1].hrs);
+  const engList=Object.values(pm.engineers).sort((a,b)=>b.hrs-a.hrs);
+  const avgDay=pm.days?Math.round(pm.totalHrs/pm.days*10)/10:0;
+
+  const TASK_COLORS=["#0ea5e9","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#4ade80","#f472b6","#60a5fa"];
+  const taskColorMap={};let ci=0;
+  tasksSorted.forEach(([t])=>{if(!taskColorMap[t])taskColorMap[t]=TASK_COLORS[ci++%TASK_COLORS.length];});
+
+  // KPI cards
+  const kpis=`
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+      ${[
+        {l:"Total Hours",   v:pm.totalHrs+"h",  c:"#0ea5e9"},
+        {l:"Engineers",     v:Object.keys(pm.engineers).length, c:"#a78bfa"},
+        {l:"Work Days",     v:pm.days,           c:"#34d399"},
+        {l:"Avg Hrs/Day",   v:avgDay+"h",        c:"#fb923c"},
+      ].map(k=>`
+        <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
+          <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-top:4px">${k.l}</div>
+        </div>`).join("")}
+    </div>`;
+
+  // Project info table
+  const infoRows=[
+    ["Project ID",p.id],
+    ["Project Name",p.name],
+    ["Client",p.client||"—"],
+    ["Phase",p.phase||"—"],
+    ["Status",p.status||"—"],
+    ["Type",p.type||"—"],
+    ...(isAdmin||isAcct?[
+      ["Billing",p.billable?"Billable at $"+p.rate_per_hour+"/h":"Non-Billable"],
+      ...(p.billable&&p.rate_per_hour>0?[["Revenue",fmtCurrency(pm.totalHrs*p.rate_per_hour)]]:[] ),
+    ]:[]),
+    ["Share of Month",pct+"% of total hours"],
+  ];
+  const infoTable=`
+    <div class="section">
+      <div class="st">Project Information</div>
+      <table><tbody>
+        ${infoRows.map(([k,v],i)=>`<tr><td style="width:160px;font-weight:600;color:#334155;background:${i%2===0?"#f8fafc":"#fff"}">${k}</td><td style="background:${i%2===0?"#f8fafc":"#fff"}">${v}</td></tr>`).join("")}
+      </tbody></table>
+    </div>`;
+
+  // Task breakdown — bars + table
+  const taskBars=tasksSorted.map(([task,data])=>{
+    const tpct=pm.totalHrs?Math.round(data.hrs/pm.totalHrs*100):0;
+    const col=taskColorMap[task]||"#0ea5e9";
+    return`<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:10px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:8px;height:8px;border-radius:2px;background:${col};flex-shrink:0"></div>
+          <span style="font-weight:600;color:#1e293b">${task}</span>
+        </div>
+        <div style="display:flex;gap:16px;font-family:'IBM Plex Mono',monospace">
+          <span style="color:${col};font-weight:700">${data.hrs}h</span>
+          <span style="color:#64748b">${tpct}%</span>
+          <span style="color:#94a3b8">${data.engs} engineer${data.engs!==1?"s":""}</span>
+        </div>
+      </div>
+      <div style="background:#e2e8f0;height:7px;border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${tpct}%;background:${col};border-radius:4px"></div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const taskSection=`
+    <div class="section">
+      <div class="st">Task Breakdown — ${tasksSorted.length} Task Types</div>
+      ${taskBars}
+      <table style="margin-top:14px">
+        <thead><tr><th>Task Type</th><th style="text-align:right">Hours</th><th style="text-align:right">Share</th><th style="text-align:right">Engineers</th></tr></thead>
+        <tbody>${tasksSorted.map(([task,data],i)=>{
+          const tpct=pm.totalHrs?Math.round(data.hrs/pm.totalHrs*100):0;
+          const col=taskColorMap[task]||"#0ea5e9";
+          return`<tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${col};margin-right:6px"></span>${task}</td>
+            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:${col};font-weight:700">${data.hrs}h</td>
+            <td style="text-align:right;font-family:'IBM Plex Mono',monospace">${tpct}%</td>
+            <td style="text-align:right">${data.engs}</td></tr>`;
+        }).join("")}</tbody>
+      </table>
+    </div>`;
+
+  // Engineer contribution
+  const engSection=`
+    <div class="section">
+      <div class="st">Engineer Contributions — ${engList.length} Engineers</div>
+      ${engList.map(eng=>{
+        const epct=pm.totalHrs?Math.round(eng.hrs/pm.totalHrs*100):0;
+        const topTask=Object.entries(eng.tasks).sort((a,b)=>b[1]-a[1])[0];
+        return`<div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:10px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#0ea5e9,#0369a1);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0">${(eng.name||"?").slice(0,2).toUpperCase()}</div>
+              <div>
+                <div style="font-weight:600;color:#1e293b">${eng.name}</div>
+                ${topTask?`<div style="font-size:9px;color:#64748b">Top task: ${topTask[0]} (${topTask[1]}h)</div>`:""}
+              </div>
+            </div>
+            <div style="display:flex;gap:16px;align-items:center;font-family:'IBM Plex Mono',monospace">
+              <span style="color:#0ea5e9;font-weight:700">${eng.hrs}h</span>
+              <span style="color:#64748b">${epct}%</span>
+            </div>
+          </div>
+          <div style="background:#e2e8f0;height:7px;border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${epct}%;background:linear-gradient(90deg,#0ea5e9,#38bdf8);border-radius:4px"></div>
+          </div>
+        </div>`;
+      }).join("")}
+      <table style="margin-top:14px">
+        <thead><tr><th>Engineer</th><th style="text-align:right">Hours</th><th style="text-align:right">Share</th><th>Top Task</th></tr></thead>
+        <tbody>${engList.map((eng,i)=>{
+          const epct=pm.totalHrs?Math.round(eng.hrs/pm.totalHrs*100):0;
+          const topTask=Object.entries(eng.tasks).sort((a,b)=>b[1]-a[1])[0];
+          return`<tr>
+            <td style="font-weight:500">${eng.name}</td>
+            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700">${eng.hrs}h</td>
+            <td style="text-align:right;font-family:'IBM Plex Mono',monospace">${epct}%</td>
+            <td style="color:#64748b;font-size:10px">${topTask?topTask[0]+" ("+topTask[1]+"h)":"—"}</td></tr>`;
+        }).join("")}</tbody>
+      </table>
+    </div>`;
+
+  // Billability section
+  const billSection=(isAdmin||isAcct)&&p.billable?`
+    <div class="section">
+      <div class="st">Billability Summary</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+        ${[
+          {l:"Billable Hours",  v:pm.billableHrs+"h",  c:"#34d399"},
+          {l:"Bill %",          v:billPct+"%",          c:"#0ea5e9"},
+          ...(p.rate_per_hour>0?[{l:"Revenue",v:fmtCurrency(pm.totalHrs*p.rate_per_hour),c:"#a78bfa"}]:[]),
+        ].map(k=>`
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
+            <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-top:4px">${k.l}</div>
+          </div>`).join("")}
+      </div>
+      <div style="background:#e2e8f0;height:10px;border-radius:5px;overflow:hidden;margin-bottom:6px">
+        <div style="height:100%;width:${billPct}%;background:linear-gradient(90deg,#34d399,#10b981);border-radius:5px"></div>
+      </div>
+      <div style="font-size:10px;color:#64748b;text-align:right">${billPct}% of hours are billable</div>
+    </div>`:"";
+
+  // Build full PDF using generatePDF pattern
+  const LOGO_B64=LOGO_SRC;
+  const win=window.open("","_blank");
+  const PDF_STYLE_LOCAL=`
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+    *{margin:0;padding:0;box-sizing:border-box}body{font-family:'IBM Plex Sans',sans-serif;color:#1a2332;font-size:11px}
+    .cover{background:linear-gradient(135deg,#0a1628,#0f2a50 60%,#153d6e);color:#fff;padding:44px;position:relative;overflow:hidden}
+    .cover::before{content:'';position:absolute;right:-60px;top:-60px;width:280px;height:280px;border:2px solid rgba(56,189,248,0.15);border-radius:50%}
+    .cl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.2em;color:#38bdf8;text-transform:uppercase;margin-bottom:8px}
+    .ct{font-size:22px;font-weight:700;line-height:1.2;margin-bottom:6px}.cs{font-size:11px;color:#94a3b8}
+    .cm{display:flex;gap:36px;margin-top:14px}.cm label{font-size:9px;color:#64748b;letter-spacing:.1em;text-transform:uppercase;display:block}
+    .cm span{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#e2e8f0}
+    .body{padding:24px 32px}.section{margin-bottom:22px;page-break-inside:avoid}
+    .st{font-size:11px;font-weight:700;color:#0f2a50;text-transform:uppercase;letter-spacing:.08em;padding-bottom:6px;border-bottom:2px solid #0ea5e9;margin-bottom:12px}
+    table{width:100%;border-collapse:collapse;font-size:10px}
+    th{background:#0f2a50;color:#fff;padding:6px 8px;text-align:left;font-weight:600;font-size:9px;letter-spacing:.05em;text-transform:uppercase}
+    td{padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top}tr:nth-child(even) td{background:#f8fafc}
+    .footer{background:#f8fafc;border-top:1px solid #e2e8f0;padding:9px 32px;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8}
+    @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{margin:0}}`;
+
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Project Report — ${p.id}</title><style>${PDF_STYLE_LOCAL}</style></head><body>
+  <div class="cover">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+      <img src="${LOGO_B64}" alt="ENEVO Group" style="width:52px;height:52px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
+      <div>
+        <div class="cl" style="margin-bottom:2px">ENEVO GROUP · Project Tasks Analysis</div>
+        <div style="font-size:11px;color:#94a3b8">Industrial & Renewable Energy Automation</div>
+      </div>
+    </div>
+    <div class="ct">${p.name}</div>
+    <div class="cs">Project ID: ${p.id} · ${MONTHS_ARR[month]} ${year}</div>
+    <div class="cm">
+      <div><label>Generated</label><span>${now}</span></div>
+      <div><label>Total Hours</label><span>${pm.totalHrs}h</span></div>
+      <div><label>Engineers</label><span>${Object.keys(pm.engineers).length}</span></div>
+      <div><label>Status</label><span>${p.status||"Active"}</span></div>
+    </div>
+  </div>
+  <div class="body">
+    ${kpis}
+    ${infoTable}
+    ${taskSection}
+    ${engSection}
+    ${billSection}
+  </div>
+  <div class="footer"><span>ENEVO Group · ${p.id} — ${p.name} · ${MONTHS_ARR[month]} ${year}</span><span>CONFIDENTIAL — ${now}</span></div>
+  <script>window.onload=()=>window.print()<\/script>
+  </body></html>`;
+  win.document.write(html); win.document.close();
+}
+
 /* ── ProjectTasksReport Component ── */
 function ProjectTasksReport({monthEntries,projects,engineers,month,year,MONTHS,fmtCurrency,fmtPct,isAdmin,isAcct}){
   const [selProj,setSelProj]=useState("ALL");
@@ -500,11 +702,21 @@ function ProjectTasksReport({monthEntries,projects,engineers,month,year,MONTHS,f
           <h2 style={{fontSize:18,fontWeight:700,color:"#f0f6ff",margin:0}}>◈ Project Tasks Analysis</h2>
           <p style={{fontSize:12,color:"#2e4a66",marginTop:4}}>{MONTHS[month]} {year} · {projList.length} active projects · {grandTotal}h total</p>
         </div>
-        <select value={selProj} onChange={e=>setSelProj(e.target.value)}
-          style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
-          <option value="ALL">All Projects</option>
-          {projList.map(x=><option key={x.proj.id} value={x.proj.id}>{x.proj.id} — {x.proj.name} ({x.totalHrs}h)</option>)}
-        </select>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <select value={selProj} onChange={e=>setSelProj(e.target.value)}
+            style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+            <option value="ALL">All Projects</option>
+            {projList.map(x=><option key={x.proj.id} value={x.proj.id}>{x.proj.id} — {x.proj.name} ({x.totalHrs}h)</option>)}
+          </select>
+          {selProj==="ALL"
+            ? <button className="bp" style={{whiteSpace:"nowrap"}} onClick={()=>displayList.forEach((pm,i)=>setTimeout(()=>buildProjectTasksPDF(pm,grandTotal,month,year,MONTHS,fmtCurrency,isAdmin,isAcct),i*700))}>
+                ⬇ Export All ({projList.length})
+              </button>
+            : <button className="bp" onClick={()=>{const pm=displayList[0];if(pm)buildProjectTasksPDF(pm,grandTotal,month,year,MONTHS,fmtCurrency,isAdmin,isAcct);}}>
+                ⬇ Export PDF
+              </button>
+          }
+        </div>
       </div>
 
       {projList.length===0&&<div className="card" style={{textAlign:"center",padding:40,color:"#253a52"}}>No hours logged for {MONTHS[month]} {year}. Import timesheets first.</div>}
@@ -572,10 +784,14 @@ function ProjectTasksReport({monthEntries,projects,engineers,month,year,MONTHS,f
                 <div style={{fontSize:15,fontWeight:700,color:"#f0f6ff"}}>{pm.proj.name}</div>
                 {pm.proj.client&&<div style={{fontSize:11,color:"#2e4a66",marginTop:2}}>Client: {pm.proj.client} · Phase: {pm.proj.phase||"—"}</div>}
               </div>
-              <div style={{textAlign:"right"}}>
+              <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+                <button className="bp" style={{fontSize:10,padding:"5px 10px"}}
+                  onClick={()=>buildProjectTasksPDF(pm,grandTotal,month,year,MONTHS,fmtCurrency,isAdmin,isAcct)}>
+                  ⬇ PDF
+                </button>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:26,fontWeight:700,color:"#38bdf8",lineHeight:1}}>{pm.totalHrs}h</div>
-                <div style={{fontSize:10,color:"#253a52",marginTop:2}}>{pct}% of month total</div>
-                {(isAdmin||isAcct)&&pm.proj.billable&&pm.proj.rate_per_hour>0&&<div style={{fontSize:11,color:"#a78bfa",fontFamily:"'IBM Plex Mono',monospace",marginTop:2}}>{fmtCurrency(pm.totalHrs*pm.proj.rate_per_hour)}</div>}
+                <div style={{fontSize:10,color:"#253a52"}}>{pct}% of month total</div>
+                {(isAdmin||isAcct)&&pm.proj.billable&&pm.proj.rate_per_hour>0&&<div style={{fontSize:11,color:"#a78bfa",fontFamily:"'IBM Plex Mono',monospace"}}>{fmtCurrency(pm.totalHrs*pm.proj.rate_per_hour)}</div>}
               </div>
             </div>
 
@@ -584,8 +800,8 @@ function ProjectTasksReport({monthEntries,projects,engineers,month,year,MONTHS,f
               {[
                 {l:"Engineers", v:Object.keys(pm.engineers).length, c:"#38bdf8"},
                 {l:"Task Types",v:tasksSorted.length,               c:"#a78bfa"},
-                {l:"Work Days", v:pm.days.size,                     c:"#34d399"},
-                {l:"Avg/Day",   v:pm.days.size?Math.round(pm.totalHrs/pm.days.size*10)/10+"h":"—", c:"#fb923c"},
+                {l:"Work Days", v:pm.days,                     c:"#34d399"},
+                {l:"Avg/Day",   v:pm.days?Math.round(pm.totalHrs/pm.days*10)/10+"h":"—", c:"#fb923c"},
               ].map((s,i)=>(
                 <div key={i} style={{background:"#060e1c",borderRadius:6,padding:"8px 10px"}}>
                   <div style={{fontSize:9,color:"#253a52",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div>
