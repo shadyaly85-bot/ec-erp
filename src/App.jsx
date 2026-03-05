@@ -449,7 +449,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
 
 
 /* ─── PROJECT TASKS ANALYSIS PDF ─── */
-function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurrency, isAdmin, isAcct){
+function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurrency, isAdmin, isAcct, periodLabel){
   const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
   const p=pm.proj;
   const pct=grandTotal?Math.round(pm.totalHrs/grandTotal*100):100;
@@ -629,7 +629,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
       </div>
     </div>
     <div class="ct">${p.name}</div>
-    <div class="cs">Project ID: ${p.id} · ${MONTHS_ARR[month]} ${year}</div>
+    <div class="cs">Project ID: ${p.id} · ${periodLabel||'All Time'}</div>
     <div class="cm">
       <div><label>Generated</label><span>${now}</span></div>
       <div><label>Total Hours</label><span>${pm.totalHrs}h</span></div>
@@ -644,22 +644,33 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
     ${engSection}
     ${billSection}
   </div>
-  <div class="footer"><span>ENEVO Group · ${p.id} — ${p.name} · ${MONTHS_ARR[month]} ${year}</span><span>CONFIDENTIAL — ${now}</span></div>
+  <div class="footer"><span>ENEVO Group · ${p.id} — ${p.name} · ${periodLabel||'All Time'}</span><span>CONFIDENTIAL — ${now}</span></div>
   <script>window.onload=()=>window.print()<\/script>
   </body></html>`;
   win.document.write(html); win.document.close();
 }
 
 /* ── ProjectTasksReport Component ── */
-function ProjectTasksReport({monthEntries,projects,engineers,month,year,MONTHS,fmtCurrency,fmtPct,isAdmin,isAcct}){
+function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fmtPct,isAdmin,isAcct}){
   const [selProj,setSelProj]=useState("ALL");
+  // "ALL" means all-time, otherwise "YYYY-MM"
+  const [filterMonth,setFilterMonth]=useState("ALL");
 
   const TASK_COLORS=["#38bdf8","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#4ade80","#f472b6","#60a5fa"];
   const PROJ_COLORS=["#0ea5e9","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#38bdf8"];
 
+  // Derive available months from allEntries
+  const availableMonths=useMemo(()=>{
+    const s=new Set(allEntries.map(e=>e.date.slice(0,7)));
+    return Array.from(s).sort().reverse(); // "2026-02", "2026-01", ...
+  },[allEntries]);
+
   // Memoize so Sets are stable and don't cause render loops
   const {projList,taskColorMap,grandTotal}=useMemo(()=>{
-    const ptEntries=monthEntries.filter(e=>e.entry_type==="work");
+    const filtered=filterMonth==="ALL"
+      ? allEntries
+      : allEntries.filter(e=>e.date.slice(0,7)===filterMonth);
+    const ptEntries=filtered.filter(e=>e.entry_type==="work");
     const projMap={};
     ptEntries.forEach(e=>{
       const p=projects.find(x=>x.id===e.project_id);
@@ -690,7 +701,7 @@ function ProjectTasksReport({monthEntries,projects,engineers,month,year,MONTHS,f
     list.forEach(pm=>Object.keys(pm.tasks).forEach(t=>{if(!tcm[t])tcm[t]=TASK_COLORS[ci++%TASK_COLORS.length];}));
     const total=list.reduce((s,p)=>s+p.totalHrs,0);
     return{projList:list,taskColorMap:tcm,grandTotal:total};
-  },[monthEntries,projects,engineers]);
+  },[allEntries,filterMonth,projects,engineers]);
 
   const displayList=selProj==="ALL"?projList:projList.filter(x=>x.proj.id===selProj);
 
@@ -700,19 +711,41 @@ function ProjectTasksReport({monthEntries,projects,engineers,month,year,MONTHS,f
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
         <div>
           <h2 style={{fontSize:18,fontWeight:700,color:"#f0f6ff",margin:0}}>◈ Project Tasks Analysis</h2>
-          <p style={{fontSize:12,color:"#2e4a66",marginTop:4}}>{MONTHS[month]} {year} · {projList.length} active projects · {grandTotal}h total</p>
+          <p style={{fontSize:12,color:"#2e4a66",marginTop:4}}>
+            {filterMonth==="ALL"?"All Time":filterMonth} · {projList.length} projects · {grandTotal}h total
+          </p>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
+          {/* Month filter */}
+          <select value={filterMonth} onChange={e=>{setFilterMonth(e.target.value);setSelProj("ALL");}}
+            style={{background:"#0b1526",border:"1px solid #38bdf840",borderRadius:6,padding:"6px 10px",color:"#38bdf8",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600}}>
+            <option value="ALL">📅 All Time</option>
+            {availableMonths.map(m=>{
+              const [y,mo]=m.split("-");
+              return <option key={m} value={m}>{MONTHS[parseInt(mo)-1]} {y}</option>;
+            })}
+          </select>
+          {/* Project filter */}
           <select value={selProj} onChange={e=>setSelProj(e.target.value)}
             style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
             <option value="ALL">All Projects</option>
             {projList.map(x=><option key={x.proj.id} value={x.proj.id}>{x.proj.id} — {x.proj.name} ({x.totalHrs}h)</option>)}
           </select>
+          {/* Export buttons */}
           {selProj==="ALL"
-            ? <button className="bp" style={{whiteSpace:"nowrap"}} onClick={()=>displayList.forEach((pm,i)=>setTimeout(()=>buildProjectTasksPDF(pm,grandTotal,month,year,MONTHS,fmtCurrency,isAdmin,isAcct),i*700))}>
+            ? <button className="bp" style={{whiteSpace:"nowrap"}} onClick={()=>{
+                const label=filterMonth==="ALL"?"All Time":filterMonth;
+                const [fy,fm]=filterMonth!=="ALL"?filterMonth.split("-").map(Number):[null,null];
+                displayList.forEach((pm,i)=>setTimeout(()=>buildProjectTasksPDF(pm,grandTotal,fm?fm-1:null,fy,MONTHS,fmtCurrency,isAdmin,isAcct,label),i*700));
+              }}>
                 ⬇ Export All ({projList.length})
               </button>
-            : <button className="bp" onClick={()=>{const pm=displayList[0];if(pm)buildProjectTasksPDF(pm,grandTotal,month,year,MONTHS,fmtCurrency,isAdmin,isAcct);}}>
+            : <button className="bp" onClick={()=>{
+                const label=filterMonth==="ALL"?"All Time":filterMonth;
+                const [fy,fm]=filterMonth!=="ALL"?filterMonth.split("-").map(Number):[null,null];
+                const pm=displayList[0];
+                if(pm) buildProjectTasksPDF(pm,grandTotal,fm?fm-1:null,fy,MONTHS,fmtCurrency,isAdmin,isAcct,label);
+              }}>
                 ⬇ Export PDF
               </button>
           }
@@ -786,7 +819,7 @@ function ProjectTasksReport({monthEntries,projects,engineers,month,year,MONTHS,f
               </div>
               <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
                 <button className="bp" style={{fontSize:10,padding:"5px 10px"}}
-                  onClick={()=>buildProjectTasksPDF(pm,grandTotal,month,year,MONTHS,fmtCurrency,isAdmin,isAcct)}>
+                  onClick={()=>{const label=filterMonth==="ALL"?"All Time":filterMonth;const [fy,fm]=filterMonth!=="ALL"?filterMonth.split("-").map(Number):[null,null];buildProjectTasksPDF(pm,grandTotal,fm?fm-1:null,fy,MONTHS,fmtCurrency,isAdmin,isAcct,label);}}>
                   ⬇ PDF
                 </button>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:26,fontWeight:700,color:"#38bdf8",lineHeight:1}}>{pm.totalHrs}h</div>
@@ -2538,7 +2571,7 @@ export default function App(){
               )}
 
               {/* ════ PROJECT TASKS ANALYSIS ════ */}
-              {activeRpt==="projtasks"&&<ProjectTasksReport monthEntries={monthEntries} projects={projects} engineers={engineers} month={month} year={year} MONTHS={MONTHS} fmtCurrency={fmtCurrency} fmtPct={fmtPct} isAdmin={isAdmin} isAcct={isAcct}/>}
+              {activeRpt==="projtasks"&&<ProjectTasksReport allEntries={entries} projects={projects} engineers={engineers} MONTHS={MONTHS} fmtCurrency={fmtCurrency} fmtPct={fmtPct} isAdmin={isAdmin} isAcct={isAcct}/>}
 
            {/* Vacation Report */}
               {activeRpt==="vacation"&&<VacationReport
@@ -2774,7 +2807,7 @@ export default function App(){
                     <button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>
                   </div>
                   <table>
-                    <thead><tr><th>ID</th><th>Name</th><th>Client</th><th>Phase</th><th>Status</th><th>Billing</th><th>Rate</th><th style={{width:100}}>Actions</th></tr></thead>
+                    <thead><tr><th>ID</th><th>Name</th><th>Client</th><th>Phase</th><th>Status</th><th>Billing</th><th>Total Hours</th><th style={{width:100}}>Actions</th></tr></thead>
                     <tbody>{projects.map(p=>(
                       <tr key={p.id}>
                         <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
@@ -2783,7 +2816,9 @@ export default function App(){
                         <td style={{color:"#60a5fa",fontSize:11}}>{p.phase}</td>
                         <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"#1e3a5f",color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span></td>
                         <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,background:p.billable?"#0c2b4e":"#1a0a00",color:p.billable?"#38bdf8":"#fb923c"}}>{p.billable?"Billable":"Non-Bill"}</span></td>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>${p.rate_per_hour}</td>
+                        <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>
+                          {entries.filter(e=>e.project_id===p.id&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0)}h
+                        </td>
                         <td><div style={{display:"flex",gap:5}}>
                           <button className="be" onClick={()=>setEditProjModal({...p})}>✎</button>
                           <button className="bd" onClick={()=>deleteProject(p.id)}>✕</button>
@@ -2824,10 +2859,37 @@ export default function App(){
                     </div>
                   </div>
                   <div className="card">
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                      <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Entries ({adminBrowseEntries.length})</h3>
-                      <span style={{fontSize:11,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>Total: {adminBrowseEntries.reduce((s,e)=>s+e.hours,0)}h</span>
+                    {(()=>{
+                      const workE=adminBrowseEntries.filter(e=>e.entry_type==="work");
+                      const leaveE=adminBrowseEntries.filter(e=>e.entry_type==="leave");
+                      const totalWH=workE.reduce((s,e)=>s+e.hours,0);
+                      const billH=workE.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
+                      const nonBillH=totalWH-billH;
+                      const uniqEngs=[...new Set(workE.map(e=>e.engineer_id))].length;
+                      const uniqProjs=[...new Set(workE.map(e=>e.project_id).filter(Boolean))].length;
+                      return(
+                    <div style={{marginBottom:14}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                        <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Entries ({adminBrowseEntries.length})</h3>
+                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#34d399",fontWeight:700}}>{totalWH}h work · <span style={{color:"#fb923c"}}>{leaveE.length}d leave</span></span>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+                        {[
+                          {l:"Work Hours",  v:totalWH+"h",       c:"#38bdf8"},
+                          {l:"Billable",    v:billH+"h",         c:"#34d399"},
+                          {l:"Non-Billable",v:nonBillH+"h",      c:"#fb923c"},
+                          {l:"Engineers",   v:uniqEngs,          c:"#a78bfa"},
+                          {l:"Projects",    v:uniqProjs,         c:"#60a5fa"},
+                        ].map((s,i)=>(
+                          <div key={i} style={{background:"#060e1c",borderRadius:6,padding:"8px 10px"}}>
+                            <div style={{fontSize:9,color:"#253a52",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div>
+                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:s.c,marginTop:4}}>{s.v}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                      );
+                    })()}
                     <div style={{maxHeight:500,overflowY:"auto"}}>
                       <table>
                         <thead><tr><th>Date</th><th>Engineer</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th><th>Type</th><th style={{width:90}}>Actions</th></tr></thead>
