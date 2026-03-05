@@ -89,7 +89,7 @@ function generatePDF(title, sections, subtitle="ENEVO Group"){
     </div>
   </div>
   <div class="ct">${title}</div><div class="cs">${subtitle}</div>
-  <div class="cm"><div><label>Generated</label><span>${now}</span></div><div><label>System</label><span>ENEVO ERP v4</span></div><div><label>Status</label><span>Confidential</span></div></div>
+  <div class="cm"><div><label>Generated</label><span>${now}</span></div><div><label>System</label><span>ENEVO GROUP</span></div><div><label>Status</label><span>Confidential</span></div></div>
   </div><div class="body">`;
   sections.forEach(s=>{html+=s;});
   html+=`</div><div class="footer"><span>ENEVO Group · Industrial & Renewable Energy Automation</span><span>CONFIDENTIAL — ${now}</span></div>
@@ -1325,7 +1325,7 @@ export default function App(){
   if(authLoading) return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#080d1a",gap:16}}>
       <img src={LOGO_SRC} alt="ENEVO Group" style={{width:72,height:72,borderRadius:14,opacity:0.9}}/>
-      <div style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontSize:13,letterSpacing:".1em"}}>Loading ENEVO ERP…</div>
+      <div style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontSize:13,letterSpacing:".1em"}}>Loading ENEVO GROUP…</div>
     </div>
   );
 
@@ -1339,7 +1339,7 @@ export default function App(){
             <img src={LOGO_SRC} alt="ENEVO Group" style={{width:80,height:80,borderRadius:16,objectFit:"contain"}}/>
           </div>
           <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8",letterSpacing:".18em",marginBottom:6}}>ENEVO GROUP</div>
-          <div style={{fontSize:22,fontWeight:700,color:"#f0f6ff"}}>ENEVO ERP</div>
+          <div style={{fontSize:22,fontWeight:700,color:"#f0f6ff"}}>ENEVO GROUP</div>
           <div style={{fontSize:12,color:"#2e4a66",marginTop:4}}>Industrial & Renewable Energy Automation</div>
         </div>
         {authMode==="login"?(
@@ -1414,7 +1414,7 @@ export default function App(){
               <LogoImg/>
               <div>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#38bdf8",letterSpacing:".15em",fontWeight:600}}>ENEVO</div>
-                <div style={{fontSize:13,fontWeight:700,color:"#f0f6ff",lineHeight:1.1}}>ENEVO ERP</div>
+                <div style={{fontSize:13,fontWeight:700,color:"#f0f6ff",lineHeight:1.1}}>ENEVO GROUP</div>
               </div>
             </div>
             <div style={{fontSize:10,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>ENEVO Group</div>
@@ -1525,6 +1525,13 @@ export default function App(){
                 </div>
                 {dashProjFilter!=="ALL"&&<button style={{background:"transparent",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#7a8faa",cursor:"pointer",fontSize:10}} onClick={()=>setDashProjFilter("ALL")}>✕ All</button>}
               </div>
+              {/* Warn if all projects are non-billable — guide admin to fix */}
+              {(isAdmin||isAcct)&&dWorkHrs>0&&dBillHrs===0&&(
+                <div style={{background:"#1a0f00",border:"1px solid #fb923c40",borderRadius:6,padding:"8px 14px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                  <span style={{fontSize:11,color:"#fb923c"}}>⚠ All hours showing as non-billable — projects may need billable flag set. Go to Reports → Invoice Export to fix.</span>
+                  <button className="bg" style={{fontSize:11,borderColor:"#fb923c",color:"#fb923c",whiteSpace:"nowrap",flexShrink:0}} onClick={()=>setView("reports")}>Fix now →</button>
+                </div>
+              )}
               <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:11,marginBottom:18}}>
                 {[
                   {l:"Total Work Hrs",v:dWorkHrs+"h",c:"#f0f6ff",show:true},
