@@ -1413,7 +1413,7 @@ export default function App(){
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
               <LogoImg/>
               <div>
-                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#38bdf8",letterSpacing:".15em",fontWeight:600}}>ENEVO</div>
+                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#38bdf8",letterSpacing:".15em",fontWeight:600}}>ENEVO-ERP</div>
                 <div style={{fontSize:13,fontWeight:700,color:"#f0f6ff",lineHeight:1.1}}>ENEVO GROUP</div>
               </div>
             </div>
@@ -1949,6 +1949,7 @@ export default function App(){
                   {id:"utilization",icon:"◉",label:"Team Utilization",desc:"All engineers utilization & billability",show:isAdmin||isAcct},
                   {id:"individual",icon:"👤",label:"Individual Timesheet",desc:"One engineer — full monthly timesheet PDF",show:true},
                   {id:"task",icon:"⊟",label:"Task Analysis",desc:"Task categories & activity log",show:true},
+                  {id:"projtasks",icon:"◈",label:"Project Analysis",desc:"Per-project hours, tasks & engineer breakdown",show:isAdmin||isAcct||isLead},
                   {id:"vacation",icon:"✈",label:"Vacation Report",desc:"Leave & absence summary per engineer",show:true},
                   {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct},
                   {id:"invoice",icon:"🧾",label:"Invoice Export",desc:"Billable invoice per month",show:canInvoice},
@@ -2098,6 +2099,230 @@ export default function App(){
                   );})}
                 </div>
               )}
+
+              {/* ════ PROJECT TASKS ANALYSIS ════ */}
+              {activeRpt==="projtasks"&&(()=>{
+                // Build per-project data from ALL entries (not just current month filter)
+                // Use all entries for the selected year+month
+                const ptEntries=monthEntries.filter(e=>e.entry_type==="work");
+                // Group by project
+                const projMap={};
+                ptEntries.forEach(e=>{
+                  const p=projects.find(x=>x.id===e.project_id);
+                  if(!p) return;
+                  if(!projMap[p.id]) projMap[p.id]={
+                    proj:p, totalHrs:0, billableHrs:0,
+                    tasks:{},      // task_type → {hrs, engineers: Set}
+                    engineers:{},  // eng_id → {name,hrs,tasks:{}}
+                    days:new Set(),
+                  };
+                  const pm=projMap[p.id];
+                  pm.totalHrs+=e.hours;
+                  if(p.billable) pm.billableHrs+=e.hours;
+                  pm.days.add(e.date);
+                  // task breakdown
+                  const tk=e.task_type||"Other";
+                  if(!pm.tasks[tk]) pm.tasks[tk]={hrs:0,engineers:new Set()};
+                  pm.tasks[tk].hrs+=e.hours;
+                  pm.tasks[tk].engineers.add(e.engineer_id);
+                  // engineer breakdown
+                  const eng=engineers.find(x=>x.id===e.engineer_id);
+                  const eid=e.engineer_id;
+                  if(!pm.engineers[eid]) pm.engineers[eid]={name:eng?.name||"Unknown",hrs:0,tasks:{}};
+                  pm.engineers[eid].hrs+=e.hours;
+                  pm.engineers[eid].tasks[tk]=(pm.engineers[eid].tasks[tk]||0)+e.hours;
+                });
+                const projList=Object.values(projMap).sort((a,b)=>b.totalHrs-a.totalHrs);
+                const grandTotal=projList.reduce((s,p)=>s+p.totalHrs,0);
+                const [ptSelProj,setPtSelProj]=React.useState("ALL");
+                const displayList=ptSelProj==="ALL"?projList:projList.filter(x=>x.proj.id===ptSelProj);
+
+                // Color palette for task bars
+                const TASK_COLORS=["#38bdf8","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#4ade80","#f472b6","#60a5fa"];
+                const taskColorMap={};
+                let colorIdx=0;
+                projList.forEach(pm=>Object.keys(pm.tasks).forEach(t=>{
+                  if(!taskColorMap[t]) taskColorMap[t]=TASK_COLORS[colorIdx++%TASK_COLORS.length];
+                }));
+
+                return(
+                <div>
+                  {/* Header */}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
+                    <div>
+                      <h2 style={{fontSize:18,fontWeight:700,color:"#f0f6ff",margin:0}}>◈ Project Tasks Analysis</h2>
+                      <p style={{fontSize:12,color:"#2e4a66",marginTop:4}}>{MONTHS[month]} {year} · {projList.length} active projects · {grandTotal}h total</p>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <select value={ptSelProj} onChange={e=>setPtSelProj(e.target.value)}
+                        style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                        <option value="ALL">All Projects</option>
+                        {projList.map(x=><option key={x.proj.id} value={x.proj.id}>{x.proj.id} — {x.proj.name} ({x.totalHrs}h)</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {projList.length===0&&<div className="card" style={{textAlign:"center",padding:40,color:"#253a52"}}>No hours logged for {MONTHS[month]} {year}. Import timesheets first.</div>}
+
+                  {/* Summary KPI strip */}
+                  {projList.length>0&&(
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:18}}>
+                      {[
+                        {l:"Total Hours",    v:grandTotal+"h",                                           c:"#f0f6ff"},
+                        {l:"Active Projects",v:projList.length,                                          c:"#38bdf8"},
+                        {l:"Billable Hours", v:projList.reduce((s,p)=>s+p.billableHrs,0)+"h",           c:"#34d399"},
+                        {l:"Unique Tasks",   v:Object.keys(taskColorMap).length,                         c:"#a78bfa"},
+                      ].map((m,i)=>(
+                        <div key={i} className="metric">
+                          <div style={{fontSize:9,color:"#2e4a66",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{m.l}</div>
+                          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:m.c,marginTop:8,lineHeight:1}}>{m.v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Project share bar — all projects stacked */}
+                  {projList.length>1&&ptSelProj==="ALL"&&(
+                    <div className="card" style={{marginBottom:14}}>
+                      <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>Hours Distribution Across Projects</h3>
+                      <div style={{display:"flex",height:28,borderRadius:6,overflow:"hidden",marginBottom:10}}>
+                        {projList.map((pm,i)=>{
+                          const pct=grandTotal?pm.totalHrs/grandTotal*100:0;
+                          const colors=["#0ea5e9","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#38bdf8"];
+                          return pct>0&&<div key={pm.proj.id} title={`${pm.proj.id}: ${pm.totalHrs}h (${Math.round(pct)}%)`}
+                            style={{width:`${pct}%`,background:colors[i%colors.length],display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff",overflow:"hidden",whiteSpace:"nowrap",padding:"0 4px"}}>
+                            {pct>4?pm.proj.id:""}
+                          </div>;
+                        })}
+                      </div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                        {projList.map((pm,i)=>{
+                          const colors=["#0ea5e9","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#38bdf8"];
+                          const pct=grandTotal?Math.round(pm.totalHrs/grandTotal*100):0;
+                          return<div key={pm.proj.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:10}}>
+                            <div style={{width:8,height:8,borderRadius:2,background:colors[i%colors.length],flexShrink:0}}/>
+                            <span style={{color:"#7a8faa"}}>{pm.proj.id}</span>
+                            <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#f0f6ff",fontWeight:600}}>{pm.totalHrs}h</span>
+                            <span style={{color:"#253a52"}}>({pct}%)</span>
+                          </div>;
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Per-project cards */}
+                  {displayList.map(pm=>{
+                    const pct=grandTotal?Math.round(pm.totalHrs/grandTotal*100):100;
+                    const billPct=pm.totalHrs?Math.round(pm.billableHrs/pm.totalHrs*100):0;
+                    const tasksSorted=Object.entries(pm.tasks).sort((a,b)=>b[1].hrs-a[1].hrs);
+                    const engList=Object.values(pm.engineers).sort((a,b)=>b.hrs-a.hrs);
+                    const topTask=tasksSorted[0];
+                    return(
+                    <div key={pm.proj.id} className="card" style={{marginBottom:14,borderLeft:`3px solid ${pm.proj.type==="Renewable Energy"?"#34d399":"#818cf8"}`}}>
+                      {/* Project header */}
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+                        <div>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8",fontWeight:700}}>{pm.proj.id}</span>
+                            <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:pm.proj.status==="Active"?"#024b36":"#192d47",color:pm.proj.status==="Active"?"#34d399":"#7a8faa"}}>{pm.proj.status}</span>
+                            {pm.proj.billable&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0c2b4e",color:"#38bdf8"}}>BILLABLE</span>}
+                          </div>
+                          <div style={{fontSize:15,fontWeight:700,color:"#f0f6ff"}}>{pm.proj.name}</div>
+                          {pm.proj.client&&<div style={{fontSize:11,color:"#2e4a66",marginTop:2}}>Client: {pm.proj.client} · Phase: {pm.proj.phase||"—"}</div>}
+                        </div>
+                        <div style={{textAlign:"right"}}>
+                          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:26,fontWeight:700,color:"#38bdf8",lineHeight:1}}>{pm.totalHrs}h</div>
+                          <div style={{fontSize:10,color:"#253a52",marginTop:2}}>{pct}% of month total</div>
+                          {pm.proj.billable&&pm.proj.rate_per_hour>0&&<div style={{fontSize:11,color:"#a78bfa",fontFamily:"'IBM Plex Mono',monospace",marginTop:2}}>{fmtCurrency(pm.totalHrs*pm.proj.rate_per_hour)}</div>}
+                        </div>
+                      </div>
+
+                      {/* Stats row */}
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
+                        {[
+                          {l:"Engineers",v:Object.keys(pm.engineers).length,c:"#38bdf8"},
+                          {l:"Task Types",v:tasksSorted.length,c:"#a78bfa"},
+                          {l:"Work Days",v:pm.days.size,c:"#34d399"},
+                          {l:"Avg/Day",v:pm.days.size?Math.round(pm.totalHrs/pm.days.size*10)/10+"h":"—",c:"#fb923c"},
+                        ].map((s,i)=>(
+                          <div key={i} style={{background:"#060e1c",borderRadius:6,padding:"8px 10px"}}>
+                            <div style={{fontSize:9,color:"#253a52",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div>
+                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:s.c,marginTop:4}}>{s.v}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                        {/* Task breakdown — visual bars */}
+                        <div>
+                          <div style={{fontSize:10,fontWeight:700,color:"#4e6479",textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Task Breakdown</div>
+                          {tasksSorted.map(([task,data])=>{
+                            const tpct=pm.totalHrs?Math.round(data.hrs/pm.totalHrs*100):0;
+                            const col=taskColorMap[task]||"#38bdf8";
+                            return(
+                            <div key={task} style={{marginBottom:7}}>
+                              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                                <div style={{display:"flex",alignItems:"center",gap:5}}>
+                                  <div style={{width:6,height:6,borderRadius:1,background:col,flexShrink:0}}/>
+                                  <span style={{fontSize:11,color:"#dde3ef"}}>{task}</span>
+                                </div>
+                                <div style={{display:"flex",gap:10,fontSize:10}}>
+                                  <span style={{fontFamily:"'IBM Plex Mono',monospace",color:col,fontWeight:700}}>{data.hrs}h</span>
+                                  <span style={{color:"#253a52"}}>{tpct}%</span>
+                                  <span style={{color:"#4e6479"}}>{data.engineers.size} eng</span>
+                                </div>
+                              </div>
+                              <div style={{background:"#060e1c",height:5,borderRadius:3,overflow:"hidden"}}>
+                                <div style={{height:"100%",width:`${tpct}%`,background:col,borderRadius:3,opacity:0.85}}/>
+                              </div>
+                            </div>
+                          );})}
+                        </div>
+
+                        {/* Engineer contribution */}
+                        <div>
+                          <div style={{fontSize:10,fontWeight:700,color:"#4e6479",textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Engineer Contribution</div>
+                          {engList.map(eng=>{
+                            const epct=pm.totalHrs?Math.round(eng.hrs/pm.totalHrs*100):0;
+                            const topEngTask=Object.entries(eng.tasks).sort((a,b)=>b[1]-a[1])[0];
+                            return(
+                            <div key={eng.name} style={{marginBottom:7}}>
+                              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                  <div className="av" style={{width:20,height:20,fontSize:8,flexShrink:0}}>{eng.name.slice(0,2).toUpperCase()}</div>
+                                  <span style={{fontSize:11,color:"#dde3ef"}}>{eng.name}</span>
+                                </div>
+                                <div style={{display:"flex",gap:10,fontSize:10}}>
+                                  <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{eng.hrs}h</span>
+                                  <span style={{color:"#253a52"}}>{epct}%</span>
+                                </div>
+                              </div>
+                              <div style={{background:"#060e1c",height:5,borderRadius:3,overflow:"hidden"}}>
+                                <div style={{height:"100%",width:`${epct}%`,background:"linear-gradient(90deg,#0ea5e9,#38bdf8)",borderRadius:3}}/>
+                              </div>
+                              {topEngTask&&<div style={{fontSize:9,color:"#2e4a66",marginTop:1}}>Top task: {topEngTask[0]} ({topEngTask[1]}h)</div>}
+                            </div>
+                          );})}
+                        </div>
+                      </div>
+
+                      {/* Billability bar */}
+                      {pm.proj.billable&&(
+                        <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #0d1a2d"}}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:10}}>
+                            <span style={{color:"#4e6479"}}>Billable coverage</span>
+                            <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontWeight:700}}>{billPct}%</span>
+                          </div>
+                          <div style={{background:"#060e1c",height:6,borderRadius:3,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${billPct}%`,background:"linear-gradient(90deg,#34d399,#10b981)",borderRadius:3}}/>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );})}
+                </div>
+                );
+              })()}
 
               {/* Vacation Report */}
               {activeRpt==="vacation"&&<VacationReport
