@@ -650,6 +650,208 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
   win.document.write(html); win.document.close();
 }
 
+
+/* ─── ALL PROJECTS COMBINED PDF ─── */
+function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAdmin, isAcct, periodLabel){
+  const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+  const TASK_COLORS=["#0ea5e9","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#4ade80","#f472b6","#60a5fa"];
+  const totalBillable=projList.reduce((s,pm)=>s+pm.billableHrs,0);
+  const allEngs=new Set(projList.flatMap(pm=>Object.keys(pm.engineers)));
+
+  // Build one HTML block per project
+  function buildProjectBlock(pm, idx){
+    const p=pm.proj;
+    const pct=grandTotal?Math.round(pm.totalHrs/grandTotal*100):0;
+    const billPct=pm.totalHrs?Math.round(pm.billableHrs/pm.totalHrs*100):0;
+    const avgDay=pm.days?Math.round(pm.totalHrs/pm.days*10)/10:0;
+    const tasksSorted=Object.entries(pm.tasks).sort((a,b)=>b[1].hrs-a[1].hrs);
+    const engList=Object.values(pm.engineers).sort((a,b)=>b.hrs-a.hrs);
+    const tcm={};let ci=0;
+    tasksSorted.forEach(([t])=>{if(!tcm[t])tcm[t]=TASK_COLORS[ci++%TASK_COLORS.length];});
+
+    const taskBars=tasksSorted.map(([task,data])=>{
+      const tpct=pm.totalHrs?Math.round(data.hrs/pm.totalHrs*100):0;
+      const col=tcm[task]||"#0ea5e9";
+      return`<div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:2px;font-size:10px">
+          <div style="display:flex;align-items:center;gap:5px">
+            <div style="width:7px;height:7px;border-radius:2px;background:${col};flex-shrink:0"></div>
+            <span style="font-weight:600;color:#1e293b">${task}</span>
+          </div>
+          <div style="display:flex;gap:12px;font-family:'IBM Plex Mono',monospace">
+            <span style="color:${col};font-weight:700">${data.hrs}h</span>
+            <span style="color:#64748b">${tpct}%</span>
+            <span style="color:#94a3b8">${data.engs} eng</span>
+          </div>
+        </div>
+        <div style="background:#e2e8f0;height:5px;border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${tpct}%;background:${col};border-radius:3px"></div>
+        </div>
+      </div>`;
+    }).join("");
+
+    const engRows=engList.map(eng=>{
+      const epct=pm.totalHrs?Math.round(eng.hrs/pm.totalHrs*100):0;
+      const top=Object.entries(eng.tasks).sort((a,b)=>b[1]-a[1])[0];
+      return`<tr>
+        <td style="font-weight:500">${eng.name}</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700">${eng.hrs}h</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace">${epct}%</td>
+        <td style="color:#64748b;font-size:9px">${top?top[0]+" ("+top[1]+"h)":"—"}</td>
+      </tr>`;
+    }).join("");
+
+    const billBar=(isAdmin||isAcct)&&p.billable?`
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid #e2e8f0">
+        <div style="display:flex;justify-content:space-between;font-size:9px;margin-bottom:3px">
+          <span style="color:#64748b">Billable coverage</span>
+          <span style="font-family:'IBM Plex Mono',monospace;color:#10b981;font-weight:700">${billPct}%${p.rate_per_hour>0?" · "+fmtCurrency(pm.totalHrs*p.rate_per_hour):""}</span>
+        </div>
+        <div style="background:#e2e8f0;height:6px;border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${billPct}%;background:linear-gradient(90deg,#34d399,#10b981);border-radius:3px"></div>
+        </div>
+      </div>`:"";
+
+    return`
+    <div style="page-break-before:${idx===0?"avoid":"always"};padding:28px 32px 0">
+      <!-- Project header banner -->
+      <div style="background:linear-gradient(135deg,#0a1628,#0f2a50);border-radius:10px;padding:18px 22px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.2em;color:#38bdf8;margin-bottom:4px">${idx+1} OF ${projList.length} · ${p.id}</div>
+          <div style="font-size:18px;font-weight:700;color:#f0f6ff;margin-bottom:3px">${p.name}</div>
+          <div style="font-size:10px;color:#64748b">${p.client?"Client: "+p.client+" · ":""} Phase: ${p.phase||"—"} · ${p.type||"—"}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:#38bdf8;line-height:1">${pm.totalHrs}h</div>
+          <div style="font-size:9px;color:#64748b;margin-top:2px">${pct}% of total · ${pm.days} days</div>
+          <div style="display:flex;gap:5px;margin-top:5px;justify-content:flex-end">
+            <span style="font-size:8px;padding:2px 6px;border-radius:3px;background:${p.status==="Active"?"#024b36":"#1e3a5f"};color:${p.status==="Active"?"#34d399":"#60a5fa"}">${p.status||"Active"}</span>
+            ${p.billable?`<span style="font-size:8px;padding:2px 6px;border-radius:3px;background:#0c2b4e;color:#38bdf8">BILLABLE</span>`:""}
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+        ${[
+          {l:"Total Hours",v:pm.totalHrs+"h",c:"#0ea5e9"},
+          {l:"Engineers",  v:Object.keys(pm.engineers).length,c:"#a78bfa"},
+          {l:"Work Days",  v:pm.days,c:"#34d399"},
+          {l:"Avg/Day",    v:avgDay+"h",c:"#fb923c"},
+        ].map(k=>`<div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:6px;padding:9px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
+          <div style="font-size:8px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-top:3px">${k.l}</div>
+        </div>`).join("")}
+      </div>
+
+      <!-- Two columns: task breakdown + engineer contribution -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px">
+        <div>
+          <div style="font-size:9px;font-weight:700;color:#0f2a50;text-transform:uppercase;letter-spacing:.08em;padding-bottom:5px;border-bottom:2px solid #0ea5e9;margin-bottom:8px">Task Breakdown (${tasksSorted.length} types)</div>
+          ${taskBars||"<div style='color:#94a3b8;font-size:10px'>No task data</div>"}
+        </div>
+        <div>
+          <div style="font-size:9px;font-weight:700;color:#0f2a50;text-transform:uppercase;letter-spacing:.08em;padding-bottom:5px;border-bottom:2px solid #a78bfa;margin-bottom:8px">Engineer Contributions</div>
+          <table style="font-size:9px">
+            <thead><tr>
+              <th style="background:#0f2a50;color:#fff;padding:4px 6px">Engineer</th>
+              <th style="background:#0f2a50;color:#fff;padding:4px 6px;text-align:right">Hours</th>
+              <th style="background:#0f2a50;color:#fff;padding:4px 6px;text-align:right">%</th>
+              <th style="background:#0f2a50;color:#fff;padding:4px 6px">Top Task</th>
+            </tr></thead>
+            <tbody>${engRows}</tbody>
+          </table>
+        </div>
+      </div>
+      ${billBar}
+      <div style="border-top:1px solid #e2e8f0;margin-top:14px;padding-top:6px;font-size:8px;color:#94a3b8;display:flex;justify-content:space-between">
+        <span>ENEVO Group · Project Tasks Analysis · ${periodLabel||"All Time"}</span>
+        <span>Page ${idx+1} of ${projList.length}</span>
+      </div>
+    </div>`;
+  }
+
+  const PDF_STYLE=`
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+    *{margin:0;padding:0;box-sizing:border-box}body{font-family:'IBM Plex Sans',sans-serif;color:#1a2332;font-size:11px}
+    table{width:100%;border-collapse:collapse}
+    th{padding:5px 6px;text-align:left;font-weight:600;font-size:9px;letter-spacing:.04em;text-transform:uppercase}
+    td{padding:4px 6px;border-bottom:1px solid #e2e8f0;vertical-align:top}tr:nth-child(even) td{background:#f8fafc}
+    @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:0}}`;
+
+  // Cover page summary table
+  const summaryRows=projList.map((pm,i)=>{
+    const pct=grandTotal?Math.round(pm.totalHrs/grandTotal*100):0;
+    const billPct=pm.totalHrs?Math.round(pm.billableHrs/pm.totalHrs*100):0;
+    return`<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#0ea5e9;font-weight:700">${pm.proj.id}</td>
+      <td style="font-weight:500">${pm.proj.name}</td>
+      <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#0ea5e9">${pm.totalHrs}h</td>
+      <td style="text-align:right;font-family:'IBM Plex Mono',monospace">${pct}%</td>
+      <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#10b981">${billPct}%</td>
+      <td style="text-align:right">${Object.keys(pm.engineers).length}</td>
+      <td><span style="font-size:8px;padding:2px 5px;border-radius:3px;background:${pm.proj.status==="Active"?"#024b36":"#1e3a5f"};color:${pm.proj.status==="Active"?"#34d399":"#60a5fa"}">${pm.proj.status||"Active"}</span></td>
+    </tr>`;
+  }).join("");
+
+  const coverHTML=`
+  <div style="background:linear-gradient(135deg,#0a1628,#0f2a50 60%,#153d6e);color:#fff;padding:44px;min-height:100vh;position:relative;overflow:hidden;box-sizing:border-box">
+    <div style="position:absolute;right:-60px;top:-60px;width:280px;height:280px;border:2px solid rgba(56,189,248,0.15);border-radius:50%"></div>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:28px">
+      <img src="${LOGO_SRC}" alt="ENEVO Group" style="width:56px;height:56px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.2em;color:#38bdf8;margin-bottom:4px">ENEVO GROUP · PROJECT TASKS ANALYSIS</div>
+        <div style="font-size:11px;color:#94a3b8">Industrial & Renewable Energy Automation</div>
+      </div>
+    </div>
+    <div style="font-size:28px;font-weight:700;margin-bottom:6px">All Projects Report</div>
+    <div style="font-size:13px;color:#94a3b8;margin-bottom:24px">Period: ${periodLabel||"All Time"}</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px">
+      ${[
+        {l:"Total Hours",   v:grandTotal+"h",           c:"#38bdf8"},
+        {l:"Projects",      v:projList.length,           c:"#a78bfa"},
+        {l:"Billable Hours",v:totalBillable+"h",         c:"#34d399"},
+        {l:"Engineers",     v:allEngs.size,              c:"#fb923c"},
+      ].map(k=>`<div style="background:rgba(255,255,255,0.07);border:1px solid rgba(56,189,248,0.15);border-radius:8px;padding:14px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
+        <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-top:5px">${k.l}</div>
+      </div>`).join("")}
+    </div>
+    <div style="font-size:10px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Project Summary</div>
+    <table style="font-size:10px">
+      <thead><tr>
+        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1)">ID</th>
+        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1)">Project Name</th>
+        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1);text-align:right">Hours</th>
+        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1);text-align:right">Share</th>
+        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1);text-align:right">Billable%</th>
+        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1);text-align:right">Engs</th>
+        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1)">Status</th>
+      </tr></thead>
+      <tbody style="color:#e2e8f0">${summaryRows}</tbody>
+    </table>
+    <div style="position:absolute;bottom:24px;left:44px;right:44px;display:flex;justify-content:space-between;font-size:9px;color:#475569">
+      <span>ENEVO Group · Industrial & Renewable Energy Automation</span>
+      <span>CONFIDENTIAL — ${now}</span>
+    </div>
+  </div>`;
+
+  const projectPages=projList.map((pm,i)=>buildProjectBlock(pm,i)).join("");
+
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>All Projects Report — ${periodLabel||"All Time"}</title>
+    <style>${PDF_STYLE}</style>
+  </head><body>
+    ${coverHTML}
+    ${projectPages}
+    <script>window.onload=()=>window.print()<\/script>
+  </body></html>`;
+
+  const win=window.open("","_blank");
+  if(win){win.document.write(html);win.document.close();}
+  else{alert("Please allow popups for this site to export PDFs.");}
+}
+
 /* ── ProjectTasksReport Component ── */
 function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fmtPct,isAdmin,isAcct}){
   const [selProj,setSelProj]=useState("ALL");
@@ -735,8 +937,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
           {selProj==="ALL"
             ? <button className="bp" style={{whiteSpace:"nowrap"}} onClick={()=>{
                 const label=filterMonth==="ALL"?"All Time":filterMonth;
-                const [fy,fm]=filterMonth!=="ALL"?filterMonth.split("-").map(Number):[null,null];
-                displayList.forEach((pm,i)=>setTimeout(()=>buildProjectTasksPDF(pm,grandTotal,fm?fm-1:null,fy,MONTHS,fmtCurrency,isAdmin,isAcct,label),i*700));
+                buildAllProjectsPDF(displayList,grandTotal,MONTHS,fmtCurrency,isAdmin,isAcct,label);
               }}>
                 ⬇ Export All ({projList.length})
               </button>
