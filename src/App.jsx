@@ -694,6 +694,161 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
 }
 
 
+/* ─── FINANCE P&L PDF ─── */
+function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSD,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin}){
+  const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+  const period=`${MONTHS_[finMonth]} ${finYear}`;
+  const netSign=netPL>=0?"▲ PROFIT":"▼ LOSS";
+  const marginPct=monthRevUSD>0?Math.round(netPL/monthRevUSD*100):0;
+
+  const kpiCards=(items)=>items.map(k=>`
+    <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;text-align:center">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
+      <div style="font-size:8px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-top:4px">${k.l}</div>
+    </div>`).join("");
+
+  const coverSection=`
+  <div class="cover">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+      <img src="${LOGO_SRC}" style="width:52px;height:52px;border-radius:10px;object-fit:contain"/>
+      <div>
+        <div class="cl">ENEVO GROUP · Financial Report</div>
+        <div style="font-size:11px;color:#94a3b8">Profit & Loss Statement</div>
+      </div>
+    </div>
+    <div class="ct">P&L Report — ${period}</div>
+    <div class="cs">Generated: ${now} · CONFIDENTIAL</div>
+    <div class="cm">
+      <div><label>Revenue</label><span>$${monthRevUSD.toLocaleString()}</span></div>
+      <div><label>Total Cost</label><span>$${totalCostUSD.toLocaleString()}</span></div>
+      <div><label>Net P&L</label><span style="color:${netColor}">${netSign} $${Math.abs(netPL).toLocaleString()}</span></div>
+      <div><label>Margin</label><span style="color:${netColor}">${marginPct}%</span></div>
+    </div>
+  </div>`;
+
+  const plSection=`
+  <div class="section">
+    <div class="st">Profit & Loss Summary — ${period}</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+      ${kpiCards([
+        {l:"Revenue",     v:fmtCurrency(monthRevUSD),   c:"#16a34a"},
+        {l:"Payroll",     v:fmtCurrency(totalPayrollUSD),c:"#dc2626"},
+        {l:"Expenses",    v:fmtCurrency(totalExpUSD),   c:"#ea580c"},
+        {l:"Net P&L",     v:fmtCurrency(netPL),         c:netColor},
+      ])}
+    </div>
+    <table>
+      <thead><tr><th>Item</th><th style="text-align:right">USD</th><th style="text-align:right">EGP</th><th style="text-align:right">Notes</th></tr></thead>
+      <tbody>
+        <tr style="background:#f0fdf4"><td style="font-weight:700;color:#16a34a">Revenue — Billable Projects</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#16a34a">${fmtCurrency(monthRevUSD)}</td><td style="text-align:right">—</td><td style="font-size:9px;color:#64748b">Derived from project billing rates × hours</td></tr>
+        <tr><td style="font-weight:600;color:#dc2626">Total Payroll</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#dc2626;font-weight:700">${fmtCurrency(totalPayrollUSD)}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#ea580c">EGP ${totalPayrollEGP.toLocaleString()}</td><td style="font-size:9px;color:#64748b">${activeStaff.length} active staff</td></tr>
+        <tr><td style="font-weight:600;color:#ea580c">Office & Other Expenses</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#ea580c;font-weight:700">${fmtCurrency(totalExpUSD)}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#a78bfa">EGP ${totalExpEGP.toLocaleString()}</td><td style="font-size:9px;color:#64748b">${monthExp.length} expense entries</td></tr>
+        <tr style="background:#0f2a50;color:#fff"><td style="font-weight:700">NET PROFIT / LOSS</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px;color:${netColor}">${netPL>=0?"+":""}${fmtCurrency(netPL)}</td><td style="text-align:right;color:#94a3b8">—</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:${netColor}">${marginPct}% margin</td></tr>
+      </tbody>
+    </table>
+  </div>`;
+
+  const deptSection=`
+  <div class="section">
+    <div class="st">Salary by Department</div>
+    <table>
+      <thead><tr><th>Department</th><th style="text-align:right">Headcount</th><th style="text-align:right">Monthly USD</th><th style="text-align:right">Monthly EGP</th><th style="text-align:right">% of Payroll</th></tr></thead>
+      <tbody>${deptList.map(d=>`<tr>
+        <td style="font-weight:600">${d.dept}</td>
+        <td style="text-align:right">${d.count}</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#dc2626;font-weight:700">${fmtCurrency(d.usd)}</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#ea580c">EGP ${d.egp.toLocaleString()}</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace">${totalPayrollUSD?Math.round(d.usd/totalPayrollUSD*100):0}%</td>
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`;
+
+  const staffSection=`
+  <div class="section">
+    <div class="st">Staff Salary Breakdown (${activeStaff.length} Active)</div>
+    <table>
+      <thead><tr><th>Name</th><th>Department</th><th>Role</th><th>Type</th><th style="text-align:right">USD/mo</th><th style="text-align:right">EGP/mo</th></tr></thead>
+      <tbody>${activeStaff.map(s=>`<tr>
+        <td style="font-weight:600">${s.name}</td>
+        <td style="color:#0ea5e9;font-size:9px">${s.department}</td>
+        <td style="color:#64748b;font-size:9px">${s.role}</td>
+        <td style="font-size:8px"><span style="padding:2px 5px;border-radius:3px;background:#dbeafe;color:#1e40af">${(s.type||"full_time").replace("_"," ")}</span></td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#dc2626">${fmtCurrency(s.salary_usd||0)}</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#ea580c">EGP ${(s.salary_egp||0).toLocaleString()}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`;
+
+  const expSection=`
+  <div class="section">
+    <div class="st">Expense Detail — ${period} (${monthExp.length} entries)</div>
+    ${monthExp.length===0?`<p style="color:#94a3b8;font-size:10px;padding:10px 0">No expenses recorded for ${period}.</p>`:`
+    <table>
+      <thead><tr><th>Category</th><th>Description</th><th style="text-align:right">USD</th><th style="text-align:right">EGP</th><th>Notes</th></tr></thead>
+      <tbody>${monthExp.map(e=>`<tr>
+        <td><span style="font-size:8px;padding:2px 5px;border-radius:3px;background:#dbeafe;color:#1e40af">${e.category}</span></td>
+        <td>${e.description}</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#ea580c">${e.amount_usd?fmtCurrency(e.amount_usd):"-"}</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#7c3aed">EGP ${(e.amount_egp||0).toLocaleString()}</td>
+        <td style="font-size:9px;color:#64748b;font-style:italic">${e.notes||""}</td>
+      </tr>`).join("")}</tbody>
+    </table>`}
+  </div>`;
+
+  const projSection=projProfit.length>0?`
+  <div class="section">
+    <div class="st">Per-Project Profitability — ${period}</div>
+    <div style="font-size:9px;color:#64748b;margin-bottom:8px">Cost allocated proportionally by hours worked on each billable project.</div>
+    <table>
+      <thead><tr><th>Project</th><th style="text-align:right">Revenue</th><th style="text-align:right">Alloc. Cost</th><th style="text-align:right">Net P&L</th><th style="text-align:right">Margin</th><th style="text-align:right">Hours</th></tr></thead>
+      <tbody>${projProfit.map(p=>{
+        const margin=p.rev>0?Math.round(p.net/p.rev*100):0;
+        const c=p.net>=0?"#16a34a":"#dc2626";
+        return`<tr>
+          <td style="font-weight:600">${p.id} — ${p.name}</td>
+          <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#16a34a;font-weight:700">${fmtCurrency(p.rev)}</td>
+          <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#dc2626">${fmtCurrency(Math.round(p.allocatedCost))}</td>
+          <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${c}">${p.net>=0?"+":""}${fmtCurrency(Math.round(p.net))}</td>
+          <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:${c}">${margin}%</td>
+          <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#64748b">${p.hrs}h</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>
+  </div>`:"";
+
+  const ytdSection=`
+  <div class="section">
+    <div class="st">Year-to-Date ${finYear} Summary</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+      ${kpiCards([
+        {l:"YTD Revenue",v:fmtCurrency(ytdRev), c:"#16a34a"},
+        {l:"YTD Costs",  v:fmtCurrency(ytdCost),c:"#dc2626"},
+        {l:"YTD Net",    v:fmtCurrency(ytdNet), c:ytdNet>=0?"#16a34a":"#dc2626"},
+      ])}
+    </div>
+    <table>
+      <thead><tr><th>Month</th><th style="text-align:right">Revenue</th><th style="text-align:right">Cost</th><th style="text-align:right">Net P&L</th><th style="text-align:right">Margin</th></tr></thead>
+      <tbody>${ytdData.map(row=>{
+        const margin=row.rev>0?Math.round(row.net/row.rev*100):0;
+        const c=row.net>=0?"#16a34a":"#dc2626";
+        return`<tr>
+          <td style="font-weight:600">${MONTHS_[row.m]} ${finYear}</td>
+          <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#16a34a;font-weight:700">${fmtCurrency(row.rev)}</td>
+          <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#dc2626">${fmtCurrency(row.cost)}</td>
+          <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${c}">${row.net>=0?"+":""}${fmtCurrency(row.net)}</td>
+          <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:${c}">${margin}%</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>
+  </div>`;
+
+  generatePDF(
+    `P&L Report — ${period}`,
+    [plSection, deptSection, staffSection, expSection, projSection, ytdSection],
+    `Financial Statement · ${period} · CONFIDENTIAL`
+  );
+}
+
 /* ─── ALL PROJECTS COMBINED PDF ─── */
 function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAdmin, isAcct, periodLabel){
   const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
@@ -1335,6 +1490,19 @@ export default function App(){
   const [showEngModal,setShowEngModal]     = useState(false);
   const [editEngModal,setEditEngModal]     = useState(null);
   const [adminTab,setAdminTab]             = useState("engineers");
+
+  // ── Finance Module State ──
+  const [staff,setStaff]                   = useState([]);
+  const [expenses,setExpenses]             = useState([]);
+  const [finTab,setFinTab]                 = useState("pl");        // pl | salaries | expenses
+  const [finMonth,setFinMonth]             = useState(new Date().getMonth());
+  const [finYear,setFinYear]               = useState(new Date().getFullYear());
+  const [showStaffModal,setShowStaffModal] = useState(false);
+  const [editStaff,setEditStaff]           = useState(null);
+  const [showExpModal,setShowExpModal]     = useState(false);
+  const [editExp,setEditExp]               = useState(null);
+  const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,notes:""});
+  const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
   const [newEntry,setNewEntry]   = useState({projectId:"",taskCategory:"Engineering",taskType:"Basic Engineering",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0]});
   const [newProj,setNewProj]     = useState({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
@@ -1390,10 +1558,19 @@ export default function App(){
         supabase.from("time_entries").select("*").order("date",{ascending:false}),
         supabase.from("engineers").select("*").eq("user_id",session.user.id).single(),
         supabase.from("notifications").select("*").order("created_at",{ascending:false}).limit(50),
+        supabase.from("staff").select("*").order("name"),
+        supabase.from("expenses").select("*").order("year",{ascending:false}).order("month",{ascending:false}),
       ]);
       if(engsR.data) setEngineers(engsR.data);
       if(projR.data) setProjects(projR.data);
       if(entrR.data) setEntries(entrR.data);
+      // Load finance tables
+      const [staffRes,expRes]=await Promise.all([
+        supabase.from("staff").select("*").order("name"),
+        supabase.from("expenses").select("*").order("year",{ascending:false}),
+      ]);
+      if(staffRes.data) setStaff(staffRes.data);
+      if(expRes.data)   setExpenses(expRes.data);
       if(profR.data){ setMyProfile(profR.data); setBrowseEngId(profR.data.id); }
       if(notifR.data) setNotifications(notifR.data);
     }catch(e){showToast("Error loading data",false);}
@@ -1407,7 +1584,7 @@ export default function App(){
   };
   const handleLogout=async()=>{
     await supabase.auth.signOut();
-    setSession(null);setEngineers([]);setProjects([]);setEntries([]);setMyProfile(null);
+    setSession(null);setEngineers([]);setProjects([]);setEntries([]);setMyProfile(null);setStaff([]);setExpenses([]);
   };
 
   const unreadCount=notifications.filter(n=>!n.read).length;
@@ -1483,6 +1660,51 @@ export default function App(){
     setEntries(prev=>prev.filter(e=>e.id!==id));
     showToast("Deleted",false);
   };
+
+  /* ── FINANCE CRUD ── */
+  const STAFF_DEPTS=["Engineering","Management","Finance","Operations","IT","Administration","Other"];
+  const STAFF_TYPES=["full_time","part_time","contractor","intern"];
+  const EXP_CATS=["Office Rent & Utilities","Salaries","Software & Subscriptions","Travel & Transportation","Equipment & Supplies","Other"];
+
+  const saveStaff=useCallback(async()=>{
+    const payload=editStaff?{...editStaff}:{...newStaff};
+    if(!payload.name.trim()){showToast("Name required",false);return;}
+    if(editStaff){
+      const{data,error}=await supabase.from("staff").update(payload).eq("id",editStaff.id).select().single();
+      if(!error&&data){setStaff(prev=>prev.map(s=>s.id===data.id?data:s));showToast("Staff updated");setEditStaff(null);setShowStaffModal(false);}
+      else showToast(error?.message||"Error",false);
+    } else {
+      const{data,error}=await supabase.from("staff").insert(payload).select().single();
+      if(!error&&data){setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));showToast("Staff added");setShowStaffModal(false);setNewStaff({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,notes:""});}
+      else showToast(error?.message||"Error",false);
+    }
+  },[editStaff,newStaff,showToast]);
+
+  const deleteStaff=useCallback(async(id)=>{
+    if(!window.confirm("Delete this staff member?")) return;
+    await supabase.from("staff").delete().eq("id",id);
+    setStaff(prev=>prev.filter(s=>s.id!==id));
+  },[]);
+
+  const saveExpense=useCallback(async()=>{
+    const payload=editExp?{...editExp}:{...newExp};
+    if(!payload.description.trim()){showToast("Description required",false);return;}
+    if(editExp){
+      const{data,error}=await supabase.from("expenses").update(payload).eq("id",editExp.id).select().single();
+      if(!error&&data){setExpenses(prev=>prev.map(e=>e.id===data.id?data:e));showToast("Expense updated");setEditExp(null);setShowExpModal(false);}
+      else showToast(error?.message||"Error",false);
+    } else {
+      const{data,error}=await supabase.from("expenses").insert(payload).select().single();
+      if(!error&&data){setExpenses(prev=>[data,...prev]);showToast("Expense added");setShowExpModal(false);setNewExp({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});}
+      else showToast(error?.message||"Error",false);
+    }
+  },[editExp,newExp,showToast]);
+
+  const deleteExpense=useCallback(async(id)=>{
+    if(!window.confirm("Delete this expense?")) return;
+    await supabase.from("expenses").delete().eq("id",id);
+    setExpenses(prev=>prev.filter(e=>e.id!==id));
+  },[]);
 
   /* ── EXCEL IMPORT ── */
   const importTimesheets=async files=>{
@@ -2978,6 +3200,7 @@ export default function App(){
                   {id:"projects", label:"◈ Projects",  show:isAdmin},
                   {id:"entries",  label:"⏱ All Entries",show:true},
                   {id:"settings", label:"⚙ Settings",   show:isAdmin},
+                  {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct},
                 ].filter(t=>t.show).map(t=>(
                   <button key={t.id} className={`atab ${adminTab===t.id?"a":""}`} onClick={()=>setAdminTab(t.id)}>{t.label}</button>
                 ))}
@@ -3158,6 +3381,309 @@ export default function App(){
                   </div>
                 </div>
               )}
+
+
+              {/* ══ FINANCE MODULE ══ */}
+              {adminTab==="finance"&&(isAdmin||isAcct)&&(()=>{
+                const activeStaff=staff.filter(s=>s.active!==false);
+                const totalPayrollUSD=activeStaff.reduce((s,x)=>s+(x.salary_usd||0),0);
+                const totalPayrollEGP=activeStaff.reduce((s,x)=>s+(x.salary_egp||0),0);
+
+                // Month expenses
+                const monthExp=expenses.filter(e=>e.month===finMonth&&e.year===finYear);
+                const totalExpUSD=monthExp.reduce((s,e)=>s+(e.amount_usd||0),0);
+                const totalExpEGP=monthExp.reduce((s,e)=>s+(e.amount_egp||0),0);
+                const totalCostUSD=totalPayrollUSD+totalExpUSD;
+
+                // Revenue from billing (all entries this month)
+                const mRevEntries=entries.filter(e=>{
+                  const d=new Date(e.date+"T12:00:00");
+                  return d.getFullYear()===finYear&&d.getMonth()===finMonth&&e.entry_type==="work";
+                });
+                const monthRevUSD=mRevEntries.reduce((s,e)=>{
+                  const p=projects.find(x=>x.id===e.project_id);
+                  return s+(p&&p.billable?p.rate_per_hour*e.hours:0);
+                },0);
+                const netPL=monthRevUSD-totalCostUSD;
+
+                // YTD P&L
+                const ytdMonths=Array.from({length:finMonth+1},(_,i)=>i);
+                const ytdData=ytdMonths.map(m=>{
+                  const mE=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===m&&e.entry_type==="work";});
+                  const rev=mE.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
+                  const mExp=expenses.filter(e=>e.month===m&&e.year===finYear).reduce((s,e)=>s+(e.amount_usd||0),0);
+                  const cost=totalPayrollUSD+mExp;
+                  return{m,rev,cost,net:rev-cost};
+                });
+                const ytdRev=ytdData.reduce((s,x)=>s+x.rev,0);
+                const ytdCost=ytdData.reduce((s,x)=>s+x.cost,0);
+                const ytdNet=ytdRev-ytdCost;
+
+                // Per-project profitability
+                const projProfit=projects.filter(p=>p.billable).map(p=>{
+                  const pe=mRevEntries.filter(e=>e.project_id===p.id);
+                  const rev=pe.reduce((s,e)=>s+(p.rate_per_hour*e.hours),0);
+                  const hrs=pe.reduce((s,e)=>s+e.hours,0);
+                  const engsOnProj=[...new Set(pe.map(e=>e.engineer_id))];
+                  // Allocate cost: proportional to hrs worked on this project vs total billable hrs
+                  const allBillHrs=mRevEntries.reduce((s,e)=>s+e.hours,0)||1;
+                  const allocatedCost=totalCostUSD*(hrs/allBillHrs);
+                  return{id:p.id,name:p.name,rev,hrs,engs:engsOnProj.length,allocatedCost,net:rev-allocatedCost};
+                }).filter(p=>p.hrs>0).sort((a,b)=>b.net-a.net);
+
+                // Dept salary breakdown
+                const deptMap={};
+                activeStaff.forEach(s=>{
+                  const d=s.department||"Other";
+                  if(!deptMap[d]) deptMap[d]={dept:d,count:0,usd:0,egp:0};
+                  deptMap[d].count++;
+                  deptMap[d].usd+=s.salary_usd||0;
+                  deptMap[d].egp+=s.salary_egp||0;
+                });
+                const deptList=Object.values(deptMap).sort((a,b)=>b.usd-a.usd);
+
+                const netColor=netPL>=0?"#34d399":"#f87171";
+                const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+                return(
+                <div>
+                  {/* Finance sub-tabs */}
+                  <div style={{display:"flex",gap:4,marginBottom:16,background:"#060e1c",borderRadius:8,padding:4,width:"fit-content"}}>
+                    {[{id:"pl",label:"📊 P&L"},{id:"salaries",label:"👤 Salaries"},{id:"expenses",label:"🧾 Expenses"}].map(t=>(
+                      <button key={t.id} className={`atab ${finTab===t.id?"a":""}`} onClick={()=>setFinTab(t.id)}>{t.label}</button>
+                    ))}
+                  </div>
+
+                  {/* Month/Year picker */}
+                  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16}}>
+                    <select value={finMonth} onChange={e=>setFinMonth(+e.target.value)}
+                      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+                      {MONTHS_.map((m,i)=><option key={i} value={i}>{m}</option>)}
+                    </select>
+                    <select value={finYear} onChange={e=>setFinYear(+e.target.value)}
+                      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+                      {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+                    </select>
+                    <span style={{fontSize:11,color:"#2e4a66"}}>Viewing: {MONTHS_[finMonth]} {finYear}</span>
+                    <button className="bp" style={{marginLeft:"auto"}} onClick={()=>{
+                      const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+                      buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSD,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin});
+                    }}>⬇ Export P&L PDF</button>
+                  </div>
+
+                  {/* ── P&L TAB ── */}
+                  {finTab==="pl"&&(
+                    <div style={{display:"grid",gap:14}}>
+                      {/* KPI strip */}
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+                        {[
+                          {l:"Revenue",      v:fmtCurrency(monthRevUSD),  c:"#34d399"},
+                          {l:"Payroll Cost", v:fmtCurrency(totalPayrollUSD),c:"#f87171"},
+                          {l:"Other Costs",  v:fmtCurrency(totalExpUSD),  c:"#fb923c"},
+                          {l:"Total Cost",   v:fmtCurrency(totalCostUSD), c:"#f87171"},
+                          {l:"Net P&L",      v:fmtCurrency(netPL),        c:netColor},
+                        ].map((k,i)=>(
+                          <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
+                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:k.c}}>{k.v}</div>
+                            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Visual P&L bar */}
+                      <div className="card">
+                        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>MONTHLY BREAKDOWN — {MONTHS_[finMonth]} {finYear}</div>
+                        {monthRevUSD>0||totalCostUSD>0?(()=>{
+                          const max=Math.max(monthRevUSD,totalCostUSD)||1;
+                          return(
+                          <div style={{display:"grid",gap:8}}>
+                            {[
+                              {l:"Revenue",    v:monthRevUSD,    c:"#34d399"},
+                              {l:"Payroll",    v:totalPayrollUSD,c:"#f87171"},
+                              {l:"Expenses",   v:totalExpUSD,    c:"#fb923c"},
+                              {l:"Total Cost", v:totalCostUSD,   c:"#ef4444"},
+                            ].map((r,i)=>(
+                              <div key={i} style={{display:"grid",gridTemplateColumns:"120px 1fr 80px",alignItems:"center",gap:10}}>
+                                <div style={{fontSize:10,color:"#7a8faa"}}>{r.l}</div>
+                                <div style={{background:"#060e1c",borderRadius:4,height:18,overflow:"hidden"}}>
+                                  <div style={{height:"100%",width:`${Math.round(r.v/max*100)}%`,background:r.c,borderRadius:4,minWidth:r.v>0?4:0}}/>
+                                </div>
+                                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:r.c,fontWeight:700,textAlign:"right"}}>{fmtCurrency(r.v)}</div>
+                              </div>
+                            ))}
+                            <div style={{borderTop:"1px solid #0ea5e930",paddingTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                              <span style={{fontSize:11,color:"#7a8faa"}}>Net Profit / Loss</span>
+                              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:netColor}}>{netPL>=0?"▲":"▼"} {fmtCurrency(Math.abs(netPL))}</span>
+                            </div>
+                          </div>);
+                        })():<div style={{color:"#2e4a66",fontSize:11,textAlign:"center",padding:20}}>No data for {MONTHS_[finMonth]} {finYear}</div>}
+                      </div>
+
+                      {/* YTD Summary */}
+                      <div className="card">
+                        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>YEAR-TO-DATE {finYear} SUMMARY (Jan–{MONTHS_[finMonth]})</div>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+                          {[
+                            {l:"YTD Revenue",v:fmtCurrency(ytdRev),c:"#34d399"},
+                            {l:"YTD Costs",  v:fmtCurrency(ytdCost),c:"#f87171"},
+                            {l:"YTD Net",    v:fmtCurrency(ytdNet), c:ytdNet>=0?"#34d399":"#f87171"},
+                          ].map((k,i)=>(
+                            <div key={i} style={{background:"#060e1c",borderRadius:6,padding:"10px 12px"}}>
+                              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
+                              <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".07em",marginTop:3}}>{k.l}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <table>
+                          <thead><tr><th>Month</th><th style={{textAlign:"right"}}>Revenue</th><th style={{textAlign:"right"}}>Cost</th><th style={{textAlign:"right"}}>Net P&L</th><th style={{textAlign:"right"}}>Margin</th></tr></thead>
+                          <tbody>{ytdData.map(row=>{
+                            const margin=row.rev>0?Math.round(row.net/row.rev*100):0;
+                            const c=row.net>=0?"#34d399":"#f87171";
+                            return(<tr key={row.m}>
+                              <td style={{fontWeight:600}}>{MONTHS_[row.m]} {finYear}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399"}}>{fmtCurrency(row.rev)}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>{fmtCurrency(row.cost)}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:c}}>{row.net>=0?"+":""}{fmtCurrency(row.net)}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:c}}>{margin}%</td>
+                            </tr>);
+                          })}</tbody>
+                        </table>
+                      </div>
+
+                      {/* Per-project profitability */}
+                      {projProfit.length>0&&(
+                      <div className="card">
+                        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>PER-PROJECT PROFITABILITY — {MONTHS_[finMonth]} {finYear}</div>
+                        <div style={{fontSize:10,color:"#2e4a66",marginBottom:10}}>Cost allocated proportionally by hours worked on each billable project</div>
+                        <table>
+                          <thead><tr><th>Project</th><th style={{textAlign:"right"}}>Revenue</th><th style={{textAlign:"right"}}>Alloc. Cost</th><th style={{textAlign:"right"}}>Net</th><th style={{textAlign:"right"}}>Margin</th><th style={{textAlign:"right"}}>Hours</th></tr></thead>
+                          <tbody>{projProfit.map(p=>{
+                            const margin=p.rev>0?Math.round(p.net/p.rev*100):0;
+                            const c=p.net>=0?"#34d399":"#f87171";
+                            return(<tr key={p.id}>
+                              <td><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{p.id}</span> <span style={{fontSize:10}}>{p.name}</span></td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399"}}>{fmtCurrency(p.rev)}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>{fmtCurrency(Math.round(p.allocatedCost))}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:c}}>{p.net>=0?"+":""}{fmtCurrency(Math.round(p.net))}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:c}}>{margin}%</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#7a8faa"}}>{p.hrs}h</td>
+                            </tr>);
+                          })}</tbody>
+                        </table>
+                      </div>)}
+                    </div>
+                  )}
+
+                  {/* ── SALARIES TAB ── */}
+                  {finTab==="salaries"&&(
+                    <div style={{display:"grid",gap:14}}>
+                      {/* Payroll KPIs */}
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                        {[
+                          {l:"Total Staff",      v:activeStaff.length,                c:"#38bdf8"},
+                          {l:"Monthly USD",      v:fmtCurrency(totalPayrollUSD),       c:"#f87171"},
+                          {l:"Monthly EGP",      v:`EGP ${totalPayrollEGP.toLocaleString()}`, c:"#fb923c"},
+                          {l:"Departments",      v:deptList.length,                   c:"#a78bfa"},
+                        ].map((k,i)=>(
+                          <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
+                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
+                            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Dept breakdown */}
+                      <div className="card">
+                        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>SALARY BY DEPARTMENT</div>
+                        <table>
+                          <thead><tr><th>Department</th><th style={{textAlign:"right"}}>Headcount</th><th style={{textAlign:"right"}}>Monthly USD</th><th style={{textAlign:"right"}}>Monthly EGP</th><th style={{textAlign:"right"}}>% of Payroll</th></tr></thead>
+                          <tbody>{deptList.map((d,i)=>(
+                            <tr key={i}>
+                              <td style={{fontWeight:600}}>{d.dept}</td>
+                              <td style={{textAlign:"right"}}>{d.count}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171",fontWeight:700}}>{fmtCurrency(d.usd)}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>EGP {d.egp.toLocaleString()}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#7a8faa"}}>{totalPayrollUSD?Math.round(d.usd/totalPayrollUSD*100):0}%</td>
+                            </tr>
+                          ))}</tbody>
+                        </table>
+                      </div>
+
+                      {/* Staff table */}
+                      <div className="card">
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                          <div style={{fontSize:11,fontWeight:700,color:"#7a8faa"}}>ALL STAFF ({staff.length})</div>
+                          <button className="bp" onClick={()=>{setEditStaff(null);setShowStaffModal(true)}}>+ Add Staff</button>
+                        </div>
+                        <table>
+                          <thead><tr><th>Name</th><th>Dept</th><th>Role</th><th>Type</th><th style={{textAlign:"right"}}>USD/mo</th><th style={{textAlign:"right"}}>EGP/mo</th><th>Status</th><th>Actions</th></tr></thead>
+                          <tbody>{staff.map(s=>(
+                            <tr key={s.id}>
+                              <td style={{fontWeight:600}}>{s.name}</td>
+                              <td style={{fontSize:10,color:"#38bdf8"}}>{s.department}</td>
+                              <td style={{fontSize:10,color:"#7a8faa"}}>{s.role}</td>
+                              <td style={{fontSize:9}}><span style={{padding:"2px 6px",borderRadius:3,background:"#0c2b4e",color:"#38bdf8",fontWeight:700}}>{s.type?.replace("_"," ")}</span></td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171",fontWeight:700}}>{fmtCurrency(s.salary_usd||0)}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>EGP {(s.salary_egp||0).toLocaleString()}</td>
+                              <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:s.active!==false?"#024b36":"#1a0a00",color:s.active!==false?"#34d399":"#f87171"}}>{s.active!==false?"Active":"Inactive"}</span></td>
+                              <td><div style={{display:"flex",gap:4}}>
+                                <button className="be" onClick={()=>{setEditStaff({...s});setShowStaffModal(true)}}>✎</button>
+                                <button className="bd" onClick={()=>deleteStaff(s.id)}>✕</button>
+                              </div></td>
+                            </tr>
+                          ))}</tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── EXPENSES TAB ── */}
+                  {finTab==="expenses"&&(
+                    <div style={{display:"grid",gap:14}}>
+                      {/* Expense KPIs */}
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                        {[
+                          {l:"Entries",     v:monthExp.length,              c:"#38bdf8"},
+                          {l:"Total USD",   v:fmtCurrency(totalExpUSD),      c:"#fb923c"},
+                          {l:"Total EGP",   v:`EGP ${totalExpEGP.toLocaleString()}`,c:"#a78bfa"},
+                          {l:"Categories",  v:[...new Set(monthExp.map(e=>e.category))].length, c:"#34d399"},
+                        ].map((k,i)=>(
+                          <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
+                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
+                            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Expenses table */}
+                      <div className="card">
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                          <div style={{fontSize:11,fontWeight:700,color:"#7a8faa"}}>EXPENSES — {MONTHS_[finMonth]} {finYear} ({monthExp.length})</div>
+                          <button className="bp" onClick={()=>{setEditExp(null);setNewExp(p=>({...p,month:finMonth,year:finYear}));setShowExpModal(true)}}>+ Add Expense</button>
+                        </div>
+                        {monthExp.length===0?<div style={{color:"#2e4a66",fontSize:11,textAlign:"center",padding:20}}>No expenses posted for {MONTHS_[finMonth]} {finYear}</div>:(
+                        <table>
+                          <thead><tr><th>Category</th><th>Description</th><th style={{textAlign:"right"}}>USD</th><th style={{textAlign:"right"}}>EGP</th><th>Notes</th><th>Actions</th></tr></thead>
+                          <tbody>{monthExp.map(e=>(
+                            <tr key={e.id}>
+                              <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0c2b4e",color:"#38bdf8",fontWeight:700}}>{e.category}</span></td>
+                              <td style={{fontWeight:500}}>{e.description}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c",fontWeight:700}}>{e.amount_usd?fmtCurrency(e.amount_usd):"-"}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{e.amount_egp?`EGP ${e.amount_egp.toLocaleString()}`:"-"}</td>
+                              <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic"}}>{e.notes||""}</td>
+                              <td><div style={{display:"flex",gap:4}}>
+                                <button className="be" onClick={()=>{setEditExp({...e});setShowExpModal(true)}}>✎</button>
+                                <button className="bd" onClick={()=>deleteExpense(e.id)}>✕</button>
+                              </div></td>
+                            </tr>
+                          ))}</tbody>
+                        </table>)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                );
+              })()}
 
               {/* SETTINGS */}
               {adminTab==="settings"&&isAdmin&&(
@@ -3537,6 +4063,85 @@ export default function App(){
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
               <button className="bg" onClick={()=>setEditEngModal(null)}>Cancel</button>
               <button className="bp" onClick={saveEditEngineer}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* ── STAFF MODAL ── */}
+      {showStaffModal&&(
+        <div className="modal-ov" onClick={()=>{setShowStaffModal(false);setEditStaff(null);}}>
+          <div className="modal" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{fontSize:15,fontWeight:700,marginBottom:18}}>{editStaff?"Edit Staff":"Add Staff Member"}</h3>
+            <div style={{display:"grid",gap:11}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><Lbl>Full Name</Lbl><input value={(editStaff||newStaff).name} onChange={e=>editStaff?setEditStaff(p=>({...p,name:e.target.value})):setNewStaff(p=>({...p,name:e.target.value}))}/></div>
+                <div><Lbl>Type</Lbl>
+                  <select value={(editStaff||newStaff).type} onChange={e=>editStaff?setEditStaff(p=>({...p,type:e.target.value})):setNewStaff(p=>({...p,type:e.target.value}))}>
+                    {["full_time","part_time","contractor","intern"].map(t=><option key={t} value={t}>{t.replace("_"," ")}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><Lbl>Department</Lbl>
+                  <select value={(editStaff||newStaff).department} onChange={e=>editStaff?setEditStaff(p=>({...p,department:e.target.value})):setNewStaff(p=>({...p,department:e.target.value}))}>
+                    {["Engineering","Management","Finance","Operations","IT","Administration","Other"].map(d=><option key={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div><Lbl>Role / Title</Lbl><input value={(editStaff||newStaff).role} onChange={e=>editStaff?setEditStaff(p=>({...p,role:e.target.value})):setNewStaff(p=>({...p,role:e.target.value}))} placeholder="e.g. CTO, Accountant"/></div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><Lbl>Monthly Salary (USD)</Lbl><input type="number" value={(editStaff||newStaff).salary_usd||""} onChange={e=>editStaff?setEditStaff(p=>({...p,salary_usd:+e.target.value})):setNewStaff(p=>({...p,salary_usd:+e.target.value}))} placeholder="0"/></div>
+                <div><Lbl>Monthly Salary (EGP)</Lbl><input type="number" value={(editStaff||newStaff).salary_egp||""} onChange={e=>editStaff?setEditStaff(p=>({...p,salary_egp:+e.target.value})):setNewStaff(p=>({...p,salary_egp:+e.target.value}))} placeholder="0"/></div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input type="checkbox" id="staffActive" checked={(editStaff||newStaff).active!==false} onChange={e=>editStaff?setEditStaff(p=>({...p,active:e.target.checked})):setNewStaff(p=>({...p,active:e.target.checked}))}/>
+                <label htmlFor="staffActive" style={{fontSize:11,color:"#7a8faa"}}>Active employee</label>
+              </div>
+              <div><Lbl>Notes</Lbl><input value={(editStaff||newStaff).notes||""} onChange={e=>editStaff?setEditStaff(p=>({...p,notes:e.target.value})):setNewStaff(p=>({...p,notes:e.target.value}))} placeholder="Optional notes"/></div>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
+              <button className="bg" onClick={()=>{setShowStaffModal(false);setEditStaff(null);}}>Cancel</button>
+              <button className="bp" onClick={saveStaff}>{editStaff?"Save Changes":"Add Staff"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EXPENSE MODAL ── */}
+      {showExpModal&&(
+        <div className="modal-ov" onClick={()=>{setShowExpModal(false);setEditExp(null);}}>
+          <div className="modal" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{fontSize:15,fontWeight:700,marginBottom:18}}>{editExp?"Edit Expense":"Add Expense"}</h3>
+            <div style={{display:"grid",gap:11}}>
+              <div><Lbl>Category</Lbl>
+                <select value={(editExp||newExp).category} onChange={e=>editExp?setEditExp(p=>({...p,category:e.target.value})):setNewExp(p=>({...p,category:e.target.value}))}>
+                  {["Office Rent & Utilities","Salaries","Software & Subscriptions","Travel & Transportation","Equipment & Supplies","Other"].map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div><Lbl>Description</Lbl><input value={(editExp||newExp).description} onChange={e=>editExp?setEditExp(p=>({...p,description:e.target.value})):setNewExp(p=>({...p,description:e.target.value}))} placeholder="e.g. Office Rent — Cairo HQ"/></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><Lbl>Amount (USD)</Lbl><input type="number" value={(editExp||newExp).amount_usd||""} onChange={e=>editExp?setEditExp(p=>({...p,amount_usd:+e.target.value})):setNewExp(p=>({...p,amount_usd:+e.target.value}))} placeholder="0"/></div>
+                <div><Lbl>Amount (EGP)</Lbl><input type="number" value={(editExp||newExp).amount_egp||""} onChange={e=>editExp?setEditExp(p=>({...p,amount_egp:+e.target.value})):setNewExp(p=>({...p,amount_egp:+e.target.value}))} placeholder="0"/></div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><Lbl>Month</Lbl>
+                  <select value={(editExp||newExp).month} onChange={e=>editExp?setEditExp(p=>({...p,month:+e.target.value})):setNewExp(p=>({...p,month:+e.target.value}))}>
+                    {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m,i)=><option key={i} value={i}>{m}</option>)}
+                  </select>
+                </div>
+                <div><Lbl>Year</Lbl>
+                  <select value={(editExp||newExp).year} onChange={e=>editExp?setEditExp(p=>({...p,year:+e.target.value})):setNewExp(p=>({...p,year:+e.target.value}))}>
+                    {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div><Lbl>Notes</Lbl><input value={(editExp||newExp).notes||""} onChange={e=>editExp?setEditExp(p=>({...p,notes:e.target.value})):setNewExp(p=>({...p,notes:e.target.value}))} placeholder="Optional notes"/></div>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
+              <button className="bg" onClick={()=>{setShowExpModal(false);setEditExp(null);}}>Cancel</button>
+              <button className="bp" onClick={saveExpense}>{editExp?"Save Changes":"Add Expense"}</button>
             </div>
           </div>
         </div>
