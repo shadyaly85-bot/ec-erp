@@ -110,27 +110,27 @@ const PDF_STYLE = `
 
 /* Shared logo base64 ref for PDFs */
 function pdfHeader(titleText, subtitleText, now){
-  return \`<div class="pdf-hdr">
+  return `<div class="pdf-hdr">
     <div class="pdf-hdr-left">
-      <img src="\${LOGO_SRC}" class="pdf-hdr-logo" alt="ENEVO"/>
+      <img src="${LOGO_SRC}" class="pdf-hdr-logo" alt="ENEVO"/>
       <span class="pdf-hdr-brand">ENEVO-ERP</span>
       <span style="color:#192d47;font-size:10px">|</span>
-      <span class="pdf-hdr-title">\${titleText}</span>
+      <span class="pdf-hdr-title">${titleText}</span>
     </div>
-    <div class="pdf-hdr-right">\${subtitleText || now}</div>
-  </div>\`;
+    <div class="pdf-hdr-right">${subtitleText || now}</div>
+  </div>`;
 }
 
 function pdfFooter(leftText, now){
-  return \`<div class="pdf-ftr">
+  return `<div class="pdf-ftr">
     <div class="pdf-ftr-left">
       <div class="pdf-ftr-dot"></div>
       <span>ENEVO Group · Industrial &amp; Renewable Energy Automation</span>
       <span style="color:#cbd5e1">·</span>
-      <span>\${leftText||""}</span>
+      <span>${leftText||""}</span>
     </div>
-    <span>CONFIDENTIAL · \${now}</span>
-  </div>\`;
+    <span>CONFIDENTIAL · ${now}</span>
+  </div>`;
 }
 
 function generatePDF(title, sections, subtitle="ENEVO Group"){
