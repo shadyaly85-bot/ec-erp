@@ -3397,11 +3397,17 @@ export default function App(){
                 // Exchange rate helper
                 const toUSD=(usd,egp)=>(usd&&usd>0)?usd:((egp||0)/egpRate);
 
+                // Company start date = earliest join_date across all staff (fallback: no limit)
+                const allJoinDates=activeStaff.map(s=>s.join_date).filter(Boolean).map(d=>new Date(d));
+                const companyStart=allJoinDates.length>0?new Date(Math.min(...allJoinDates)):null;
+
                 // Was this staff member employed during year/month?
+                // If no join_date on the individual, use companyStart as their implied join date
                 const wasEmployed=(s,y,m)=>{
                   const monthStart=new Date(y,m,1);
                   const monthEnd=new Date(y,m+1,0);
-                  if(s.join_date&&new Date(s.join_date)>monthEnd) return false;
+                  const effectiveJoin=s.join_date?new Date(s.join_date):companyStart;
+                  if(effectiveJoin&&effectiveJoin>monthEnd) return false;
                   if(s.termination_date&&new Date(s.termination_date)<monthStart) return false;
                   return true;
                 };
