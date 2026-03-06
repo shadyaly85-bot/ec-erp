@@ -4077,9 +4077,20 @@ export default function App(){
                 <div><Lbl>Full Name</Lbl><input value={newEng.name} onChange={e=>setNewEng(p=>({...p,name:e.target.value}))}/></div>
                 <div><Lbl>Level</Lbl><select value={newEng.level} onChange={e=>setNewEng(p=>({...p,level:e.target.value}))}>{LEVELS.map(l=><option key={l}>{l}</option>)}</select></div>
               </div>
-              <div><Lbl>Job Role</Lbl><select value={newEng.role} onChange={e=>setNewEng(p=>({...p,role:e.target.value}))}>{ROLES_LIST.map(r=><option key={r}>{r}</option>)}</select></div>
+              <div><Lbl>Job Title</Lbl><input value={newEng.role} onChange={e=>setNewEng(p=>({...p,role:e.target.value}))} placeholder="e.g. Accountant, CTO, HR Manager, Automation Engineer"/></div>
               <div><Lbl>Email (must match their signup email)</Lbl><input type="email" value={newEng.email} onChange={e=>setNewEng(p=>({...p,email:e.target.value}))}/></div>
-              <div><Lbl>Access Role</Lbl><select value={newEng.role_type} onChange={e=>setNewEng(p=>({...p,role_type:e.target.value}))}>{ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
+              <div>
+                <Lbl>Access Role</Lbl>
+                <select value={newEng.role_type} onChange={e=>setNewEng(p=>({...p,role_type:e.target.value}))}>
+                  {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                </select>
+                <div style={{fontSize:10,color:"#2e4a66",marginTop:4}}>
+                  {newEng.role_type==="engineer"&&"Can log hours & view own timesheets"}
+                  {newEng.role_type==="lead"&&"Engineer + can view all team timesheets"}
+                  {newEng.role_type==="accountant"&&"Full access to Finance tab, invoices & reports — no timesheet editing"}
+                  {newEng.role_type==="admin"&&"Full access to everything including settings"}
+                </div>
+              </div>
             </div>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
               <button className="bg" onClick={()=>setShowEngModal(false)}>Cancel</button>
