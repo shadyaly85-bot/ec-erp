@@ -1520,7 +1520,11 @@ export default function App(){
   const [adminTab,setAdminTab]             = useState("engineers");
   const [kpiYear,setKpiYear]               = useState(new Date().getFullYear());
   const [alertDay,setAlertDay]             = useState(5); // 1=Mon,2=Tue,3=Wed,4=Thu,5=Fri
-  const [kpiEngId,setKpiEngId]             = useState(null);   // null = all engineers overview
+  const [funcYear,setFuncYear]             = useState(new Date().getFullYear());
+  const [funcEngId,setFuncEngId]           = useState("all");
+  const [kpiEngId,setKpiEngId_]            = useState(null);
+  const [kpiNotes,setKpiNotes]             = useState({}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
+
   const [showFuncModal,setShowFuncModal]   = useState(false);
   const [newFunc,setNewFunc]               = useState({engineer_id:"",date:new Date().toISOString().slice(0,10),function_category:FUNCTION_CATS[0],hours:2,activity:""});
 
@@ -3833,31 +3837,28 @@ export default function App(){
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
               {adminTab==="functions"&&(isAdmin||isLead)&&(()=>{
                 const funcEntries=entries.filter(e=>e.entry_type==="function");
-                const [fYear,setFYear_]=React.useState(new Date().getFullYear());
-                const [fEngId,setFEngId_]=React.useState("all");
                 const yearFuncs=funcEntries.filter(e=>{
                   const d=new Date(e.date+"T12:00:00");
-                  return d.getFullYear()===fYear&&(fEngId==="all"||e.engineer_id===fEngId);
+                  return d.getFullYear()===funcYear&&(funcEngId==="all"||e.engineer_id===funcEngId);
                 });
                 const totalFuncHrs=yearFuncs.reduce((s,e)=>s+e.hours,0);
                 const catTotals={};
-                FUNCTION_CATS.forEach(c=>{catTotals[c]=yearFuncs.filter(e=>e.function_category===c||e.task_type===c).reduce((s,e)=>s+e.hours,0);});
+                FUNCTION_CATS.forEach(c=>{catTotals[c]=yearFuncs.filter(e=>(e.function_category||e.task_type)===c).reduce((s,e)=>s+e.hours,0);});
                 const maxCat=Math.max(...Object.values(catTotals),1);
                 const engFuncMap={};
                 engineers.forEach(eng=>{
-                  const eh=funcEntries.filter(e=>e.engineer_id===eng.id&&new Date(e.date+"T12:00:00").getFullYear()===fYear);
+                  const eh=funcEntries.filter(e=>e.engineer_id===eng.id&&new Date(e.date+"T12:00:00").getFullYear()===funcYear);
                   engFuncMap[eng.id]={total:eh.reduce((s,e)=>s+e.hours,0),cats:{}};
-                  FUNCTION_CATS.forEach(c=>{engFuncMap[eng.id].cats[c]=eh.filter(e=>e.function_category===c||e.task_type===c).reduce((s,e)=>s+e.hours,0);});
+                  FUNCTION_CATS.forEach(c=>{engFuncMap[eng.id].cats[c]=eh.filter(e=>(e.function_category||e.task_type)===c).reduce((s,e)=>s+e.hours,0);});
                 });
                 return(
                 <div style={{display:"grid",gap:14}}>
-                  {/* Controls */}
                   <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                    <select value={fYear} onChange={e=>setFYear_(+e.target.value)}
+                    <select value={funcYear} onChange={e=>setFuncYear(+e.target.value)}
                       style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
                       {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
                     </select>
-                    <select value={fEngId} onChange={e=>setFEngId_(e.target.value)}
+                    <select value={funcEngId} onChange={e=>setFuncEngId(e.target.value)}
                       style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
                       <option value="all">All Engineers</option>
                       {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
@@ -3865,42 +3866,37 @@ export default function App(){
                     <span style={{fontSize:11,color:"#2e4a66"}}>{yearFuncs.length} entries · {totalFuncHrs}h total</span>
                     <button className="bp" style={{marginLeft:"auto"}} onClick={()=>setShowFuncModal(true)}>+ Log Function Hours</button>
                   </div>
-
-                  {/* Category breakdown bars */}
                   <div className="card">
-                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>FUNCTION HOURS BY CATEGORY — {fYear}{fEngId!=="all"?" · "+engineers.find(e=>e.id===fEngId)?.name:""}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>FUNCTION HOURS BY CATEGORY — {funcYear}{funcEngId!=="all"?" · "+engineers.find(e=>e.id===funcEngId)?.name:""}</div>
                     <div style={{display:"grid",gap:7}}>
                       {FUNCTION_CATS.map(cat=>{
                         const hrs=catTotals[cat]||0;
-                        if(hrs===0&&fEngId!=="all") return null;
                         return(
-                        <div key={cat} style={{display:"grid",gridTemplateColumns:"220px 1fr 50px",alignItems:"center",gap:10}}>
+                        <div key={cat} style={{display:"grid",gridTemplateColumns:"240px 1fr 50px",alignItems:"center",gap:10}}>
                           <div style={{fontSize:10,color:FUNC_COLORS[cat]||"#7a8faa",fontWeight:600}}>{cat}</div>
                           <div style={{background:"#060e1c",borderRadius:4,height:16,overflow:"hidden"}}>
-                            <div style={{height:"100%",width:`${Math.round(hrs/maxCat*100)}%`,background:FUNC_COLORS[cat]||"#38bdf8",borderRadius:4,minWidth:hrs>0?4:0,transition:"width .3s"}}/>
+                            <div style={{height:"100%",width:`${Math.round(hrs/maxCat*100)}%`,background:FUNC_COLORS[cat]||"#38bdf8",borderRadius:4,minWidth:hrs>0?4:0}}/>
                           </div>
                           <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:hrs>0?(FUNC_COLORS[cat]||"#38bdf8"):"#2e4a66",fontWeight:700,textAlign:"right"}}>{hrs}h</div>
                         </div>);
                       })}
                     </div>
                   </div>
-
-                  {/* Per-engineer function matrix */}
                   <div className="card">
-                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>ENGINEER FUNCTION MATRIX — {fYear}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>ENGINEER FUNCTION MATRIX — {funcYear}</div>
                     <div style={{overflowX:"auto"}}>
                     <table style={{minWidth:700}}>
                       <thead><tr>
                         <th>Engineer</th>
                         <th style={{textAlign:"right"}}>Total</th>
-                        {FUNCTION_CATS.slice(0,6).map(c=><th key={c} style={{textAlign:"right",fontSize:8,maxWidth:80,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}} title={c}>{c.split("—")[0].trim().slice(0,12)}</th>)}
+                        {FUNCTION_CATS.map(c=><th key={c} style={{textAlign:"right",fontSize:8,maxWidth:70,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:FUNC_COLORS[c]}} title={c}>{c.split("—")[0].split("&")[0].trim().slice(0,11)}</th>)}
                       </tr></thead>
-                      <tbody>{engineers.filter(e=>engFuncMap[e.id]?.total>0||(fEngId==="all")).map(eng=>{
+                      <tbody>{engineers.map(eng=>{
                         const em=engFuncMap[eng.id]||{total:0,cats:{}};
                         return(<tr key={eng.id}>
-                          <td style={{fontWeight:600}}>{eng.name}<br/><span style={{fontSize:9,color:"#2e4a66"}}>{eng.role}</span></td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{em.total}h</td>
-                          {FUNCTION_CATS.slice(0,6).map(c=>(
+                          <td style={{fontWeight:600,minWidth:120}}>{eng.name}<br/><span style={{fontSize:9,color:"#2e4a66"}}>{eng.role}</span></td>
+                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{em.total||"—"}</td>
+                          {FUNCTION_CATS.map(c=>(
                             <td key={c} style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:em.cats[c]>0?(FUNC_COLORS[c]||"#38bdf8"):"#1a2d3f"}}>{em.cats[c]||"—"}</td>
                           ))}
                         </tr>);
@@ -3908,13 +3904,11 @@ export default function App(){
                     </table>
                     </div>
                   </div>
-
-                  {/* Recent function entries */}
                   <div className="card">
-                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>RECENT FUNCTION ENTRIES</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>ALL FUNCTION ENTRIES — {funcYear}</div>
                     <table>
                       <thead><tr><th>Date</th><th>Engineer</th><th>Category</th><th>Hours</th><th>Description</th><th>Actions</th></tr></thead>
-                      <tbody>{yearFuncs.slice(0,50).map(e=>{
+                      <tbody>{yearFuncs.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>{
                         const eng=engineers.find(x=>x.id===e.engineer_id);
                         const cat=e.function_category||e.task_type||"Other Function";
                         return(<tr key={e.id}>
@@ -3922,7 +3916,7 @@ export default function App(){
                           <td style={{fontWeight:600,fontSize:10}}>{eng?.name||"?"}</td>
                           <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:(FUNC_COLORS[cat]||"#6b7280")+"20",color:FUNC_COLORS[cat]||"#6b7280",fontWeight:700}}>{cat}</span></td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{e.hours}h</td>
-                          <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic",maxWidth:200}}>{e.activity||"—"}</td>
+                          <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic",maxWidth:220}}>{e.activity||"—"}</td>
                           <td>{isAdmin&&<button className="bd" style={{fontSize:10}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}</td>
                         </tr>);
                       })}</tbody>
@@ -3937,128 +3931,118 @@ export default function App(){
                 const DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
                 const yearEntries=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;});
 
-                /* ── HEAD-OFFICE ALIGNED SCORE ENGINE ──
-                   4 criteria matching head office KPI sheet:
-                   A. UTILIZATION/EFFICIENCY   30%
-                   B. PROJECT PERFORMANCE      30%
-                   C. DEVELOPMENT GOAL         20%
-                   D. COMPLIANCE GOAL          20%
-                   Rating bands: 0-40 Under Performer | 41-75 Competent | 76-95 Performer | 96-120 High Performer
+                /* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
+                   A. UTILIZATION/EFFICIENCY 30%
+                      • Billable %   = hours on billable projects ÷ total hours × 100
+                      • BD/Sales     = Tender+Proposal+BD function hours (tracked, not scored separately)
+                      • Knowledge %  = Training+R&D function hours ÷ total hours × 100 (target ~10%)
+                      • Score formula: bill%×0.70 + (knowledge%/10×100)×0.20 + min(BD%×3,100)×0.10
+                   B. PROJECT PERFORMANCE 30%
+                      • Description rate = entries with activity notes ÷ total work entries × 100
+                      • Projects count   = distinct billable projects worked on
+                      • Doc hours        = Documentation & Reporting function hours
+                      • Score formula: descRate×0.50 + min(projects×10,100)×0.30 + min(docHrs×5,100)×0.20
+                   C. DEVELOPMENT GOAL 20%
+                      • Training given/received, Mentoring, R&D hours
+                      • Score formula: (trainRcv/8×100)×0.30 + (trainGiven/4×100)×0.25 + (mentoring/4×100)×0.25 + (rnd/4×100)×0.20
+                   D. COMPLIANCE GOAL 20%
+                      • Weekly submission rate = distinct weeks with entries ÷ weeks elapsed × 100
+                   TOTAL = A×0.30 + B×0.30 + C×0.20 + D×0.20
+                   BANDS: 0-40 Under Performer | 41-75 Competent | 76-95 Performer | 96-120 High Performer
                 */
                 const ratingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Performer":"High Performer";
                 const ratingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"#38bdf8":"#34d399";
                 const ratingBg=   s=>s<=40?"#1a0808":s<=75?"#1c0f00":s<=95?"#001a2c":"#002414";
 
-                const engKPIs=engineers.map(eng=>{
+                const computeKPI=eng=>{
                   const myE=yearEntries.filter(e=>e.engineer_id===eng.id);
                   const workE=myE.filter(e=>e.entry_type==="work");
                   const funcE=myE.filter(e=>e.entry_type==="function");
                   const leaveE=myE.filter(e=>e.entry_type==="leave");
                   const totalWork=workE.reduce((s,e)=>s+e.hours,0);
+                  const totalFuncHrs=funcE.reduce((s,e)=>s+e.hours,0);
                   const totalLeave=leaveE.length;
-
-                  // ── A. UTILIZATION / EFFICIENCY (30%) ──
                   const billWork=workE.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
                   const salesBD=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Tender|Proposal|BD|Business/i)).reduce((s,e)=>s+e.hours,0);
-                  const knowledgeHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Training|Knowledge|R&D/i)).reduce((s,e)=>s+e.hours,0);
-                  const totalHrs=totalWork+funcE.reduce((s,e)=>s+e.hours,0)||1;
-                  const billPct=Math.round(billWork/totalHrs*100);    // target: maximize
-                  const bdPct=Math.round(salesBD/totalHrs*100);       // tracked
-                  const knowledgePct=Math.round(knowledgeHrs/totalHrs*100); // target: ~10%
-                  // Utilization score: bill% contributes most, knowledge target 10%, BD bonus
-                  const utilScore=Math.min(100,Math.round(
-                    Math.min(100,billPct)*0.7+
-                    Math.min(100,(knowledgePct/10)*100)*0.2+
-                    Math.min(100,bdPct*3)*0.1
-                  ));
-
-                  // ── B. PROJECT PERFORMANCE (30%) ──
-                  // Derived from: projects worked on, documentation entries, on-time indicators
-                  // Since we don't have explicit ratings, we use proxy: % of billable projects with activity descriptions
+                  const knowledgeHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Training|Knowledge|R&D|Innovation/i)).reduce((s,e)=>s+e.hours,0);
+                  const totalHrs=(totalWork+totalFuncHrs)||1;
+                  const billPct=Math.round(billWork/totalHrs*100);
+                  const bdPct=Math.round(salesBD/totalHrs*100);
+                  const knowledgePct=Math.round(knowledgeHrs/totalHrs*100);
+                  const utilScore=Math.min(100,Math.round(Math.min(100,billPct)*0.70+Math.min(100,(knowledgePct/10)*100)*0.20+Math.min(100,bdPct*3)*0.10));
                   const projsWorked=[...new Set(workE.map(e=>e.project_id).filter(Boolean))];
                   const entriesWithDesc=workE.filter(e=>e.activity&&e.activity.trim().length>5).length;
                   const descRate=workE.length>0?Math.round(entriesWithDesc/workE.length*100):0;
-                  const docHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Doc|Report|Lesson/i)).reduce((s,e)=>s+e.hours,0);
-                  // Manager can override — default proxy score
-                  const projScore=Math.min(100,Math.round(descRate*0.5+Math.min(100,projsWorked.length*10)*0.3+Math.min(100,docHrs*5)*0.2));
-
-                  // ── C. DEVELOPMENT GOAL (20%) ──
+                  const docHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Doc|Report/i)).reduce((s,e)=>s+e.hours,0);
+                  const projScore=Math.min(100,Math.round(descRate*0.50+Math.min(100,projsWorked.length*10)*0.30+Math.min(100,docHrs*5)*0.20));
                   const trainingGiven=funcE.filter(e=>(e.function_category||e.task_type||"").includes("Given")).reduce((s,e)=>s+e.hours,0);
                   const trainingReceived=funcE.filter(e=>(e.function_category||e.task_type||"").includes("Received")).reduce((s,e)=>s+e.hours,0);
                   const mentoring=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Mentor|Coach/i)).reduce((s,e)=>s+e.hours,0);
                   const rnd=funcE.filter(e=>(e.function_category||e.task_type||"").match(/R&D|Innovation/i)).reduce((s,e)=>s+e.hours,0);
-                  const devScore=Math.min(100,Math.round(
-                    Math.min(100,(trainingReceived/8)*100)*0.3+  // personal development
-                    Math.min(100,(trainingGiven/4)*100)*0.25+    // team knowledge building
-                    Math.min(100,(mentoring/4)*100)*0.25+        // mentorship
-                    Math.min(100,(rnd/4)*100)*0.2                // innovation
-                  ));
-
-                  // ── D. COMPLIANCE GOAL (20%) ──
-                  // Timesheet weekly submission rate
+                  const devScore=Math.min(100,Math.round(Math.min(100,(trainingReceived/8)*100)*0.30+Math.min(100,(trainingGiven/4)*100)*0.25+Math.min(100,(mentoring/4)*100)*0.25+Math.min(100,(rnd/4)*100)*0.20));
                   const weeks=new Set(myE.filter(e=>e.entry_type==="work"||e.entry_type==="function").map(e=>{
                     const d=new Date(e.date+"T12:00:00");const dow=d.getDay();
                     const mon=new Date(d);mon.setDate(d.getDate()-(dow===0?6:dow-1));
                     return mon.toISOString().slice(0,10);
                   }));
-                  const now=new Date();const yearStart=new Date(kpiYear,0,1);
-                  const weeksElapsed=Math.max(1,Math.ceil((Math.min(now,new Date(kpiYear,11,31))-yearStart)/(7*24*3600*1000)));
+                  const now2=new Date();const yearStart=new Date(kpiYear,0,1);
+                  const weeksElapsed=Math.max(1,Math.ceil((Math.min(now2,new Date(kpiYear,11,31))-yearStart)/(7*24*3600*1000)));
                   const submissionRate=Math.min(100,Math.round(weeks.size/weeksElapsed*100));
-                  const complianceScore=submissionRate; // timesheet is primary measurable compliance signal
-
-                  // ── TOTAL WEIGHTED SCORE ──
+                  const complianceScore=submissionRate;
                   const totalScore=Math.round(utilScore*0.30+projScore*0.30+devScore*0.20+complianceScore*0.20);
-
-                  return{eng,totalWork,billWork,billPct,bdPct,knowledgePct,totalLeave,
+                  return{eng,totalWork,billWork,billPct,bdPct,knowledgePct,totalLeave,totalFuncHrs,
                     utilScore,projScore,devScore,complianceScore,totalScore,
                     submissionRate,trainingGiven,trainingReceived,mentoring,rnd,salesBD,
                     projsWorked:projsWorked.length,descRate,docHrs,
-                    weeks:weeks.size,weeksElapsed,
-                    funcE,workE};
-                }).sort((a,b)=>b.totalScore-a.totalScore);
+                    weeks:weeks.size,weeksElapsed,funcE,workE,totalHrs};
+                };
 
+                const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
                 const alertNotifs=notifications.filter(n=>n.type==="timesheet_alert"&&!n.read);
+
+                // Selected engineer for detail view
+                const selKPI=kpiEngId?engKPIs.find(k=>k.eng.id===kpiEngId):null;
 
                 return(
                 <div style={{display:"grid",gap:14}}>
 
-                  {/* ── Controls row ── */}
+                  {/* Controls */}
                   <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
                     <select value={kpiYear} onChange={e=>setKpiYear(+e.target.value)}
                       style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
                       {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
                     </select>
-                    {/* Alert day picker */}
+                    <select value={kpiEngId||""} onChange={e=>setKpiEngId_(e.target.value||null)}
+                      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+                      <option value="">All Engineers (overview)</option>
+                      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+                    </select>
                     <div style={{display:"flex",alignItems:"center",gap:6,background:"#060e1c",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
-                      <span style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".05em"}}>Alert from</span>
+                      <span style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase"}}>Alert from</span>
                       <select value={alertDay} onChange={e=>setAlertDay(+e.target.value)}
                         style={{background:"transparent",border:"none",color:"#38bdf8",fontSize:12,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,outline:"none",cursor:"pointer"}}>
-                        {[["1","Monday"],["2","Tuesday"],["3","Wednesday"],["4","Thursday"],["5","Friday"]].map(([v,l])=>(
-                          <option key={v} value={v}>{l}</option>
-                        ))}
+                        {[["1","Monday"],["2","Tuesday"],["3","Wednesday"],["4","Thursday"],["5","Friday"]].map(([v,l])=><option key={v} value={+v}>{l}</option>)}
                       </select>
-                      <span style={{fontSize:9,color:"#2e4a66"}}>each week</span>
                     </div>
-                    <span style={{fontSize:11,color:"#2e4a66"}}>KPI Year: {kpiYear}</span>
-                    {alertNotifs.length>0&&<span style={{marginLeft:"auto",background:"#450a0a",border:"1px solid #f87171",color:"#f87171",fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:6}}>⏰ {alertNotifs.length} timesheet alert{alertNotifs.length>1?"s":""}</span>}
+                    {alertNotifs.length>0&&<span style={{background:"#450a0a",border:"1px solid #f87171",color:"#f87171",fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:6}}>⏰ {alertNotifs.length} alert{alertNotifs.length>1?"s":""}</span>}
                   </div>
 
-                  {/* ── Rating legend ── */}
-                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {/* Rating legend */}
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                     {[["0–40","Under Performer","#f87171","#1a0808"],["41–75","Competent","#fb923c","#1c0f00"],["76–95","Performer","#38bdf8","#001a2c"],["96–120","High Performer","#34d399","#002414"]].map(([r,l,c,bg])=>(
-                      <div key={r} style={{display:"flex",alignItems:"center",gap:6,background:bg,border:`1px solid ${c}30`,borderRadius:6,padding:"5px 10px"}}>
-                        <div style={{width:8,height:8,borderRadius:2,background:c}}/>
-                        <span style={{fontSize:10,color:c,fontWeight:700}}>{r}%</span>
+                      <div key={r} style={{display:"flex",alignItems:"center",gap:5,background:bg,border:`1px solid ${c}25`,borderRadius:6,padding:"4px 9px"}}>
+                        <div style={{width:7,height:7,borderRadius:2,background:c}}/>
+                        <span style={{fontSize:10,color:c,fontWeight:700}}>{r}</span>
                         <span style={{fontSize:10,color:"#4e6479"}}>{l}</span>
                       </div>
                     ))}
-                    <span style={{fontSize:9,color:"#2e4a66",alignSelf:"center",marginLeft:4}}>Head office KPI weights: Utilization 30% · Project Perf 30% · Development 20% · Compliance 20%</span>
+                    <span style={{fontSize:9,color:"#2e4a66"}}>Weights: Utilization 30% · Project Perf 30% · Development 20% · Compliance 20%</span>
                   </div>
 
-                  {/* ── Delay alerts ── */}
+                  {/* Delay alerts */}
                   {alertNotifs.length>0&&(
                   <div className="card" style={{borderColor:"#f8717130"}}>
-                    <div style={{fontSize:11,fontWeight:700,color:"#f87171",marginBottom:10}}>⏰ TIMESHEET DELAY ALERTS — alerts fire from {DAY_NAMES[alertDay]} onwards</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#f87171",marginBottom:10}}>⏰ TIMESHEET DELAY ALERTS</div>
                     <div style={{display:"grid",gap:6}}>
                       {alertNotifs.map(n=>(
                         <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"#1a0808",borderRadius:6,padding:"8px 12px"}}>
@@ -4073,125 +4057,127 @@ export default function App(){
                     </div>
                   </div>)}
 
-                  {/* ── KPI Scorecard table ── */}
+                  {/* ── Overview table (shown when no engineer selected) ── */}
+                  {!kpiEngId&&(
                   <div className="card">
-                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>ENGINEER KPI SCORECARD — {kpiYear} · Head Office Criteria</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>ENGINEER KPI SCORECARD — {kpiYear}</div>
                     <div style={{overflowX:"auto"}}>
-                    <table style={{minWidth:800}}>
+                    <table style={{minWidth:820}}>
                       <thead>
                         <tr style={{background:"#060e1c"}}>
                           <th rowSpan={2}>Engineer</th>
-                          <th colSpan={2} style={{textAlign:"center",color:"#38bdf8",borderBottom:"1px solid #0ea5e930"}}>A. Utilization 30%</th>
-                          <th colSpan={2} style={{textAlign:"center",color:"#a78bfa",borderBottom:"1px solid #0ea5e930"}}>B. Project Perf 30%</th>
-                          <th colSpan={2} style={{textAlign:"center",color:"#34d399",borderBottom:"1px solid #0ea5e930"}}>C. Development 20%</th>
-                          <th style={{textAlign:"center",color:"#fb923c",borderBottom:"1px solid #0ea5e930"}}>D. Compliance 20%</th>
-                          <th rowSpan={2} style={{textAlign:"center",color:"#f0f6ff"}}>TOTAL</th>
+                          <th colSpan={3} style={{textAlign:"center",color:"#38bdf8",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>A. Utilization 30%</th>
+                          <th colSpan={2} style={{textAlign:"center",color:"#a78bfa",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>B. Project 30%</th>
+                          <th colSpan={2} style={{textAlign:"center",color:"#34d399",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>C. Development 20%</th>
+                          <th style={{textAlign:"center",color:"#fb923c",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>D. Compliance 20%</th>
+                          <th rowSpan={2} style={{textAlign:"center"}}>Score</th>
                           <th rowSpan={2} style={{textAlign:"center"}}>Rating</th>
                         </tr>
                         <tr style={{background:"#060e1c"}}>
-                          <th style={{textAlign:"right",fontSize:9,color:"#2e4a66"}}>Bill%</th>
-                          <th style={{textAlign:"right",fontSize:9,color:"#2e4a66"}}>Score</th>
-                          <th style={{textAlign:"right",fontSize:9,color:"#2e4a66"}}>Desc%</th>
-                          <th style={{textAlign:"right",fontSize:9,color:"#2e4a66"}}>Score</th>
-                          <th style={{textAlign:"right",fontSize:9,color:"#2e4a66"}}>Train↑</th>
-                          <th style={{textAlign:"right",fontSize:9,color:"#2e4a66"}}>Score</th>
-                          <th style={{textAlign:"right",fontSize:9,color:"#2e4a66"}}>Submit%</th>
+                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Bill%</th>
+                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Know%</th>
+                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
+                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Desc%</th>
+                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
+                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Train↑</th>
+                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
+                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Submit%</th>
                         </tr>
                       </thead>
                       <tbody>{engKPIs.map((k,i)=>(
-                        <tr key={k.eng.id} onClick={()=>setKpiEngId(k.eng.id===kpiEngId?null:k.eng.id)} style={{cursor:"pointer",background:k.eng.id===kpiEngId?"#0c2040":""}}>
-                          <td>
-                            <div style={{display:"flex",alignItems:"center",gap:6}}>
-                              <span style={{fontSize:10,fontWeight:700,color:"#2e4a66",minWidth:16}}>{i+1}</span>
-                              <div>
-                                <div style={{fontWeight:700,fontSize:11}}>{k.eng.name}</div>
-                                <div style={{fontSize:9,color:"#2e4a66"}}>{k.eng.role}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{k.billPct}%</td>
+                        <tr key={k.eng.id} onClick={()=>setKpiEngId_(k.eng.id)} style={{cursor:"pointer"}}>
+                          <td><div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <span style={{fontSize:10,fontWeight:700,color:"#2e4a66",minWidth:16}}>{i+1}</span>
+                            <div><div style={{fontWeight:700,fontSize:11}}>{k.eng.name}</div><div style={{fontSize:9,color:"#2e4a66"}}>{k.eng.role}</div></div>
+                          </div></td>
+                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontSize:10}}>{k.billPct}%</td>
+                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c",fontSize:10}}>{k.knowledgePct}%</td>
                           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.utilScore)}}>{k.utilScore}</td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{k.descRate}%</td>
+                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontSize:10}}>{k.descRate}%</td>
                           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.projScore)}}>{k.projScore}</td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399"}}>{k.trainingGiven}h</td>
+                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontSize:10}}>{k.trainingGiven}h</td>
                           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.devScore)}}>{k.devScore}</td>
                           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"}}>{k.submissionRate}%</td>
                           <td style={{textAlign:"center"}}>
                             <div style={{display:"inline-flex",alignItems:"center",gap:5}}>
-                              <div style={{width:36,height:6,background:"#060e1c",borderRadius:3,overflow:"hidden"}}>
+                              <div style={{width:34,height:5,background:"#060e1c",borderRadius:3,overflow:"hidden"}}>
                                 <div style={{height:"100%",width:`${Math.min(100,k.totalScore)}%`,background:ratingColor(k.totalScore),borderRadius:3}}/>
                               </div>
                               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.totalScore),fontSize:12}}>{k.totalScore}</span>
                             </div>
                           </td>
-                          <td style={{textAlign:"center"}}>
-                            <span style={{fontSize:9,padding:"3px 6px",borderRadius:4,background:ratingBg(k.totalScore),color:ratingColor(k.totalScore),fontWeight:700,whiteSpace:"nowrap"}}>{ratingLabel(k.totalScore)}</span>
-                          </td>
+                          <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:ratingBg(k.totalScore),color:ratingColor(k.totalScore),fontWeight:700,whiteSpace:"nowrap"}}>{ratingLabel(k.totalScore)}</span></td>
                         </tr>
                       ))}</tbody>
                     </table>
                     </div>
-                    <div style={{fontSize:9,color:"#2e4a66",marginTop:8}}>Click any row to expand KPI detail · Score is auto-calculated from timesheet data as proxy — manager can review annually</div>
-                  </div>
+                    <div style={{fontSize:9,color:"#2e4a66",marginTop:8}}>Click any row for full detail · Know% target is 8–12% (green)</div>
+                  </div>)}
 
-                  {/* ── Individual drill-down ── */}
-                  {kpiEngId&&(()=>{
-                    const k=engKPIs.find(x=>x.eng.id===kpiEngId);
-                    if(!k) return null;
+                  {/* ── Individual detail view ── */}
+                  {selKPI&&(()=>{
+                    const k=selKPI;
                     const {eng}=k;
-                    const monthlyData=MONTHS_.map((mn,m)=>{
+                    const engNotes=kpiNotes[eng.id]||{A:"",B:"",C:"",D:"",general:""};
+                    const setNote=(field,val)=>setKpiNotes(prev=>({...prev,[eng.id]:{...(prev[eng.id]||{}),general:"",A:"",B:"",C:"",D:"",...(prev[eng.id]||{}),[field]:val}}));
+
+                    const monthlyData=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((mn,m)=>{
                       const mWork=k.workE.filter(e=>new Date(e.date+"T12:00:00").getMonth()===m);
                       const mFunc=k.funcE.filter(e=>new Date(e.date+"T12:00:00").getMonth()===m);
                       const mLeave=yearEntries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="leave"&&new Date(e.date+"T12:00:00").getMonth()===m);
                       const wh=mWork.reduce((s,e)=>s+e.hours,0);
                       const bh=mWork.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
                       const fh=mFunc.reduce((s,e)=>s+e.hours,0);
-                      const util=wh>0?Math.round(bh/(wh+fh)*100):0;
+                      const util=wh>0?Math.round(bh/(wh+fh||1)*100):0;
                       return{mn,m,wh,bh,fh,util,leave:mLeave.length};
                     });
 
                     const criteria=[
                       {id:"A",label:"Utilization / Efficiency",weight:"30%",score:k.utilScore,color:"#38bdf8",
+                       howCalc:"Score = Billable%×70% + (Knowledge%÷10×100)×20% + min(BD%×3,100)×10%",
                        items:[
-                         {l:"Billable Utilization %",v:`${k.billPct}%`,note:"Hours on billable projects / total hours",target:"Maximize"},
-                         {l:"Sales Support / BD",v:`${k.salesBD}h`,note:"Proposals, BD & leadership meetings",target:"Tracked"},
-                         {l:"Knowledge Capture / Training",v:`${k.knowledgePct}%`,note:"Pre-planned, manager-approved — target 10%",target:"~10%"},
+                         {l:"Billable Utilization %",v:`${k.billPct}%`,calc:`${k.billWork}h billable ÷ ${k.totalHrs}h total`,target:"Maximize — hours on invoiced/contractual projects",color:"#38bdf8"},
+                         {l:"Sales Support / BD hours",v:`${k.salesBD}h`,calc:"Tender+Proposal+BD function entries",target:"Tracked only — proposals, BD & leadership meetings",color:"#0ea5e9"},
+                         {l:"Knowledge Capture %",v:`${k.knowledgePct}%`,calc:`${Math.round(k.knowledgePct/100*k.totalHrs)}h training+R&D ÷ ${k.totalHrs}h total`,target:"~10% — pre-planned, manager pre-approved",color:k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c"},
                        ]},
                       {id:"B",label:"Project Performance",weight:"30%",score:k.projScore,color:"#a78bfa",
+                       howCalc:"Score = DescriptionRate×50% + min(Projects×10,100)×30% + min(DocHours×5,100)×20%",
                        items:[
-                         {l:"Projects worked on",v:`${k.projsWorked}`,note:"Distinct billable projects this year",target:"Active"},
-                         {l:"Entry descriptions rate",v:`${k.descRate}%`,note:"Entries with activity notes (proxy for quality)",target:"≥80%"},
-                         {l:"Documentation entries",v:`${k.docHrs}h`,note:"Documentation & Reporting function hours",target:"Tracked"},
+                         {l:"Entry Description Rate",v:`${k.descRate}%`,calc:`${Math.round(k.descRate/100*k.workE.length)} of ${k.workE.length} entries have activity notes`,target:"≥80% — quality of output & discipline indicator",color:k.descRate>=80?"#34d399":"#fb923c"},
+                         {l:"Projects worked on",v:k.projsWorked,calc:"Distinct billable projects this year",target:"Active across multiple projects",color:"#a78bfa"},
+                         {l:"Documentation hours",v:`${k.docHrs}h`,calc:"Documentation & Reporting function entries",target:"Lesson learned, closure docs, progress reports",color:"#f59e0b"},
                        ]},
                       {id:"C",label:"Development Goal",weight:"20%",score:k.devScore,color:"#34d399",
+                       howCalc:"Score = (TrainRcv÷8×100)×30% + (TrainGiven÷4×100)×25% + (Mentoring÷4×100)×25% + (R&D÷4×100)×20%",
                        items:[
-                         {l:"Training received",v:`${k.trainingReceived}h`,note:"Internal Training — Received",target:"Tracked"},
-                         {l:"Training given (knowledge sharing)",v:`${k.trainingGiven}h`,note:"Internal Training — Given (Leaders)",target:"Tracked"},
-                         {l:"Mentoring & coaching",v:`${k.mentoring}h`,note:"Mentoring & Coaching function hours",target:"Leaders"},
-                         {l:"R&D & Innovation",v:`${k.rnd}h`,note:"Contribution to tools, models, work instructions",target:"Tracked"},
+                         {l:"Training received",v:`${k.trainingReceived}h`,calc:"Internal Training — Received function entries",target:"Personal development — certificates, skills",color:"#818cf8"},
+                         {l:"Training given (knowledge sharing)",v:`${k.trainingGiven}h`,calc:"Internal Training — Given function entries",target:"Leaders: contribution to team knowledge — target ≥4h",color:"#a78bfa"},
+                         {l:"Mentoring & coaching",v:`${k.mentoring}h`,calc:"Mentoring & Coaching function entries",target:"Leaders: people empowerment & delegation",color:"#34d399"},
+                         {l:"R&D & Innovation",v:`${k.rnd}h`,calc:"R&D & Innovation function entries",target:"Library of tools, models, work instructions",color:"#10b981"},
                        ]},
                       {id:"D",label:"Compliance Goal",weight:"20%",score:k.complianceScore,color:"#fb923c",
+                       howCalc:"Score = Weeks with entries ÷ Weeks elapsed in year × 100",
                        items:[
-                         {l:"Timesheet weekly submission rate",v:`${k.submissionRate}%`,note:`${k.weeks} of ${k.weeksElapsed} weeks posted`,target:"100%"},
-                         {l:"Work hours logged",v:`${k.totalWork}h`,note:"Total work entries this year",target:"Active"},
-                         {l:"Leave days taken",v:`${k.totalLeave}d`,note:"All leave types",target:"Tracked"},
+                         {l:"Weekly timesheet submission",v:`${k.submissionRate}%`,calc:`${k.weeks} weeks posted out of ${k.weeksElapsed} elapsed`,target:"100% — weekly entry is a core compliance KPI",color:k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"},
+                         {l:"Total work hours logged",v:`${k.totalWork}h`,calc:"All work-type entries this year",target:"Reflects activity & availability",color:"#7a8faa"},
+                         {l:"Leave days",v:`${k.totalLeave}d`,calc:"All leave-type entries this year",target:"Tracked — advance submission & approval expected",color:"#fb923c"},
                        ]},
                     ];
 
                     return(
-                    <div className="card" style={{borderColor:"#0ea5e940"}}>
-                      {/* Header */}
-                      <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:18,flexWrap:"wrap"}}>
+                    <div className="card" style={{borderColor:"#0ea5e930"}}>
+                      {/* Header row */}
+                      <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16,flexWrap:"wrap"}}>
                         <div style={{flex:1}}>
                           <div style={{fontSize:14,fontWeight:700,color:"#f0f6ff"}}>{eng.name}</div>
-                          <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role} · {kpiYear} Annual Review</div>
+                          <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role} · KPI Year {kpiYear}</div>
                         </div>
                         <div style={{display:"flex",gap:10,alignItems:"center"}}>
                           <div style={{textAlign:"center",background:ratingBg(k.totalScore),border:`1px solid ${ratingColor(k.totalScore)}30`,borderRadius:8,padding:"10px 18px"}}>
                             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:32,fontWeight:700,color:ratingColor(k.totalScore),lineHeight:1}}>{k.totalScore}</div>
-                            <div style={{fontSize:9,color:ratingColor(k.totalScore),textTransform:"uppercase",letterSpacing:".07em",marginTop:4}}>{ratingLabel(k.totalScore)}</div>
+                            <div style={{fontSize:9,color:ratingColor(k.totalScore),textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{ratingLabel(k.totalScore)}</div>
                           </div>
-                          <button className="bg" style={{fontSize:10}} onClick={()=>setKpiEngId(null)}>✕ Close</button>
+                          <button className="bg" style={{fontSize:10}} onClick={()=>setKpiEngId_(null)}>✕ Back</button>
                         </div>
                       </div>
 
@@ -4199,45 +4185,46 @@ export default function App(){
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
                         {criteria.map(c=>(
                           <div key={c.id} style={{background:"#060e1c",borderRadius:8,padding:"12px 14px",border:`1px solid ${c.color}20`}}>
-                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                              <div>
-                                <span style={{fontSize:9,fontWeight:700,color:c.color,background:c.color+"20",padding:"2px 6px",borderRadius:3,marginRight:6}}>{c.id} · {c.weight}</span>
-                                <span style={{fontSize:10,fontWeight:700,color:"#f0f6ff"}}>{c.label}</span>
-                              </div>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                              <div><span style={{fontSize:9,fontWeight:700,color:c.color,background:c.color+"20",padding:"1px 6px",borderRadius:3,marginRight:5}}>{c.id} · {c.weight}</span><span style={{fontSize:10,fontWeight:700,color:"#f0f6ff"}}>{c.label}</span></div>
                               <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:ratingColor(c.score)}}>{c.score}</div>
                             </div>
+                            {/* How calculated */}
+                            <div style={{fontSize:9,color:"#2e4a66",fontStyle:"italic",marginBottom:6,padding:"3px 6px",background:"#0a1628",borderRadius:3}}>{c.howCalc}</div>
                             <div style={{background:"#0b1526",borderRadius:3,height:5,overflow:"hidden",marginBottom:10}}>
-                              <div style={{height:"100%",width:`${Math.min(100,c.score)}%`,background:c.color,borderRadius:3,transition:"width .4s"}}/>
+                              <div style={{height:"100%",width:`${Math.min(100,c.score)}%`,background:c.color,borderRadius:3}}/>
                             </div>
-                            <div style={{display:"grid",gap:5}}>
-                              {c.items.map((item,i)=>(
-                                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
-                                  <div style={{flex:1}}>
-                                    <div style={{fontSize:10,color:"#7a8faa"}}>{item.l}</div>
-                                    <div style={{fontSize:9,color:"#2e4a66",fontStyle:"italic"}}>{item.note}</div>
+                            <div style={{display:"grid",gap:7}}>
+                              {c.items.map((item,ii)=>(
+                                <div key={ii} style={{borderTop:ii>0?"1px solid #0d1a2d":"none",paddingTop:ii>0?6:0}}>
+                                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
+                                    <div style={{flex:1}}>
+                                      <div style={{fontSize:10,color:"#7a8faa",fontWeight:600}}>{item.l}</div>
+                                      <div style={{fontSize:9,color:"#2e4a66",marginTop:1}}>{item.calc}</div>
+                                    </div>
+                                    <div style={{textAlign:"right",flexShrink:0}}>
+                                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:700,color:item.color}}>{item.v}</div>
+                                    </div>
                                   </div>
-                                  <div style={{textAlign:"right",flexShrink:0}}>
-                                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:700,color:c.color}}>{item.v}</div>
-                                    <div style={{fontSize:9,color:"#2e4a66"}}>target: {item.target}</div>
-                                  </div>
+                                  <div style={{fontSize:9,color:"#1e3a52",marginTop:2,fontStyle:"italic"}}>→ {item.target}</div>
                                 </div>
                               ))}
+                            </div>
+                            {/* Manager note per criterion */}
+                            <div style={{marginTop:10,borderTop:"1px solid #0d1a2d",paddingTop:8}}>
+                              <div style={{fontSize:9,color:"#2e4a66",marginBottom:3}}>Manager note for {c.id}:</div>
+                              <textarea value={engNotes[c.id]||""} onChange={e=>setNote(c.id,e.target.value)}
+                                rows={2} placeholder={`Add note for ${c.label}…`}
+                                style={{width:"100%",background:"#0a1628",border:"1px solid #192d47",borderRadius:4,color:"#7a8faa",fontSize:10,padding:"4px 6px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
                             </div>
                           </div>
                         ))}
                       </div>
 
-                      {/* Monthly trend */}
+                      {/* Monthly table */}
                       <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:8}}>MONTHLY ACTIVITY — {kpiYear}</div>
-                      <table>
-                        <thead><tr>
-                          <th>Month</th>
-                          <th style={{textAlign:"right"}}>Work Hrs</th>
-                          <th style={{textAlign:"right"}}>Billable</th>
-                          <th style={{textAlign:"right"}}>Util %</th>
-                          <th style={{textAlign:"right"}}>Func Hrs</th>
-                          <th style={{textAlign:"right"}}>Leave</th>
-                        </tr></thead>
+                      <table style={{marginBottom:14}}>
+                        <thead><tr><th>Month</th><th style={{textAlign:"right"}}>Work Hrs</th><th style={{textAlign:"right"}}>Billable</th><th style={{textAlign:"right"}}>Util%</th><th style={{textAlign:"right"}}>Func Hrs</th><th style={{textAlign:"right"}}>Leave</th></tr></thead>
                         <tbody>{monthlyData.map(row=>(
                           <tr key={row.m}>
                             <td style={{fontWeight:600}}>{row.mn} {kpiYear}</td>
@@ -4250,18 +4237,27 @@ export default function App(){
                         ))}</tbody>
                       </table>
 
-                      {/* improvement actions section */}
-                      <div style={{marginTop:14,padding:"10px 12px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
-                        <div style={{fontSize:10,fontWeight:700,color:"#7a8faa",marginBottom:6}}>IMPROVEMENT ACTIONS (Head Office Form — to complete annually)</div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,fontSize:10,color:"#2e4a66"}}>
-                          {["Process optimization","Training recommendation","Daily project monitoring","Regular one-to-one discussions","Other corrective measures / recommendations"].map((a,i)=>(
-                            <div key={i} style={{display:"flex",gap:6,alignItems:"center"}}>
+                      {/* General manager note */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:6}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
+                        <textarea value={engNotes.general||""} onChange={e=>setNote("general",e.target.value)}
+                          rows={4} placeholder="Overall performance summary, key achievements, areas for improvement, next year goals…"
+                          style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:6,color:"#a0b4c8",fontSize:11,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+                        <div style={{fontSize:9,color:"#2e4a66",marginTop:4}}>Notes saved in-session — to persist, copy to the head office review form.</div>
+                      </div>
+
+                      {/* Improvement actions checklist */}
+                      <div style={{padding:"10px 12px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
+                        <div style={{fontSize:10,fontWeight:700,color:"#7a8faa",marginBottom:8}}>HEAD OFFICE IMPROVEMENT ACTIONS (Annual Form)</div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+                          {["Process optimization","Training recommendation","Daily project monitoring","Regular one-to-one discussions","Other corrective measures"].map((a,i)=>(
+                            <div key={i} style={{display:"flex",gap:6,alignItems:"center",fontSize:10,color:"#4e6479"}}>
                               <div style={{width:6,height:6,borderRadius:1,background:"#192d47",flexShrink:0}}/>
-                              <span>{a}</span>
+                              {a}
                             </div>
                           ))}
                         </div>
-                        <div style={{fontSize:9,color:"#2e4a66",marginTop:8,fontStyle:"italic"}}>📋 These fields are filled manually in the head office annual review form — this view provides the data to support it.</div>
+                        <div style={{fontSize:9,color:"#2e4a66",marginTop:8,fontStyle:"italic"}}>📋 Use this data to fill the annual head office review form — scores, hours, and notes above feed directly into the 4 criteria.</div>
                       </div>
                     </div>);
                   })()}
