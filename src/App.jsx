@@ -767,7 +767,7 @@ function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSD,t
   <div class="section">
     <div class="st">Staff Salary Breakdown (${activeStaff.length} Active)</div>
     <table>
-      <thead><tr><th>Name</th><th>Department</th><th>Role</th><th>Type</th><th style="text-align:right">USD/mo</th><th style="text-align:right">EGP/mo</th></tr></thead>
+      <thead><tr><th>Name</th><th>Department</th><th>Role</th><th>Type</th><th style="text-align:right">USD/mo</th><th style="text-align:right">EGP/mo</th><th>Joined</th><th>Left</th></tr></thead>
       <tbody>${activeStaff.map(s=>`<tr>
         <td style="font-weight:600">${s.name}</td>
         <td style="color:#0ea5e9;font-size:9px">${s.department}</td>
@@ -775,6 +775,8 @@ function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSD,t
         <td style="font-size:8px"><span style="padding:2px 5px;border-radius:3px;background:#dbeafe;color:#1e40af">${(s.type||"full_time").replace("_"," ")}</span></td>
         <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#dc2626">${fmtCurrency(s.salary_usd||0)}</td>
         <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#ea580c">EGP ${(s.salary_egp||0).toLocaleString()}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#0ea5e9">${s.join_date||'—'}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:${s.termination_date?'#dc2626':'#94a3b8'}">${s.termination_date||'—'}</td>
       </tr>`).join("")}</tbody>
     </table>
   </div>`;
@@ -1501,7 +1503,7 @@ export default function App(){
   const [editStaff,setEditStaff]           = useState(null);
   const [showExpModal,setShowExpModal]     = useState(false);
   const [editExp,setEditExp]               = useState(null);
-  const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,notes:""});
+  const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:"",termination_date:"",notes:""});
   const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
   const [newEntry,setNewEntry]   = useState({projectId:"",taskCategory:"Engineering",taskType:"Basic Engineering",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0]});
@@ -1675,7 +1677,7 @@ export default function App(){
       else showToast(error?.message||"Error",false);
     } else {
       const{data,error}=await supabase.from("staff").insert(payload).select().single();
-      if(!error&&data){setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));showToast("Staff added");setShowStaffModal(false);setNewStaff({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,notes:""});}
+      if(!error&&data){setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));showToast("Staff added");setShowStaffModal(false);setNewStaff({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:"",termination_date:"",notes:""});}
       else showToast(error?.message||"Error",false);
     }
   },[editStaff,newStaff,showToast]);
@@ -3389,11 +3391,15 @@ export default function App(){
                 const totalPayrollUSD=activeStaff.reduce((s,x)=>s+(x.salary_usd||0),0);
                 const totalPayrollEGP=activeStaff.reduce((s,x)=>s+(x.salary_egp||0),0);
 
-                // Month expenses
+                // Month expenses — all posted expenses (excl. "Salaries" category which is tracked via staff table)
                 const monthExp=expenses.filter(e=>e.month===finMonth&&e.year===finYear);
-                const totalExpUSD=monthExp.reduce((s,e)=>s+(e.amount_usd||0),0);
-                const totalExpEGP=monthExp.reduce((s,e)=>s+(e.amount_egp||0),0);
-                const totalCostUSD=totalPayrollUSD+totalExpUSD;
+                const monthExpNonSalary=monthExp.filter(e=>e.category!=="Salaries");
+                const totalExpUSD=monthExpNonSalary.reduce((s,e)=>s+(e.amount_usd||0),0);
+                const totalExpEGP=monthExpNonSalary.reduce((s,e)=>s+(e.amount_egp||0),0);
+                // Salary-category expenses (manual overrides posted as expenses)
+                const salaryCatUSD=monthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+(e.amount_usd||0),0);
+                // Total cost = staff payroll + salary-cat expenses + all other expenses
+                const totalCostUSD=totalPayrollUSD+salaryCatUSD+totalExpUSD;
 
                 // Revenue from billing (all entries this month)
                 const mRevEntries=entries.filter(e=>{
@@ -3411,8 +3417,10 @@ export default function App(){
                 const ytdData=ytdMonths.map(m=>{
                   const mE=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===m&&e.entry_type==="work";});
                   const rev=mE.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
-                  const mExp=expenses.filter(e=>e.month===m&&e.year===finYear).reduce((s,e)=>s+(e.amount_usd||0),0);
-                  const cost=totalPayrollUSD+mExp;
+                  const mMonthExp=expenses.filter(e=>e.month===m&&e.year===finYear);
+                  const mExpUSD=mMonthExp.filter(e=>e.category!=="Salaries").reduce((s,e)=>s+(e.amount_usd||0),0);
+                  const mSalaryCat=mMonthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+(e.amount_usd||0),0);
+                  const cost=totalPayrollUSD+mSalaryCat+mExpUSD;
                   return{m,rev,cost,net:rev-cost};
                 });
                 const ytdRev=ytdData.reduce((s,x)=>s+x.rev,0);
@@ -3499,7 +3507,7 @@ export default function App(){
                           <div style={{display:"grid",gap:8}}>
                             {[
                               {l:"Revenue",    v:monthRevUSD,    c:"#34d399"},
-                              {l:"Payroll",    v:totalPayrollUSD,c:"#f87171"},
+                              {l:"Payroll",    v:totalPayrollUSD+salaryCatUSD,c:"#f87171"},
                               {l:"Expenses",   v:totalExpUSD,    c:"#fb923c"},
                               {l:"Total Cost", v:totalCostUSD,   c:"#ef4444"},
                             ].map((r,i)=>(
@@ -3616,7 +3624,7 @@ export default function App(){
                           <button className="bp" onClick={()=>{setEditStaff(null);setShowStaffModal(true)}}>+ Add Staff</button>
                         </div>
                         <table>
-                          <thead><tr><th>Name</th><th>Dept</th><th>Role</th><th>Type</th><th style={{textAlign:"right"}}>USD/mo</th><th style={{textAlign:"right"}}>EGP/mo</th><th>Status</th><th>Actions</th></tr></thead>
+                          <thead><tr><th>Name</th><th>Dept</th><th>Role</th><th>Type</th><th style={{textAlign:"right"}}>USD/mo</th><th style={{textAlign:"right"}}>EGP/mo</th><th>Joined</th><th>Left</th><th>Status</th><th>Actions</th></tr></thead>
                           <tbody>{staff.map(s=>(
                             <tr key={s.id}>
                               <td style={{fontWeight:600}}>{s.name}</td>
@@ -3625,6 +3633,8 @@ export default function App(){
                               <td style={{fontSize:9}}><span style={{padding:"2px 6px",borderRadius:3,background:"#0c2b4e",color:"#38bdf8",fontWeight:700}}>{s.type?.replace("_"," ")}</span></td>
                               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171",fontWeight:700}}>{fmtCurrency(s.salary_usd||0)}</td>
                               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>EGP {(s.salary_egp||0).toLocaleString()}</td>
+                              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{s.join_date||"—"}</td>
+                              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:s.termination_date?"#f87171":"#2e4a66"}}>{s.termination_date||"—"}</td>
                               <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:s.active!==false?"#024b36":"#1a0a00",color:s.active!==false?"#34d399":"#f87171"}}>{s.active!==false?"Active":"Inactive"}</span></td>
                               <td><div style={{display:"flex",gap:4}}>
                                 <button className="be" onClick={()=>{setEditStaff({...s});setShowStaffModal(true)}}>✎</button>
@@ -4098,6 +4108,10 @@ export default function App(){
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <input type="checkbox" id="staffActive" checked={(editStaff||newStaff).active!==false} onChange={e=>editStaff?setEditStaff(p=>({...p,active:e.target.checked})):setNewStaff(p=>({...p,active:e.target.checked}))}/>
                 <label htmlFor="staffActive" style={{fontSize:11,color:"#7a8faa"}}>Active employee</label>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><Lbl>Join / Start Date</Lbl><input type="date" value={(editStaff||newStaff).join_date||""} onChange={e=>editStaff?setEditStaff(p=>({...p,join_date:e.target.value})):setNewStaff(p=>({...p,join_date:e.target.value}))}/></div>
+                <div><Lbl>Termination Date</Lbl><input type="date" value={(editStaff||newStaff).termination_date||""} onChange={e=>editStaff?setEditStaff(p=>({...p,termination_date:e.target.value})):setNewStaff(p=>({...p,termination_date:e.target.value}))} placeholder="Leave blank if active"/></div>
               </div>
               <div><Lbl>Notes</Lbl><input value={(editStaff||newStaff).notes||""} onChange={e=>editStaff?setEditStaff(p=>({...p,notes:e.target.value})):setNewStaff(p=>({...p,notes:e.target.value}))} placeholder="Optional notes"/></div>
             </div>
