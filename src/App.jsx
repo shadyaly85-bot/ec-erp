@@ -695,7 +695,8 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
 
 
 /* ─── FINANCE P&L PDF ─── */
-function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSD,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin}){
+function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate}){
+  const totalPayrollUSD=totalPayrollUSDeff; // alias for PDF use
   const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
   const period=`${MONTHS_[finMonth]} ${finYear}`;
   const netSign=netPL>=0?"▲ PROFIT":"▼ LOSS";
@@ -721,6 +722,7 @@ function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSD,t
     <div class="cm">
       <div><label>Revenue</label><span>$${monthRevUSD.toLocaleString()}</span></div>
       <div><label>Total Cost</label><span>$${totalCostUSD.toLocaleString()}</span></div>
+      <div><label>EGP Rate</label><span>${egpRate} EGP/$</span></div>
       <div><label>Net P&L</label><span style="color:${netColor}">${netSign} $${Math.abs(netPL).toLocaleString()}</span></div>
       <div><label>Margin</label><span style="color:${netColor}">${marginPct}%</span></div>
     </div>
@@ -1497,6 +1499,7 @@ export default function App(){
   const [staff,setStaff]                   = useState([]);
   const [expenses,setExpenses]             = useState([]);
   const [finTab,setFinTab]                 = useState("pl");        // pl | salaries | expenses
+  const [egpRate,setEgpRate]               = useState(50);          // EGP per 1 USD exchange rate
   const [finMonth,setFinMonth]             = useState(new Date().getMonth());
   const [finYear,setFinYear]               = useState(new Date().getFullYear());
   const [showStaffModal,setShowStaffModal] = useState(false);
@@ -3391,15 +3394,28 @@ export default function App(){
                 const totalPayrollUSD=activeStaff.reduce((s,x)=>s+(x.salary_usd||0),0);
                 const totalPayrollEGP=activeStaff.reduce((s,x)=>s+(x.salary_egp||0),0);
 
-                // Month expenses — all posted expenses (excl. "Salaries" category which is tracked via staff table)
+                // Exchange rate helper
+                const toUSD=(usd,egp)=>(usd&&usd>0)?usd:((egp||0)/egpRate);
+
+                // Was this staff member employed during year/month?
+                const wasEmployed=(s,y,m)=>{
+                  const monthStart=new Date(y,m,1);
+                  const monthEnd=new Date(y,m+1,0);
+                  if(s.join_date&&new Date(s.join_date)>monthEnd) return false;
+                  if(s.termination_date&&new Date(s.termination_date)<monthStart) return false;
+                  return true;
+                };
+
+                // Month expenses
                 const monthExp=expenses.filter(e=>e.month===finMonth&&e.year===finYear);
                 const monthExpNonSalary=monthExp.filter(e=>e.category!=="Salaries");
-                const totalExpUSD=monthExpNonSalary.reduce((s,e)=>s+(e.amount_usd||0),0);
+                const totalExpUSD=monthExpNonSalary.reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
                 const totalExpEGP=monthExpNonSalary.reduce((s,e)=>s+(e.amount_egp||0),0);
-                // Salary-category expenses (manual overrides posted as expenses)
-                const salaryCatUSD=monthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+(e.amount_usd||0),0);
-                // Total cost = staff payroll + salary-cat expenses + all other expenses
-                const totalCostUSD=totalPayrollUSD+salaryCatUSD+totalExpUSD;
+                const salaryCatUSD=monthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
+                // Only count staff employed this specific month
+                const staffThisMonth=activeStaff.filter(s=>wasEmployed(s,finYear,finMonth));
+                const totalPayrollUSDeff=staffThisMonth.reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp),0);
+                const totalCostUSD=totalPayrollUSDeff+salaryCatUSD+totalExpUSD;
 
                 // Revenue from billing (all entries this month)
                 const mRevEntries=entries.filter(e=>{
@@ -3418,9 +3434,10 @@ export default function App(){
                   const mE=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===m&&e.entry_type==="work";});
                   const rev=mE.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
                   const mMonthExp=expenses.filter(e=>e.month===m&&e.year===finYear);
-                  const mExpUSD=mMonthExp.filter(e=>e.category!=="Salaries").reduce((s,e)=>s+(e.amount_usd||0),0);
-                  const mSalaryCat=mMonthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+(e.amount_usd||0),0);
-                  const cost=totalPayrollUSD+mSalaryCat+mExpUSD;
+                  const mExpUSD=mMonthExp.filter(e=>e.category!=="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
+                  const mSalaryCat=mMonthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
+                  const mPayroll=activeStaff.filter(s=>wasEmployed(s,finYear,m)).reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp),0);
+                  const cost=mPayroll+mSalaryCat+mExpUSD;
                   return{m,rev,cost,net:rev-cost};
                 });
                 const ytdRev=ytdData.reduce((s,x)=>s+x.rev,0);
@@ -3445,7 +3462,7 @@ export default function App(){
                   const d=s.department||"Other";
                   if(!deptMap[d]) deptMap[d]={dept:d,count:0,usd:0,egp:0};
                   deptMap[d].count++;
-                  deptMap[d].usd+=s.salary_usd||0;
+                  deptMap[d].usd+=toUSD(s.salary_usd,s.salary_egp);
                   deptMap[d].egp+=s.salary_egp||0;
                 });
                 const deptList=Object.values(deptMap).sort((a,b)=>b.usd-a.usd);
@@ -3472,10 +3489,18 @@ export default function App(){
                       style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
                       {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
                     </select>
+                    {/* EGP/USD Rate box */}
+                    <div style={{display:"flex",alignItems:"center",gap:6,background:"#060e1c",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
+                      <span style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".05em"}}>EGP/USD</span>
+                      <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value))}
+                        style={{width:55,background:"transparent",border:"none",color:"#38bdf8",fontSize:13,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"center",outline:"none"}}
+                        min="1" step="0.5"/>
+                      <span style={{fontSize:9,color:"#2e4a66"}}>per $1</span>
+                    </div>
                     <span style={{fontSize:11,color:"#2e4a66"}}>Viewing: {MONTHS_[finMonth]} {finYear}</span>
                     <button className="bp" style={{marginLeft:"auto"}} onClick={()=>{
                       const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-                      buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSD,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin});
+                      buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
                     }}>⬇ Export P&L PDF</button>
                   </div>
 
@@ -3486,7 +3511,7 @@ export default function App(){
                       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
                         {[
                           {l:"Revenue",      v:fmtCurrency(monthRevUSD),  c:"#34d399"},
-                          {l:"Payroll Cost", v:fmtCurrency(totalPayrollUSD),c:"#f87171"},
+                          {l:"Payroll Cost", v:fmtCurrency(totalPayrollUSDeff),c:"#f87171"},
                           {l:"Other Costs",  v:fmtCurrency(totalExpUSD),  c:"#fb923c"},
                           {l:"Total Cost",   v:fmtCurrency(totalCostUSD), c:"#f87171"},
                           {l:"Net P&L",      v:fmtCurrency(netPL),        c:netColor},
@@ -3507,7 +3532,7 @@ export default function App(){
                           <div style={{display:"grid",gap:8}}>
                             {[
                               {l:"Revenue",    v:monthRevUSD,    c:"#34d399"},
-                              {l:"Payroll",    v:totalPayrollUSD+salaryCatUSD,c:"#f87171"},
+                              {l:"Payroll",    v:totalPayrollUSDeff+salaryCatUSD,c:"#f87171"},
                               {l:"Expenses",   v:totalExpUSD,    c:"#fb923c"},
                               {l:"Total Cost", v:totalCostUSD,   c:"#ef4444"},
                             ].map((r,i)=>(
@@ -3678,7 +3703,9 @@ export default function App(){
                             <tr key={e.id}>
                               <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0c2b4e",color:"#38bdf8",fontWeight:700}}>{e.category}</span></td>
                               <td style={{fontWeight:500}}>{e.description}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c",fontWeight:700}}>{e.amount_usd?fmtCurrency(e.amount_usd):"-"}</td>
+                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c",fontWeight:700}}>
+                                {e.amount_usd>0?fmtCurrency(e.amount_usd):<span style={{color:"#38bdf8",fontSize:10}}>{"≈"}{fmtCurrency(Math.round((e.amount_egp||0)/egpRate))}</span>}
+                              </td>
                               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{e.amount_egp?`EGP ${e.amount_egp.toLocaleString()}`:"-"}</td>
                               <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic"}}>{e.notes||""}</td>
                               <td><div style={{display:"flex",gap:4}}>
