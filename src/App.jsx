@@ -1546,70 +1546,85 @@ const STATUS_BG={"Completed":"#002414","In Progress":"#001a2c","Not Started":"#0
 function ActivityEditModal({act, onSave, onClose, engineers}){
   const [draft, setDraft] = useState({...act});
   const catActs = ACTIVITY_TAXONOMY[draft.category] || [];
+  const INP = {width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"};
+  const LBL = {fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4};
   return(
   <div className="modal-ov" onClick={onClose}>
-    <div className="modal" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
+    <div className="modal" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
       <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:14}}>Edit Activity</h3>
       <div style={{display:"grid",gap:10}}>
+        {/* Category */}
         <div>
-          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>CATEGORY</label>
+          <label style={LBL}>CATEGORY</label>
           <select value={draft.category||""} onChange={e=>setDraft(p=>({...p,category:e.target.value,activity_name:ACTIVITY_TAXONOMY[e.target.value]?.[0]||p.activity_name}))}
-            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+            style={INP}>
             <option value="">— No Category —</option>
             {TAXONOMY_CATS.map(c=><option key={c}>{c}</option>)}
           </select>
         </div>
+        {/* Activity name */}
         <div>
-          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>ACTIVITY NAME</label>
+          <label style={LBL}>ACTIVITY NAME</label>
           {catActs.length>0?(
-            <select value={draft.activity_name||""} onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))}
-              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+            <select value={draft.activity_name||""} onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))} style={INP}>
               {catActs.map(a=><option key={a}>{a}</option>)}
               <option value="Custom…">Custom…</option>
             </select>
           ):(
-            <input value={draft.activity_name||""} onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))}
-              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}/>
+            <input value={draft.activity_name||""} onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))} style={INP}/>
           )}
           {draft.activity_name==="Custom…"&&(
             <input placeholder="Type custom activity name…" onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))}
-              style={{width:"100%",marginTop:6,background:"#060e1c",border:"1px solid #38bdf8",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}/>
+              style={{...INP,marginTop:6,border:"1px solid #38bdf8"}}/>
           )}
         </div>
+        {/* Status + Progress */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div>
-            <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>STATUS</label>
-            <select value={draft.status||"Not Started"} onChange={e=>setDraft(p=>({...p,status:e.target.value}))}
-              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+            <label style={LBL}>STATUS</label>
+            <select value={draft.status||"Not Started"} onChange={e=>setDraft(p=>({...p,status:e.target.value}))} style={INP}>
               {["Not Started","In Progress","Completed","On Hold"].map(s=><option key={s}>{s}</option>)}
             </select>
           </div>
           <div>
-            <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>PROGRESS %</label>
+            <label style={LBL}>PROGRESS %</label>
             <input type="number" min="0" max="100" step="5" value={Math.round((draft.progress||0)*100)}
               onChange={e=>setDraft(p=>({...p,progress:Math.min(1,Math.max(0,+e.target.value/100))}))}
-              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#38bdf8",padding:"6px 8px",fontSize:11,fontFamily:"'IBM Plex Mono',monospace"}}/>
+              style={{...INP,color:"#38bdf8",fontFamily:"'IBM Plex Mono',monospace"}}/>
           </div>
         </div>
+        {/* Start + End dates */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <label style={LBL}>START DATE</label>
+            <input type="date" value={draft.start_date||""} onChange={e=>setDraft(p=>({...p,start_date:e.target.value||null}))}
+              style={{...INP,colorScheme:"dark"}}/>
+          </div>
+          <div>
+            <label style={LBL}>END DATE <span style={{color:"#4e6479",fontWeight:400}}>(deadline)</span></label>
+            <input type="date" value={draft.end_date||""} onChange={e=>setDraft(p=>({...p,end_date:e.target.value||null}))}
+              style={{...INP,colorScheme:"dark",color: draft.end_date&&new Date(draft.end_date)<new Date()&&draft.status!=="Completed"?"#f87171":"#f0f6ff"}}/>
+          </div>
+        </div>
+        {/* Assigned to */}
         <div>
-          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>ASSIGNED TO</label>
+          <label style={LBL}>ASSIGNED TO</label>
           {engineers&&engineers.length>0?(
-            <select value={draft.assigned_to||""} onChange={e=>setDraft(p=>({...p,assigned_to:e.target.value}))}
-              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+            <select value={draft.assigned_to||""} onChange={e=>setDraft(p=>({...p,assigned_to:e.target.value}))} style={INP}>
               <option value="">— Unassigned —</option>
               {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} — {e.role}</option>)}
             </select>
           ):(
             <input value={draft.assigned_to||""} onChange={e=>setDraft(p=>({...p,assigned_to:e.target.value}))}
-              placeholder="Engineer name…"
-              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}/>
+              placeholder="Engineer name…" style={INP}/>
           )}
         </div>
+        {/* Remarks */}
         <div>
-          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>REMARKS / BLOCKERS</label>
+          <label style={LBL}>REMARKS / BLOCKERS</label>
           <textarea value={draft.remarks||""} onChange={e=>setDraft(p=>({...p,remarks:e.target.value}))} rows={2}
             placeholder="e.g. Waiting for IOA addresses…"
-            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#7a8faa",padding:"6px 8px",fontSize:11,resize:"vertical"}}/>
+            style={{...INP,color:"#7a8faa",resize:"vertical"}}/>
         </div>
       </div>
       <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
@@ -1621,46 +1636,78 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
 }
 
 /* ── Add Activity modal ── */
-function AddActivityModal({projId, subId, onSave, onClose}){
-  const [cat,    setCat]    = useState(TAXONOMY_CATS[0]);
-  const [actName,setActName]= useState(ACTIVITY_TAXONOMY[TAXONOMY_CATS[0]][0]);
-  const [custom, setCustom] = useState("");
-  const catActs = ACTIVITY_TAXONOMY[cat]||[];
+function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers}){
+  const [cat,       setCat]      = useState(defaultCat||TAXONOMY_CATS[0]);
+  const [actName,   setActName]  = useState(ACTIVITY_TAXONOMY[defaultCat||TAXONOMY_CATS[0]]?.[0]||"");
+  const [custom,    setCustom]   = useState("");
+  const [startDate, setStartDate]= useState("");
+  const [endDate,   setEndDate]  = useState("");
+  const [assignedTo,setAssignedTo]=useState("");
+  const catActs  = ACTIVITY_TAXONOMY[cat]||[];
   const finalName = actName==="Custom…" ? custom : actName;
+  const INP = {width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"};
+  const LBL = {fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4};
   return(
   <div className="modal-ov" onClick={onClose}>
-    <div className="modal" style={{maxWidth:400}} onClick={e=>e.stopPropagation()}>
+    <div className="modal" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
       <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:14}}>Add Activity</h3>
       <div style={{display:"grid",gap:10}}>
+        {/* Category */}
         <div>
-          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>CATEGORY</label>
-          <select value={cat} onChange={e=>{setCat(e.target.value);setActName(ACTIVITY_TAXONOMY[e.target.value]?.[0]||"");}}
-            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+          <label style={LBL}>CATEGORY</label>
+          <select value={cat} onChange={e=>{setCat(e.target.value);setActName(ACTIVITY_TAXONOMY[e.target.value]?.[0]||"");}} style={INP}>
             {TAXONOMY_CATS.map(c=><option key={c}>{c}</option>)}
             <option value="">— Custom Category —</option>
           </select>
         </div>
+        {/* Activity name */}
         <div>
-          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>ACTIVITY</label>
+          <label style={LBL}>ACTIVITY</label>
           {catActs.length>0?(
-            <select value={actName} onChange={e=>setActName(e.target.value)}
-              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+            <select value={actName} onChange={e=>setActName(e.target.value)} style={INP}>
               {catActs.map(a=><option key={a}>{a}</option>)}
               <option value="Custom…">Custom…</option>
             </select>
           ):(
-            <input value={actName} onChange={e=>setActName(e.target.value)} placeholder="Activity name…"
-              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}/>
+            <input value={actName} onChange={e=>setActName(e.target.value)} placeholder="Activity name…" style={INP}/>
           )}
           {actName==="Custom…"&&(
             <input value={custom} onChange={e=>setCustom(e.target.value)} placeholder="Type custom activity name…"
-              style={{width:"100%",marginTop:6,background:"#060e1c",border:"1px solid #38bdf8",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}/>
+              style={{...INP,marginTop:6,border:"1px solid #38bdf8"}}/>
           )}
         </div>
+        {/* Dates */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <label style={LBL}>START DATE</label>
+            <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}
+              style={{...INP,colorScheme:"dark"}}/>
+          </div>
+          <div>
+            <label style={LBL}>END DATE <span style={{color:"#4e6479",fontWeight:400}}>(deadline)</span></label>
+            <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}
+              style={{...INP,colorScheme:"dark"}}/>
+          </div>
+        </div>
+        {/* Assigned to */}
+        {engineers&&engineers.length>0&&(
+        <div>
+          <label style={LBL}>ASSIGNED TO <span style={{color:"#4e6479",fontWeight:400}}>(optional)</span></label>
+          <select value={assignedTo} onChange={e=>setAssignedTo(e.target.value)} style={INP}>
+            <option value="">— Unassigned —</option>
+            {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} — {e.role}</option>)}
+          </select>
+        </div>)}
       </div>
       <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
         <button className="bg" onClick={onClose}>Cancel</button>
-        <button className="bp" disabled={!finalName.trim()} onClick={()=>onSave({category:cat||null,activity_name:finalName.trim()})}>Add</button>
+        <button className="bp" disabled={!finalName.trim()} onClick={()=>onSave({
+          category:cat||null,
+          activity_name:finalName.trim(),
+          start_date:startDate||null,
+          end_date:endDate||null,
+          assigned_to:assignedTo||null,
+        })}>Add Activity</button>
       </div>
     </div>
   </div>);
@@ -1668,24 +1715,38 @@ function AddActivityModal({projId, subId, onSave, onClose}){
 
 /* ── Single activity row ── */
 function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete}){
-  const pct = Math.round(a.progress*100);
-  const sc  = STATUS_COLOR[a.status]||"#4e6479";
+  const pct      = Math.round(a.progress*100);
+  const sc       = STATUS_COLOR[a.status]||"#4e6479";
+  const today    = new Date(); today.setHours(0,0,0,0);
+  const endDt    = a.end_date ? new Date(a.end_date) : null;
+  const isOverdue= endDt && endDt < today && a.status!=="Completed";
+  const fmtDate  = d => d ? new Date(d).toLocaleDateString("en-GB",{day:"2-digit",month:"short"}) : null;
   return(
   <tr style={{cursor:"pointer"}} onClick={()=>onEdit(a)}>
-    <td style={{maxWidth:220}}>
+    <td style={{maxWidth:200}}>
       <div style={{fontWeight:600,fontSize:11}}>{a.activity_name}</div>
-      {a.remarks&&<div style={{fontSize:9,color:"#f87171",fontStyle:"italic",marginTop:1,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.remarks}</div>}
+      {a.remarks&&<div style={{fontSize:9,color:"#f87171",fontStyle:"italic",marginTop:1,maxWidth:190,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.remarks}</div>}
     </td>
     <td><span style={{fontSize:9,padding:"2px 7px",borderRadius:3,background:STATUS_BG[a.status]||"#0a0f18",color:sc,fontWeight:700,whiteSpace:"nowrap"}}>{a.status}</span></td>
     <td>
       <div style={{display:"flex",alignItems:"center",gap:7}}>
-        <div style={{width:56,height:5,background:"#0b1526",borderRadius:3,overflow:"hidden",flexShrink:0}}>
+        <div style={{width:52,height:5,background:"#0b1526",borderRadius:3,overflow:"hidden",flexShrink:0}}>
           <div style={{height:"100%",width:`${pct}%`,background:sc,borderRadius:3}}/>
         </div>
         <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,fontWeight:700,color:sc}}>{pct}%</span>
       </div>
     </td>
-    <td style={{fontSize:10,color:"#7a8faa"}}>{a.assigned_to||"—"}</td>
+    <td style={{fontSize:10,color:"#7a8faa",whiteSpace:"nowrap"}}>{a.assigned_to||"—"}</td>
+    <td style={{fontSize:9,whiteSpace:"nowrap"}}>
+      {(a.start_date||a.end_date)?(
+        <div style={{display:"flex",flexDirection:"column",gap:1}}>
+          {a.start_date&&<span style={{color:"#4e6479"}}>▶ {fmtDate(a.start_date)}</span>}
+          {a.end_date&&<span style={{color:isOverdue?"#f87171":"#fb923c",fontWeight:isOverdue?700:400}}>
+            {isOverdue?"⚠ ":"■ "}{fmtDate(a.end_date)}
+          </span>}
+        </div>
+      ):<span style={{color:"#1a2d3f"}}>—</span>}
+    </td>
     <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:actHrs>0?"#38bdf8":"#1a2d3f"}}>{actHrs>0?actHrs+"h":"—"}</td>
     {isAdmin&&<td onClick={e=>e.stopPropagation()}><button className="bd" style={{fontSize:10,padding:"1px 5px"}} onClick={()=>onDelete(a.id)}>✕</button></td>}
   </tr>);
@@ -1747,7 +1808,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     showToast("Activity saved ✓");
   },[setActivities,showToast]);
 
-  const confirmAdd = useCallback(async({category,activity_name})=>{
+  const confirmAdd = useCallback(async({category,activity_name,start_date,end_date,assigned_to})=>{
     if(!addModal) return;
     const {projId,subId}=addModal;
     const {data,error}=await supabase.from("project_activities").insert({
@@ -1756,13 +1817,15 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       category:category||null,
       activity_name,
       status:"Not Started", progress:0,
+      start_date:start_date||null,
+      end_date:end_date||null,
+      assigned_to:assigned_to||null,
       sort_order:(actsByProj[projId]||[]).length
     }).select().single();
     if(error){showToast("Error: "+error.message,false);return;}
     setActivities(prev=>[...prev,data]);
     setAddModal(null);
     showToast("Activity added ✓");
-    // Auto-expand the new category
     if(category) setExpandedCats(p=>({...p,[category]:true}));
   },[addModal,actsByProj,setActivities,showToast]);
 
@@ -1821,13 +1884,19 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
               {active>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#001a2c",color:"#38bdf8",fontWeight:700}}>{active} Active</span>}
               {pending>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0a0f18",color:"#4e6479",fontWeight:700}}>{pending} Pending</span>}
               {hasSubs&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",fontWeight:700}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-sites</span>}
-              {projActs.length===0&&<span style={{fontSize:9,color:"#2e4a66",fontStyle:"italic"}}>No activities yet</span>}
+              {projActs.length===0&&canEdit&&(
+                <span style={{fontSize:9,padding:"2px 8px",borderRadius:3,background:"#0a0f18",color:"#38bdf8",border:"1px dashed #192d47",cursor:"pointer"}}
+                  onClick={e=>{e.stopPropagation();setTrackerProj(p.id);}}>
+                  + Add activities
+                </span>
+              )}
+              {projActs.length===0&&!canEdit&&<span style={{fontSize:9,color:"#2e4a66",fontStyle:"italic"}}>No activities yet</span>}
             </div>
           </div>);
         })}
       </div>
     </div>
-    {addModal&&<AddActivityModal projId={addModal.projId} subId={addModal.subId} onSave={confirmAdd} onClose={()=>setAddModal(null)}/>}
+    {addModal&&<AddActivityModal projId={addModal.projId} subId={addModal.subId} defaultCat={addModal.defaultCat} engineers={engineers} onSave={confirmAdd} onClose={()=>setAddModal(null)}/>}
     </>);
   }
 
@@ -1925,7 +1994,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           <table style={{margin:0}}>
             <thead><tr>
               <th>Activity</th><th>Status</th><th>Progress</th>
-              <th>Assigned</th><th>Hours</th>
+              <th>Assigned</th><th>Dates</th><th>Hours</th>
               {canEdit&&<th style={{width:36}}></th>}
             </tr></thead>
             <tbody>
@@ -1945,7 +2014,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         <table style={{margin:0}}>
           <thead><tr>
             <th>Activity</th><th>Status</th><th>Progress</th>
-            <th>Assigned</th><th>Hours</th>
+            <th>Assigned</th><th>Dates</th><th>Hours</th>
             {canEdit&&<th style={{width:36}}></th>}
           </tr></thead>
           <tbody>
@@ -1958,8 +2027,20 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       </div>)}
 
       {visActs.length===0&&(
-        <div style={{textAlign:"center",padding:"32px",color:"#2e4a66",fontSize:12,fontStyle:"italic",background:"#060e1c",borderRadius:8,border:"1px solid #192d47"}}>
-          No activities yet.{canEdit&&" Click + Add Activity to start."}
+        <div style={{textAlign:"center",padding:"40px 24px",background:"#060e1c",borderRadius:8,border:"1px dashed #192d47"}}>
+          <div style={{fontSize:28,marginBottom:10}}>📋</div>
+          <div style={{fontSize:13,fontWeight:600,color:"#f0f6ff",marginBottom:6}}>No activities yet</div>
+          <div style={{fontSize:11,color:"#2e4a66",marginBottom:canEdit?18:0}}>
+            {trackerSub
+              ? "No activities have been added to this sub-site yet."
+              : "This project has no tracker activities."}
+          </div>
+          {canEdit&&(
+            <button className="bp" style={{fontSize:11,padding:"7px 18px"}}
+              onClick={()=>setAddModal({projId:trackerProj,subId:trackerSub||null})}>
+              + Add First Activity
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -5470,23 +5551,16 @@ export default function App(){
       )}
 
       {/* Sub-Project Add/Edit */}
-      {subProjModal&&(()=>{
-        const isEdit=!!subProjModal.sub;
-        const [spDraft,setSpDraft]=([subProjModal.sub
-          ?{...subProjModal.sub}
-          :{name:"",pm_name:"",pm_comments:"",pendings:""}
-        ].map(v=>v))[0];
-        // Use a controlled component wrapper
-        return(
+      {subProjModal&&(
         <SubProjectModal
           key={subProjModal.sub?.id||"new"}
           projectId={subProjModal.projectId}
           sub={subProjModal.sub||null}
           engineers={engineers}
-          onSave={isEdit?saveSubProject:addSubProject}
+          onSave={subProjModal.sub?saveSubProject:addSubProject}
           onClose={()=>setSubProjModal(null)}
-        />);
-      })()}
+        />
+      )}
 
       {/* Add Engineer */}
       {showEngModal&&(
