@@ -2720,12 +2720,14 @@ engineers.forEach(eng=>{
 /* ════════════════════════════════════════════════════════
    KPIs TAB — standalone component
    ════════════════════════════════════════════════════════ */
-function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, year, notifications, alertDay, setAlertDay}){
-  const {engKPIs, selKPI} = useMemo(()=>{
-    const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-const yearEntries=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;});
+/* ── KPI rating helpers — module-level so JSX render can access them ── */
+const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Performer":"High Performer";
+const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"#38bdf8":"#34d399";
+const kpiRatingBg=   s=>s<=40?"#1a0808":s<=75?"#1c0f00":s<=95?"#001a2c":"#002414";
 
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, year, notifications, alertDay, setAlertDay}){
+  const yearEntries = useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
+  const engKPIs = useMemo(()=>{
 /* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
    A. UTILIZATION/EFFICIENCY 30%
       • Billable %   = hours on billable projects ÷ total hours × 100
@@ -2745,9 +2747,6 @@ const yearEntries=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return
    TOTAL = A×0.30 + B×0.30 + C×0.20 + D×0.20
    BANDS: 0-40 Under Performer | 41-75 Competent | 76-95 Performer | 96-120 High Performer
 */
-const ratingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Performer":"High Performer";
-const ratingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"#38bdf8":"#34d399";
-const ratingBg=   s=>s<=40?"#1a0808":s<=75?"#1c0f00":s<=95?"#001a2c":"#002414";
 
 const computeKPI=eng=>{
   const myE=yearEntries.filter(e=>String(e.engineer_id)===String(eng.id));
@@ -2795,9 +2794,12 @@ const computeKPI=eng=>{
 const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
 
 // Selected engineer for detail view
-const selKPI=kpiEngId?engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)):null;
-    return {engKPIs, selKPI};
-  }, [entries, engineers, projects, kpiYear, kpiEngId]);
+    return engKPIs;
+  }, [entries, engineers, projects, kpiYear, yearEntries]);
+
+  // Derived in component body so JSX render can access them
+  const selKPI = kpiEngId ? engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)) : null;
+
 
   const alertNotifs = (notifications||[]).filter(n=>n.type==="timesheet_alert"&&!n.read);
 
@@ -2890,21 +2892,21 @@ const selKPI=kpiEngId?engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)):null;
           </div></td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontSize:10}}>{k.billPct}%</td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c",fontSize:10}}>{k.knowledgePct}%</td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.utilScore)}}>{k.utilScore}</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:kpiRatingColor(k.utilScore)}}>{k.utilScore}</td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontSize:10}}>{k.descRate}%</td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.projScore)}}>{k.projScore}</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:kpiRatingColor(k.projScore)}}>{k.projScore}</td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontSize:10}}>{k.trainingGiven}h</td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.devScore)}}>{k.devScore}</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:kpiRatingColor(k.devScore)}}>{k.devScore}</td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"}}>{k.submissionRate}%</td>
           <td style={{textAlign:"center"}}>
             <div style={{display:"inline-flex",alignItems:"center",gap:5}}>
               <div style={{width:34,height:5,background:"#060e1c",borderRadius:3,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${Math.min(100,k.totalScore)}%`,background:ratingColor(k.totalScore),borderRadius:3}}/>
+                <div style={{height:"100%",width:`${Math.min(100,k.totalScore)}%`,background:kpiRatingColor(k.totalScore),borderRadius:3}}/>
               </div>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.totalScore),fontSize:12}}>{k.totalScore}</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:kpiRatingColor(k.totalScore),fontSize:12}}>{k.totalScore}</span>
             </div>
           </td>
-          <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:ratingBg(k.totalScore),color:ratingColor(k.totalScore),fontWeight:700,whiteSpace:"nowrap"}}>{ratingLabel(k.totalScore)}</span></td>
+          <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:kpiRatingBg(k.totalScore),color:kpiRatingColor(k.totalScore),fontWeight:700,whiteSpace:"nowrap"}}>{kpiRatingLabel(k.totalScore)}</span></td>
         </tr>
       ))}</tbody>
     </table>
@@ -2971,9 +2973,9 @@ const selKPI=kpiEngId?engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)):null;
           <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role} · KPI Year {kpiYear}</div>
         </div>
         <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          <div style={{textAlign:"center",background:ratingBg(k.totalScore),border:`1px solid ${ratingColor(k.totalScore)}30`,borderRadius:8,padding:"10px 18px"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:32,fontWeight:700,color:ratingColor(k.totalScore),lineHeight:1}}>{k.totalScore}</div>
-            <div style={{fontSize:9,color:ratingColor(k.totalScore),textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{ratingLabel(k.totalScore)}</div>
+          <div style={{textAlign:"center",background:kpiRatingBg(k.totalScore),border:`1px solid ${kpiRatingColor(k.totalScore)}30`,borderRadius:8,padding:"10px 18px"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:32,fontWeight:700,color:kpiRatingColor(k.totalScore),lineHeight:1}}>{k.totalScore}</div>
+            <div style={{fontSize:9,color:kpiRatingColor(k.totalScore),textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{kpiRatingLabel(k.totalScore)}</div>
           </div>
           <button className="bg" style={{fontSize:10}} onClick={()=>setKpiEngId(null)}>✕ Back</button>
         </div>
@@ -2985,7 +2987,7 @@ const selKPI=kpiEngId?engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)):null;
           <div key={c.id} style={{background:"#060e1c",borderRadius:8,padding:"12px 14px",border:`1px solid ${c.color}20`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <div><span style={{fontSize:9,fontWeight:700,color:c.color,background:c.color+"20",padding:"1px 6px",borderRadius:3,marginRight:5}}>{c.id} · {c.weight}</span><span style={{fontSize:10,fontWeight:700,color:"#f0f6ff"}}>{c.label}</span></div>
-              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:ratingColor(c.score)}}>{c.score}</div>
+              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:kpiRatingColor(c.score)}}>{c.score}</div>
             </div>
             {/* How calculated */}
             <div style={{fontSize:9,color:"#2e4a66",fontStyle:"italic",marginBottom:6,padding:"3px 6px",background:"#0a1628",borderRadius:3}}>{c.howCalc}</div>
