@@ -3118,7 +3118,7 @@ export default function App(){
   const [alertDay,setAlertDay]             = useState(5); // 1=Mon,2=Tue,3=Wed,4=Thu,5=Fri
   const [funcYear,setFuncYear]             = useState(new Date().getFullYear());
   const [funcEngId,setFuncEngId]           = useState("all");
-  const [kpiEngId,setKpiEngId_]            = useState(null);
+  const [kpiEngId,setKpiEngId]            = useState(null);
   const [kpiNotes,setKpiNotes]             = useState({}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
   const [activities,setActivities]         = useState([]);
   const [subprojects,setSubprojects]       = useState([]);
