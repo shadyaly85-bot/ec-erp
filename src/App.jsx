@@ -2498,8 +2498,13 @@ export default function App(){
   const EXP_CATS=["Office Rent & Utilities","Salaries","Software & Subscriptions","Travel & Transportation","Equipment & Supplies","Other"];
 
   const saveStaff=useCallback(async()=>{
-    const payload=editStaff?{...editStaff}:{...newStaff};
-    if(!payload.name.trim()){showToast("Name required",false);return;}
+    const raw=editStaff?{...editStaff}:{...newStaff};
+    if(!raw.name.trim()){showToast("Name required",false);return;}
+    // Postgres rejects empty string for date columns — convert to null
+    const payload={...raw,
+      join_date:        raw.join_date||null,
+      termination_date: raw.termination_date||null,
+    };
     if(editStaff){
       const{data,error}=await supabase.from("staff").update(payload).eq("id",editStaff.id).select().single();
       if(!error&&data){setStaff(prev=>prev.map(s=>s.id===data.id?data:s));showToast("Staff updated");setEditStaff(null);setShowStaffModal(false);}
