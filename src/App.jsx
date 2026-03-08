@@ -188,7 +188,7 @@ function buildVacationPDF(engineers, allEntries, leaveEntries, projects, m, y){
 
   // Monthly data
   const leaveByEng=engineers.map(eng=>{
-    const engLeave=leaveEntries.filter(e=>e.engineer_id===eng.id);
+    const engLeave=leaveEntries.filter(e=>String(e.engineer_id)===String(eng.id));
     const byType={};
     engLeave.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
     return{...eng,totalDays:engLeave.length,byType,entries:engLeave.sort((a,b)=>a.date.localeCompare(b.date))};
@@ -196,7 +196,7 @@ function buildVacationPDF(engineers, allEntries, leaveEntries, projects, m, y){
 
   // YTD data
   const ytdByEng=engineers.map(eng=>{
-    const all=allEntries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="leave"&&new Date(e.date).getFullYear()===y);
+    const all=allEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave"&&new Date(e.date).getFullYear()===y);
     const byType={};
     all.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
     return{...eng,total:all.length,byType};
@@ -252,8 +252,8 @@ function buildVacationPDF(engineers, allEntries, leaveEntries, projects, m, y){
 
 /* ─── INDIVIDUAL TIMESHEET PDF ─── */
 function buildTimesheetPDF(eng, monthEntries, projects, m, y){
-  const workE = monthEntries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date));
-  const leaveE= monthEntries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="leave").sort((a,b)=>a.date.localeCompare(b.date));
+  const workE = monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date));
+  const leaveE= monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave").sort((a,b)=>a.date.localeCompare(b.date));
   const totalW= workE.reduce((s,e)=>s+e.hours,0);
   const totalL= leaveE.length;
   const projMap={};
@@ -1346,7 +1346,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
   // Monthly breakdown
   const monthly=engineers.map(eng=>{
-    const el=leaveEntries.filter(e=>e.engineer_id===eng.id);
+    const el=leaveEntries.filter(e=>String(e.engineer_id)===String(eng.id));
     const byType={};
     el.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
     return{...eng,total:el.length,byType,days:el.sort((a,b)=>a.date.localeCompare(b.date))};
@@ -1354,7 +1354,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
   // Year-to-date
   const ytd=engineers.map(eng=>{
-    const el=allEntries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="leave"&&new Date(e.date).getFullYear()===year);
+    const el=allEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave"&&new Date(e.date).getFullYear()===year);
     const byType={};
     el.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
     return{...eng,total:el.length,byType};
@@ -1677,7 +1677,7 @@ export default function App(){
 
   const saveEditEntry=async()=>{
     if(!editEntry) return;
-    if(!canEditAny && editEntry.engineer_id !== myProfile?.id) { showToast("You can only edit your own entries",false); return; }
+    if(!canEditAny && String(editEntry.engineer_id)!==String(myProfile?.id)) { showToast("You can only edit your own entries",false); return; }
     const proj=projects.find(p=>p.id===editEntry.projectId);
     // Support both camelCase (from modal) and snake_case (from DB) field names
     const taskCat = editEntry.taskCategory || editEntry.task_category || "Engineering";
@@ -1703,7 +1703,7 @@ export default function App(){
   };
 
   const deleteEntry=async(id, engineerId)=>{
-    if(!canEditAny && engineerId !== myProfile?.id) { showToast("You can only delete your own entries",false); return; }
+    if(!canEditAny && String(engineerId)!==String(myProfile?.id)) { showToast("You can only delete your own entries",false); return; }
     if(!window.confirm("Delete this entry?")) return;
     const {error}=await supabase.from("time_entries").delete().eq("id",id);
     if(error){showToast("Error",false);return;}
@@ -1764,7 +1764,7 @@ export default function App(){
     engs.forEach(eng=>{
       if(eng.role_type==="accountant") return; // skip non-engineers
       // Any work or function entry Mon→Fri this week?
-      const hasWeekHours=allE.some(e=>e.engineer_id===eng.id&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")));
+      const hasWeekHours=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")));
       if(!hasWeekHours) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
     });
 
@@ -2293,7 +2293,7 @@ export default function App(){
   const overallUtil   = engineers.length?Math.min(100,Math.round(totalWorkHrs/(engineers.length*targetHrs)*100)):0;
 
   const engStats=useMemo(()=>engineers.map(eng=>{
-    const we=monthEntries.filter(e=>e.engineer_id===eng.id);
+    const we=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id));
     const wh=we.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
     // Billable hours derived from CURRENT project billable flag
     const bh=we.filter(e=>e.entry_type==="work").reduce((s,e)=>{
@@ -2533,7 +2533,7 @@ export default function App(){
               </div>
               {/* Engineers only see their own summary */}
               {!isAdmin&&!isAcct&&!isLead&&(()=>{
-                const myE=monthEntries.filter(e=>e.engineer_id===myProfile?.id);
+                const myE=monthEntries.filter(e=>String(e.engineer_id)===String(myProfile?.id));
                 const myWork=myE.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
                 const myLeave=myE.filter(e=>e.entry_type==="leave").length;
                 const myProjs=[...new Set(myE.filter(e=>e.entry_type==="work").map(e=>e.project_id).filter(Boolean))].length;
@@ -2982,7 +2982,7 @@ export default function App(){
                     <div style={{marginBottom:8}}><span className="role-badge" style={{background:ROLE_COLORS[eng.role_type]+"20",color:ROLE_COLORS[eng.role_type]||"#4e6479"}}>{ROLE_LABELS[eng.role_type]||eng.role_type}</span></div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:7}}>
                       <div style={{background:"#060e1c",borderRadius:5,padding:"6px 4px"}}>
-                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:"#38bdf8"}}>{(filterProject==="ALL"?eng.workHrs:teamMonthEntries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0))}h</div>
+                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:"#38bdf8"}}>{(filterProject==="ALL"?eng.workHrs:teamMonthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0))}h</div>
                         <div style={{fontSize:9,color:"#253a52"}}>work hrs</div>
                       </div>
                       <div style={{background:"#060e1c",borderRadius:5,padding:"6px 4px"}}>
@@ -3062,7 +3062,7 @@ export default function App(){
                     <table>
                       <thead><tr><th>Engineer</th><th>Role</th><th>Work Hrs</th><th>Projects</th><th>Leave Days</th><th>Quick Export</th></tr></thead>
                       <tbody>{engineers.map(eng=>{
-                        const ee=monthEntries.filter(e=>e.engineer_id===eng.id);
+                        const ee=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id));
                         const wh=ee.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
                         const ld=ee.filter(e=>e.entry_type==="leave").length;
                         const prjs=[...new Set(ee.filter(e=>e.entry_type==="work").map(e=>e.project_id))].length;
@@ -3865,10 +3865,13 @@ export default function App(){
 
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
               {adminTab==="functions"&&(isAdmin||isLead)&&(()=>{
-                const funcEntries=entries.filter(e=>(e.entry_type==="function"||e.task_category==="Function"));
+                const funcEntries=entries.filter(e=>
+                  e.entry_type==="function"||
+                  (e.task_category&&e.task_category.toLowerCase()==="function")
+                );
                 const yearFuncs=funcEntries.filter(e=>{
                   const d=new Date(e.date+"T12:00:00");
-                  return d.getFullYear()===funcYear&&(funcEngId==="all"||e.engineer_id===funcEngId);
+                  return d.getFullYear()===funcYear&&(funcEngId==="all"||String(e.engineer_id)===String(funcEngId));
                 });
                 const totalFuncHrs=yearFuncs.reduce((s,e)=>s+e.hours,0);
                 const catTotals={};
@@ -3876,7 +3879,7 @@ export default function App(){
                 const maxCat=Math.max(...Object.values(catTotals),1);
                 const engFuncMap={};
                 engineers.forEach(eng=>{
-                  const eh=funcEntries.filter(e=>e.engineer_id===eng.id&&new Date(e.date+"T12:00:00").getFullYear()===funcYear);
+                  const eh=funcEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&new Date(e.date+"T12:00:00").getFullYear()===funcYear);
                   engFuncMap[eng.id]={total:eh.reduce((s,e)=>s+e.hours,0),cats:{}};
                   FUNCTION_CATS.forEach(c=>{engFuncMap[eng.id].cats[c]=eh.filter(e=>(e.function_category||e.task_type)===c).reduce((s,e)=>s+e.hours,0);});
                 });
@@ -3896,7 +3899,7 @@ export default function App(){
                     <button className="bp" style={{marginLeft:"auto"}} onClick={()=>setShowFuncModal(true)}>+ Log Function Hours</button>
                   </div>
                   <div className="card">
-                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>FUNCTION HOURS BY CATEGORY — {funcYear}{funcEngId!=="all"?" · "+engineers.find(e=>e.id===funcEngId)?.name:""}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>FUNCTION HOURS BY CATEGORY — {funcYear}{funcEngId!=="all"?" · "+engineers.find(e=>String(e.id)===String(funcEngId))?.name:""}</div>
                     <div style={{display:"grid",gap:7}}>
                       {FUNCTION_CATS.map(cat=>{
                         const hrs=catTotals[cat]||0;
@@ -3984,7 +3987,7 @@ export default function App(){
                 const ratingBg=   s=>s<=40?"#1a0808":s<=75?"#1c0f00":s<=95?"#001a2c":"#002414";
 
                 const computeKPI=eng=>{
-                  const myE=yearEntries.filter(e=>e.engineer_id===eng.id);
+                  const myE=yearEntries.filter(e=>String(e.engineer_id)===String(eng.id));
                   const workE=myE.filter(e=>e.entry_type==="work");
                   const funcE=myE.filter(e=>(e.entry_type==="function"||e.task_category==="Function"));
                   const leaveE=myE.filter(e=>e.entry_type==="leave");
@@ -4153,7 +4156,7 @@ export default function App(){
                     const monthlyData=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((mn,m)=>{
                       const mWork=k.workE.filter(e=>new Date(e.date+"T12:00:00").getMonth()===m);
                       const mFunc=k.funcE.filter(e=>new Date(e.date+"T12:00:00").getMonth()===m);
-                      const mLeave=yearEntries.filter(e=>e.engineer_id===eng.id&&e.entry_type==="leave"&&new Date(e.date+"T12:00:00").getMonth()===m);
+                      const mLeave=yearEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave"&&new Date(e.date+"T12:00:00").getMonth()===m);
                       const wh=mWork.reduce((s,e)=>s+e.hours,0);
                       const bh=mWork.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
                       const fh=mFunc.reduce((s,e)=>s+e.hours,0);
