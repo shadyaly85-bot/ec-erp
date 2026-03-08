@@ -1647,22 +1647,29 @@ export default function App(){
     const engId=canEditAny?viewEngId:myProfile.id;
     const isFunc=newEntry.type==="function";
     const isLeave=newEntry.type==="leave";
-    const payload={
+    const funcCat=isFunc?(newEntry.taskType||newEntry.function_category||FUNCTION_CATS[0]):null;
+    const basePayload={
       engineer_id:engId,
       project_id: (isLeave||isFunc)?null:newEntry.projectId,
       date,
       task_category:(isLeave)?null:isFunc?"Function":newEntry.taskCategory,
-      task_type:   (isLeave)?null:newEntry.taskType,
-      function_category: isFunc?(newEntry.taskType||newEntry.function_category||FUNCTION_CATS[0]):null,
+      task_type:   (isLeave)?null:isFunc?funcCat:newEntry.taskType,
       hours:       isLeave?8:+newEntry.hours,
       activity:    newEntry.activity,
       entry_type:  newEntry.type,
       leave_type:  isLeave?newEntry.leaveType:null,
-      billable:    false,
+      billable:    !isLeave&&!isFunc&&(projects.find(p=>p.id===newEntry.projectId)?.billable||false),
     };
-    const {data,error}=await supabase.from("time_entries").insert(payload).select().single();
+    // Try with function_category col; auto-fallback if migration not yet run
+    let {data,error}=await supabase.from("time_entries")
+      .insert(isFunc?{...basePayload,function_category:funcCat}:basePayload)
+      .select().single();
+    if(error&&error.message?.includes("function_category")){
+      const res=await supabase.from("time_entries").insert(basePayload).select().single();
+      data=res.data; error=res.error;
+    }
     if(error){showToast("Error: "+error.message,false);return;}
-    setEntries(prev=>[data,...prev]);
+    if(data) setEntries(prev=>[data,...prev]);
     setModalDate(null);
     setNewEntry({projectId:"",taskCategory:"Engineering",taskType:"Basic Engineering",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0]});
     showToast("Hours posted ✓");
@@ -1708,22 +1715,29 @@ export default function App(){
   const addFunctionEntry=useCallback(async()=>{
     if(!newFunc.engineer_id){showToast("Select an engineer",false);return;}
     if(!newFunc.hours||newFunc.hours<=0){showToast("Enter hours > 0",false);return;}
-    const payload={
+    // function_category column requires SQL migration — try with it, fallback without
+    const basePayload={
       engineer_id:newFunc.engineer_id,
       project_id:null,
       date:newFunc.date,
       task_category:"Function",
       task_type:newFunc.function_category,
-      function_category:newFunc.function_category,
       hours:+newFunc.hours,
       activity:newFunc.activity,
       entry_type:"function",
       leave_type:null,
       billable:false,
     };
-    const{data,error}=await supabase.from("time_entries").insert(payload).select().single();
+    // Try with function_category column; auto-fallback if column not yet migrated
+    let {data,error}=await supabase.from("time_entries")
+      .insert({...basePayload,function_category:newFunc.function_category})
+      .select().single();
+    if(error&&error.message&&error.message.includes("function_category")){
+      const res=await supabase.from("time_entries").insert(basePayload).select().single();
+      data=res.data; error=res.error;
+    }
     if(error){showToast("Error: "+error.message,false);return;}
-    setEntries(prev=>[data,...prev]);
+    if(data) setEntries(prev=>[data,...prev]);
     showToast("Function hours posted ✓");
     setShowFuncModal(false);
     setNewFunc({engineer_id:"",date:new Date().toISOString().slice(0,10),function_category:FUNCTION_CATS[0],hours:2,activity:""});
@@ -2197,11 +2211,26 @@ export default function App(){
   };
   const saveEditProject=async()=>{
     if(!editProjModal) return;
-    const {id,...rest}=editProjModal;
-    const {data,error}=await supabase.from("projects").update(rest).eq("id",id).select().single();
-    if(error){showToast("Error: "+error.message,false);return;}
-    setProjects(prev=>prev.map(p=>p.id===data.id?data:p));
-    setEditProjModal(null); showToast("Project updated ✓");
+    const {_origId,...rest}=editProjModal;
+    const origId=_origId||rest.id;
+    const newId=rest.id;
+    const idChanged=_origId&&_origId!==newId;
+    if(idChanged){
+      // Rename project ID: insert new, re-link entries, delete old
+      const{error:e1}=await supabase.from("projects").insert({...rest});
+      if(e1){showToast("Error renaming: "+e1.message,false);return;}
+      await supabase.from("time_entries").update({project_id:newId}).eq("project_id",origId);
+      await supabase.from("projects").delete().eq("id",origId);
+      setProjects(prev=>prev.map(p=>p.id===origId?{...rest}:p));
+      setEntries(prev=>prev.map(e=>e.project_id===origId?{...e,project_id:newId}:e));
+      setEditProjModal(null); showToast("Project ID renamed & entries re-linked ✓");
+    } else {
+      const{id,...fields}=rest;
+      const{data,error}=await supabase.from("projects").update(fields).eq("id",id).select().single();
+      if(error){showToast("Error: "+error.message,false);return;}
+      setProjects(prev=>prev.map(p=>p.id===data.id?data:p));
+      setEditProjModal(null); showToast("Project updated ✓");
+    }
   };
   const deleteProject=async id=>{
     if(!window.confirm(`Delete ${id} and all its entries?`)) return;
@@ -4001,7 +4030,7 @@ export default function App(){
                 const alertNotifs=notifications.filter(n=>n.type==="timesheet_alert"&&!n.read);
 
                 // Selected engineer for detail view
-                const selKPI=kpiEngId?engKPIs.find(k=>k.eng.id===kpiEngId):null;
+                const selKPI=kpiEngId?engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)):null;
 
                 return(
                 <div style={{display:"grid",gap:14}}>
@@ -4085,7 +4114,7 @@ export default function App(){
                         </tr>
                       </thead>
                       <tbody>{engKPIs.map((k,i)=>(
-                        <tr key={k.eng.id} onClick={()=>setKpiEngId_(k.eng.id)} style={{cursor:"pointer"}}>
+                        <tr key={k.eng.id} onClick={()=>setKpiEngId_(String(k.eng.id))} style={{cursor:"pointer"}}>
                           <td><div style={{display:"flex",alignItems:"center",gap:6}}>
                             <span style={{fontSize:10,fontWeight:700,color:"#2e4a66",minWidth:16}}>{i+1}</span>
                             <div><div style={{fontWeight:700,fontSize:11}}>{k.eng.name}</div><div style={{fontSize:9,color:"#2e4a66"}}>{k.eng.role}</div></div>
@@ -4266,7 +4295,7 @@ export default function App(){
 
               {/* SETTINGS */}
               {adminTab==="settings"&&isAdmin&&(
-                <div style={{maxWidth:540}}>
+                <div style={{maxWidth:600,display:"grid",gap:14}}>
                   <div className="card">
                     <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:4}}>Access Role Descriptions</h3>
                     <p style={{fontSize:11,color:"#2e4a66",marginBottom:14,lineHeight:1.6}}>Each role controls what features are visible and accessible.</p>
@@ -4285,6 +4314,21 @@ export default function App(){
                         </div>
                       ))}
                     </div>
+                  </div>
+                  <div className="card" style={{borderColor:"#f59e0b30"}}>
+                    <h3 style={{fontSize:13,fontWeight:700,color:"#f59e0b",marginBottom:6}}>⚙️ Required Supabase SQL Migrations</h3>
+                    <p style={{fontSize:11,color:"#2e4a66",marginBottom:12,lineHeight:1.6}}>Run these once in your Supabase SQL editor to enable all features. The app works without them but falls back gracefully.</p>
+                    {[
+                      {label:"Function Category column (enables KPI function tracking)",sql:`ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS function_category text;`},
+                      {label:"Staff table (Finance › Salaries)",sql:`CREATE TABLE IF NOT EXISTS staff (\n  id bigserial PRIMARY KEY, name text NOT NULL, department text DEFAULT 'Engineering',\n  role text, type text DEFAULT 'full_time', salary_usd numeric DEFAULT 0,\n  salary_egp numeric DEFAULT 0, active boolean DEFAULT true,\n  join_date date, termination_date date, notes text, created_at timestamptz DEFAULT now()\n);\nALTER TABLE staff ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "auth_all" ON staff FOR ALL USING (auth.role()='authenticated');`},
+                      {label:"Expenses table (Finance › Expenses)",sql:`CREATE TABLE IF NOT EXISTS expenses (\n  id bigserial PRIMARY KEY, category text NOT NULL, description text NOT NULL,\n  amount_usd numeric DEFAULT 0, amount_egp numeric DEFAULT 0,\n  month int NOT NULL, year int NOT NULL, notes text, created_at timestamptz DEFAULT now()\n);\nALTER TABLE expenses ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "auth_all" ON expenses FOR ALL USING (auth.role()='authenticated');`},
+                    ].map((m,i)=>(
+                      <div key={i} style={{marginBottom:12,background:"#060e1c",borderRadius:6,padding:"10px 12px",border:"1px solid #192d47"}}>
+                        <div style={{fontSize:10,fontWeight:700,color:"#f59e0b",marginBottom:6}}>{i+1}. {m.label}</div>
+                        <pre style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8",whiteSpace:"pre-wrap",wordBreak:"break-all",margin:0,lineHeight:1.6}}>{m.sql}</pre>
+                        <button className="bg" style={{fontSize:10,marginTop:8}} onClick={()=>{navigator.clipboard.writeText(m.sql);showToast("SQL copied ✓");}}>📋 Copy SQL</button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -4590,7 +4634,10 @@ export default function App(){
           <div className="modal" onClick={e=>e.stopPropagation()}>
             <h3 style={{fontSize:15,fontWeight:700,marginBottom:18}}>Edit Project — {editProjModal.id}</h3>
             <div style={{display:"grid",gap:11}}>
-              <div><Lbl>Project Name</Lbl><input value={editProjModal.name} onChange={e=>setEditProjModal(p=>({...p,name:e.target.value}))}/></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
+                <div><Lbl>Project No. <span style={{color:"#f87171",fontSize:9}}>(rename re-links all entries)</span></Lbl><input value={editProjModal.id||""} onChange={e=>setEditProjModal(p=>({...p,id:e.target.value.toUpperCase(),_origId:p._origId||p.id}))}/></div>
+                <div><Lbl>Project Name</Lbl><input value={editProjModal.name} onChange={e=>setEditProjModal(p=>({...p,name:e.target.value}))}/></div>
+              </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Status</Lbl><select value={editProjModal.status} onChange={e=>setEditProjModal(p=>({...p,status:e.target.value}))}>{["Active","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}</select></div>
                 <div><Lbl>Phase</Lbl><select value={editProjModal.phase} onChange={e=>setEditProjModal(p=>({...p,phase:e.target.value}))}>{PHASES.map(ph=><option key={ph}>{ph}</option>)}</select></div>
