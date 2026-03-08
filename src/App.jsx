@@ -2154,6 +2154,105 @@ function SubProjectModal({projectId, sub, engineers, onSave, onClose}){
   </div>);
 }
 
+/* ════════════════════════════════════════════════════════
+   PROJECTS TAB — standalone component (prevents hang)
+   ════════════════════════════════════════════════════════ */
+function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, setExpandedProj,
+  setShowProjModal, setEditProjModal, setSubProjModal, deleteProject, deleteSubProject}){
+
+  const projHrsMap = useMemo(()=>{
+    const m={};
+    for(const e of entries){ if(e.entry_type==="work"&&e.project_id) m[e.project_id]=(m[e.project_id]||0)+e.hours; }
+    return m;
+  },[entries]);
+
+  return(
+  <div style={{display:"grid",gap:12}}>
+    <div className="card" style={{padding:"12px 16px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Projects ({projects.length})</h3>
+        <button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th style={{width:28}}></th>
+          <th>ID</th><th>Name</th><th>Client</th><th>Phase</th>
+          <th>Status</th><th>Billing</th><th>Hours</th>
+          <th>Sub-sites</th>
+          <th style={{width:110}}>Actions</th>
+        </tr></thead>
+        <tbody>{projects.map(p=>{
+          const pSubs = subprojects.filter(s=>s.project_id===p.id);
+          const isExp = expandedProj[p.id];
+          const hrs   = projHrsMap[p.id]||0;
+          return(<React.Fragment key={p.id}>
+            <tr>
+              <td style={{textAlign:"center"}}>
+                {pSubs.length>0&&(
+                  <button onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}
+                    style={{background:"none",border:"none",color:"#a78bfa",cursor:"pointer",fontSize:11,padding:0,
+                      transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>▶</button>
+                )}
+              </td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
+              <td style={{fontSize:11,fontWeight:500}}>{p.name}</td>
+              <td style={{color:"#7a8faa",fontSize:11}}>{p.client}</td>
+              <td style={{color:"#60a5fa",fontSize:11}}>{p.phase}</td>
+              <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,
+                background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"#1e3a5f",
+                color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span></td>
+              <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,
+                background:p.billable?"#0c2b4e":"#1a0a00",color:p.billable?"#38bdf8":"#fb923c"}}>
+                {p.billable?"Billable":"Non-Bill"}</span></td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{hrs}h</td>
+              <td>
+                {pSubs.length>0
+                  ? <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",
+                      fontWeight:700,cursor:"pointer"}}
+                      onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}>
+                      {pSubs.length} sub-site{pSubs.length>1?"s":""}
+                    </span>
+                  : <span style={{fontSize:9,color:"#1a2d3f"}}>—</span>
+                }
+              </td>
+              <td><div style={{display:"flex",gap:4}}>
+                <button className="be" title="Edit project" onClick={()=>setEditProjModal({...p})}>✎</button>
+                <button style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"#1a0a30",
+                  border:"1px solid #a78bfa30",color:"#a78bfa",cursor:"pointer"}}
+                  title="Add sub-site" onClick={()=>setSubProjModal({projectId:p.id,sub:null})}>+⊕</button>
+                <button className="bd" title="Delete project" onClick={()=>deleteProject(p.id)}>✕</button>
+              </div></td>
+            </tr>
+            {/* Sub-project rows */}
+            {isExp&&pSubs.map(sp=>(
+              <tr key={sp.id} style={{background:"#06111f"}}>
+                <td></td>
+                <td colSpan={2} style={{paddingLeft:24}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{color:"#2e4a66",fontSize:10}}>└</span>
+                    <span style={{fontSize:11,color:"#a78bfa",fontWeight:600}}>{sp.name}</span>
+                  </div>
+                </td>
+                <td style={{fontSize:10,color:"#7a8faa"}}>{sp.pm_name||"—"}</td>
+                <td colSpan={2} style={{fontSize:10,color:"#38bdf8"}}>
+                  {(sp.assigned_engineers||[]).map(eid=>engineers.find(e=>String(e.id)===String(eid))?.name).filter(Boolean).join(", ")||"—"}
+                </td>
+                <td colSpan={2} style={{fontSize:10,color:"#4e6479",fontStyle:"italic",
+                  maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sp.pendings||""}</td>
+                <td></td>
+                <td><div style={{display:"flex",gap:4}}>
+                  <button className="be" style={{fontSize:10}} onClick={()=>setSubProjModal({projectId:p.id,sub:sp})}>✎</button>
+                  <button className="bd" style={{fontSize:10}} onClick={()=>deleteSubProject(sp.id)}>✕</button>
+                </div></td>
+              </tr>
+            ))}
+          </React.Fragment>);
+        })}</tbody>
+      </table>
+    </div>
+  </div>);
+}
+
 export default function App(){
   const [session,setSession]         = useState(null);
   const [authLoading,setAuthLoading] = useState(true);
@@ -4143,84 +4242,21 @@ export default function App(){
               )}
 
               {/* PROJECTS */}
-              {adminTab==="projects"&&isAdmin&&(()=>{
-                // Pre-build hours map to avoid per-row filter
-                const projHrsMap={};
-                for(const e of entries){ if(e.entry_type==="work"&&e.project_id) projHrsMap[e.project_id]=(projHrsMap[e.project_id]||0)+e.hours; }
-                return(
-                <div style={{display:"grid",gap:12}}>
-                  <div className="card" style={{padding:"12px 16px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                      <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Projects ({projects.length})</h3>
-                      <button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>
-                    </div>
-                    <table>
-                      <thead><tr>
-                        <th style={{width:28}}></th>
-                        <th>ID</th><th>Name</th><th>Client</th><th>Phase</th>
-                        <th>Status</th><th>Billing</th><th>Hours</th>
-                        <th>Sub-sites</th>
-                        <th style={{width:110}}>Actions</th>
-                      </tr></thead>
-                      <tbody>{projects.map(p=>{
-                        const pSubs=subprojects.filter(s=>s.project_id===p.id);
-                        const isExp=expandedProj[p.id];
-                        const hrs=projHrsMap[p.id]||0;
-                        return(<React.Fragment key={p.id}>
-                          <tr>
-                            <td style={{textAlign:"center"}}>
-                              {pSubs.length>0&&(
-                                <button onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}
-                                  style={{background:"none",border:"none",color:"#a78bfa",cursor:"pointer",fontSize:11,padding:0,transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>▶</button>
-                              )}
-                            </td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
-                            <td style={{fontSize:11,fontWeight:500}}>{p.name}</td>
-                            <td style={{color:"#7a8faa",fontSize:11}}>{p.client}</td>
-                            <td style={{color:"#60a5fa",fontSize:11}}>{p.phase}</td>
-                            <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"#1e3a5f",color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span></td>
-                            <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,background:p.billable?"#0c2b4e":"#1a0a00",color:p.billable?"#38bdf8":"#fb923c"}}>{p.billable?"Billable":"Non-Bill"}</span></td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{hrs}h</td>
-                            <td>
-                              {pSubs.length>0
-                                ? <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",fontWeight:700,cursor:"pointer"}} onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}>{pSubs.length} sub-site{pSubs.length>1?"s":""}</span>
-                                : <span style={{fontSize:9,color:"#1a2d3f"}}>—</span>
-                              }
-                            </td>
-                            <td><div style={{display:"flex",gap:4}}>
-                              <button className="be" title="Edit project" onClick={()=>setEditProjModal({...p})}>✎</button>
-                              <button style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"#1a0a30",border:"1px solid #a78bfa30",color:"#a78bfa",cursor:"pointer"}} title="Add sub-site" onClick={()=>setSubProjModal({projectId:p.id,sub:null})}>+⊕</button>
-                              <button className="bd" title="Delete project" onClick={()=>deleteProject(p.id)}>✕</button>
-                            </div></td>
-                          </tr>
-                          {/* Sub-project rows */}
-                          {isExp&&pSubs.map(sp=>(
-                            <tr key={sp.id} style={{background:"#06111f"}}>
-                              <td></td>
-                              <td colSpan={2} style={{paddingLeft:24}}>
-                                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                                  <span style={{color:"#2e4a66",fontSize:10}}>└</span>
-                                  <span style={{fontSize:11,color:"#a78bfa",fontWeight:600}}>{sp.name}</span>
-                                </div>
-                              </td>
-                              <td style={{fontSize:10,color:"#7a8faa"}}>{sp.pm_name||"—"}</td>
-                              <td colSpan={2} style={{fontSize:10,color:"#38bdf8"}}>
-                                {(sp.assigned_engineers||[]).map(eid=>engineers.find(e=>String(e.id)===String(eid))?.name).filter(Boolean).join(", ")||"—"}
-                              </td>
-                              <td colSpan={2} style={{fontSize:10,color:"#4e6479",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sp.pendings||""}</td>
-                              <td></td>
-                              <td><div style={{display:"flex",gap:4}}>
-                                <button className="be" style={{fontSize:10}} onClick={()=>setSubProjModal({projectId:p.id,sub:sp})}>✎</button>
-                                <button className="bd" style={{fontSize:10}} onClick={()=>deleteSubProject(sp.id)}>✕</button>
-                              </div></td>
-                            </tr>
-                          ))}
-                        </React.Fragment>);
-                      })}</tbody>
-                    </table>
-                  </div>
-                </div>);
-              })()}
+              {adminTab==="projects"&&isAdmin&&(
+                <ProjectsTab
+                  projects={projects}
+                  subprojects={subprojects}
+                  entries={entries}
+                  engineers={engineers}
+                  expandedProj={expandedProj}
+                  setExpandedProj={setExpandedProj}
+                  setShowProjModal={setShowProjModal}
+                  setEditProjModal={setEditProjModal}
+                  setSubProjModal={setSubProjModal}
+                  deleteProject={deleteProject}
+                  deleteSubProject={deleteSubProject}
+                />
+              )}
 
               {/* ALL ENTRIES */}
               {adminTab==="entries"&&(
