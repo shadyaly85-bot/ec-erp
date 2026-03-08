@@ -1471,6 +1471,328 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
   );
 }
 
+
+/* ════════════════════════════════════════════════════════
+   PROJECT TRACKER — standalone component (no IIFE, no re-render loops)
+   ════════════════════════════════════════════════════════ */
+const STATUS_COLOR={"Completed":"#34d399","In Progress":"#38bdf8","Not Started":"#4e6479","On Hold":"#fb923c"};
+const STATUS_BG={"Completed":"#002414","In Progress":"#001a2c","Not Started":"#0a0f18","On Hold":"#1c0f00"};
+
+function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isEditing, editActivity, setEditActivity, onSave}){
+  const pct=Math.round(a.progress*100);
+  const sc=STATUS_COLOR[a.status]||"#4e6479";
+  if(isEditing){
+    return(
+    <tr style={{background:"#0c2040"}}>
+      <td colSpan={isAdmin?6:5}>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 140px 100px 1fr 1fr",gap:8,padding:"4px 0",alignItems:"center"}}>
+          <input value={editActivity.activity_name||""} onChange={e=>setEditActivity(p=>({...p,activity_name:e.target.value}))}
+            style={{background:"#060e1c",border:"1px solid #38bdf8",borderRadius:4,color:"#f0f6ff",padding:"4px 8px",fontSize:11}}/>
+          <select value={editActivity.status||"Not Started"} onChange={e=>setEditActivity(p=>({...p,status:e.target.value}))}
+            style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px",fontSize:11}}>
+            {["Not Started","In Progress","Completed","On Hold"].map(s=><option key={s}>{s}</option>)}
+          </select>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <input type="number" min="0" max="100" step="5"
+              value={Math.round((editActivity.progress||0)*100)}
+              onChange={e=>setEditActivity(p=>({...p,progress:+e.target.value/100}))}
+              style={{width:55,background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#38bdf8",padding:"4px",fontSize:11,fontFamily:"'IBM Plex Mono',monospace"}}/>
+            <span style={{fontSize:10,color:"#2e4a66"}}>%</span>
+          </div>
+          <input value={editActivity.assigned_to||""} onChange={e=>setEditActivity(p=>({...p,assigned_to:e.target.value}))}
+            placeholder="Assigned to…"
+            style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px 8px",fontSize:11}}/>
+          <div style={{display:"flex",gap:5}}>
+            <button className="bp" style={{fontSize:10,padding:"3px 8px"}} onClick={()=>onSave(editActivity)}>Save</button>
+            <button className="bg" style={{fontSize:10,padding:"3px 8px"}} onClick={()=>setEditActivity(null)}>✕</button>
+          </div>
+        </div>
+        <div style={{paddingTop:4}}>
+          <input value={editActivity.remarks||""} onChange={e=>setEditActivity(p=>({...p,remarks:e.target.value}))}
+            placeholder="Remarks / blockers…"
+            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#7a8faa",padding:"4px 8px",fontSize:10,boxSizing:"border-box"}}/>
+        </div>
+      </td>
+    </tr>);
+  }
+  return(
+  <tr style={{cursor:"pointer"}} onClick={()=>onEdit(a)}>
+    <td style={{maxWidth:260}}>
+      <div style={{fontWeight:600,fontSize:11}}>{a.activity_name}</div>
+      {a.remarks&&<div style={{fontSize:9,color:"#f87171",fontStyle:"italic",marginTop:1}}>{a.remarks}</div>}
+    </td>
+    <td><span style={{fontSize:9,padding:"2px 7px",borderRadius:3,background:STATUS_BG[a.status]||"#0a0f18",color:sc,fontWeight:700,whiteSpace:"nowrap"}}>{a.status}</span></td>
+    <td>
+      <div style={{display:"flex",alignItems:"center",gap:7}}>
+        <div style={{width:60,height:6,background:"#0b1526",borderRadius:3,overflow:"hidden",flexShrink:0}}>
+          <div style={{height:"100%",width:`${pct}%`,background:sc,borderRadius:3}}/>
+        </div>
+        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,fontWeight:700,color:sc}}>{pct}%</span>
+      </div>
+    </td>
+    <td style={{fontSize:10,color:"#7a8faa"}}>{a.assigned_to||"—"}</td>
+    <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:actHrs>0?"#38bdf8":"#1a2d3f"}}>{actHrs>0?actHrs+"h":"—"}</td>
+    {isAdmin&&<td onClick={e=>e.stopPropagation()}><button className="bd" style={{fontSize:10,padding:"1px 5px"}} onClick={()=>onDelete(a.id)}>✕</button></td>}
+  </tr>);
+}
+
+function ProjectTracker({projects, activities, subprojects, entries, isAdmin, activitiesLoaded, setActivities, showToast}){
+  const [trackerProj, setTrackerProj]   = useState(null);
+  const [trackerSub,  setTrackerSub]    = useState(null);
+  const [editActivity, setEditActivity] = useState(null);
+
+  // ── Memoised lookups — only recompute when source data changes ──
+  const activityHrsMap = useMemo(()=>{
+    const m={};
+    for(const e of entries){
+      if(e.entry_type!=="work"||!e.activity_id) continue;
+      const k=String(e.activity_id);
+      m[k]=(m[k]||0)+e.hours;
+    }
+    return m;
+  },[entries]);
+
+  const projectHrsMap = useMemo(()=>{
+    const m={};
+    for(const e of entries){
+      if(e.entry_type!=="work"||!e.project_id) continue;
+      m[e.project_id]=(m[e.project_id]||0)+e.hours;
+    }
+    return m;
+  },[entries]);
+
+  const actsByProj = useMemo(()=>{
+    const m={};
+    for(const a of activities){
+      if(!m[a.project_id]) m[a.project_id]=[];
+      m[a.project_id].push(a);
+    }
+    return m;
+  },[activities]);
+
+  const getHrs   = (actId)=>activityHrsMap[String(actId)]||0;
+  const getProjHrs = (pid)=>projectHrsMap[pid]||0;
+
+  // ── Callbacks (stable refs) ──
+  const saveActivity = useCallback(async(act)=>{
+    const {id,...fields}=act;
+    const {data,error}=await supabase.from("project_activities")
+      .update({...fields,updated_at:new Date().toISOString()})
+      .eq("id",id).select().single();
+    if(error){showToast("Error: "+error.message,false);return;}
+    setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
+    setEditActivity(null);
+    showToast("Activity updated ✓");
+  },[setActivities,showToast]);
+
+  const addActivityRow = useCallback(async(projId,subId,groupName)=>{
+    const {data,error}=await supabase.from("project_activities").insert({
+      project_id:projId, subproject_id:subId||null,
+      group_name:groupName||null, activity_name:"New Activity",
+      status:"Not Started", progress:0,
+      sort_order:(actsByProj[projId]||[]).length
+    }).select().single();
+    if(error){showToast("Error: "+error.message,false);return;}
+    setActivities(prev=>[...prev,data]);
+    setEditActivity({...data});
+  },[actsByProj,setActivities,showToast]);
+
+  const deleteActivity = useCallback(async(id)=>{
+    if(!window.confirm("Delete this activity?")) return;
+    await supabase.from("project_activities").delete().eq("id",id);
+    setActivities(prev=>prev.filter(a=>a.id!==id));
+  },[setActivities]);
+
+  const handleEdit = useCallback((a)=>{
+    setEditActivity(prev=>prev?.id===a.id?null:{...a});
+  },[]);
+
+  // ── Loading state ──
+  if(!activitiesLoaded) return(
+    <div style={{padding:32,textAlign:"center",color:"#2e4a66",fontSize:13}}>Loading project tracker…</div>
+  );
+
+  // ── OVERVIEW ──
+  if(!trackerProj){
+    const allTrackerProjects=isAdmin
+      ? projects.filter(p=>p.status!=="Completed")
+      : projects.filter(p=>(actsByProj[p.id]||[]).length>0);
+    return(
+    <div style={{display:"grid",gap:14}}>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <span style={{fontSize:13,fontWeight:700,color:"#f0f6ff"}}>Project Tracker</span>
+        <span style={{fontSize:11,color:"#2e4a66"}}>{activities.length} activities across {Object.keys(actsByProj).length} projects</span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+        {allTrackerProjects.map(p=>{
+          const projActs=actsByProj[p.id]||[];
+          const hasSubs=subprojects.some(s=>s.project_id===p.id);
+          const totalHrs=getProjHrs(p.id);
+          const overallPct=projActs.length>0?Math.round(projActs.reduce((s,a)=>s+a.progress,0)/projActs.length*100):0;
+          const barColor=overallPct>=90?"#34d399":overallPct>=60?"#38bdf8":overallPct>=30?"#fb923c":"#f87171";
+          const done=projActs.filter(a=>a.status==="Completed").length;
+          const active=projActs.filter(a=>a.status==="In Progress").length;
+          const pending=projActs.filter(a=>a.status==="Not Started").length;
+          return(
+          <div key={p.id} onClick={()=>setTrackerProj(p.id)}
+            style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:10,padding:"14px 16px",cursor:"pointer"}}
+            onMouseEnter={e=>e.currentTarget.style.borderColor="#38bdf8"}
+            onMouseLeave={e=>e.currentTarget.style.borderColor="#192d47"}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:"#f0f6ff"}}>{p.name||p.id}</div>
+                <div style={{fontSize:10,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>{p.id}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:barColor}}>{overallPct}%</div>
+                <div style={{fontSize:9,color:"#2e4a66"}}>{totalHrs}h logged</div>
+              </div>
+            </div>
+            <div style={{background:"#0b1526",borderRadius:4,height:6,overflow:"hidden",marginBottom:8}}>
+              <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4}}/>
+            </div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {done>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#002414",color:"#34d399",fontWeight:700}}>{done} Done</span>}
+              {active>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#001a2c",color:"#38bdf8",fontWeight:700}}>{active} Active</span>}
+              {pending>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0a0f18",color:"#4e6479",fontWeight:700}}>{pending} Pending</span>}
+              {hasSubs&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",fontWeight:700}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-projects</span>}
+              {projActs.length===0&&<span style={{fontSize:9,color:"#2e4a66",fontStyle:"italic"}}>No activities yet</span>}
+            </div>
+          </div>);
+        })}
+      </div>
+    </div>);
+  }
+
+  // ── PROJECT DETAIL ──
+  const selProj=projects.find(p=>p.id===trackerProj);
+  if(!selProj) return null;
+  const projSubs=subprojects.filter(s=>s.project_id===trackerProj);
+  const hasSubs=projSubs.length>0;
+  const projActs=actsByProj[trackerProj]||[];
+  const visActs=trackerSub
+    ? projActs.filter(a=>String(a.subproject_id)===String(trackerSub))
+    : projActs;
+  const overallPct=projActs.length>0?Math.round(projActs.reduce((s,a)=>s+a.progress,0)/projActs.length*100):0;
+  const barColor=overallPct>=90?"#34d399":overallPct>=60?"#38bdf8":overallPct>=30?"#fb923c":"#f87171";
+  const totalHrs=getProjHrs(trackerProj);
+  const groups=[...new Set(visActs.map(a=>a.group_name).filter(Boolean))];
+  const ungrouped=visActs.filter(a=>!a.group_name);
+
+  return(
+  <div style={{display:"grid",gap:14}}>
+    {/* Breadcrumb */}
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      <button className="bg" style={{fontSize:11}} onClick={()=>{setTrackerProj(null);setTrackerSub(null);setEditActivity(null);}}>← All Projects</button>
+      <span style={{color:"#2e4a66"}}>/</span>
+      <span style={{fontSize:13,fontWeight:700,color:"#f0f6ff"}}>{selProj.name||trackerProj}</span>
+      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{trackerProj}</span>
+      {hasSubs&&trackerSub&&(
+        <><span style={{color:"#2e4a66"}}>/</span>
+        <span style={{fontSize:12,color:"#a78bfa"}}>{projSubs.find(s=>String(s.id)===String(trackerSub))?.name}</span>
+        <button className="bg" style={{fontSize:10}} onClick={()=>setTrackerSub(null)}>Show All</button></>
+      )}
+      <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:barColor}}>{overallPct}%</div>
+        <div style={{fontSize:10,color:"#2e4a66"}}>{totalHrs}h logged</div>
+        {isAdmin&&<button className="bp" style={{fontSize:10}} onClick={()=>addActivityRow(trackerProj,trackerSub||null,null)}>+ Add Activity</button>}
+      </div>
+    </div>
+
+    {/* Progress bar */}
+    <div style={{background:"#060e1c",borderRadius:4,height:8,overflow:"hidden"}}>
+      <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4,transition:"width .5s"}}/>
+    </div>
+
+    {/* Sub-project tabs */}
+    {hasSubs&&(
+    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+      <button onClick={()=>setTrackerSub(null)}
+        style={{fontSize:10,padding:"4px 12px",borderRadius:5,border:`1px solid ${!trackerSub?"#38bdf8":"#192d47"}`,background:!trackerSub?"#001a2c":"transparent",color:!trackerSub?"#38bdf8":"#4e6479",cursor:"pointer"}}>
+        All Sites
+      </button>
+      {projSubs.map(sp=>{
+        const spActs=projActs.filter(a=>String(a.subproject_id)===String(sp.id));
+        const spPct=spActs.length>0?Math.round(spActs.reduce((s,a)=>s+a.progress,0)/spActs.length*100):0;
+        const isSel=String(trackerSub)===String(sp.id);
+        const sc=spPct>=90?"#34d399":spPct>=60?"#38bdf8":spPct>=30?"#fb923c":"#f87171";
+        return(
+        <button key={sp.id} onClick={()=>{setTrackerSub(sp.id);setEditActivity(null);}}
+          style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:`1px solid ${isSel?sc:"#192d47"}`,background:isSel?sc+"20":"transparent",color:isSel?sc:"#4e6479",cursor:"pointer"}}>
+          {sp.name} <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{spPct}%</span>
+        </button>);
+      })}
+    </div>)}
+
+    {/* Activities table */}
+    <div className="card" style={{padding:0}}>
+      <table>
+        <thead><tr>
+          <th>Activity</th><th>Status</th><th>Progress</th>
+          <th>Assigned</th><th>Hours Logged</th>
+          {isAdmin&&<th style={{width:40}}></th>}
+        </tr></thead>
+        <tbody>
+          {groups.map(g=>{
+            const gActs=visActs.filter(a=>a.group_name===g);
+            const gPct=Math.round(gActs.reduce((s,a)=>s+a.progress,0)/gActs.length*100);
+            return(
+            <React.Fragment key={g}>
+              <tr style={{background:"#0a1628"}}>
+                <td colSpan={isAdmin?6:5} style={{padding:"8px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <span style={{fontSize:10,fontWeight:700,color:"#a78bfa",textTransform:"uppercase",letterSpacing:".06em"}}>{g}</span>
+                    <div style={{flex:1,height:1,background:"#192d47"}}/>
+                    <span style={{fontSize:9,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>
+                      {gPct}% avg · {gActs.filter(a=>a.status==="Completed").length}/{gActs.length} done
+                    </span>
+                    {isAdmin&&<button className="bp" style={{fontSize:9,padding:"1px 6px"}} onClick={()=>addActivityRow(trackerProj,trackerSub||null,g)}>+</button>}
+                  </div>
+                </td>
+              </tr>
+              {gActs.map(a=>(
+                <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)} isAdmin={isAdmin}
+                  onEdit={handleEdit} onDelete={deleteActivity}
+                  isEditing={editActivity?.id===a.id}
+                  editActivity={editActivity} setEditActivity={setEditActivity}
+                  onSave={saveActivity}/>
+              ))}
+            </React.Fragment>);
+          })}
+          {ungrouped.map(a=>(
+            <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)} isAdmin={isAdmin}
+              onEdit={handleEdit} onDelete={deleteActivity}
+              isEditing={editActivity?.id===a.id}
+              editActivity={editActivity} setEditActivity={setEditActivity}
+              onSave={saveActivity}/>
+          ))}
+          {visActs.length===0&&(
+            <tr><td colSpan={isAdmin?6:5} style={{textAlign:"center",padding:"24px",color:"#2e4a66",fontStyle:"italic"}}>
+              No activities yet.{isAdmin&&" Click + Add Activity to start."}
+            </td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+
+    {/* Summary strip */}
+    <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+      {[
+        {label:"Completed",  count:visActs.filter(a=>a.status==="Completed").length,  color:"#34d399",bg:"#002414"},
+        {label:"In Progress",count:visActs.filter(a=>a.status==="In Progress").length, color:"#38bdf8",bg:"#001a2c"},
+        {label:"Not Started",count:visActs.filter(a=>a.status==="Not Started").length, color:"#4e6479",bg:"#0a0f18"},
+        {label:"On Hold",    count:visActs.filter(a=>a.status==="On Hold").length,     color:"#fb923c",bg:"#1c0f00"},
+      ].filter(s=>s.count>0).map(s=>(
+        <div key={s.label} style={{display:"flex",gap:6,alignItems:"center",background:s.bg,border:`1px solid ${s.color}25`,borderRadius:6,padding:"5px 10px"}}>
+          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:s.color}}>{s.count}</span>
+          <span style={{fontSize:10,color:"#4e6479"}}>{s.label}</span>
+        </div>
+      ))}
+      <div style={{marginLeft:"auto",fontSize:10,color:"#2e4a66",alignSelf:"center"}}>Click any row to edit</div>
+    </div>
+  </div>);
+}
+
 export default function App(){
   const [session,setSession]         = useState(null);
   const [authLoading,setAuthLoading] = useState(true);
@@ -1526,11 +1848,7 @@ export default function App(){
   const [kpiNotes,setKpiNotes]             = useState({}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
   const [activities,setActivities]         = useState([]);
   const [subprojects,setSubprojects]       = useState([]);
-  const [trackerProj,setTrackerProj]       = useState(null);      // selected project id
-  const [trackerSub,setTrackerSub]         = useState(null);      // selected subproject id (null = all/overview)
   const [activitiesLoaded,setActivitiesLoaded] = useState(false);
-  const [editActivity,setEditActivity]     = useState(null);      // activity being edited
-  const [trackerView,setTrackerView]       = useState("overview"); // overview | detail
 
   const [showFuncModal,setShowFuncModal]   = useState(false);
   const [newFunc,setNewFunc]               = useState({engineer_id:"",date:new Date().toISOString().slice(0,10),function_category:FUNCTION_CATS[0],hours:2,activity:""});
@@ -4327,330 +4645,18 @@ export default function App(){
 
 
               {/* ══ PROJECT TRACKER ══ */}
-              {adminTab==="tracker"&&(isAdmin||isLead)&&(()=>{
-                // Lazy load on first visit
-                // loadTrackerData is triggered by useEffect on tab switch — not inline
-
-                const STATUS_COLOR={
-                  "Completed":"#34d399","In Progress":"#38bdf8",
-                  "Not Started":"#4e6479","On Hold":"#fb923c"
-                };
-                const STATUS_BG={
-                  "Completed":"#002414","In Progress":"#001a2c",
-                  "Not Started":"#0a0f18","On Hold":"#1c0f00"
-                };
-
-                // Pre-build activities-by-project map for O(1) card rendering
-                const actsByProj={};
-                for(const a of activities){
-                  if(!actsByProj[a.project_id]) actsByProj[a.project_id]=[];
-                  actsByProj[a.project_id].push(a);
-                }
-                const trackerProjIds=Object.keys(actsByProj);
-                const trackerProjects=projects.filter(p=>trackerProjIds.includes(p.id));
-                const allTrackerProjects=isAdmin
-                  ? projects.filter(p=>p.status!=="Completed")
-                  : trackerProjects;
-
-                // Pre-build hour maps once — O(n) single pass instead of O(n×activities)
-                const activityHrsMap={};
-                const projectHrsMap={};
-                for(const e of entries){
-                  if(e.entry_type!=="work") continue;
-                  if(e.activity_id){
-                    const k=String(e.activity_id);
-                    activityHrsMap[k]=(activityHrsMap[k]||0)+e.hours;
-                  }
-                  if(e.project_id){
-                    projectHrsMap[e.project_id]=(projectHrsMap[e.project_id]||0)+e.hours;
-                  }
-                }
-                const getHoursForActivity=(actId)=>activityHrsMap[String(actId)]||0;
-                const getHoursForProject=(projId)=>projectHrsMap[projId]||0;
-
-                const saveActivity=async(act)=>{
-                  const {id,...fields}=act;
-                  const {data,error}=await supabase.from("project_activities")
-                    .update({...fields,updated_at:new Date().toISOString()})
-                    .eq("id",id).select().single();
-                  if(error){showToast("Error: "+error.message,false);return;}
-                  setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
-                  setEditActivity(null); showToast("Activity updated ✓");
-                };
-
-                const addActivityRow=async(projId,subId,groupName)=>{
-                  const {data,error}=await supabase.from("project_activities").insert({
-                    project_id:projId, subproject_id:subId||null,
-                    group_name:groupName||null, activity_name:"New Activity",
-                    status:"Not Started", progress:0,
-                    sort_order: activities.filter(a=>a.project_id===projId).length
-                  }).select().single();
-                  if(error){showToast("Error: "+error.message,false);return;}
-                  setActivities(prev=>[...prev,data]);
-                  setEditActivity(data);
-                };
-
-                const deleteActivity=async(id)=>{
-                  if(!window.confirm("Delete this activity?")) return;
-                  await supabase.from("project_activities").delete().eq("id",id);
-                  setActivities(prev=>prev.filter(a=>a.id!==id));
-                  showToast("Deleted",false);
-                };
-
-                // ── OVERVIEW ──
-                if(!trackerProj){
-                  return(
-                  <div style={{display:"grid",gap:14}}>
-                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                      <span style={{fontSize:13,fontWeight:700,color:"#f0f6ff"}}>Project Tracker</span>
-                      <span style={{fontSize:11,color:"#2e4a66"}}>{activitiesLoaded?`${activities.length} activities across ${trackerProjIds.length} projects`:"Loading…"}</span>
-                    </div>
-
-                    {/* Portfolio overview cards */}
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
-                      {allTrackerProjects.map(p=>{
-                        const projActs=actsByProj[p.id]||[];
-                        const hasSubprojects=subprojects.some(s=>s.project_id===p.id);
-                        const totalHrs=getHoursForProject(p.id);
-                        
-                        // Compute overall progress
-                        let overallPct=0;
-                        if(projActs.length>0){
-                          overallPct=projActs.reduce((s,a)=>s+a.progress,0)/projActs.length;
-                        }
-                        const pctRound=Math.round(overallPct*100);
-                        
-                        // Status breakdown
-                        const completed=projActs.filter(a=>a.status==="Completed").length;
-                        const inProgress=projActs.filter(a=>a.status==="In Progress").length;
-                        const notStarted=projActs.filter(a=>a.status==="Not Started").length;
-                        
-                        const barColor=pctRound>=90?"#34d399":pctRound>=60?"#38bdf8":pctRound>=30?"#fb923c":"#f87171";
-
-                        return(
-                        <div key={p.id} onClick={()=>setTrackerProj(p.id)}
-                          style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:10,padding:"14px 16px",cursor:"pointer",transition:"border-color .2s"}}
-                          onMouseEnter={e=>e.currentTarget.style.borderColor="#38bdf8"}
-                          onMouseLeave={e=>e.currentTarget.style.borderColor="#192d47"}>
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                            <div>
-                              <div style={{fontSize:12,fontWeight:700,color:"#f0f6ff"}}>{p.name||p.id}</div>
-                              <div style={{fontSize:10,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>{p.id}</div>
-                            </div>
-                            <div style={{textAlign:"right"}}>
-                              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:barColor}}>{pctRound}%</div>
-                              <div style={{fontSize:9,color:"#2e4a66"}}>{totalHrs}h logged</div>
-                            </div>
-                          </div>
-                          {/* Progress bar */}
-                          <div style={{background:"#0b1526",borderRadius:4,height:6,overflow:"hidden",marginBottom:8}}>
-                            <div style={{height:"100%",width:`${pctRound}%`,background:barColor,borderRadius:4,transition:"width .4s"}}/>
-                          </div>
-                          {/* Activity stats */}
-                          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                            {completed>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#002414",color:"#34d399",fontWeight:700}}>{completed} Done</span>}
-                            {inProgress>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#001a2c",color:"#38bdf8",fontWeight:700}}>{inProgress} Active</span>}
-                            {notStarted>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0a0f18",color:"#4e6479",fontWeight:700}}>{notStarted} Pending</span>}
-                            {hasSubprojects&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",fontWeight:700}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-projects</span>}
-                            {projActs.length===0&&<span style={{fontSize:9,color:"#2e4a66",fontStyle:"italic"}}>No activities yet</span>}
-                          </div>
-                          {/* PM info if available */}
-                          {p.client&&<div style={{fontSize:9,color:"#2e4a66",marginTop:6}}>Client: {p.client}</div>}
-                        </div>);
-                      })}
-                    </div>
-                  </div>);
-                }
-
-                // ── PROJECT DETAIL ──
-                const selProj=projects.find(p=>p.id===trackerProj);
-                if(!selProj) return null;
-                const projSubs=subprojects.filter(s=>s.project_id===trackerProj);
-                const hasSubprojects=projSubs.length>0;
-                const projActs=actsByProj[trackerProj]||[];
-                
-                // Filter by sub-project if selected
-                const visActs=trackerSub
-                  ? projActs.filter(a=>String(a.subproject_id)===String(trackerSub))
-                  : projActs;
-
-                // Group activities
-                const groups=[...new Set(visActs.map(a=>a.group_name).filter(Boolean))];
-                const ungrouped=visActs.filter(a=>!a.group_name);
-                
-                const overallPct=projActs.length>0
-                  ? Math.round(projActs.reduce((s,a)=>s+a.progress,0)/projActs.length*100)
-                  : 0;
-                const barColor=overallPct>=90?"#34d399":overallPct>=60?"#38bdf8":overallPct>=30?"#fb923c":"#f87171";
-                const totalHrs=getHoursForProject(trackerProj);
-
-                const renderActivityRow=(a)=>{
-                  const actHrs=getHoursForActivity(a.id);
-                  const isEditing=editActivity&&editActivity.id===a.id;
-                  if(isEditing){
-                    return(
-                    <tr key={a.id} style={{background:"#0c2040"}}>
-                      <td colSpan={6}>
-                        <div style={{display:"grid",gridTemplateColumns:"2fr 140px 100px 1fr 1fr",gap:8,padding:"4px 0",alignItems:"center"}}>
-                          <input value={editActivity.activity_name||""} onChange={e=>setEditActivity(p=>({...p,activity_name:e.target.value}))}
-                            style={{background:"#060e1c",border:"1px solid #38bdf8",borderRadius:4,color:"#f0f6ff",padding:"4px 8px",fontSize:11}}/>
-                          <select value={editActivity.status||"Not Started"} onChange={e=>setEditActivity(p=>({...p,status:e.target.value}))}
-                            style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px",fontSize:11}}>
-                            {["Not Started","In Progress","Completed","On Hold"].map(s=><option key={s}>{s}</option>)}
-                          </select>
-                          <div style={{display:"flex",alignItems:"center",gap:6}}>
-                            <input type="number" min="0" max="100" step="5"
-                              value={Math.round((editActivity.progress||0)*100)}
-                              onChange={e=>setEditActivity(p=>({...p,progress:+e.target.value/100}))}
-                              style={{width:55,background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#38bdf8",padding:"4px",fontSize:11,fontFamily:"'IBM Plex Mono',monospace"}}/>
-                            <span style={{fontSize:10,color:"#2e4a66"}}>%</span>
-                          </div>
-                          <input value={editActivity.assigned_to||""} onChange={e=>setEditActivity(p=>({...p,assigned_to:e.target.value}))}
-                            placeholder="Assigned to…"
-                            style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px 8px",fontSize:11}}/>
-                          <div style={{display:"flex",gap:5}}>
-                            <button className="bp" style={{fontSize:10,padding:"3px 8px"}} onClick={()=>saveActivity(editActivity)}>Save</button>
-                            <button className="bg" style={{fontSize:10,padding:"3px 8px"}} onClick={()=>setEditActivity(null)}>✕</button>
-                          </div>
-                        </div>
-                        <div style={{paddingTop:4}}>
-                          <input value={editActivity.remarks||""} onChange={e=>setEditActivity(p=>({...p,remarks:e.target.value}))}
-                            placeholder="Remarks / blockers…"
-                            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#7a8faa",padding:"4px 8px",fontSize:10,boxSizing:"border-box"}}/>
-                        </div>
-                      </td>
-                    </tr>);
-                  }
-                  const pct=Math.round(a.progress*100);
-                  const sc=STATUS_COLOR[a.status]||"#4e6479";
-                  return(
-                  <tr key={a.id} style={{cursor:"pointer"}} onClick={()=>setEditActivity(editActivity?.id===a.id?null:{...a})}>
-                    <td style={{maxWidth:260}}>
-                      <div style={{fontWeight:600,fontSize:11}}>{a.activity_name}</div>
-                      {a.remarks&&<div style={{fontSize:9,color:"#f87171",fontStyle:"italic",marginTop:1}}>{a.remarks}</div>}
-                    </td>
-                    <td>
-                      <span style={{fontSize:9,padding:"2px 7px",borderRadius:3,background:STATUS_BG[a.status]||"#0a0f18",color:sc,fontWeight:700,whiteSpace:"nowrap"}}>{a.status}</span>
-                    </td>
-                    <td>
-                      <div style={{display:"flex",alignItems:"center",gap:7}}>
-                        <div style={{width:60,height:6,background:"#0b1526",borderRadius:3,overflow:"hidden",flexShrink:0}}>
-                          <div style={{height:"100%",width:`${pct}%`,background:sc,borderRadius:3}}/>
-                        </div>
-                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,fontWeight:700,color:sc}}>{pct}%</span>
-                      </div>
-                    </td>
-                    <td style={{fontSize:10,color:"#7a8faa"}}>{a.assigned_to||"—"}</td>
-                    <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:actHrs>0?"#38bdf8":"#1a2d3f"}}>{actHrs>0?actHrs+"h":"—"}</td>
-                    {isAdmin&&<td onClick={e=>e.stopPropagation()}>
-                      <button className="bd" style={{fontSize:10,padding:"1px 5px"}} onClick={()=>deleteActivity(a.id)}>✕</button>
-                    </td>}
-                  </tr>);
-                };
-
-                const renderGroup=(groupName,acts)=>(
-                  <React.Fragment key={groupName||"_ug"}>
-                    {groupName&&(
-                    <tr style={{background:"#0a1628"}}>
-                      <td colSpan={isAdmin?6:5} style={{padding:"8px 12px"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:10}}>
-                          <span style={{fontSize:10,fontWeight:700,color:"#a78bfa",textTransform:"uppercase",letterSpacing:".06em"}}>{groupName}</span>
-                          <div style={{flex:1,height:1,background:"#192d47"}}/>
-                          <span style={{fontSize:9,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>
-                            {Math.round(acts.reduce((s,a)=>s+a.progress,0)/acts.length*100)}% avg · {acts.filter(a=>a.status==="Completed").length}/{acts.length} done
-                          </span>
-                        </div>
-                      </td>
-                    </tr>)}
-                    {acts.map(renderActivityRow)}
-                  </React.Fragment>
-                );
-
-                return(
-                <div style={{display:"grid",gap:14}}>
-                  {/* Breadcrumb & header */}
-                  <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                    <button className="bg" style={{fontSize:11}} onClick={()=>{setTrackerProj(null);setTrackerSub(null);}}>← All Projects</button>
-                    <span style={{color:"#2e4a66"}}>/</span>
-                    <span style={{fontSize:13,fontWeight:700,color:"#f0f6ff"}}>{selProj.name||trackerProj}</span>
-                    <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{trackerProj}</span>
-                    {hasSubprojects&&trackerSub&&(
-                      <><span style={{color:"#2e4a66"}}>/</span>
-                      <span style={{fontSize:12,color:"#a78bfa"}}>{projSubs.find(s=>s.id===trackerSub)?.name}</span>
-                      <button className="bg" style={{fontSize:10}} onClick={()=>setTrackerSub(null)}>Show All</button></>
-                    )}
-                    <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
-                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:barColor}}>{overallPct}%</div>
-                      <div style={{fontSize:10,color:"#2e4a66"}}>{totalHrs}h logged</div>
-                      {isAdmin&&<button className="bp" style={{fontSize:10}} onClick={()=>addActivityRow(trackerProj,trackerSub||null,null)}>+ Add Activity</button>}
-                    </div>
-                  </div>
-
-                  {/* Overall progress bar */}
-                  <div style={{background:"#060e1c",borderRadius:4,height:8,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4,transition:"width .5s"}}/>
-                  </div>
-
-                  {/* Sub-project tabs (SCADA Olt, Transelectrica) */}
-                  {hasSubprojects&&(
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap",padding:"6px 0"}}>
-                    <button onClick={()=>setTrackerSub(null)}
-                      style={{fontSize:10,padding:"4px 12px",borderRadius:5,border:`1px solid ${!trackerSub?"#38bdf8":"#192d47"}`,background:!trackerSub?"#001a2c":"transparent",color:!trackerSub?"#38bdf8":"#4e6479",cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                      All Sites
-                    </button>
-                    {projSubs.map(sp=>{
-                      const spActs=projActs.filter(a=>String(a.subproject_id)===String(sp.id));
-                      const spPct=spActs.length>0?Math.round(spActs.reduce((s,a)=>s+a.progress,0)/spActs.length*100):0;
-                      const isSel=String(trackerSub)===String(sp.id);
-                      const sc=spPct>=90?"#34d399":spPct>=60?"#38bdf8":spPct>=30?"#fb923c":"#f87171";
-                      return(
-                      <button key={sp.id} onClick={()=>setTrackerSub(sp.id)}
-                        style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:`1px solid ${isSel?sc:"#192d47"}`,background:isSel?sc+"20":"transparent",color:isSel?sc:"#4e6479",cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                        {sp.name} <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{spPct}%</span>
-                      </button>);
-                    })}
-                  </div>)}
-
-                  {/* Activities table */}
-                  <div className="card" style={{padding:0}}>
-                    <table>
-                      <thead><tr>
-                        <th>Activity</th>
-                        <th>Status</th>
-                        <th>Progress</th>
-                        <th>Assigned</th>
-                        <th>Hours Logged</th>
-                        {isAdmin&&<th style={{width:40}}></th>}
-                      </tr></thead>
-                      <tbody>
-                        {groups.map(g=>renderGroup(g,visActs.filter(a=>a.group_name===g)))}
-                        {ungrouped.length>0&&renderGroup(null,ungrouped)}
-                        {visActs.length===0&&(
-                          <tr><td colSpan={isAdmin?6:5} style={{textAlign:"center",padding:"24px",color:"#2e4a66",fontStyle:"italic"}}>
-                            No activities yet. {isAdmin&&"Click + Add Activity to start."}
-                          </td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Summary strip */}
-                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                    {[
-                      {label:"Completed",   count:visActs.filter(a=>a.status==="Completed").length,  color:"#34d399",bg:"#002414"},
-                      {label:"In Progress", count:visActs.filter(a=>a.status==="In Progress").length, color:"#38bdf8",bg:"#001a2c"},
-                      {label:"Not Started", count:visActs.filter(a=>a.status==="Not Started").length, color:"#4e6479",bg:"#0a0f18"},
-                      {label:"On Hold",     count:visActs.filter(a=>a.status==="On Hold").length,     color:"#fb923c",bg:"#1c0f00"},
-                    ].filter(s=>s.count>0).map(s=>(
-                      <div key={s.label} style={{display:"flex",gap:6,alignItems:"center",background:s.bg,border:`1px solid ${s.color}25`,borderRadius:6,padding:"5px 10px"}}>
-                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:s.color}}>{s.count}</span>
-                        <span style={{fontSize:10,color:"#4e6479"}}>{s.label}</span>
-                      </div>
-                    ))}
-                    <div style={{marginLeft:"auto",fontSize:10,color:"#2e4a66",alignSelf:"center"}}>Click any row to edit · Click row again to close</div>
-                  </div>
-                </div>);
-              })()}
+              {adminTab==="tracker"&&(isAdmin||isLead)&&(
+                <ProjectTracker
+                  projects={projects}
+                  activities={activities}
+                  subprojects={subprojects}
+                  entries={entries}
+                  isAdmin={isAdmin}
+                  activitiesLoaded={activitiesLoaded}
+                  setActivities={setActivities}
+                  showToast={showToast}
+                />
+              )}
 
               {/* SETTINGS */}
               {adminTab==="settings"&&isAdmin&&(
