@@ -1656,7 +1656,7 @@ export default function App(){
       task_type:   (isLeave)?null:isFunc?funcCat:newEntry.taskType,
       hours:       isLeave?8:+newEntry.hours,
       activity:    newEntry.activity,
-      entry_type:  newEntry.type,
+      entry_type:  (newEntry.type==="function")?"work":newEntry.type, // function stored as work
       leave_type:  isLeave?newEntry.leaveType:null,
       billable:    !isLeave&&!isFunc&&(projects.find(p=>p.id===newEntry.projectId)?.billable||false),
     };
@@ -1689,7 +1689,7 @@ export default function App(){
       task_type:    editEntry.type==="leave"?null:taskTyp,
       hours:        +editEntry.hours,
       activity:     editEntry.activity||"",
-      entry_type:   editEntry.type,
+      entry_type:   (editEntry.type==="function")?"work":editEntry.type,
       leave_type:   editEntry.type==="leave"?lvType:null,
       billable:     editEntry.type==="leave"?false:(proj?.billable||false),
       date:         editEntry.date,
@@ -1724,7 +1724,7 @@ export default function App(){
       task_type:newFunc.function_category,
       hours:+newFunc.hours,
       activity:newFunc.activity,
-      entry_type:"function",
+      entry_type:"work", // stored as work; identified by task_category="Function"
       leave_type:null,
       billable:false,
     };
@@ -1764,7 +1764,7 @@ export default function App(){
     engs.forEach(eng=>{
       if(eng.role_type==="accountant") return; // skip non-engineers
       // Any work or function entry Mon→Fri this week?
-      const hasWeekHours=allE.some(e=>e.engineer_id===eng.id&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||e.entry_type==="function"));
+      const hasWeekHours=allE.some(e=>e.engineer_id===eng.id&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")));
       if(!hasWeekHours) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
     });
 
@@ -3865,7 +3865,7 @@ export default function App(){
 
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
               {adminTab==="functions"&&(isAdmin||isLead)&&(()=>{
-                const funcEntries=entries.filter(e=>e.entry_type==="function");
+                const funcEntries=entries.filter(e=>(e.entry_type==="function"||e.task_category==="Function"));
                 const yearFuncs=funcEntries.filter(e=>{
                   const d=new Date(e.date+"T12:00:00");
                   return d.getFullYear()===funcYear&&(funcEngId==="all"||e.engineer_id===funcEngId);
@@ -3986,7 +3986,7 @@ export default function App(){
                 const computeKPI=eng=>{
                   const myE=yearEntries.filter(e=>e.engineer_id===eng.id);
                   const workE=myE.filter(e=>e.entry_type==="work");
-                  const funcE=myE.filter(e=>e.entry_type==="function");
+                  const funcE=myE.filter(e=>(e.entry_type==="function"||e.task_category==="Function"));
                   const leaveE=myE.filter(e=>e.entry_type==="leave");
                   const totalWork=workE.reduce((s,e)=>s+e.hours,0);
                   const totalFuncHrs=funcE.reduce((s,e)=>s+e.hours,0);
@@ -4009,7 +4009,7 @@ export default function App(){
                   const mentoring=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Mentor|Coach/i)).reduce((s,e)=>s+e.hours,0);
                   const rnd=funcE.filter(e=>(e.function_category||e.task_type||"").match(/R&D|Innovation/i)).reduce((s,e)=>s+e.hours,0);
                   const devScore=Math.min(100,Math.round(Math.min(100,(trainingReceived/8)*100)*0.30+Math.min(100,(trainingGiven/4)*100)*0.25+Math.min(100,(mentoring/4)*100)*0.25+Math.min(100,(rnd/4)*100)*0.20));
-                  const weeks=new Set(myE.filter(e=>e.entry_type==="work"||e.entry_type==="function").map(e=>{
+                  const weeks=new Set(myE.filter(e=>e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")).map(e=>{
                     const d=new Date(e.date+"T12:00:00");const dow=d.getDay();
                     const mon=new Date(d);mon.setDate(d.getDate()-(dow===0?6:dow-1));
                     return mon.toISOString().slice(0,10);
