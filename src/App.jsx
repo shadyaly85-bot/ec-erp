@@ -2720,7 +2720,7 @@ engineers.forEach(eng=>{
 /* ════════════════════════════════════════════════════════
    KPIs TAB — standalone component
    ════════════════════════════════════════════════════════ */
-function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, year}){
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, year, notifications}){
   const {engKPIs, selKPI} = useMemo(()=>{
     const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -2793,14 +2793,13 @@ const computeKPI=eng=>{
 };
 
 const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
-const alertNotifs=notifications.filter(n=>n.type==="timesheet_alert"&&!n.read);
 
 // Selected engineer for detail view
 const selKPI=kpiEngId?engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)):null;
-    const engKPIs = engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
-    const selKPI = kpiEngId ? engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)) : null;
     return {engKPIs, selKPI};
   }, [entries, engineers, projects, kpiYear, kpiEngId]);
+
+  const alertNotifs = (notifications||[]).filter(n=>n.type==="timesheet_alert"&&!n.read);
 
   return(
 <div style={{display:"grid",gap:14}}>
@@ -5198,6 +5197,7 @@ export default function App(){
                   kpiEngId={kpiEngId} setKpiEngId={setKpiEngId}
                   kpiNotes={kpiNotes} setKpiNotes={setKpiNotes}
                   isAdmin={isAdmin} year={year}
+                  notifications={notifications}
                 />
               )}
 
