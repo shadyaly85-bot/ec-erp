@@ -1648,6 +1648,11 @@ export default function App(){
     setSession(null);setEngineers([]);setProjects([]);setEntries([]);setMyProfile(null);setStaff([]);setExpenses([]);
   };
 
+  // Load tracker data once when tracker tab is first opened
+  useEffect(()=>{
+    if(adminTab==="tracker"&&session&&!activitiesLoaded){ loadTrackerData(); }
+  },[adminTab,session,activitiesLoaded,loadTrackerData]);
+
   const unreadCount=notifications.filter(n=>!n.read).length;
   const markAllRead=async()=>{
     await supabase.from("notifications").update({read:true}).eq("read",false);
@@ -4324,7 +4329,7 @@ export default function App(){
               {/* ══ PROJECT TRACKER ══ */}
               {adminTab==="tracker"&&(isAdmin||isLead)&&(()=>{
                 // Lazy load on first visit
-                if(!activitiesLoaded){ loadTrackerData(); }
+                // loadTrackerData is triggered by useEffect on tab switch — not inline
 
                 const STATUS_COLOR={
                   "Completed":"#34d399","In Progress":"#38bdf8",
@@ -4335,23 +4340,33 @@ export default function App(){
                   "Not Started":"#0a0f18","On Hold":"#1c0f00"
                 };
 
-                // Projects that have activities
-                const trackerProjIds=[...new Set(activities.map(a=>a.project_id))];
+                // Pre-build activities-by-project map for O(1) card rendering
+                const actsByProj={};
+                for(const a of activities){
+                  if(!actsByProj[a.project_id]) actsByProj[a.project_id]=[];
+                  actsByProj[a.project_id].push(a);
+                }
+                const trackerProjIds=Object.keys(actsByProj);
                 const trackerProjects=projects.filter(p=>trackerProjIds.includes(p.id));
-                
-                // Also show projects without activities yet (for admin to add)
                 const allTrackerProjects=isAdmin
                   ? projects.filter(p=>p.status!=="Completed")
                   : trackerProjects;
 
-                // Helpers
-                const getHoursForActivity=(actId)=>
-                  entries.filter(e=>String(e.activity_id)===String(actId)&&e.entry_type==="work")
-                         .reduce((s,e)=>s+e.hours,0);
-                
-                const getHoursForProject=(projId)=>
-                  entries.filter(e=>e.project_id===projId&&e.entry_type==="work")
-                         .reduce((s,e)=>s+e.hours,0);
+                // Pre-build hour maps once — O(n) single pass instead of O(n×activities)
+                const activityHrsMap={};
+                const projectHrsMap={};
+                for(const e of entries){
+                  if(e.entry_type!=="work") continue;
+                  if(e.activity_id){
+                    const k=String(e.activity_id);
+                    activityHrsMap[k]=(activityHrsMap[k]||0)+e.hours;
+                  }
+                  if(e.project_id){
+                    projectHrsMap[e.project_id]=(projectHrsMap[e.project_id]||0)+e.hours;
+                  }
+                }
+                const getHoursForActivity=(actId)=>activityHrsMap[String(actId)]||0;
+                const getHoursForProject=(projId)=>projectHrsMap[projId]||0;
 
                 const saveActivity=async(act)=>{
                   const {id,...fields}=act;
@@ -4394,7 +4409,7 @@ export default function App(){
                     {/* Portfolio overview cards */}
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
                       {allTrackerProjects.map(p=>{
-                        const projActs=activities.filter(a=>a.project_id===p.id);
+                        const projActs=actsByProj[p.id]||[];
                         const hasSubprojects=subprojects.some(s=>s.project_id===p.id);
                         const totalHrs=getHoursForProject(p.id);
                         
@@ -4452,7 +4467,7 @@ export default function App(){
                 if(!selProj) return null;
                 const projSubs=subprojects.filter(s=>s.project_id===trackerProj);
                 const hasSubprojects=projSubs.length>0;
-                const projActs=activities.filter(a=>a.project_id===trackerProj);
+                const projActs=actsByProj[trackerProj]||[];
                 
                 // Filter by sub-project if selected
                 const visActs=trackerSub
