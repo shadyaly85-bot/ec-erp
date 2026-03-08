@@ -2720,7 +2720,7 @@ engineers.forEach(eng=>{
 /* ════════════════════════════════════════════════════════
    KPIs TAB — standalone component
    ════════════════════════════════════════════════════════ */
-function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, year, notifications}){
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, year, notifications, alertDay, setAlertDay}){
   const {engKPIs, selKPI} = useMemo(()=>{
     const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -2810,7 +2810,7 @@ const selKPI=kpiEngId?engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)):null;
       style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
       {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
     </select>
-    <select value={kpiEngId||""} onChange={e=>setKpiEngId_(e.target.value||null)}
+    <select value={kpiEngId||""} onChange={e=>setKpiEngId(e.target.value||null)}
       style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
       <option value="">All Engineers (overview)</option>
       {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
@@ -2883,7 +2883,7 @@ const selKPI=kpiEngId?engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)):null;
         </tr>
       </thead>
       <tbody>{engKPIs.map((k,i)=>(
-        <tr key={k.eng.id} onClick={()=>setKpiEngId_(String(k.eng.id))} style={{cursor:"pointer"}}>
+        <tr key={k.eng.id} onClick={()=>setKpiEngId(String(k.eng.id))} style={{cursor:"pointer"}}>
           <td><div style={{display:"flex",alignItems:"center",gap:6}}>
             <span style={{fontSize:10,fontWeight:700,color:"#2e4a66",minWidth:16}}>{i+1}</span>
             <div><div style={{fontWeight:700,fontSize:11}}>{k.eng.name}</div><div style={{fontSize:9,color:"#2e4a66"}}>{k.eng.role}</div></div>
@@ -2975,7 +2975,7 @@ const selKPI=kpiEngId?engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)):null;
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:32,fontWeight:700,color:ratingColor(k.totalScore),lineHeight:1}}>{k.totalScore}</div>
             <div style={{fontSize:9,color:ratingColor(k.totalScore),textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{ratingLabel(k.totalScore)}</div>
           </div>
-          <button className="bg" style={{fontSize:10}} onClick={()=>setKpiEngId_(null)}>✕ Back</button>
+          <button className="bg" style={{fontSize:10}} onClick={()=>setKpiEngId(null)}>✕ Back</button>
         </div>
       </div>
 
@@ -5198,6 +5198,7 @@ export default function App(){
                   kpiNotes={kpiNotes} setKpiNotes={setKpiNotes}
                   isAdmin={isAdmin} year={year}
                   notifications={notifications}
+                  alertDay={alertDay} setAlertDay={setAlertDay}
                 />
               )}
 
