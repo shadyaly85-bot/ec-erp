@@ -2253,6 +2253,817 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
   </div>);
 }
 
+
+/* ════════════════════════════════════════════════════════
+   FINANCE TAB — standalone component
+   ════════════════════════════════════════════════════════ */
+function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, setEgpRate,
+  finTab, setFinTab, finMonth, setFinMonth, finYear, setFinYear,
+  setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
+  deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin}){
+
+  const derived = useMemo(()=>{
+    const activeStaff=staff.filter(s=>s.active!==false);
+const totalPayrollUSD=activeStaff.reduce((s,x)=>s+(x.salary_usd||0),0);
+const totalPayrollEGP=activeStaff.reduce((s,x)=>s+(x.salary_egp||0),0);
+
+// Exchange rate helper
+const toUSD=(usd,egp)=>(usd&&usd>0)?usd:((egp||0)/egpRate);
+
+// Company start date = earliest join_date across all staff (fallback: no limit)
+const allJoinDates=activeStaff.map(s=>s.join_date).filter(Boolean).map(d=>new Date(d));
+const companyStart=allJoinDates.length>0?new Date(Math.min(...allJoinDates)):null;
+
+// Was this staff member employed during year/month?
+// If no join_date on the individual, use companyStart as their implied join date
+const wasEmployed=(s,y,m)=>{
+  const monthStart=new Date(y,m,1);
+  const monthEnd=new Date(y,m+1,0);
+  const effectiveJoin=s.join_date?new Date(s.join_date):companyStart;
+  if(effectiveJoin&&effectiveJoin>monthEnd) return false;
+  if(s.termination_date&&new Date(s.termination_date)<monthStart) return false;
+  return true;
+};
+
+// Month expenses
+const monthExp=expenses.filter(e=>e.month===finMonth&&e.year===finYear);
+const monthExpNonSalary=monthExp.filter(e=>e.category!=="Salaries");
+const totalExpUSD=monthExpNonSalary.reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
+const totalExpEGP=monthExpNonSalary.reduce((s,e)=>s+(e.amount_egp||0),0);
+const salaryCatUSD=monthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
+// Only count staff employed this specific month
+const staffThisMonth=activeStaff.filter(s=>wasEmployed(s,finYear,finMonth));
+const totalPayrollUSDeff=staffThisMonth.reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp),0);
+const totalCostUSD=totalPayrollUSDeff+salaryCatUSD+totalExpUSD;
+
+// Revenue from billing (all entries this month)
+const mRevEntries=entries.filter(e=>{
+  const d=new Date(e.date+"T12:00:00");
+  return d.getFullYear()===finYear&&d.getMonth()===finMonth&&e.entry_type==="work";
+});
+const monthRevUSD=mRevEntries.reduce((s,e)=>{
+  const p=projects.find(x=>x.id===e.project_id);
+  return s+(p&&p.billable?p.rate_per_hour*e.hours:0);
+},0);
+const netPL=monthRevUSD-totalCostUSD;
+
+// YTD P&L
+const ytdMonths=Array.from({length:finMonth+1},(_,i)=>i);
+const ytdData=ytdMonths.map(m=>{
+  const mE=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===m&&e.entry_type==="work";});
+  const rev=mE.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
+  const mMonthExp=expenses.filter(e=>e.month===m&&e.year===finYear);
+  const mExpUSD=mMonthExp.filter(e=>e.category!=="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
+  const mSalaryCat=mMonthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
+  const mPayroll=activeStaff.filter(s=>wasEmployed(s,finYear,m)).reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp),0);
+  const cost=mPayroll+mSalaryCat+mExpUSD;
+  return{m,rev,cost,net:rev-cost};
+});
+const ytdRev=ytdData.reduce((s,x)=>s+x.rev,0);
+const ytdCost=ytdData.reduce((s,x)=>s+x.cost,0);
+const ytdNet=ytdRev-ytdCost;
+
+// Per-project profitability
+const projProfit=projects.filter(p=>p.billable).map(p=>{
+  const pe=mRevEntries.filter(e=>e.project_id===p.id);
+  const rev=pe.reduce((s,e)=>s+(p.rate_per_hour*e.hours),0);
+  const hrs=pe.reduce((s,e)=>s+e.hours,0);
+  const engsOnProj=[...new Set(pe.map(e=>e.engineer_id))];
+  // Allocate cost: proportional to hrs worked on this project vs total billable hrs
+  const allBillHrs=mRevEntries.reduce((s,e)=>s+e.hours,0)||1;
+  const allocatedCost=totalCostUSD*(hrs/allBillHrs);
+  return{id:p.id,name:p.name,rev,hrs,engs:engsOnProj.length,allocatedCost,net:rev-allocatedCost};
+}).filter(p=>p.hrs>0).sort((a,b)=>b.net-a.net);
+
+// Dept salary breakdown
+const deptMap={};
+activeStaff.forEach(s=>{
+  const d=s.department||"Other";
+  if(!deptMap[d]) deptMap[d]={dept:d,count:0,usd:0,egp:0};
+  deptMap[d].count++;
+  deptMap[d].usd+=toUSD(s.salary_usd,s.salary_egp);
+  deptMap[d].egp+=s.salary_egp||0;
+});
+const deptList=Object.values(deptMap).sort((a,b)=>b.usd-a.usd);
+
+const netColor=netPL>=0?"#34d399":"#f87171";
+const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return {activeStaff,totalPayrollUSD,totalPayrollEGP,toUSD,companyStart,wasEmployed,
+      monthExp,monthExpNonSalary,totalExpUSD,totalExpEGP,salaryCatUSD,
+      staffThisMonth,totalPayrollUSDeff,totalCostUSD,
+      monthRevUSD,netPL,ytdData,ytdRev,ytdCost,ytdNet,
+      projProfit,deptList,netColor};
+  },[staff,entries,expenses,projects,egpRate,finMonth,finYear]);
+
+  const {activeStaff,totalPayrollUSD,totalPayrollEGP,toUSD,
+    monthExp,monthExpNonSalary,totalExpUSD,totalExpEGP,salaryCatUSD,
+    staffThisMonth,totalPayrollUSDeff,totalCostUSD,
+    monthRevUSD,netPL,ytdData,ytdRev,ytdCost,ytdNet,
+    projProfit,deptList,netColor} = derived;
+
+  const MONTHS_ = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  return(
+<div>
+  {/* Finance sub-tabs */}
+  <div style={{display:"flex",gap:4,marginBottom:16,background:"#060e1c",borderRadius:8,padding:4,width:"fit-content"}}>
+    {[{id:"pl",label:"📊 P&L"},{id:"salaries",label:"👤 Salaries"},{id:"expenses",label:"🧾 Expenses"}].map(t=>(
+      <button key={t.id} className={`atab ${finTab===t.id?"a":""}`} onClick={()=>setFinTab(t.id)}>{t.label}</button>
+    ))}
+  </div>
+
+  {/* Month/Year picker */}
+  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16}}>
+    <select value={finMonth} onChange={e=>setFinMonth(+e.target.value)}
+      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      {MONTHS_.map((m,i)=><option key={i} value={i}>{m}</option>)}
+    </select>
+    <select value={finYear} onChange={e=>setFinYear(+e.target.value)}
+      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+    </select>
+    {/* EGP/USD Rate box */}
+    <div style={{display:"flex",alignItems:"center",gap:6,background:"#060e1c",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
+      <span style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".05em"}}>EGP/USD</span>
+      <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value))}
+        style={{width:55,background:"transparent",border:"none",color:"#38bdf8",fontSize:13,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"center",outline:"none"}}
+        min="1" step="0.5"/>
+      <span style={{fontSize:9,color:"#2e4a66"}}>per $1</span>
+    </div>
+    <span style={{fontSize:11,color:"#2e4a66"}}>Viewing: {MONTHS_[finMonth]} {finYear}</span>
+    <button className="bp" style={{marginLeft:"auto"}} onClick={()=>{
+      const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+      buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
+    }}>⬇ Export P&L PDF</button>
+  </div>
+
+  {/* ── P&L TAB ── */}
+  {finTab==="pl"&&(
+    <div style={{display:"grid",gap:14}}>
+      {/* KPI strip */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+        {[
+          {l:"Revenue",      v:fmtCurrency(monthRevUSD),  c:"#34d399"},
+          {l:"Payroll Cost", v:fmtCurrency(totalPayrollUSDeff),c:"#f87171"},
+          {l:"Other Costs",  v:fmtCurrency(totalExpUSD),  c:"#fb923c"},
+          {l:"Total Cost",   v:fmtCurrency(totalCostUSD), c:"#f87171"},
+          {l:"Net P&L",      v:fmtCurrency(netPL),        c:netColor},
+        ].map((k,i)=>(
+          <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:k.c}}>{k.v}</div>
+            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Visual P&L bar */}
+      <div className="card">
+        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>MONTHLY BREAKDOWN — {MONTHS_[finMonth]} {finYear}</div>
+        {monthRevUSD>0||totalCostUSD>0?(()=>{
+          const max=Math.max(monthRevUSD,totalCostUSD)||1;
+          return(
+          <div style={{display:"grid",gap:8}}>
+            {[
+              {l:"Revenue",    v:monthRevUSD,    c:"#34d399"},
+              {l:"Payroll",    v:totalPayrollUSDeff+salaryCatUSD,c:"#f87171"},
+              {l:"Expenses",   v:totalExpUSD,    c:"#fb923c"},
+              {l:"Total Cost", v:totalCostUSD,   c:"#ef4444"},
+            ].map((r,i)=>(
+              <div key={i} style={{display:"grid",gridTemplateColumns:"120px 1fr 80px",alignItems:"center",gap:10}}>
+                <div style={{fontSize:10,color:"#7a8faa"}}>{r.l}</div>
+                <div style={{background:"#060e1c",borderRadius:4,height:18,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${Math.round(r.v/max*100)}%`,background:r.c,borderRadius:4,minWidth:r.v>0?4:0}}/>
+                </div>
+                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:r.c,fontWeight:700,textAlign:"right"}}>{fmtCurrency(r.v)}</div>
+              </div>
+            ))}
+            <div style={{borderTop:"1px solid #0ea5e930",paddingTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:11,color:"#7a8faa"}}>Net Profit / Loss</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:netColor}}>{netPL>=0?"▲":"▼"} {fmtCurrency(Math.abs(netPL))}</span>
+            </div>
+          </div>);
+        })():<div style={{color:"#2e4a66",fontSize:11,textAlign:"center",padding:20}}>No data for {MONTHS_[finMonth]} {finYear}</div>}
+      </div>
+
+      {/* YTD Summary */}
+      <div className="card">
+        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>YEAR-TO-DATE {finYear} SUMMARY (Jan–{MONTHS_[finMonth]})</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+          {[
+            {l:"YTD Revenue",v:fmtCurrency(ytdRev),c:"#34d399"},
+            {l:"YTD Costs",  v:fmtCurrency(ytdCost),c:"#f87171"},
+            {l:"YTD Net",    v:fmtCurrency(ytdNet), c:ytdNet>=0?"#34d399":"#f87171"},
+          ].map((k,i)=>(
+            <div key={i} style={{background:"#060e1c",borderRadius:6,padding:"10px 12px"}}>
+              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
+              <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".07em",marginTop:3}}>{k.l}</div>
+            </div>
+          ))}
+        </div>
+        <table>
+          <thead><tr><th>Month</th><th style={{textAlign:"right"}}>Revenue</th><th style={{textAlign:"right"}}>Cost</th><th style={{textAlign:"right"}}>Net P&L</th><th style={{textAlign:"right"}}>Margin</th></tr></thead>
+          <tbody>{ytdData.map(row=>{
+            const margin=row.rev>0?Math.round(row.net/row.rev*100):0;
+            const c=row.net>=0?"#34d399":"#f87171";
+            return(<tr key={row.m}>
+              <td style={{fontWeight:600}}>{MONTHS_[row.m]} {finYear}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399"}}>{fmtCurrency(row.rev)}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>{fmtCurrency(row.cost)}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:c}}>{row.net>=0?"+":""}{fmtCurrency(row.net)}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:c}}>{margin}%</td>
+            </tr>);
+          })}</tbody>
+        </table>
+      </div>
+
+      {/* Per-project profitability */}
+      {projProfit.length>0&&(
+      <div className="card">
+        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>PER-PROJECT PROFITABILITY — {MONTHS_[finMonth]} {finYear}</div>
+        <div style={{fontSize:10,color:"#2e4a66",marginBottom:10}}>Cost allocated proportionally by hours worked on each billable project</div>
+        <table>
+          <thead><tr><th>Project</th><th style={{textAlign:"right"}}>Revenue</th><th style={{textAlign:"right"}}>Alloc. Cost</th><th style={{textAlign:"right"}}>Net</th><th style={{textAlign:"right"}}>Margin</th><th style={{textAlign:"right"}}>Hours</th></tr></thead>
+          <tbody>{projProfit.map(p=>{
+            const margin=p.rev>0?Math.round(p.net/p.rev*100):0;
+            const c=p.net>=0?"#34d399":"#f87171";
+            return(<tr key={p.id}>
+              <td><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{p.id}</span> <span style={{fontSize:10}}>{p.name}</span></td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399"}}>{fmtCurrency(p.rev)}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>{fmtCurrency(Math.round(p.allocatedCost))}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:c}}>{p.net>=0?"+":""}{fmtCurrency(Math.round(p.net))}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:c}}>{margin}%</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#7a8faa"}}>{p.hrs}h</td>
+            </tr>);
+          })}</tbody>
+        </table>
+      </div>)}
+    </div>
+  )}
+
+  {/* ── SALARIES TAB ── */}
+  {finTab==="salaries"&&(
+    <div style={{display:"grid",gap:14}}>
+      {/* Payroll KPIs */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+        {[
+          {l:"Total Staff",      v:activeStaff.length,                c:"#38bdf8"},
+          {l:"Monthly USD",      v:fmtCurrency(totalPayrollUSD),       c:"#f87171"},
+          {l:"Monthly EGP",      v:`EGP ${totalPayrollEGP.toLocaleString()}`, c:"#fb923c"},
+          {l:"Departments",      v:deptList.length,                   c:"#a78bfa"},
+        ].map((k,i)=>(
+          <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
+            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Dept breakdown */}
+      <div className="card">
+        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>SALARY BY DEPARTMENT</div>
+        <table>
+          <thead><tr><th>Department</th><th style={{textAlign:"right"}}>Headcount</th><th style={{textAlign:"right"}}>Monthly USD</th><th style={{textAlign:"right"}}>Monthly EGP</th><th style={{textAlign:"right"}}>% of Payroll</th></tr></thead>
+          <tbody>{deptList.map((d,i)=>(
+            <tr key={i}>
+              <td style={{fontWeight:600}}>{d.dept}</td>
+              <td style={{textAlign:"right"}}>{d.count}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171",fontWeight:700}}>{fmtCurrency(d.usd)}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>EGP {d.egp.toLocaleString()}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#7a8faa"}}>{totalPayrollUSD?Math.round(d.usd/totalPayrollUSD*100):0}%</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+
+      {/* Staff table */}
+      <div className="card">
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#7a8faa"}}>ALL STAFF ({staff.length})</div>
+          <button className="bp" onClick={()=>{setEditStaff(null);setShowStaffModal(true)}}>+ Add Staff</button>
+        </div>
+        <table>
+          <thead><tr><th>Name</th><th>Dept</th><th>Role</th><th>Type</th><th style={{textAlign:"right"}}>USD/mo</th><th style={{textAlign:"right"}}>EGP/mo</th><th>Joined</th><th>Left</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>{staff.map(s=>(
+            <tr key={s.id}>
+              <td style={{fontWeight:600}}>{s.name}</td>
+              <td style={{fontSize:10,color:"#38bdf8"}}>{s.department}</td>
+              <td style={{fontSize:10,color:"#7a8faa"}}>{s.role}</td>
+              <td style={{fontSize:9}}><span style={{padding:"2px 6px",borderRadius:3,background:"#0c2b4e",color:"#38bdf8",fontWeight:700}}>{s.type?.replace("_"," ")}</span></td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171",fontWeight:700}}>{fmtCurrency(s.salary_usd||0)}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>EGP {(s.salary_egp||0).toLocaleString()}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{s.join_date||"—"}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:s.termination_date?"#f87171":"#2e4a66"}}>{s.termination_date||"—"}</td>
+              <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:s.active!==false?"#024b36":"#1a0a00",color:s.active!==false?"#34d399":"#f87171"}}>{s.active!==false?"Active":"Inactive"}</span></td>
+              <td><div style={{display:"flex",gap:4}}>
+                <button className="be" onClick={()=>{setEditStaff({...s});setShowStaffModal(true)}}>✎</button>
+                <button className="bd" onClick={()=>deleteStaff(s.id)}>✕</button>
+              </div></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </div>
+  )}
+
+  {/* ── EXPENSES TAB ── */}
+  {finTab==="expenses"&&(
+    <div style={{display:"grid",gap:14}}>
+      {/* Expense KPIs */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+        {[
+          {l:"Entries",     v:monthExp.length,              c:"#38bdf8"},
+          {l:"Total USD",   v:fmtCurrency(totalExpUSD),      c:"#fb923c"},
+          {l:"Total EGP",   v:`EGP ${totalExpEGP.toLocaleString()}`,c:"#a78bfa"},
+          {l:"Categories",  v:[...new Set(monthExp.map(e=>e.category))].length, c:"#34d399"},
+        ].map((k,i)=>(
+          <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
+            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Expenses table */}
+      <div className="card">
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#7a8faa"}}>EXPENSES — {MONTHS_[finMonth]} {finYear} ({monthExp.length})</div>
+          <button className="bp" onClick={()=>{setEditExp(null);setNewExp(p=>({...p,month:finMonth,year:finYear}));setShowExpModal(true)}}>+ Add Expense</button>
+        </div>
+        {monthExp.length===0?<div style={{color:"#2e4a66",fontSize:11,textAlign:"center",padding:20}}>No expenses posted for {MONTHS_[finMonth]} {finYear}</div>:(
+        <table>
+          <thead><tr><th>Category</th><th>Description</th><th style={{textAlign:"right"}}>USD</th><th style={{textAlign:"right"}}>EGP</th><th>Notes</th><th>Actions</th></tr></thead>
+          <tbody>{monthExp.map(e=>(
+            <tr key={e.id}>
+              <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0c2b4e",color:"#38bdf8",fontWeight:700}}>{e.category}</span></td>
+              <td style={{fontWeight:500}}>{e.description}</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c",fontWeight:700}}>
+                {e.amount_usd>0?fmtCurrency(e.amount_usd):<span style={{color:"#38bdf8",fontSize:10}}>{"≈"}{fmtCurrency(Math.round((e.amount_egp||0)/egpRate))}</span>}
+              </td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{e.amount_egp?`EGP ${e.amount_egp.toLocaleString()}`:"-"}</td>
+              <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic"}}>{e.notes||""}</td>
+              <td><div style={{display:"flex",gap:4}}>
+                <button className="be" onClick={()=>{setEditExp({...e});setShowExpModal(true)}}>✎</button>
+                <button className="bd" onClick={()=>deleteExpense(e.id)}>✕</button>
+              </div></td>
+            </tr>
+          ))}</tbody>
+        </table>)}
+      </div>
+    </div>
+  )}
+</div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════
+   FUNCTIONS TAB — standalone component
+   ════════════════════════════════════════════════════════ */
+function FunctionsTab({entries, engineers, funcYear, setFuncYear, funcEngId, setFuncEngId, deleteEntry, isAdmin, year, setShowFuncModal}){
+
+  const {funcEntries, yearFuncs, totalFuncHrs, catTotals, maxCat, engFuncMap} = useMemo(()=>{
+    const funcEntries=entries.filter(e=>
+  e.entry_type==="function"||
+  (e.task_category&&e.task_category.toLowerCase()==="function")
+);
+const yearFuncs=funcEntries.filter(e=>{
+  const d=new Date(e.date+"T12:00:00");
+  return d.getFullYear()===funcYear&&(funcEngId==="all"||String(e.engineer_id)===String(funcEngId));
+});
+const totalFuncHrs=yearFuncs.reduce((s,e)=>s+e.hours,0);
+const catTotals={};
+FUNCTION_CATS.forEach(c=>{catTotals[c]=yearFuncs.filter(e=>(e.function_category||e.task_type)===c).reduce((s,e)=>s+e.hours,0);});
+const maxCat=Math.max(...Object.values(catTotals),1);
+const engFuncMap={};
+engineers.forEach(eng=>{
+  const eh=funcEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&new Date(e.date+"T12:00:00").getFullYear()===funcYear);
+  engFuncMap[eng.id]={total:eh.reduce((s,e)=>s+e.hours,0),cats:{}};
+  FUNCTION_CATS.forEach(c=>{engFuncMap[eng.id].cats[c]=eh.filter(e=>(e.function_category||e.task_type)===c).reduce((s,e)=>s+e.hours,0);});
+});
+    return {funcEntries, yearFuncs, totalFuncHrs, catTotals, maxCat, engFuncMap};
+  }, [entries, engineers, funcYear, funcEngId]);
+
+  return(
+<div style={{display:"grid",gap:14}}>
+  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+    <select value={funcYear} onChange={e=>setFuncYear(+e.target.value)}
+      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+    </select>
+    <select value={funcEngId} onChange={e=>setFuncEngId(e.target.value)}
+      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      <option value="all">All Engineers</option>
+      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+    </select>
+    <span style={{fontSize:11,color:"#2e4a66"}}>{yearFuncs.length} entries · {totalFuncHrs}h total</span>
+    <button className="bp" style={{marginLeft:"auto"}} onClick={()=>setShowFuncModal(true)}>+ Log Function Hours</button>
+  </div>
+  <div className="card">
+    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>FUNCTION HOURS BY CATEGORY — {funcYear}{funcEngId!=="all"?" · "+engineers.find(e=>String(e.id)===String(funcEngId))?.name:""}</div>
+    <div style={{display:"grid",gap:7}}>
+      {FUNCTION_CATS.map(cat=>{
+        const hrs=catTotals[cat]||0;
+        return(
+        <div key={cat} style={{display:"grid",gridTemplateColumns:"240px 1fr 50px",alignItems:"center",gap:10}}>
+          <div style={{fontSize:10,color:FUNC_COLORS[cat]||"#7a8faa",fontWeight:600}}>{cat}</div>
+          <div style={{background:"#060e1c",borderRadius:4,height:16,overflow:"hidden"}}>
+            <div style={{height:"100%",width:`${Math.round(hrs/maxCat*100)}%`,background:FUNC_COLORS[cat]||"#38bdf8",borderRadius:4,minWidth:hrs>0?4:0}}/>
+          </div>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:hrs>0?(FUNC_COLORS[cat]||"#38bdf8"):"#2e4a66",fontWeight:700,textAlign:"right"}}>{hrs}h</div>
+        </div>);
+      })}
+    </div>
+  </div>
+  <div className="card">
+    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>ENGINEER FUNCTION MATRIX — {funcYear}</div>
+    <div style={{overflowX:"auto"}}>
+    <table style={{minWidth:700}}>
+      <thead><tr>
+        <th>Engineer</th>
+        <th style={{textAlign:"right"}}>Total</th>
+        {FUNCTION_CATS.map(c=><th key={c} style={{textAlign:"right",fontSize:8,maxWidth:70,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:FUNC_COLORS[c]}} title={c}>{c.split("—")[0].split("&")[0].trim().slice(0,11)}</th>)}
+      </tr></thead>
+      <tbody>{engineers.map(eng=>{
+        const em=engFuncMap[eng.id]||{total:0,cats:{}};
+        return(<tr key={eng.id}>
+          <td style={{fontWeight:600,minWidth:120}}>{eng.name}<br/><span style={{fontSize:9,color:"#2e4a66"}}>{eng.role}</span></td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{em.total||"—"}</td>
+          {FUNCTION_CATS.map(c=>(
+            <td key={c} style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:em.cats[c]>0?(FUNC_COLORS[c]||"#38bdf8"):"#1a2d3f"}}>{em.cats[c]||"—"}</td>
+          ))}
+        </tr>);
+      })}</tbody>
+    </table>
+    </div>
+  </div>
+  <div className="card">
+    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>ALL FUNCTION ENTRIES — {funcYear}</div>
+    <table>
+      <thead><tr><th>Date</th><th>Engineer</th><th>Category</th><th>Hours</th><th>Description</th><th>Actions</th></tr></thead>
+      <tbody>{yearFuncs.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>{
+        const eng=engineers.find(x=>x.id===e.engineer_id);
+        const cat=e.function_category||e.task_type||"Other Function";
+        return(<tr key={e.id}>
+          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10}}>{e.date}</td>
+          <td style={{fontWeight:600,fontSize:10}}>{eng?.name||"?"}</td>
+          <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:(FUNC_COLORS[cat]||"#6b7280")+"20",color:FUNC_COLORS[cat]||"#6b7280",fontWeight:700}}>{cat}</span></td>
+          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{e.hours}h</td>
+          <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic",maxWidth:220}}>{e.activity||"—"}</td>
+          <td>{isAdmin&&<button className="bd" style={{fontSize:10}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}</td>
+        </tr>);
+      })}</tbody>
+    </table>
+  </div>
+</div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════
+   KPIs TAB — standalone component
+   ════════════════════════════════════════════════════════ */
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, year}){
+  const {engKPIs, selKPI} = useMemo(()=>{
+    const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const yearEntries=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;});
+
+/* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
+   A. UTILIZATION/EFFICIENCY 30%
+      • Billable %   = hours on billable projects ÷ total hours × 100
+      • BD/Sales     = Tender+Proposal+BD function hours (tracked, not scored separately)
+      • Knowledge %  = Training+R&D function hours ÷ total hours × 100 (target ~10%)
+      • Score formula: bill%×0.70 + (knowledge%/10×100)×0.20 + min(BD%×3,100)×0.10
+   B. PROJECT PERFORMANCE 30%
+      • Description rate = entries with activity notes ÷ total work entries × 100
+      • Projects count   = distinct billable projects worked on
+      • Doc hours        = Documentation & Reporting function hours
+      • Score formula: descRate×0.50 + min(projects×10,100)×0.30 + min(docHrs×5,100)×0.20
+   C. DEVELOPMENT GOAL 20%
+      • Training given/received, Mentoring, R&D hours
+      • Score formula: (trainRcv/8×100)×0.30 + (trainGiven/4×100)×0.25 + (mentoring/4×100)×0.25 + (rnd/4×100)×0.20
+   D. COMPLIANCE GOAL 20%
+      • Weekly submission rate = distinct weeks with entries ÷ weeks elapsed × 100
+   TOTAL = A×0.30 + B×0.30 + C×0.20 + D×0.20
+   BANDS: 0-40 Under Performer | 41-75 Competent | 76-95 Performer | 96-120 High Performer
+*/
+const ratingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Performer":"High Performer";
+const ratingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"#38bdf8":"#34d399";
+const ratingBg=   s=>s<=40?"#1a0808":s<=75?"#1c0f00":s<=95?"#001a2c":"#002414";
+
+const computeKPI=eng=>{
+  const myE=yearEntries.filter(e=>String(e.engineer_id)===String(eng.id));
+  const workE=myE.filter(e=>e.entry_type==="work");
+  const funcE=myE.filter(e=>(e.entry_type==="function"||e.task_category==="Function"));
+  const leaveE=myE.filter(e=>e.entry_type==="leave");
+  const totalWork=workE.reduce((s,e)=>s+e.hours,0);
+  const totalFuncHrs=funcE.reduce((s,e)=>s+e.hours,0);
+  const totalLeave=leaveE.length;
+  const billWork=workE.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
+  const salesBD=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Tender|Proposal|BD|Business/i)).reduce((s,e)=>s+e.hours,0);
+  const knowledgeHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Training|Knowledge|R&D|Innovation/i)).reduce((s,e)=>s+e.hours,0);
+  const totalHrs=(totalWork+totalFuncHrs)||1;
+  const billPct=Math.round(billWork/totalHrs*100);
+  const bdPct=Math.round(salesBD/totalHrs*100);
+  const knowledgePct=Math.round(knowledgeHrs/totalHrs*100);
+  const utilScore=Math.min(100,Math.round(Math.min(100,billPct)*0.70+Math.min(100,(knowledgePct/10)*100)*0.20+Math.min(100,bdPct*3)*0.10));
+  const projsWorked=[...new Set(workE.map(e=>e.project_id).filter(Boolean))];
+  const entriesWithDesc=workE.filter(e=>e.activity&&e.activity.trim().length>5).length;
+  const descRate=workE.length>0?Math.round(entriesWithDesc/workE.length*100):0;
+  const docHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Doc|Report/i)).reduce((s,e)=>s+e.hours,0);
+  const projScore=Math.min(100,Math.round(descRate*0.50+Math.min(100,projsWorked.length*10)*0.30+Math.min(100,docHrs*5)*0.20));
+  const trainingGiven=funcE.filter(e=>(e.function_category||e.task_type||"").includes("Given")).reduce((s,e)=>s+e.hours,0);
+  const trainingReceived=funcE.filter(e=>(e.function_category||e.task_type||"").includes("Received")).reduce((s,e)=>s+e.hours,0);
+  const mentoring=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Mentor|Coach/i)).reduce((s,e)=>s+e.hours,0);
+  const rnd=funcE.filter(e=>(e.function_category||e.task_type||"").match(/R&D|Innovation/i)).reduce((s,e)=>s+e.hours,0);
+  const devScore=Math.min(100,Math.round(Math.min(100,(trainingReceived/8)*100)*0.30+Math.min(100,(trainingGiven/4)*100)*0.25+Math.min(100,(mentoring/4)*100)*0.25+Math.min(100,(rnd/4)*100)*0.20));
+  const weeks=new Set(myE.filter(e=>e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")).map(e=>{
+    const d=new Date(e.date+"T12:00:00");const dow=d.getDay();
+    const mon=new Date(d);mon.setDate(d.getDate()-(dow===0?6:dow-1));
+    return mon.toISOString().slice(0,10);
+  }));
+  const now2=new Date();const yearStart=new Date(kpiYear,0,1);
+  const weeksElapsed=Math.max(1,Math.ceil((Math.min(now2,new Date(kpiYear,11,31))-yearStart)/(7*24*3600*1000)));
+  const submissionRate=Math.min(100,Math.round(weeks.size/weeksElapsed*100));
+  const complianceScore=submissionRate;
+  const totalScore=Math.round(utilScore*0.30+projScore*0.30+devScore*0.20+complianceScore*0.20);
+  return{eng,totalWork,billWork,billPct,bdPct,knowledgePct,totalLeave,totalFuncHrs,
+    utilScore,projScore,devScore,complianceScore,totalScore,
+    submissionRate,trainingGiven,trainingReceived,mentoring,rnd,salesBD,
+    projsWorked:projsWorked.length,descRate,docHrs,
+    weeks:weeks.size,weeksElapsed,funcE,workE,totalHrs};
+};
+
+const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
+const alertNotifs=notifications.filter(n=>n.type==="timesheet_alert"&&!n.read);
+
+// Selected engineer for detail view
+const selKPI=kpiEngId?engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)):null;
+    const engKPIs = engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
+    const selKPI = kpiEngId ? engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)) : null;
+    return {engKPIs, selKPI};
+  }, [entries, engineers, projects, kpiYear, kpiEngId]);
+
+  return(
+<div style={{display:"grid",gap:14}}>
+
+  {/* Controls */}
+  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+    <select value={kpiYear} onChange={e=>setKpiYear(+e.target.value)}
+      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+    </select>
+    <select value={kpiEngId||""} onChange={e=>setKpiEngId_(e.target.value||null)}
+      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      <option value="">All Engineers (overview)</option>
+      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+    </select>
+    <div style={{display:"flex",alignItems:"center",gap:6,background:"#060e1c",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
+      <span style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase"}}>Alert from</span>
+      <select value={alertDay} onChange={e=>setAlertDay(+e.target.value)}
+        style={{background:"transparent",border:"none",color:"#38bdf8",fontSize:12,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,outline:"none",cursor:"pointer"}}>
+        {[["1","Monday"],["2","Tuesday"],["3","Wednesday"],["4","Thursday"],["5","Friday"]].map(([v,l])=><option key={v} value={+v}>{l}</option>)}
+      </select>
+    </div>
+    {alertNotifs.length>0&&<span style={{background:"#450a0a",border:"1px solid #f87171",color:"#f87171",fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:6}}>⏰ {alertNotifs.length} alert{alertNotifs.length>1?"s":""}</span>}
+  </div>
+
+  {/* Rating legend */}
+  <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+    {[["0–40","Under Performer","#f87171","#1a0808"],["41–75","Competent","#fb923c","#1c0f00"],["76–95","Performer","#38bdf8","#001a2c"],["96–120","High Performer","#34d399","#002414"]].map(([r,l,c,bg])=>(
+      <div key={r} style={{display:"flex",alignItems:"center",gap:5,background:bg,border:`1px solid ${c}25`,borderRadius:6,padding:"4px 9px"}}>
+        <div style={{width:7,height:7,borderRadius:2,background:c}}/>
+        <span style={{fontSize:10,color:c,fontWeight:700}}>{r}</span>
+        <span style={{fontSize:10,color:"#4e6479"}}>{l}</span>
+      </div>
+    ))}
+    <span style={{fontSize:9,color:"#2e4a66"}}>Weights: Utilization 30% · Project Perf 30% · Development 20% · Compliance 20%</span>
+  </div>
+
+  {/* Delay alerts */}
+  {alertNotifs.length>0&&(
+  <div className="card" style={{borderColor:"#f8717130"}}>
+    <div style={{fontSize:11,fontWeight:700,color:"#f87171",marginBottom:10}}>⏰ TIMESHEET DELAY ALERTS</div>
+    <div style={{display:"grid",gap:6}}>
+      {alertNotifs.map(n=>(
+        <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"#1a0808",borderRadius:6,padding:"8px 12px"}}>
+          <span style={{fontSize:10,color:"#f87171",flex:1}}>{n.message}</span>
+          <span style={{fontSize:9,color:"#4e6479"}}>{new Date(n.created_at).toLocaleDateString("en-GB")}</span>
+          <button className="bg" style={{fontSize:9,padding:"2px 6px"}} onClick={async()=>{
+            await supabase.from("notifications").update({read:true}).eq("id",n.id);
+            setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
+          }}>Dismiss</button>
+        </div>
+      ))}
+    </div>
+  </div>)}
+
+  {/* ── Overview table (shown when no engineer selected) ── */}
+  {!kpiEngId&&(
+  <div className="card">
+    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>ENGINEER KPI SCORECARD — {kpiYear}</div>
+    <div style={{overflowX:"auto"}}>
+    <table style={{minWidth:820}}>
+      <thead>
+        <tr style={{background:"#060e1c"}}>
+          <th rowSpan={2}>Engineer</th>
+          <th colSpan={3} style={{textAlign:"center",color:"#38bdf8",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>A. Utilization 30%</th>
+          <th colSpan={2} style={{textAlign:"center",color:"#a78bfa",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>B. Project 30%</th>
+          <th colSpan={2} style={{textAlign:"center",color:"#34d399",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>C. Development 20%</th>
+          <th style={{textAlign:"center",color:"#fb923c",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>D. Compliance 20%</th>
+          <th rowSpan={2} style={{textAlign:"center"}}>Score</th>
+          <th rowSpan={2} style={{textAlign:"center"}}>Rating</th>
+        </tr>
+        <tr style={{background:"#060e1c"}}>
+          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Bill%</th>
+          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Know%</th>
+          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
+          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Desc%</th>
+          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
+          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Train↑</th>
+          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
+          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Submit%</th>
+        </tr>
+      </thead>
+      <tbody>{engKPIs.map((k,i)=>(
+        <tr key={k.eng.id} onClick={()=>setKpiEngId_(String(k.eng.id))} style={{cursor:"pointer"}}>
+          <td><div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontSize:10,fontWeight:700,color:"#2e4a66",minWidth:16}}>{i+1}</span>
+            <div><div style={{fontWeight:700,fontSize:11}}>{k.eng.name}</div><div style={{fontSize:9,color:"#2e4a66"}}>{k.eng.role}</div></div>
+          </div></td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontSize:10}}>{k.billPct}%</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c",fontSize:10}}>{k.knowledgePct}%</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.utilScore)}}>{k.utilScore}</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontSize:10}}>{k.descRate}%</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.projScore)}}>{k.projScore}</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontSize:10}}>{k.trainingGiven}h</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.devScore)}}>{k.devScore}</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"}}>{k.submissionRate}%</td>
+          <td style={{textAlign:"center"}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:5}}>
+              <div style={{width:34,height:5,background:"#060e1c",borderRadius:3,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${Math.min(100,k.totalScore)}%`,background:ratingColor(k.totalScore),borderRadius:3}}/>
+              </div>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.totalScore),fontSize:12}}>{k.totalScore}</span>
+            </div>
+          </td>
+          <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:ratingBg(k.totalScore),color:ratingColor(k.totalScore),fontWeight:700,whiteSpace:"nowrap"}}>{ratingLabel(k.totalScore)}</span></td>
+        </tr>
+      ))}</tbody>
+    </table>
+    </div>
+    <div style={{fontSize:9,color:"#2e4a66",marginTop:8}}>Click any row for full detail · Know% target is 8–12% (green)</div>
+  </div>)}
+
+  {/* ── Individual detail view ── */}
+  {selKPI&&(()=>{
+    const k=selKPI;
+    const {eng}=k;
+    const engNotes=kpiNotes[eng.id]||{A:"",B:"",C:"",D:"",general:""};
+    const setNote=(field,val)=>setKpiNotes(prev=>({...prev,[eng.id]:{...(prev[eng.id]||{}),general:"",A:"",B:"",C:"",D:"",...(prev[eng.id]||{}),[field]:val}}));
+
+    const monthlyData=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((mn,m)=>{
+      const mWork=k.workE.filter(e=>new Date(e.date+"T12:00:00").getMonth()===m);
+      const mFunc=k.funcE.filter(e=>new Date(e.date+"T12:00:00").getMonth()===m);
+      const mLeave=yearEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave"&&new Date(e.date+"T12:00:00").getMonth()===m);
+      const wh=mWork.reduce((s,e)=>s+e.hours,0);
+      const bh=mWork.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
+      const fh=mFunc.reduce((s,e)=>s+e.hours,0);
+      const util=wh>0?Math.round(bh/(wh+fh||1)*100):0;
+      return{mn,m,wh,bh,fh,util,leave:mLeave.length};
+    });
+
+    const criteria=[
+      {id:"A",label:"Utilization / Efficiency",weight:"30%",score:k.utilScore,color:"#38bdf8",
+       howCalc:"Score = Billable%×70% + (Knowledge%÷10×100)×20% + min(BD%×3,100)×10%",
+       items:[
+         {l:"Billable Utilization %",v:`${k.billPct}%`,calc:`${k.billWork}h billable ÷ ${k.totalHrs}h total`,target:"Maximize — hours on invoiced/contractual projects",color:"#38bdf8"},
+         {l:"Sales Support / BD hours",v:`${k.salesBD}h`,calc:"Tender+Proposal+BD function entries",target:"Tracked only — proposals, BD & leadership meetings",color:"#0ea5e9"},
+         {l:"Knowledge Capture %",v:`${k.knowledgePct}%`,calc:`${Math.round(k.knowledgePct/100*k.totalHrs)}h training+R&D ÷ ${k.totalHrs}h total`,target:"~10% — pre-planned, manager pre-approved",color:k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c"},
+       ]},
+      {id:"B",label:"Project Performance",weight:"30%",score:k.projScore,color:"#a78bfa",
+       howCalc:"Score = DescriptionRate×50% + min(Projects×10,100)×30% + min(DocHours×5,100)×20%",
+       items:[
+         {l:"Entry Description Rate",v:`${k.descRate}%`,calc:`${Math.round(k.descRate/100*k.workE.length)} of ${k.workE.length} entries have activity notes`,target:"≥80% — quality of output & discipline indicator",color:k.descRate>=80?"#34d399":"#fb923c"},
+         {l:"Projects worked on",v:k.projsWorked,calc:"Distinct billable projects this year",target:"Active across multiple projects",color:"#a78bfa"},
+         {l:"Documentation hours",v:`${k.docHrs}h`,calc:"Documentation & Reporting function entries",target:"Lesson learned, closure docs, progress reports",color:"#f59e0b"},
+       ]},
+      {id:"C",label:"Development Goal",weight:"20%",score:k.devScore,color:"#34d399",
+       howCalc:"Score = (TrainRcv÷8×100)×30% + (TrainGiven÷4×100)×25% + (Mentoring÷4×100)×25% + (R&D÷4×100)×20%",
+       items:[
+         {l:"Training received",v:`${k.trainingReceived}h`,calc:"Internal Training — Received function entries",target:"Personal development — certificates, skills",color:"#818cf8"},
+         {l:"Training given (knowledge sharing)",v:`${k.trainingGiven}h`,calc:"Internal Training — Given function entries",target:"Leaders: contribution to team knowledge — target ≥4h",color:"#a78bfa"},
+         {l:"Mentoring & coaching",v:`${k.mentoring}h`,calc:"Mentoring & Coaching function entries",target:"Leaders: people empowerment & delegation",color:"#34d399"},
+         {l:"R&D & Innovation",v:`${k.rnd}h`,calc:"R&D & Innovation function entries",target:"Library of tools, models, work instructions",color:"#10b981"},
+       ]},
+      {id:"D",label:"Compliance Goal",weight:"20%",score:k.complianceScore,color:"#fb923c",
+       howCalc:"Score = Weeks with entries ÷ Weeks elapsed in year × 100",
+       items:[
+         {l:"Weekly timesheet submission",v:`${k.submissionRate}%`,calc:`${k.weeks} weeks posted out of ${k.weeksElapsed} elapsed`,target:"100% — weekly entry is a core compliance KPI",color:k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"},
+         {l:"Total work hours logged",v:`${k.totalWork}h`,calc:"All work-type entries this year",target:"Reflects activity & availability",color:"#7a8faa"},
+         {l:"Leave days",v:`${k.totalLeave}d`,calc:"All leave-type entries this year",target:"Tracked — advance submission & approval expected",color:"#fb923c"},
+       ]},
+    ];
+
+    return(
+    <div className="card" style={{borderColor:"#0ea5e930"}}>
+      {/* Header row */}
+      <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16,flexWrap:"wrap"}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:14,fontWeight:700,color:"#f0f6ff"}}>{eng.name}</div>
+          <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role} · KPI Year {kpiYear}</div>
+        </div>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <div style={{textAlign:"center",background:ratingBg(k.totalScore),border:`1px solid ${ratingColor(k.totalScore)}30`,borderRadius:8,padding:"10px 18px"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:32,fontWeight:700,color:ratingColor(k.totalScore),lineHeight:1}}>{k.totalScore}</div>
+            <div style={{fontSize:9,color:ratingColor(k.totalScore),textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{ratingLabel(k.totalScore)}</div>
+          </div>
+          <button className="bg" style={{fontSize:10}} onClick={()=>setKpiEngId_(null)}>✕ Back</button>
+        </div>
+      </div>
+
+      {/* 4 criteria cards */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+        {criteria.map(c=>(
+          <div key={c.id} style={{background:"#060e1c",borderRadius:8,padding:"12px 14px",border:`1px solid ${c.color}20`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+              <div><span style={{fontSize:9,fontWeight:700,color:c.color,background:c.color+"20",padding:"1px 6px",borderRadius:3,marginRight:5}}>{c.id} · {c.weight}</span><span style={{fontSize:10,fontWeight:700,color:"#f0f6ff"}}>{c.label}</span></div>
+              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:ratingColor(c.score)}}>{c.score}</div>
+            </div>
+            {/* How calculated */}
+            <div style={{fontSize:9,color:"#2e4a66",fontStyle:"italic",marginBottom:6,padding:"3px 6px",background:"#0a1628",borderRadius:3}}>{c.howCalc}</div>
+            <div style={{background:"#0b1526",borderRadius:3,height:5,overflow:"hidden",marginBottom:10}}>
+              <div style={{height:"100%",width:`${Math.min(100,c.score)}%`,background:c.color,borderRadius:3}}/>
+            </div>
+            <div style={{display:"grid",gap:7}}>
+              {c.items.map((item,ii)=>(
+                <div key={ii} style={{borderTop:ii>0?"1px solid #0d1a2d":"none",paddingTop:ii>0?6:0}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:10,color:"#7a8faa",fontWeight:600}}>{item.l}</div>
+                      <div style={{fontSize:9,color:"#2e4a66",marginTop:1}}>{item.calc}</div>
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:700,color:item.color}}>{item.v}</div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:9,color:"#1e3a52",marginTop:2,fontStyle:"italic"}}>→ {item.target}</div>
+                </div>
+              ))}
+            </div>
+            {/* Manager note per criterion */}
+            <div style={{marginTop:10,borderTop:"1px solid #0d1a2d",paddingTop:8}}>
+              <div style={{fontSize:9,color:"#2e4a66",marginBottom:3}}>Manager note for {c.id}:</div>
+              <textarea value={engNotes[c.id]||""} onChange={e=>setNote(c.id,e.target.value)}
+                rows={2} placeholder={`Add note for ${c.label}…`}
+                style={{width:"100%",background:"#0a1628",border:"1px solid #192d47",borderRadius:4,color:"#7a8faa",fontSize:10,padding:"4px 6px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Monthly table */}
+      <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:8}}>MONTHLY ACTIVITY — {kpiYear}</div>
+      <table style={{marginBottom:14}}>
+        <thead><tr><th>Month</th><th style={{textAlign:"right"}}>Work Hrs</th><th style={{textAlign:"right"}}>Billable</th><th style={{textAlign:"right"}}>Util%</th><th style={{textAlign:"right"}}>Func Hrs</th><th style={{textAlign:"right"}}>Leave</th></tr></thead>
+        <tbody>{monthlyData.map(row=>(
+          <tr key={row.m}>
+            <td style={{fontWeight:600}}>{row.mn} {kpiYear}</td>
+            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace"}}>{row.wh||"—"}</td>
+            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{row.bh||"—"}</td>
+            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:row.util>=70?"#34d399":row.util>=50?"#fb923c":"#7a8faa"}}>{row.wh?row.util+"%":"—"}</td>
+            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{row.fh||"—"}</td>
+            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>{row.leave||"—"}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+
+      {/* General manager note */}
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:6}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
+        <textarea value={engNotes.general||""} onChange={e=>setNote("general",e.target.value)}
+          rows={4} placeholder="Overall performance summary, key achievements, areas for improvement, next year goals…"
+          style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:6,color:"#a0b4c8",fontSize:11,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+        <div style={{fontSize:9,color:"#2e4a66",marginTop:4}}>Notes saved in-session — to persist, copy to the head office review form.</div>
+      </div>
+
+      {/* Improvement actions checklist */}
+      <div style={{padding:"10px 12px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#7a8faa",marginBottom:8}}>HEAD OFFICE IMPROVEMENT ACTIONS (Annual Form)</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
+          {["Process optimization","Training recommendation","Daily project monitoring","Regular one-to-one discussions","Other corrective measures"].map((a,i)=>(
+            <div key={i} style={{display:"flex",gap:6,alignItems:"center",fontSize:10,color:"#4e6479"}}>
+              <div style={{width:6,height:6,borderRadius:1,background:"#192d47",flexShrink:0}}/>
+              {a}
+            </div>
+          ))}
+        </div>
+        <div style={{fontSize:9,color:"#2e4a66",marginTop:8,fontStyle:"italic"}}>📋 Use this data to fill the annual head office review form — scores, hours, and notes above feed directly into the 4 criteria.</div>
+      </div>
+    </div>);
+  })()}
+</div>
+  );
+}
+
 export default function App(){
   const [session,setSession]         = useState(null);
   const [authLoading,setAuthLoading] = useState(true);
@@ -4352,778 +5163,43 @@ export default function App(){
 
 
               {/* ══ FINANCE MODULE ══ */}
-              {adminTab==="finance"&&(isAdmin||isAcct)&&(()=>{
-                const activeStaff=staff.filter(s=>s.active!==false);
-                const totalPayrollUSD=activeStaff.reduce((s,x)=>s+(x.salary_usd||0),0);
-                const totalPayrollEGP=activeStaff.reduce((s,x)=>s+(x.salary_egp||0),0);
-
-                // Exchange rate helper
-                const toUSD=(usd,egp)=>(usd&&usd>0)?usd:((egp||0)/egpRate);
-
-                // Company start date = earliest join_date across all staff (fallback: no limit)
-                const allJoinDates=activeStaff.map(s=>s.join_date).filter(Boolean).map(d=>new Date(d));
-                const companyStart=allJoinDates.length>0?new Date(Math.min(...allJoinDates)):null;
-
-                // Was this staff member employed during year/month?
-                // If no join_date on the individual, use companyStart as their implied join date
-                const wasEmployed=(s,y,m)=>{
-                  const monthStart=new Date(y,m,1);
-                  const monthEnd=new Date(y,m+1,0);
-                  const effectiveJoin=s.join_date?new Date(s.join_date):companyStart;
-                  if(effectiveJoin&&effectiveJoin>monthEnd) return false;
-                  if(s.termination_date&&new Date(s.termination_date)<monthStart) return false;
-                  return true;
-                };
-
-                // Month expenses
-                const monthExp=expenses.filter(e=>e.month===finMonth&&e.year===finYear);
-                const monthExpNonSalary=monthExp.filter(e=>e.category!=="Salaries");
-                const totalExpUSD=monthExpNonSalary.reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
-                const totalExpEGP=monthExpNonSalary.reduce((s,e)=>s+(e.amount_egp||0),0);
-                const salaryCatUSD=monthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
-                // Only count staff employed this specific month
-                const staffThisMonth=activeStaff.filter(s=>wasEmployed(s,finYear,finMonth));
-                const totalPayrollUSDeff=staffThisMonth.reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp),0);
-                const totalCostUSD=totalPayrollUSDeff+salaryCatUSD+totalExpUSD;
-
-                // Revenue from billing (all entries this month)
-                const mRevEntries=entries.filter(e=>{
-                  const d=new Date(e.date+"T12:00:00");
-                  return d.getFullYear()===finYear&&d.getMonth()===finMonth&&e.entry_type==="work";
-                });
-                const monthRevUSD=mRevEntries.reduce((s,e)=>{
-                  const p=projects.find(x=>x.id===e.project_id);
-                  return s+(p&&p.billable?p.rate_per_hour*e.hours:0);
-                },0);
-                const netPL=monthRevUSD-totalCostUSD;
-
-                // YTD P&L
-                const ytdMonths=Array.from({length:finMonth+1},(_,i)=>i);
-                const ytdData=ytdMonths.map(m=>{
-                  const mE=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===m&&e.entry_type==="work";});
-                  const rev=mE.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
-                  const mMonthExp=expenses.filter(e=>e.month===m&&e.year===finYear);
-                  const mExpUSD=mMonthExp.filter(e=>e.category!=="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
-                  const mSalaryCat=mMonthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
-                  const mPayroll=activeStaff.filter(s=>wasEmployed(s,finYear,m)).reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp),0);
-                  const cost=mPayroll+mSalaryCat+mExpUSD;
-                  return{m,rev,cost,net:rev-cost};
-                });
-                const ytdRev=ytdData.reduce((s,x)=>s+x.rev,0);
-                const ytdCost=ytdData.reduce((s,x)=>s+x.cost,0);
-                const ytdNet=ytdRev-ytdCost;
-
-                // Per-project profitability
-                const projProfit=projects.filter(p=>p.billable).map(p=>{
-                  const pe=mRevEntries.filter(e=>e.project_id===p.id);
-                  const rev=pe.reduce((s,e)=>s+(p.rate_per_hour*e.hours),0);
-                  const hrs=pe.reduce((s,e)=>s+e.hours,0);
-                  const engsOnProj=[...new Set(pe.map(e=>e.engineer_id))];
-                  // Allocate cost: proportional to hrs worked on this project vs total billable hrs
-                  const allBillHrs=mRevEntries.reduce((s,e)=>s+e.hours,0)||1;
-                  const allocatedCost=totalCostUSD*(hrs/allBillHrs);
-                  return{id:p.id,name:p.name,rev,hrs,engs:engsOnProj.length,allocatedCost,net:rev-allocatedCost};
-                }).filter(p=>p.hrs>0).sort((a,b)=>b.net-a.net);
-
-                // Dept salary breakdown
-                const deptMap={};
-                activeStaff.forEach(s=>{
-                  const d=s.department||"Other";
-                  if(!deptMap[d]) deptMap[d]={dept:d,count:0,usd:0,egp:0};
-                  deptMap[d].count++;
-                  deptMap[d].usd+=toUSD(s.salary_usd,s.salary_egp);
-                  deptMap[d].egp+=s.salary_egp||0;
-                });
-                const deptList=Object.values(deptMap).sort((a,b)=>b.usd-a.usd);
-
-                const netColor=netPL>=0?"#34d399":"#f87171";
-                const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-                return(
-                <div>
-                  {/* Finance sub-tabs */}
-                  <div style={{display:"flex",gap:4,marginBottom:16,background:"#060e1c",borderRadius:8,padding:4,width:"fit-content"}}>
-                    {[{id:"pl",label:"📊 P&L"},{id:"salaries",label:"👤 Salaries"},{id:"expenses",label:"🧾 Expenses"}].map(t=>(
-                      <button key={t.id} className={`atab ${finTab===t.id?"a":""}`} onClick={()=>setFinTab(t.id)}>{t.label}</button>
-                    ))}
-                  </div>
-
-                  {/* Month/Year picker */}
-                  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16}}>
-                    <select value={finMonth} onChange={e=>setFinMonth(+e.target.value)}
-                      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
-                      {MONTHS_.map((m,i)=><option key={i} value={i}>{m}</option>)}
-                    </select>
-                    <select value={finYear} onChange={e=>setFinYear(+e.target.value)}
-                      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
-                      {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
-                    </select>
-                    {/* EGP/USD Rate box */}
-                    <div style={{display:"flex",alignItems:"center",gap:6,background:"#060e1c",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
-                      <span style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".05em"}}>EGP/USD</span>
-                      <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value))}
-                        style={{width:55,background:"transparent",border:"none",color:"#38bdf8",fontSize:13,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"center",outline:"none"}}
-                        min="1" step="0.5"/>
-                      <span style={{fontSize:9,color:"#2e4a66"}}>per $1</span>
-                    </div>
-                    <span style={{fontSize:11,color:"#2e4a66"}}>Viewing: {MONTHS_[finMonth]} {finYear}</span>
-                    <button className="bp" style={{marginLeft:"auto"}} onClick={()=>{
-                      const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-                      buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
-                    }}>⬇ Export P&L PDF</button>
-                  </div>
-
-                  {/* ── P&L TAB ── */}
-                  {finTab==="pl"&&(
-                    <div style={{display:"grid",gap:14}}>
-                      {/* KPI strip */}
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
-                        {[
-                          {l:"Revenue",      v:fmtCurrency(monthRevUSD),  c:"#34d399"},
-                          {l:"Payroll Cost", v:fmtCurrency(totalPayrollUSDeff),c:"#f87171"},
-                          {l:"Other Costs",  v:fmtCurrency(totalExpUSD),  c:"#fb923c"},
-                          {l:"Total Cost",   v:fmtCurrency(totalCostUSD), c:"#f87171"},
-                          {l:"Net P&L",      v:fmtCurrency(netPL),        c:netColor},
-                        ].map((k,i)=>(
-                          <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
-                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:k.c}}>{k.v}</div>
-                            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Visual P&L bar */}
-                      <div className="card">
-                        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>MONTHLY BREAKDOWN — {MONTHS_[finMonth]} {finYear}</div>
-                        {monthRevUSD>0||totalCostUSD>0?(()=>{
-                          const max=Math.max(monthRevUSD,totalCostUSD)||1;
-                          return(
-                          <div style={{display:"grid",gap:8}}>
-                            {[
-                              {l:"Revenue",    v:monthRevUSD,    c:"#34d399"},
-                              {l:"Payroll",    v:totalPayrollUSDeff+salaryCatUSD,c:"#f87171"},
-                              {l:"Expenses",   v:totalExpUSD,    c:"#fb923c"},
-                              {l:"Total Cost", v:totalCostUSD,   c:"#ef4444"},
-                            ].map((r,i)=>(
-                              <div key={i} style={{display:"grid",gridTemplateColumns:"120px 1fr 80px",alignItems:"center",gap:10}}>
-                                <div style={{fontSize:10,color:"#7a8faa"}}>{r.l}</div>
-                                <div style={{background:"#060e1c",borderRadius:4,height:18,overflow:"hidden"}}>
-                                  <div style={{height:"100%",width:`${Math.round(r.v/max*100)}%`,background:r.c,borderRadius:4,minWidth:r.v>0?4:0}}/>
-                                </div>
-                                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:r.c,fontWeight:700,textAlign:"right"}}>{fmtCurrency(r.v)}</div>
-                              </div>
-                            ))}
-                            <div style={{borderTop:"1px solid #0ea5e930",paddingTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                              <span style={{fontSize:11,color:"#7a8faa"}}>Net Profit / Loss</span>
-                              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:netColor}}>{netPL>=0?"▲":"▼"} {fmtCurrency(Math.abs(netPL))}</span>
-                            </div>
-                          </div>);
-                        })():<div style={{color:"#2e4a66",fontSize:11,textAlign:"center",padding:20}}>No data for {MONTHS_[finMonth]} {finYear}</div>}
-                      </div>
-
-                      {/* YTD Summary */}
-                      <div className="card">
-                        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>YEAR-TO-DATE {finYear} SUMMARY (Jan–{MONTHS_[finMonth]})</div>
-                        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-                          {[
-                            {l:"YTD Revenue",v:fmtCurrency(ytdRev),c:"#34d399"},
-                            {l:"YTD Costs",  v:fmtCurrency(ytdCost),c:"#f87171"},
-                            {l:"YTD Net",    v:fmtCurrency(ytdNet), c:ytdNet>=0?"#34d399":"#f87171"},
-                          ].map((k,i)=>(
-                            <div key={i} style={{background:"#060e1c",borderRadius:6,padding:"10px 12px"}}>
-                              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
-                              <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".07em",marginTop:3}}>{k.l}</div>
-                            </div>
-                          ))}
-                        </div>
-                        <table>
-                          <thead><tr><th>Month</th><th style={{textAlign:"right"}}>Revenue</th><th style={{textAlign:"right"}}>Cost</th><th style={{textAlign:"right"}}>Net P&L</th><th style={{textAlign:"right"}}>Margin</th></tr></thead>
-                          <tbody>{ytdData.map(row=>{
-                            const margin=row.rev>0?Math.round(row.net/row.rev*100):0;
-                            const c=row.net>=0?"#34d399":"#f87171";
-                            return(<tr key={row.m}>
-                              <td style={{fontWeight:600}}>{MONTHS_[row.m]} {finYear}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399"}}>{fmtCurrency(row.rev)}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>{fmtCurrency(row.cost)}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:c}}>{row.net>=0?"+":""}{fmtCurrency(row.net)}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:c}}>{margin}%</td>
-                            </tr>);
-                          })}</tbody>
-                        </table>
-                      </div>
-
-                      {/* Per-project profitability */}
-                      {projProfit.length>0&&(
-                      <div className="card">
-                        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>PER-PROJECT PROFITABILITY — {MONTHS_[finMonth]} {finYear}</div>
-                        <div style={{fontSize:10,color:"#2e4a66",marginBottom:10}}>Cost allocated proportionally by hours worked on each billable project</div>
-                        <table>
-                          <thead><tr><th>Project</th><th style={{textAlign:"right"}}>Revenue</th><th style={{textAlign:"right"}}>Alloc. Cost</th><th style={{textAlign:"right"}}>Net</th><th style={{textAlign:"right"}}>Margin</th><th style={{textAlign:"right"}}>Hours</th></tr></thead>
-                          <tbody>{projProfit.map(p=>{
-                            const margin=p.rev>0?Math.round(p.net/p.rev*100):0;
-                            const c=p.net>=0?"#34d399":"#f87171";
-                            return(<tr key={p.id}>
-                              <td><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{p.id}</span> <span style={{fontSize:10}}>{p.name}</span></td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399"}}>{fmtCurrency(p.rev)}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>{fmtCurrency(Math.round(p.allocatedCost))}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:c}}>{p.net>=0?"+":""}{fmtCurrency(Math.round(p.net))}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:c}}>{margin}%</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#7a8faa"}}>{p.hrs}h</td>
-                            </tr>);
-                          })}</tbody>
-                        </table>
-                      </div>)}
-                    </div>
-                  )}
-
-                  {/* ── SALARIES TAB ── */}
-                  {finTab==="salaries"&&(
-                    <div style={{display:"grid",gap:14}}>
-                      {/* Payroll KPIs */}
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-                        {[
-                          {l:"Total Staff",      v:activeStaff.length,                c:"#38bdf8"},
-                          {l:"Monthly USD",      v:fmtCurrency(totalPayrollUSD),       c:"#f87171"},
-                          {l:"Monthly EGP",      v:`EGP ${totalPayrollEGP.toLocaleString()}`, c:"#fb923c"},
-                          {l:"Departments",      v:deptList.length,                   c:"#a78bfa"},
-                        ].map((k,i)=>(
-                          <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
-                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
-                            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Dept breakdown */}
-                      <div className="card">
-                        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>SALARY BY DEPARTMENT</div>
-                        <table>
-                          <thead><tr><th>Department</th><th style={{textAlign:"right"}}>Headcount</th><th style={{textAlign:"right"}}>Monthly USD</th><th style={{textAlign:"right"}}>Monthly EGP</th><th style={{textAlign:"right"}}>% of Payroll</th></tr></thead>
-                          <tbody>{deptList.map((d,i)=>(
-                            <tr key={i}>
-                              <td style={{fontWeight:600}}>{d.dept}</td>
-                              <td style={{textAlign:"right"}}>{d.count}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171",fontWeight:700}}>{fmtCurrency(d.usd)}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>EGP {d.egp.toLocaleString()}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#7a8faa"}}>{totalPayrollUSD?Math.round(d.usd/totalPayrollUSD*100):0}%</td>
-                            </tr>
-                          ))}</tbody>
-                        </table>
-                      </div>
-
-                      {/* Staff table */}
-                      <div className="card">
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                          <div style={{fontSize:11,fontWeight:700,color:"#7a8faa"}}>ALL STAFF ({staff.length})</div>
-                          <button className="bp" onClick={()=>{setEditStaff(null);setShowStaffModal(true)}}>+ Add Staff</button>
-                        </div>
-                        <table>
-                          <thead><tr><th>Name</th><th>Dept</th><th>Role</th><th>Type</th><th style={{textAlign:"right"}}>USD/mo</th><th style={{textAlign:"right"}}>EGP/mo</th><th>Joined</th><th>Left</th><th>Status</th><th>Actions</th></tr></thead>
-                          <tbody>{staff.map(s=>(
-                            <tr key={s.id}>
-                              <td style={{fontWeight:600}}>{s.name}</td>
-                              <td style={{fontSize:10,color:"#38bdf8"}}>{s.department}</td>
-                              <td style={{fontSize:10,color:"#7a8faa"}}>{s.role}</td>
-                              <td style={{fontSize:9}}><span style={{padding:"2px 6px",borderRadius:3,background:"#0c2b4e",color:"#38bdf8",fontWeight:700}}>{s.type?.replace("_"," ")}</span></td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171",fontWeight:700}}>{fmtCurrency(s.salary_usd||0)}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>EGP {(s.salary_egp||0).toLocaleString()}</td>
-                              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{s.join_date||"—"}</td>
-                              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:s.termination_date?"#f87171":"#2e4a66"}}>{s.termination_date||"—"}</td>
-                              <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:s.active!==false?"#024b36":"#1a0a00",color:s.active!==false?"#34d399":"#f87171"}}>{s.active!==false?"Active":"Inactive"}</span></td>
-                              <td><div style={{display:"flex",gap:4}}>
-                                <button className="be" onClick={()=>{setEditStaff({...s});setShowStaffModal(true)}}>✎</button>
-                                <button className="bd" onClick={()=>deleteStaff(s.id)}>✕</button>
-                              </div></td>
-                            </tr>
-                          ))}</tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── EXPENSES TAB ── */}
-                  {finTab==="expenses"&&(
-                    <div style={{display:"grid",gap:14}}>
-                      {/* Expense KPIs */}
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-                        {[
-                          {l:"Entries",     v:monthExp.length,              c:"#38bdf8"},
-                          {l:"Total USD",   v:fmtCurrency(totalExpUSD),      c:"#fb923c"},
-                          {l:"Total EGP",   v:`EGP ${totalExpEGP.toLocaleString()}`,c:"#a78bfa"},
-                          {l:"Categories",  v:[...new Set(monthExp.map(e=>e.category))].length, c:"#34d399"},
-                        ].map((k,i)=>(
-                          <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
-                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
-                            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Expenses table */}
-                      <div className="card">
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                          <div style={{fontSize:11,fontWeight:700,color:"#7a8faa"}}>EXPENSES — {MONTHS_[finMonth]} {finYear} ({monthExp.length})</div>
-                          <button className="bp" onClick={()=>{setEditExp(null);setNewExp(p=>({...p,month:finMonth,year:finYear}));setShowExpModal(true)}}>+ Add Expense</button>
-                        </div>
-                        {monthExp.length===0?<div style={{color:"#2e4a66",fontSize:11,textAlign:"center",padding:20}}>No expenses posted for {MONTHS_[finMonth]} {finYear}</div>:(
-                        <table>
-                          <thead><tr><th>Category</th><th>Description</th><th style={{textAlign:"right"}}>USD</th><th style={{textAlign:"right"}}>EGP</th><th>Notes</th><th>Actions</th></tr></thead>
-                          <tbody>{monthExp.map(e=>(
-                            <tr key={e.id}>
-                              <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0c2b4e",color:"#38bdf8",fontWeight:700}}>{e.category}</span></td>
-                              <td style={{fontWeight:500}}>{e.description}</td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c",fontWeight:700}}>
-                                {e.amount_usd>0?fmtCurrency(e.amount_usd):<span style={{color:"#38bdf8",fontSize:10}}>{"≈"}{fmtCurrency(Math.round((e.amount_egp||0)/egpRate))}</span>}
-                              </td>
-                              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{e.amount_egp?`EGP ${e.amount_egp.toLocaleString()}`:"-"}</td>
-                              <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic"}}>{e.notes||""}</td>
-                              <td><div style={{display:"flex",gap:4}}>
-                                <button className="be" onClick={()=>{setEditExp({...e});setShowExpModal(true)}}>✎</button>
-                                <button className="bd" onClick={()=>deleteExpense(e.id)}>✕</button>
-                              </div></td>
-                            </tr>
-                          ))}</tbody>
-                        </table>)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                );
-              })()}
-
+              {adminTab==="finance"&&(isAdmin||isAcct)&&(
+                <FinanceTab
+                  staff={staff} entries={entries} expenses={expenses}
+                  projects={projects} engineers={engineers}
+                  egpRate={egpRate} setEgpRate={setEgpRate}
+                  finTab={finTab} setFinTab={setFinTab}
+                  finMonth={finMonth} setFinMonth={setFinMonth}
+                  finYear={finYear} setFinYear={setFinYear}
+                  setEditStaff={setEditStaff} setShowStaffModal={setShowStaffModal}
+                  setEditExp={setEditExp} setNewExp={setNewExp} setShowExpModal={setShowExpModal}
+                  deleteStaff={deleteStaff} deleteExpense={deleteExpense}
+                  fmtCurrency={fmtCurrency} buildFinancePDF={buildFinancePDF}
+                  isAdmin={isAdmin}
+                />
+              )}
 
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
-              {adminTab==="functions"&&(isAdmin||isLead)&&(()=>{
-                const funcEntries=entries.filter(e=>
-                  e.entry_type==="function"||
-                  (e.task_category&&e.task_category.toLowerCase()==="function")
-                );
-                const yearFuncs=funcEntries.filter(e=>{
-                  const d=new Date(e.date+"T12:00:00");
-                  return d.getFullYear()===funcYear&&(funcEngId==="all"||String(e.engineer_id)===String(funcEngId));
-                });
-                const totalFuncHrs=yearFuncs.reduce((s,e)=>s+e.hours,0);
-                const catTotals={};
-                FUNCTION_CATS.forEach(c=>{catTotals[c]=yearFuncs.filter(e=>(e.function_category||e.task_type)===c).reduce((s,e)=>s+e.hours,0);});
-                const maxCat=Math.max(...Object.values(catTotals),1);
-                const engFuncMap={};
-                engineers.forEach(eng=>{
-                  const eh=funcEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&new Date(e.date+"T12:00:00").getFullYear()===funcYear);
-                  engFuncMap[eng.id]={total:eh.reduce((s,e)=>s+e.hours,0),cats:{}};
-                  FUNCTION_CATS.forEach(c=>{engFuncMap[eng.id].cats[c]=eh.filter(e=>(e.function_category||e.task_type)===c).reduce((s,e)=>s+e.hours,0);});
-                });
-                return(
-                <div style={{display:"grid",gap:14}}>
-                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                    <select value={funcYear} onChange={e=>setFuncYear(+e.target.value)}
-                      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
-                      {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
-                    </select>
-                    <select value={funcEngId} onChange={e=>setFuncEngId(e.target.value)}
-                      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
-                      <option value="all">All Engineers</option>
-                      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-                    </select>
-                    <span style={{fontSize:11,color:"#2e4a66"}}>{yearFuncs.length} entries · {totalFuncHrs}h total</span>
-                    <button className="bp" style={{marginLeft:"auto"}} onClick={()=>setShowFuncModal(true)}>+ Log Function Hours</button>
-                  </div>
-                  <div className="card">
-                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>FUNCTION HOURS BY CATEGORY — {funcYear}{funcEngId!=="all"?" · "+engineers.find(e=>String(e.id)===String(funcEngId))?.name:""}</div>
-                    <div style={{display:"grid",gap:7}}>
-                      {FUNCTION_CATS.map(cat=>{
-                        const hrs=catTotals[cat]||0;
-                        return(
-                        <div key={cat} style={{display:"grid",gridTemplateColumns:"240px 1fr 50px",alignItems:"center",gap:10}}>
-                          <div style={{fontSize:10,color:FUNC_COLORS[cat]||"#7a8faa",fontWeight:600}}>{cat}</div>
-                          <div style={{background:"#060e1c",borderRadius:4,height:16,overflow:"hidden"}}>
-                            <div style={{height:"100%",width:`${Math.round(hrs/maxCat*100)}%`,background:FUNC_COLORS[cat]||"#38bdf8",borderRadius:4,minWidth:hrs>0?4:0}}/>
-                          </div>
-                          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:hrs>0?(FUNC_COLORS[cat]||"#38bdf8"):"#2e4a66",fontWeight:700,textAlign:"right"}}>{hrs}h</div>
-                        </div>);
-                      })}
-                    </div>
-                  </div>
-                  <div className="card">
-                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>ENGINEER FUNCTION MATRIX — {funcYear}</div>
-                    <div style={{overflowX:"auto"}}>
-                    <table style={{minWidth:700}}>
-                      <thead><tr>
-                        <th>Engineer</th>
-                        <th style={{textAlign:"right"}}>Total</th>
-                        {FUNCTION_CATS.map(c=><th key={c} style={{textAlign:"right",fontSize:8,maxWidth:70,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:FUNC_COLORS[c]}} title={c}>{c.split("—")[0].split("&")[0].trim().slice(0,11)}</th>)}
-                      </tr></thead>
-                      <tbody>{engineers.map(eng=>{
-                        const em=engFuncMap[eng.id]||{total:0,cats:{}};
-                        return(<tr key={eng.id}>
-                          <td style={{fontWeight:600,minWidth:120}}>{eng.name}<br/><span style={{fontSize:9,color:"#2e4a66"}}>{eng.role}</span></td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{em.total||"—"}</td>
-                          {FUNCTION_CATS.map(c=>(
-                            <td key={c} style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:em.cats[c]>0?(FUNC_COLORS[c]||"#38bdf8"):"#1a2d3f"}}>{em.cats[c]||"—"}</td>
-                          ))}
-                        </tr>);
-                      })}</tbody>
-                    </table>
-                    </div>
-                  </div>
-                  <div className="card">
-                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>ALL FUNCTION ENTRIES — {funcYear}</div>
-                    <table>
-                      <thead><tr><th>Date</th><th>Engineer</th><th>Category</th><th>Hours</th><th>Description</th><th>Actions</th></tr></thead>
-                      <tbody>{yearFuncs.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>{
-                        const eng=engineers.find(x=>x.id===e.engineer_id);
-                        const cat=e.function_category||e.task_type||"Other Function";
-                        return(<tr key={e.id}>
-                          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10}}>{e.date}</td>
-                          <td style={{fontWeight:600,fontSize:10}}>{eng?.name||"?"}</td>
-                          <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:(FUNC_COLORS[cat]||"#6b7280")+"20",color:FUNC_COLORS[cat]||"#6b7280",fontWeight:700}}>{cat}</span></td>
-                          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{e.hours}h</td>
-                          <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic",maxWidth:220}}>{e.activity||"—"}</td>
-                          <td>{isAdmin&&<button className="bd" style={{fontSize:10}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}</td>
-                        </tr>);
-                      })}</tbody>
-                    </table>
-                  </div>
-                </div>);
-              })()}
+              {adminTab==="functions"&&(isAdmin||isLead)&&(
+                <FunctionsTab
+                  entries={entries} engineers={engineers}
+                  funcYear={funcYear} setFuncYear={setFuncYear}
+                  funcEngId={funcEngId} setFuncEngId={setFuncEngId}
+                  deleteEntry={deleteEntry} isAdmin={isAdmin} year={year}
+                  setShowFuncModal={setShowFuncModal}
+                />
+              )}
 
               {/* ══ KPI DASHBOARD ══ */}
-              {adminTab==="kpis"&&(isAdmin||isLead)&&(()=>{
-                const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-                const DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-                const yearEntries=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;});
-
-                /* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
-                   A. UTILIZATION/EFFICIENCY 30%
-                      • Billable %   = hours on billable projects ÷ total hours × 100
-                      • BD/Sales     = Tender+Proposal+BD function hours (tracked, not scored separately)
-                      • Knowledge %  = Training+R&D function hours ÷ total hours × 100 (target ~10%)
-                      • Score formula: bill%×0.70 + (knowledge%/10×100)×0.20 + min(BD%×3,100)×0.10
-                   B. PROJECT PERFORMANCE 30%
-                      • Description rate = entries with activity notes ÷ total work entries × 100
-                      • Projects count   = distinct billable projects worked on
-                      • Doc hours        = Documentation & Reporting function hours
-                      • Score formula: descRate×0.50 + min(projects×10,100)×0.30 + min(docHrs×5,100)×0.20
-                   C. DEVELOPMENT GOAL 20%
-                      • Training given/received, Mentoring, R&D hours
-                      • Score formula: (trainRcv/8×100)×0.30 + (trainGiven/4×100)×0.25 + (mentoring/4×100)×0.25 + (rnd/4×100)×0.20
-                   D. COMPLIANCE GOAL 20%
-                      • Weekly submission rate = distinct weeks with entries ÷ weeks elapsed × 100
-                   TOTAL = A×0.30 + B×0.30 + C×0.20 + D×0.20
-                   BANDS: 0-40 Under Performer | 41-75 Competent | 76-95 Performer | 96-120 High Performer
-                */
-                const ratingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Performer":"High Performer";
-                const ratingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"#38bdf8":"#34d399";
-                const ratingBg=   s=>s<=40?"#1a0808":s<=75?"#1c0f00":s<=95?"#001a2c":"#002414";
-
-                const computeKPI=eng=>{
-                  const myE=yearEntries.filter(e=>String(e.engineer_id)===String(eng.id));
-                  const workE=myE.filter(e=>e.entry_type==="work");
-                  const funcE=myE.filter(e=>(e.entry_type==="function"||e.task_category==="Function"));
-                  const leaveE=myE.filter(e=>e.entry_type==="leave");
-                  const totalWork=workE.reduce((s,e)=>s+e.hours,0);
-                  const totalFuncHrs=funcE.reduce((s,e)=>s+e.hours,0);
-                  const totalLeave=leaveE.length;
-                  const billWork=workE.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
-                  const salesBD=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Tender|Proposal|BD|Business/i)).reduce((s,e)=>s+e.hours,0);
-                  const knowledgeHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Training|Knowledge|R&D|Innovation/i)).reduce((s,e)=>s+e.hours,0);
-                  const totalHrs=(totalWork+totalFuncHrs)||1;
-                  const billPct=Math.round(billWork/totalHrs*100);
-                  const bdPct=Math.round(salesBD/totalHrs*100);
-                  const knowledgePct=Math.round(knowledgeHrs/totalHrs*100);
-                  const utilScore=Math.min(100,Math.round(Math.min(100,billPct)*0.70+Math.min(100,(knowledgePct/10)*100)*0.20+Math.min(100,bdPct*3)*0.10));
-                  const projsWorked=[...new Set(workE.map(e=>e.project_id).filter(Boolean))];
-                  const entriesWithDesc=workE.filter(e=>e.activity&&e.activity.trim().length>5).length;
-                  const descRate=workE.length>0?Math.round(entriesWithDesc/workE.length*100):0;
-                  const docHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Doc|Report/i)).reduce((s,e)=>s+e.hours,0);
-                  const projScore=Math.min(100,Math.round(descRate*0.50+Math.min(100,projsWorked.length*10)*0.30+Math.min(100,docHrs*5)*0.20));
-                  const trainingGiven=funcE.filter(e=>(e.function_category||e.task_type||"").includes("Given")).reduce((s,e)=>s+e.hours,0);
-                  const trainingReceived=funcE.filter(e=>(e.function_category||e.task_type||"").includes("Received")).reduce((s,e)=>s+e.hours,0);
-                  const mentoring=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Mentor|Coach/i)).reduce((s,e)=>s+e.hours,0);
-                  const rnd=funcE.filter(e=>(e.function_category||e.task_type||"").match(/R&D|Innovation/i)).reduce((s,e)=>s+e.hours,0);
-                  const devScore=Math.min(100,Math.round(Math.min(100,(trainingReceived/8)*100)*0.30+Math.min(100,(trainingGiven/4)*100)*0.25+Math.min(100,(mentoring/4)*100)*0.25+Math.min(100,(rnd/4)*100)*0.20));
-                  const weeks=new Set(myE.filter(e=>e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")).map(e=>{
-                    const d=new Date(e.date+"T12:00:00");const dow=d.getDay();
-                    const mon=new Date(d);mon.setDate(d.getDate()-(dow===0?6:dow-1));
-                    return mon.toISOString().slice(0,10);
-                  }));
-                  const now2=new Date();const yearStart=new Date(kpiYear,0,1);
-                  const weeksElapsed=Math.max(1,Math.ceil((Math.min(now2,new Date(kpiYear,11,31))-yearStart)/(7*24*3600*1000)));
-                  const submissionRate=Math.min(100,Math.round(weeks.size/weeksElapsed*100));
-                  const complianceScore=submissionRate;
-                  const totalScore=Math.round(utilScore*0.30+projScore*0.30+devScore*0.20+complianceScore*0.20);
-                  return{eng,totalWork,billWork,billPct,bdPct,knowledgePct,totalLeave,totalFuncHrs,
-                    utilScore,projScore,devScore,complianceScore,totalScore,
-                    submissionRate,trainingGiven,trainingReceived,mentoring,rnd,salesBD,
-                    projsWorked:projsWorked.length,descRate,docHrs,
-                    weeks:weeks.size,weeksElapsed,funcE,workE,totalHrs};
-                };
-
-                const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
-                const alertNotifs=notifications.filter(n=>n.type==="timesheet_alert"&&!n.read);
-
-                // Selected engineer for detail view
-                const selKPI=kpiEngId?engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)):null;
-
-                return(
-                <div style={{display:"grid",gap:14}}>
-
-                  {/* Controls */}
-                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                    <select value={kpiYear} onChange={e=>setKpiYear(+e.target.value)}
-                      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
-                      {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
-                    </select>
-                    <select value={kpiEngId||""} onChange={e=>setKpiEngId_(e.target.value||null)}
-                      style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
-                      <option value="">All Engineers (overview)</option>
-                      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-                    </select>
-                    <div style={{display:"flex",alignItems:"center",gap:6,background:"#060e1c",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
-                      <span style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase"}}>Alert from</span>
-                      <select value={alertDay} onChange={e=>setAlertDay(+e.target.value)}
-                        style={{background:"transparent",border:"none",color:"#38bdf8",fontSize:12,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,outline:"none",cursor:"pointer"}}>
-                        {[["1","Monday"],["2","Tuesday"],["3","Wednesday"],["4","Thursday"],["5","Friday"]].map(([v,l])=><option key={v} value={+v}>{l}</option>)}
-                      </select>
-                    </div>
-                    {alertNotifs.length>0&&<span style={{background:"#450a0a",border:"1px solid #f87171",color:"#f87171",fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:6}}>⏰ {alertNotifs.length} alert{alertNotifs.length>1?"s":""}</span>}
-                  </div>
-
-                  {/* Rating legend */}
-                  <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-                    {[["0–40","Under Performer","#f87171","#1a0808"],["41–75","Competent","#fb923c","#1c0f00"],["76–95","Performer","#38bdf8","#001a2c"],["96–120","High Performer","#34d399","#002414"]].map(([r,l,c,bg])=>(
-                      <div key={r} style={{display:"flex",alignItems:"center",gap:5,background:bg,border:`1px solid ${c}25`,borderRadius:6,padding:"4px 9px"}}>
-                        <div style={{width:7,height:7,borderRadius:2,background:c}}/>
-                        <span style={{fontSize:10,color:c,fontWeight:700}}>{r}</span>
-                        <span style={{fontSize:10,color:"#4e6479"}}>{l}</span>
-                      </div>
-                    ))}
-                    <span style={{fontSize:9,color:"#2e4a66"}}>Weights: Utilization 30% · Project Perf 30% · Development 20% · Compliance 20%</span>
-                  </div>
-
-                  {/* Delay alerts */}
-                  {alertNotifs.length>0&&(
-                  <div className="card" style={{borderColor:"#f8717130"}}>
-                    <div style={{fontSize:11,fontWeight:700,color:"#f87171",marginBottom:10}}>⏰ TIMESHEET DELAY ALERTS</div>
-                    <div style={{display:"grid",gap:6}}>
-                      {alertNotifs.map(n=>(
-                        <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"#1a0808",borderRadius:6,padding:"8px 12px"}}>
-                          <span style={{fontSize:10,color:"#f87171",flex:1}}>{n.message}</span>
-                          <span style={{fontSize:9,color:"#4e6479"}}>{new Date(n.created_at).toLocaleDateString("en-GB")}</span>
-                          <button className="bg" style={{fontSize:9,padding:"2px 6px"}} onClick={async()=>{
-                            await supabase.from("notifications").update({read:true}).eq("id",n.id);
-                            setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
-                          }}>Dismiss</button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>)}
-
-                  {/* ── Overview table (shown when no engineer selected) ── */}
-                  {!kpiEngId&&(
-                  <div className="card">
-                    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>ENGINEER KPI SCORECARD — {kpiYear}</div>
-                    <div style={{overflowX:"auto"}}>
-                    <table style={{minWidth:820}}>
-                      <thead>
-                        <tr style={{background:"#060e1c"}}>
-                          <th rowSpan={2}>Engineer</th>
-                          <th colSpan={3} style={{textAlign:"center",color:"#38bdf8",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>A. Utilization 30%</th>
-                          <th colSpan={2} style={{textAlign:"center",color:"#a78bfa",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>B. Project 30%</th>
-                          <th colSpan={2} style={{textAlign:"center",color:"#34d399",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>C. Development 20%</th>
-                          <th style={{textAlign:"center",color:"#fb923c",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>D. Compliance 20%</th>
-                          <th rowSpan={2} style={{textAlign:"center"}}>Score</th>
-                          <th rowSpan={2} style={{textAlign:"center"}}>Rating</th>
-                        </tr>
-                        <tr style={{background:"#060e1c"}}>
-                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Bill%</th>
-                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Know%</th>
-                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
-                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Desc%</th>
-                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
-                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Train↑</th>
-                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
-                          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Submit%</th>
-                        </tr>
-                      </thead>
-                      <tbody>{engKPIs.map((k,i)=>(
-                        <tr key={k.eng.id} onClick={()=>setKpiEngId_(String(k.eng.id))} style={{cursor:"pointer"}}>
-                          <td><div style={{display:"flex",alignItems:"center",gap:6}}>
-                            <span style={{fontSize:10,fontWeight:700,color:"#2e4a66",minWidth:16}}>{i+1}</span>
-                            <div><div style={{fontWeight:700,fontSize:11}}>{k.eng.name}</div><div style={{fontSize:9,color:"#2e4a66"}}>{k.eng.role}</div></div>
-                          </div></td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontSize:10}}>{k.billPct}%</td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c",fontSize:10}}>{k.knowledgePct}%</td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.utilScore)}}>{k.utilScore}</td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontSize:10}}>{k.descRate}%</td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.projScore)}}>{k.projScore}</td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontSize:10}}>{k.trainingGiven}h</td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.devScore)}}>{k.devScore}</td>
-                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"}}>{k.submissionRate}%</td>
-                          <td style={{textAlign:"center"}}>
-                            <div style={{display:"inline-flex",alignItems:"center",gap:5}}>
-                              <div style={{width:34,height:5,background:"#060e1c",borderRadius:3,overflow:"hidden"}}>
-                                <div style={{height:"100%",width:`${Math.min(100,k.totalScore)}%`,background:ratingColor(k.totalScore),borderRadius:3}}/>
-                              </div>
-                              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:ratingColor(k.totalScore),fontSize:12}}>{k.totalScore}</span>
-                            </div>
-                          </td>
-                          <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:ratingBg(k.totalScore),color:ratingColor(k.totalScore),fontWeight:700,whiteSpace:"nowrap"}}>{ratingLabel(k.totalScore)}</span></td>
-                        </tr>
-                      ))}</tbody>
-                    </table>
-                    </div>
-                    <div style={{fontSize:9,color:"#2e4a66",marginTop:8}}>Click any row for full detail · Know% target is 8–12% (green)</div>
-                  </div>)}
-
-                  {/* ── Individual detail view ── */}
-                  {selKPI&&(()=>{
-                    const k=selKPI;
-                    const {eng}=k;
-                    const engNotes=kpiNotes[eng.id]||{A:"",B:"",C:"",D:"",general:""};
-                    const setNote=(field,val)=>setKpiNotes(prev=>({...prev,[eng.id]:{...(prev[eng.id]||{}),general:"",A:"",B:"",C:"",D:"",...(prev[eng.id]||{}),[field]:val}}));
-
-                    const monthlyData=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((mn,m)=>{
-                      const mWork=k.workE.filter(e=>new Date(e.date+"T12:00:00").getMonth()===m);
-                      const mFunc=k.funcE.filter(e=>new Date(e.date+"T12:00:00").getMonth()===m);
-                      const mLeave=yearEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave"&&new Date(e.date+"T12:00:00").getMonth()===m);
-                      const wh=mWork.reduce((s,e)=>s+e.hours,0);
-                      const bh=mWork.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
-                      const fh=mFunc.reduce((s,e)=>s+e.hours,0);
-                      const util=wh>0?Math.round(bh/(wh+fh||1)*100):0;
-                      return{mn,m,wh,bh,fh,util,leave:mLeave.length};
-                    });
-
-                    const criteria=[
-                      {id:"A",label:"Utilization / Efficiency",weight:"30%",score:k.utilScore,color:"#38bdf8",
-                       howCalc:"Score = Billable%×70% + (Knowledge%÷10×100)×20% + min(BD%×3,100)×10%",
-                       items:[
-                         {l:"Billable Utilization %",v:`${k.billPct}%`,calc:`${k.billWork}h billable ÷ ${k.totalHrs}h total`,target:"Maximize — hours on invoiced/contractual projects",color:"#38bdf8"},
-                         {l:"Sales Support / BD hours",v:`${k.salesBD}h`,calc:"Tender+Proposal+BD function entries",target:"Tracked only — proposals, BD & leadership meetings",color:"#0ea5e9"},
-                         {l:"Knowledge Capture %",v:`${k.knowledgePct}%`,calc:`${Math.round(k.knowledgePct/100*k.totalHrs)}h training+R&D ÷ ${k.totalHrs}h total`,target:"~10% — pre-planned, manager pre-approved",color:k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c"},
-                       ]},
-                      {id:"B",label:"Project Performance",weight:"30%",score:k.projScore,color:"#a78bfa",
-                       howCalc:"Score = DescriptionRate×50% + min(Projects×10,100)×30% + min(DocHours×5,100)×20%",
-                       items:[
-                         {l:"Entry Description Rate",v:`${k.descRate}%`,calc:`${Math.round(k.descRate/100*k.workE.length)} of ${k.workE.length} entries have activity notes`,target:"≥80% — quality of output & discipline indicator",color:k.descRate>=80?"#34d399":"#fb923c"},
-                         {l:"Projects worked on",v:k.projsWorked,calc:"Distinct billable projects this year",target:"Active across multiple projects",color:"#a78bfa"},
-                         {l:"Documentation hours",v:`${k.docHrs}h`,calc:"Documentation & Reporting function entries",target:"Lesson learned, closure docs, progress reports",color:"#f59e0b"},
-                       ]},
-                      {id:"C",label:"Development Goal",weight:"20%",score:k.devScore,color:"#34d399",
-                       howCalc:"Score = (TrainRcv÷8×100)×30% + (TrainGiven÷4×100)×25% + (Mentoring÷4×100)×25% + (R&D÷4×100)×20%",
-                       items:[
-                         {l:"Training received",v:`${k.trainingReceived}h`,calc:"Internal Training — Received function entries",target:"Personal development — certificates, skills",color:"#818cf8"},
-                         {l:"Training given (knowledge sharing)",v:`${k.trainingGiven}h`,calc:"Internal Training — Given function entries",target:"Leaders: contribution to team knowledge — target ≥4h",color:"#a78bfa"},
-                         {l:"Mentoring & coaching",v:`${k.mentoring}h`,calc:"Mentoring & Coaching function entries",target:"Leaders: people empowerment & delegation",color:"#34d399"},
-                         {l:"R&D & Innovation",v:`${k.rnd}h`,calc:"R&D & Innovation function entries",target:"Library of tools, models, work instructions",color:"#10b981"},
-                       ]},
-                      {id:"D",label:"Compliance Goal",weight:"20%",score:k.complianceScore,color:"#fb923c",
-                       howCalc:"Score = Weeks with entries ÷ Weeks elapsed in year × 100",
-                       items:[
-                         {l:"Weekly timesheet submission",v:`${k.submissionRate}%`,calc:`${k.weeks} weeks posted out of ${k.weeksElapsed} elapsed`,target:"100% — weekly entry is a core compliance KPI",color:k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"},
-                         {l:"Total work hours logged",v:`${k.totalWork}h`,calc:"All work-type entries this year",target:"Reflects activity & availability",color:"#7a8faa"},
-                         {l:"Leave days",v:`${k.totalLeave}d`,calc:"All leave-type entries this year",target:"Tracked — advance submission & approval expected",color:"#fb923c"},
-                       ]},
-                    ];
-
-                    return(
-                    <div className="card" style={{borderColor:"#0ea5e930"}}>
-                      {/* Header row */}
-                      <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16,flexWrap:"wrap"}}>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:14,fontWeight:700,color:"#f0f6ff"}}>{eng.name}</div>
-                          <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role} · KPI Year {kpiYear}</div>
-                        </div>
-                        <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                          <div style={{textAlign:"center",background:ratingBg(k.totalScore),border:`1px solid ${ratingColor(k.totalScore)}30`,borderRadius:8,padding:"10px 18px"}}>
-                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:32,fontWeight:700,color:ratingColor(k.totalScore),lineHeight:1}}>{k.totalScore}</div>
-                            <div style={{fontSize:9,color:ratingColor(k.totalScore),textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{ratingLabel(k.totalScore)}</div>
-                          </div>
-                          <button className="bg" style={{fontSize:10}} onClick={()=>setKpiEngId_(null)}>✕ Back</button>
-                        </div>
-                      </div>
-
-                      {/* 4 criteria cards */}
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-                        {criteria.map(c=>(
-                          <div key={c.id} style={{background:"#060e1c",borderRadius:8,padding:"12px 14px",border:`1px solid ${c.color}20`}}>
-                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                              <div><span style={{fontSize:9,fontWeight:700,color:c.color,background:c.color+"20",padding:"1px 6px",borderRadius:3,marginRight:5}}>{c.id} · {c.weight}</span><span style={{fontSize:10,fontWeight:700,color:"#f0f6ff"}}>{c.label}</span></div>
-                              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:ratingColor(c.score)}}>{c.score}</div>
-                            </div>
-                            {/* How calculated */}
-                            <div style={{fontSize:9,color:"#2e4a66",fontStyle:"italic",marginBottom:6,padding:"3px 6px",background:"#0a1628",borderRadius:3}}>{c.howCalc}</div>
-                            <div style={{background:"#0b1526",borderRadius:3,height:5,overflow:"hidden",marginBottom:10}}>
-                              <div style={{height:"100%",width:`${Math.min(100,c.score)}%`,background:c.color,borderRadius:3}}/>
-                            </div>
-                            <div style={{display:"grid",gap:7}}>
-                              {c.items.map((item,ii)=>(
-                                <div key={ii} style={{borderTop:ii>0?"1px solid #0d1a2d":"none",paddingTop:ii>0?6:0}}>
-                                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
-                                    <div style={{flex:1}}>
-                                      <div style={{fontSize:10,color:"#7a8faa",fontWeight:600}}>{item.l}</div>
-                                      <div style={{fontSize:9,color:"#2e4a66",marginTop:1}}>{item.calc}</div>
-                                    </div>
-                                    <div style={{textAlign:"right",flexShrink:0}}>
-                                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:700,color:item.color}}>{item.v}</div>
-                                    </div>
-                                  </div>
-                                  <div style={{fontSize:9,color:"#1e3a52",marginTop:2,fontStyle:"italic"}}>→ {item.target}</div>
-                                </div>
-                              ))}
-                            </div>
-                            {/* Manager note per criterion */}
-                            <div style={{marginTop:10,borderTop:"1px solid #0d1a2d",paddingTop:8}}>
-                              <div style={{fontSize:9,color:"#2e4a66",marginBottom:3}}>Manager note for {c.id}:</div>
-                              <textarea value={engNotes[c.id]||""} onChange={e=>setNote(c.id,e.target.value)}
-                                rows={2} placeholder={`Add note for ${c.label}…`}
-                                style={{width:"100%",background:"#0a1628",border:"1px solid #192d47",borderRadius:4,color:"#7a8faa",fontSize:10,padding:"4px 6px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Monthly table */}
-                      <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:8}}>MONTHLY ACTIVITY — {kpiYear}</div>
-                      <table style={{marginBottom:14}}>
-                        <thead><tr><th>Month</th><th style={{textAlign:"right"}}>Work Hrs</th><th style={{textAlign:"right"}}>Billable</th><th style={{textAlign:"right"}}>Util%</th><th style={{textAlign:"right"}}>Func Hrs</th><th style={{textAlign:"right"}}>Leave</th></tr></thead>
-                        <tbody>{monthlyData.map(row=>(
-                          <tr key={row.m}>
-                            <td style={{fontWeight:600}}>{row.mn} {kpiYear}</td>
-                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace"}}>{row.wh||"—"}</td>
-                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{row.bh||"—"}</td>
-                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:row.util>=70?"#34d399":row.util>=50?"#fb923c":"#7a8faa"}}>{row.wh?row.util+"%":"—"}</td>
-                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{row.fh||"—"}</td>
-                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>{row.leave||"—"}</td>
-                          </tr>
-                        ))}</tbody>
-                      </table>
-
-                      {/* General manager note */}
-                      <div style={{marginBottom:14}}>
-                        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:6}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
-                        <textarea value={engNotes.general||""} onChange={e=>setNote("general",e.target.value)}
-                          rows={4} placeholder="Overall performance summary, key achievements, areas for improvement, next year goals…"
-                          style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:6,color:"#a0b4c8",fontSize:11,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
-                        <div style={{fontSize:9,color:"#2e4a66",marginTop:4}}>Notes saved in-session — to persist, copy to the head office review form.</div>
-                      </div>
-
-                      {/* Improvement actions checklist */}
-                      <div style={{padding:"10px 12px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
-                        <div style={{fontSize:10,fontWeight:700,color:"#7a8faa",marginBottom:8}}>HEAD OFFICE IMPROVEMENT ACTIONS (Annual Form)</div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
-                          {["Process optimization","Training recommendation","Daily project monitoring","Regular one-to-one discussions","Other corrective measures"].map((a,i)=>(
-                            <div key={i} style={{display:"flex",gap:6,alignItems:"center",fontSize:10,color:"#4e6479"}}>
-                              <div style={{width:6,height:6,borderRadius:1,background:"#192d47",flexShrink:0}}/>
-                              {a}
-                            </div>
-                          ))}
-                        </div>
-                        <div style={{fontSize:9,color:"#2e4a66",marginTop:8,fontStyle:"italic"}}>📋 Use this data to fill the annual head office review form — scores, hours, and notes above feed directly into the 4 criteria.</div>
-                      </div>
-                    </div>);
-                  })()}
-                </div>);
-              })()}
+              {adminTab==="kpis"&&(isAdmin||isLead)&&(
+                <KPIsTab
+                  entries={entries} engineers={engineers} projects={projects}
+                  kpiYear={kpiYear} setKpiYear={setKpiYear}
+                  kpiEngId={kpiEngId} setKpiEngId={setKpiEngId}
+                  kpiNotes={kpiNotes} setKpiNotes={setKpiNotes}
+                  isAdmin={isAdmin} year={year}
+                />
+              )}
 
 
               {/* ══ PROJECT TRACKER ══ */}
