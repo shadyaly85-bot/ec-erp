@@ -1472,59 +1472,214 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 }
 
 
+
+/* ════════════════════════════════════════════════════════
+   PROJECT ACTIVITY TAXONOMY
+   ════════════════════════════════════════════════════════ */
+const ACTIVITY_TAXONOMY = {
+  "Templates": [
+    "Block Template","Turbine Template","ESS Template",
+    "Inverter MA Template","Inverter MB Template","Inverter ME Template",
+    "Network Analyzer Template","PACK Template",
+    "Circuit Breaker Template","Circuit Breaker With Command Template",
+    "110 kV Template","20 kV Template","33 kV Template",
+    "PTs Template","Weather Station Template","Other Template",
+  ],
+  "Database": [
+    "Common Station Database","Block Database","Turbine Database",
+    "ESS Database","Inverter MA Database","Inverter MB Database","Inverter ME Database",
+    "Network Analyzer Database","PACK Database",
+    "Circuit Breaker Database","Circuit Breaker With Command Database",
+    "110 kV Database","20 kV Database","33 kV Database",
+    "PTs Database","Weather Station Database","Internal Services Database","Other Database",
+  ],
+  "Displays": [
+    "General Overview Display","Control Display","SLD Display",
+    "Alarms Display","Trend Display","List Display",
+    "110 kV Display","20 kV Display","33 kV Display","0.4 kV Display","220 Vcc Display",
+    "BESS Display","Dashboard Display","Joint Control Display",
+    "Hydroaggregate Display","Sequence Control Display","VIR Display",
+    "Oil System Display","Water Cooling Display","Other Display",
+  ],
+  "Reports": [
+    "Operational Reports","Event Reports","Energy Reports",
+    "Performance Reports","Custom Reports","Other Reports",
+  ],
+  "Dashboard": [
+    "SCADA Dashboard","Local App Dashboard","Dispatch Dashboard","Custom Dashboard",
+  ],
+  "RTU Configuration": [
+    "Hardware Configuration","Communication Configuration",
+    "Application & Protocol Configuration","RTU Settings",
+    "DI/DO Signals","Modbus Signals","DNP3 Signals",
+    "IEC-61850 Data Import","Logics (CFC Editor)","Signal List Creation","Other RTU",
+  ],
+  "Protection Relays": [
+    "Siemens 7SJ82 Configuration","Siemens 7SJ82 IEC 61850 SCD",
+    "Siemens 7SJ82 Protection Functions","Siemens 7SJ82 Protection Settings",
+    "ABB REX615 Configuration","ABB REX615 IEC 61850 SCD",
+    "ABB REX615 Protection Functions","ABB REX615 Protection Settings",
+    "Schematic Revision","Other Protection",
+  ],
+  "PPC": [
+    "PPC Integration","IOA Configuration","Outstation Configuration",
+    "PPC Testing","PPC Documentation","Other PPC",
+  ],
+  "Commissioning": [
+    "FAT Preparation","FAT Execution","SAT Preparation","SAT Execution",
+    "Site Support","Remote Commissioning","Punch List Resolution","Other Commissioning",
+  ],
+  "Documentation": [
+    "TQ Register","Operating Manual","As-Built Documentation",
+    "Test Procedures","Project Handover","Other Documentation",
+  ],
+};
+const TAXONOMY_CATS = Object.keys(ACTIVITY_TAXONOMY);
+
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component (no IIFE, no re-render loops)
    ════════════════════════════════════════════════════════ */
 const STATUS_COLOR={"Completed":"#34d399","In Progress":"#38bdf8","Not Started":"#4e6479","On Hold":"#fb923c"};
 const STATUS_BG={"Completed":"#002414","In Progress":"#001a2c","Not Started":"#0a0f18","On Hold":"#1c0f00"};
 
-function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isEditing, editActivity, setEditActivity, onSave}){
-  const pct=Math.round(a.progress*100);
-  const sc=STATUS_COLOR[a.status]||"#4e6479";
-  if(isEditing){
-    return(
-    <tr style={{background:"#0c2040"}}>
-      <td colSpan={isAdmin?6:5}>
-        <div style={{display:"grid",gridTemplateColumns:"2fr 140px 100px 1fr 1fr",gap:8,padding:"4px 0",alignItems:"center"}}>
-          <input value={editActivity.activity_name||""} onChange={e=>setEditActivity(p=>({...p,activity_name:e.target.value}))}
-            style={{background:"#060e1c",border:"1px solid #38bdf8",borderRadius:4,color:"#f0f6ff",padding:"4px 8px",fontSize:11}}/>
-          <select value={editActivity.status||"Not Started"} onChange={e=>setEditActivity(p=>({...p,status:e.target.value}))}
-            style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px",fontSize:11}}>
-            {["Not Started","In Progress","Completed","On Hold"].map(s=><option key={s}>{s}</option>)}
+/* ── Inline category/activity editor modal ── */
+function ActivityEditModal({act, onSave, onClose, engineers}){
+  const [draft, setDraft] = useState({...act});
+  const catActs = ACTIVITY_TAXONOMY[draft.category] || [];
+  return(
+  <div className="modal-ov" onClick={onClose}>
+    <div className="modal" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
+      <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:14}}>Edit Activity</h3>
+      <div style={{display:"grid",gap:10}}>
+        <div>
+          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>CATEGORY</label>
+          <select value={draft.category||""} onChange={e=>setDraft(p=>({...p,category:e.target.value,activity_name:ACTIVITY_TAXONOMY[e.target.value]?.[0]||p.activity_name}))}
+            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+            <option value="">— No Category —</option>
+            {TAXONOMY_CATS.map(c=><option key={c}>{c}</option>)}
           </select>
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <input type="number" min="0" max="100" step="5"
-              value={Math.round((editActivity.progress||0)*100)}
-              onChange={e=>setEditActivity(p=>({...p,progress:+e.target.value/100}))}
-              style={{width:55,background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#38bdf8",padding:"4px",fontSize:11,fontFamily:"'IBM Plex Mono',monospace"}}/>
-            <span style={{fontSize:10,color:"#2e4a66"}}>%</span>
+        </div>
+        <div>
+          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>ACTIVITY NAME</label>
+          {catActs.length>0?(
+            <select value={draft.activity_name||""} onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))}
+              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+              {catActs.map(a=><option key={a}>{a}</option>)}
+              <option value="Custom…">Custom…</option>
+            </select>
+          ):(
+            <input value={draft.activity_name||""} onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))}
+              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}/>
+          )}
+          {draft.activity_name==="Custom…"&&(
+            <input placeholder="Type custom activity name…" onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))}
+              style={{width:"100%",marginTop:6,background:"#060e1c",border:"1px solid #38bdf8",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}/>
+          )}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>STATUS</label>
+            <select value={draft.status||"Not Started"} onChange={e=>setDraft(p=>({...p,status:e.target.value}))}
+              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+              {["Not Started","In Progress","Completed","On Hold"].map(s=><option key={s}>{s}</option>)}
+            </select>
           </div>
-          <input value={editActivity.assigned_to||""} onChange={e=>setEditActivity(p=>({...p,assigned_to:e.target.value}))}
-            placeholder="Assigned to…"
-            style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px 8px",fontSize:11}}/>
-          <div style={{display:"flex",gap:5}}>
-            <button className="bp" style={{fontSize:10,padding:"3px 8px"}} onClick={()=>onSave(editActivity)}>Save</button>
-            <button className="bg" style={{fontSize:10,padding:"3px 8px"}} onClick={()=>setEditActivity(null)}>✕</button>
+          <div>
+            <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>PROGRESS %</label>
+            <input type="number" min="0" max="100" step="5" value={Math.round((draft.progress||0)*100)}
+              onChange={e=>setDraft(p=>({...p,progress:Math.min(1,Math.max(0,+e.target.value/100))}))}
+              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#38bdf8",padding:"6px 8px",fontSize:11,fontFamily:"'IBM Plex Mono',monospace"}}/>
           </div>
         </div>
-        <div style={{paddingTop:4}}>
-          <input value={editActivity.remarks||""} onChange={e=>setEditActivity(p=>({...p,remarks:e.target.value}))}
-            placeholder="Remarks / blockers…"
-            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#7a8faa",padding:"4px 8px",fontSize:10,boxSizing:"border-box"}}/>
+        <div>
+          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>ASSIGNED TO</label>
+          {engineers&&engineers.length>0?(
+            <select value={draft.assigned_to||""} onChange={e=>setDraft(p=>({...p,assigned_to:e.target.value}))}
+              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+              <option value="">— Unassigned —</option>
+              {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} — {e.role}</option>)}
+            </select>
+          ):(
+            <input value={draft.assigned_to||""} onChange={e=>setDraft(p=>({...p,assigned_to:e.target.value}))}
+              placeholder="Engineer name…"
+              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}/>
+          )}
         </div>
-      </td>
-    </tr>);
-  }
+        <div>
+          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>REMARKS / BLOCKERS</label>
+          <textarea value={draft.remarks||""} onChange={e=>setDraft(p=>({...p,remarks:e.target.value}))} rows={2}
+            placeholder="e.g. Waiting for IOA addresses…"
+            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#7a8faa",padding:"6px 8px",fontSize:11,resize:"vertical"}}/>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
+        <button className="bg" onClick={onClose}>Cancel</button>
+        <button className="bp" onClick={()=>onSave(draft)}>Save Activity</button>
+      </div>
+    </div>
+  </div>);
+}
+
+/* ── Add Activity modal ── */
+function AddActivityModal({projId, subId, onSave, onClose}){
+  const [cat,    setCat]    = useState(TAXONOMY_CATS[0]);
+  const [actName,setActName]= useState(ACTIVITY_TAXONOMY[TAXONOMY_CATS[0]][0]);
+  const [custom, setCustom] = useState("");
+  const catActs = ACTIVITY_TAXONOMY[cat]||[];
+  const finalName = actName==="Custom…" ? custom : actName;
+  return(
+  <div className="modal-ov" onClick={onClose}>
+    <div className="modal" style={{maxWidth:400}} onClick={e=>e.stopPropagation()}>
+      <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:14}}>Add Activity</h3>
+      <div style={{display:"grid",gap:10}}>
+        <div>
+          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>CATEGORY</label>
+          <select value={cat} onChange={e=>{setCat(e.target.value);setActName(ACTIVITY_TAXONOMY[e.target.value]?.[0]||"");}}
+            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+            {TAXONOMY_CATS.map(c=><option key={c}>{c}</option>)}
+            <option value="">— Custom Category —</option>
+          </select>
+        </div>
+        <div>
+          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>ACTIVITY</label>
+          {catActs.length>0?(
+            <select value={actName} onChange={e=>setActName(e.target.value)}
+              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}>
+              {catActs.map(a=><option key={a}>{a}</option>)}
+              <option value="Custom…">Custom…</option>
+            </select>
+          ):(
+            <input value={actName} onChange={e=>setActName(e.target.value)} placeholder="Activity name…"
+              style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}/>
+          )}
+          {actName==="Custom…"&&(
+            <input value={custom} onChange={e=>setCustom(e.target.value)} placeholder="Type custom activity name…"
+              style={{width:"100%",marginTop:6,background:"#060e1c",border:"1px solid #38bdf8",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11}}/>
+          )}
+        </div>
+      </div>
+      <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
+        <button className="bg" onClick={onClose}>Cancel</button>
+        <button className="bp" disabled={!finalName.trim()} onClick={()=>onSave({category:cat||null,activity_name:finalName.trim()})}>Add</button>
+      </div>
+    </div>
+  </div>);
+}
+
+/* ── Single activity row ── */
+function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete}){
+  const pct = Math.round(a.progress*100);
+  const sc  = STATUS_COLOR[a.status]||"#4e6479";
   return(
   <tr style={{cursor:"pointer"}} onClick={()=>onEdit(a)}>
-    <td style={{maxWidth:260}}>
+    <td style={{maxWidth:220}}>
       <div style={{fontWeight:600,fontSize:11}}>{a.activity_name}</div>
-      {a.remarks&&<div style={{fontSize:9,color:"#f87171",fontStyle:"italic",marginTop:1}}>{a.remarks}</div>}
+      {a.remarks&&<div style={{fontSize:9,color:"#f87171",fontStyle:"italic",marginTop:1,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.remarks}</div>}
     </td>
     <td><span style={{fontSize:9,padding:"2px 7px",borderRadius:3,background:STATUS_BG[a.status]||"#0a0f18",color:sc,fontWeight:700,whiteSpace:"nowrap"}}>{a.status}</span></td>
     <td>
       <div style={{display:"flex",alignItems:"center",gap:7}}>
-        <div style={{width:60,height:6,background:"#0b1526",borderRadius:3,overflow:"hidden",flexShrink:0}}>
+        <div style={{width:56,height:5,background:"#0b1526",borderRadius:3,overflow:"hidden",flexShrink:0}}>
           <div style={{height:"100%",width:`${pct}%`,background:sc,borderRadius:3}}/>
         </div>
         <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,fontWeight:700,color:sc}}>{pct}%</span>
@@ -1536,12 +1691,18 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isEditing, editActiv
   </tr>);
 }
 
-function ProjectTracker({projects, activities, subprojects, entries, isAdmin, activitiesLoaded, setActivities, showToast}){
-  const [trackerProj, setTrackerProj]   = useState(null);
-  const [trackerSub,  setTrackerSub]    = useState(null);
-  const [editActivity, setEditActivity] = useState(null);
+/* ════════════════════════════════════════════════════════
+   PROJECT TRACKER — standalone component
+   ════════════════════════════════════════════════════════ */
+function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, activitiesLoaded, setActivities, showToast}){
+  const canEdit = isAdmin || isLead;
+  const [trackerProj,  setTrackerProj]  = useState(null);
+  const [trackerSub,   setTrackerSub]   = useState(null);
+  const [editActivity, setEditActivity] = useState(null);  // activity being edited (modal)
+  const [addModal,     setAddModal]     = useState(null);  // {projId, subId} for add modal
+  const [expandedCats, setExpandedCats] = useState({});    // {catName: bool}
 
-  // ── Memoised lookups — only recompute when source data changes ──
+  // ── Memoised lookups ──
   const activityHrsMap = useMemo(()=>{
     const m={};
     for(const e of entries){
@@ -1570,32 +1731,40 @@ function ProjectTracker({projects, activities, subprojects, entries, isAdmin, ac
     return m;
   },[activities]);
 
-  const getHrs   = (actId)=>activityHrsMap[String(actId)]||0;
-  const getProjHrs = (pid)=>projectHrsMap[pid]||0;
+  const getHrs     = useCallback((actId)=>activityHrsMap[String(actId)]||0, [activityHrsMap]);
+  const getProjHrs = useCallback((pid)=>projectHrsMap[pid]||0,              [projectHrsMap]);
+  const toggleCat  = useCallback((cat)=>setExpandedCats(p=>({...p,[cat]:!p[cat]})),[]);
 
-  // ── Callbacks (stable refs) ──
-  const saveActivity = useCallback(async(act)=>{
-    const {id,...fields}=act;
-    const {data,error}=await supabase.from("project_activities")
-      .update({...fields,updated_at:new Date().toISOString()})
-      .eq("id",id).select().single();
+  // ── Callbacks ──
+  const saveActivity = useCallback(async(draft)=>{
+    const {id,...fields}=draft;
+    // map category → group_name for DB compatibility
+    const payload={...fields, group_name: fields.category||fields.group_name, updated_at:new Date().toISOString()};
+    const {data,error}=await supabase.from("project_activities").update(payload).eq("id",id).select().single();
     if(error){showToast("Error: "+error.message,false);return;}
     setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
     setEditActivity(null);
-    showToast("Activity updated ✓");
+    showToast("Activity saved ✓");
   },[setActivities,showToast]);
 
-  const addActivityRow = useCallback(async(projId,subId,groupName)=>{
+  const confirmAdd = useCallback(async({category,activity_name})=>{
+    if(!addModal) return;
+    const {projId,subId}=addModal;
     const {data,error}=await supabase.from("project_activities").insert({
       project_id:projId, subproject_id:subId||null,
-      group_name:groupName||null, activity_name:"New Activity",
+      group_name:category||null,
+      category:category||null,
+      activity_name,
       status:"Not Started", progress:0,
       sort_order:(actsByProj[projId]||[]).length
     }).select().single();
     if(error){showToast("Error: "+error.message,false);return;}
     setActivities(prev=>[...prev,data]);
-    setEditActivity({...data});
-  },[actsByProj,setActivities,showToast]);
+    setAddModal(null);
+    showToast("Activity added ✓");
+    // Auto-expand the new category
+    if(category) setExpandedCats(p=>({...p,[category]:true}));
+  },[addModal,actsByProj,setActivities,showToast]);
 
   const deleteActivity = useCallback(async(id)=>{
     if(!window.confirm("Delete this activity?")) return;
@@ -1603,25 +1772,21 @@ function ProjectTracker({projects, activities, subprojects, entries, isAdmin, ac
     setActivities(prev=>prev.filter(a=>a.id!==id));
   },[setActivities]);
 
-  const handleEdit = useCallback((a)=>{
-    setEditActivity(prev=>prev?.id===a.id?null:{...a});
-  },[]);
-
-  // ── Loading state ──
+  // ── Loading ──
   if(!activitiesLoaded) return(
     <div style={{padding:32,textAlign:"center",color:"#2e4a66",fontSize:13}}>Loading project tracker…</div>
   );
 
   // ── OVERVIEW ──
   if(!trackerProj){
-    const allTrackerProjects=isAdmin
+    const allTrackerProjects=canEdit
       ? projects.filter(p=>p.status!=="Completed")
       : projects.filter(p=>(actsByProj[p.id]||[]).length>0);
-    return(
+    return(<>
     <div style={{display:"grid",gap:14}}>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <span style={{fontSize:13,fontWeight:700,color:"#f0f6ff"}}>Project Tracker</span>
-        <span style={{fontSize:11,color:"#2e4a66"}}>{activities.length} activities across {Object.keys(actsByProj).length} projects</span>
+        <span style={{fontSize:11,color:"#2e4a66"}}>{activities.length} activities · {Object.keys(actsByProj).length} projects</span>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
         {allTrackerProjects.map(p=>{
@@ -1655,13 +1820,15 @@ function ProjectTracker({projects, activities, subprojects, entries, isAdmin, ac
               {done>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#002414",color:"#34d399",fontWeight:700}}>{done} Done</span>}
               {active>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#001a2c",color:"#38bdf8",fontWeight:700}}>{active} Active</span>}
               {pending>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0a0f18",color:"#4e6479",fontWeight:700}}>{pending} Pending</span>}
-              {hasSubs&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",fontWeight:700}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-projects</span>}
+              {hasSubs&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",fontWeight:700}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-sites</span>}
               {projActs.length===0&&<span style={{fontSize:9,color:"#2e4a66",fontStyle:"italic"}}>No activities yet</span>}
             </div>
           </div>);
         })}
       </div>
-    </div>);
+    </div>
+    {addModal&&<AddActivityModal projId={addModal.projId} subId={addModal.subId} onSave={confirmAdd} onClose={()=>setAddModal(null)}/>}
+    </>);
   }
 
   // ── PROJECT DETAIL ──
@@ -1673,29 +1840,32 @@ function ProjectTracker({projects, activities, subprojects, entries, isAdmin, ac
   const visActs=trackerSub
     ? projActs.filter(a=>String(a.subproject_id)===String(trackerSub))
     : projActs;
+
+  // Group by category (group_name in DB)
+  const catNames=[...new Set(visActs.map(a=>a.group_name||a.category).filter(Boolean))];
+  const uncategorised=visActs.filter(a=>!a.group_name&&!a.category);
+
   const overallPct=projActs.length>0?Math.round(projActs.reduce((s,a)=>s+a.progress,0)/projActs.length*100):0;
   const barColor=overallPct>=90?"#34d399":overallPct>=60?"#38bdf8":overallPct>=30?"#fb923c":"#f87171";
   const totalHrs=getProjHrs(trackerProj);
-  const groups=[...new Set(visActs.map(a=>a.group_name).filter(Boolean))];
-  const ungrouped=visActs.filter(a=>!a.group_name);
 
-  return(
+  return(<>
   <div style={{display:"grid",gap:14}}>
     {/* Breadcrumb */}
     <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-      <button className="bg" style={{fontSize:11}} onClick={()=>{setTrackerProj(null);setTrackerSub(null);setEditActivity(null);}}>← All Projects</button>
+      <button className="bg" style={{fontSize:11}} onClick={()=>{setTrackerProj(null);setTrackerSub(null);setExpandedCats({});}}>← All Projects</button>
       <span style={{color:"#2e4a66"}}>/</span>
       <span style={{fontSize:13,fontWeight:700,color:"#f0f6ff"}}>{selProj.name||trackerProj}</span>
       <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{trackerProj}</span>
       {hasSubs&&trackerSub&&(
         <><span style={{color:"#2e4a66"}}>/</span>
         <span style={{fontSize:12,color:"#a78bfa"}}>{projSubs.find(s=>String(s.id)===String(trackerSub))?.name}</span>
-        <button className="bg" style={{fontSize:10}} onClick={()=>setTrackerSub(null)}>Show All</button></>
+        <button className="bg" style={{fontSize:10}} onClick={()=>setTrackerSub(null)}>All Sites</button></>
       )}
       <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
         <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:barColor}}>{overallPct}%</div>
         <div style={{fontSize:10,color:"#2e4a66"}}>{totalHrs}h logged</div>
-        {isAdmin&&<button className="bp" style={{fontSize:10}} onClick={()=>addActivityRow(trackerProj,trackerSub||null,null)}>+ Add Activity</button>}
+        {canEdit&&<button className="bp" style={{fontSize:10}} onClick={()=>setAddModal({projId:trackerProj,subId:trackerSub||null})}>+ Add Activity</button>}
       </div>
     </div>
 
@@ -1704,10 +1874,10 @@ function ProjectTracker({projects, activities, subprojects, entries, isAdmin, ac
       <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4,transition:"width .5s"}}/>
     </div>
 
-    {/* Sub-project tabs */}
+    {/* Sub-site tabs */}
     {hasSubs&&(
     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-      <button onClick={()=>setTrackerSub(null)}
+      <button onClick={()=>{setTrackerSub(null);setExpandedCats({});}}
         style={{fontSize:10,padding:"4px 12px",borderRadius:5,border:`1px solid ${!trackerSub?"#38bdf8":"#192d47"}`,background:!trackerSub?"#001a2c":"transparent",color:!trackerSub?"#38bdf8":"#4e6479",cursor:"pointer"}}>
         All Sites
       </button>
@@ -1717,66 +1887,85 @@ function ProjectTracker({projects, activities, subprojects, entries, isAdmin, ac
         const isSel=String(trackerSub)===String(sp.id);
         const sc=spPct>=90?"#34d399":spPct>=60?"#38bdf8":spPct>=30?"#fb923c":"#f87171";
         return(
-        <button key={sp.id} onClick={()=>{setTrackerSub(sp.id);setEditActivity(null);}}
+        <button key={sp.id} onClick={()=>{setTrackerSub(sp.id);setExpandedCats({});}}
           style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:`1px solid ${isSel?sc:"#192d47"}`,background:isSel?sc+"20":"transparent",color:isSel?sc:"#4e6479",cursor:"pointer"}}>
           {sp.name} <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{spPct}%</span>
         </button>);
       })}
     </div>)}
 
-    {/* Activities table */}
-    <div className="card" style={{padding:0}}>
-      <table>
-        <thead><tr>
-          <th>Activity</th><th>Status</th><th>Progress</th>
-          <th>Assigned</th><th>Hours Logged</th>
-          {isAdmin&&<th style={{width:40}}></th>}
-        </tr></thead>
-        <tbody>
-          {groups.map(g=>{
-            const gActs=visActs.filter(a=>a.group_name===g);
-            const gPct=Math.round(gActs.reduce((s,a)=>s+a.progress,0)/gActs.length*100);
-            return(
-            <React.Fragment key={g}>
-              <tr style={{background:"#0a1628"}}>
-                <td colSpan={isAdmin?6:5} style={{padding:"8px 12px"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <span style={{fontSize:10,fontWeight:700,color:"#a78bfa",textTransform:"uppercase",letterSpacing:".06em"}}>{g}</span>
-                    <div style={{flex:1,height:1,background:"#192d47"}}/>
-                    <span style={{fontSize:9,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>
-                      {gPct}% avg · {gActs.filter(a=>a.status==="Completed").length}/{gActs.length} done
-                    </span>
-                    {isAdmin&&<button className="bp" style={{fontSize:9,padding:"1px 6px"}} onClick={()=>addActivityRow(trackerProj,trackerSub||null,g)}>+</button>}
-                  </div>
-                </td>
-              </tr>
-              {gActs.map(a=>(
-                <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)} isAdmin={isAdmin}
-                  onEdit={handleEdit} onDelete={deleteActivity}
-                  isEditing={editActivity?.id===a.id}
-                  editActivity={editActivity} setEditActivity={setEditActivity}
-                  onSave={saveActivity}/>
+    {/* Category accordion sections */}
+    <div style={{display:"grid",gap:8}}>
+      {catNames.map(cat=>{
+        const catActs=visActs.filter(a=>(a.group_name||a.category)===cat);
+        const catPct=Math.round(catActs.reduce((s,a)=>s+a.progress,0)/catActs.length*100);
+        const catDone=catActs.filter(a=>a.status==="Completed").length;
+        const isOpen=expandedCats[cat]!==false; // default open
+        const catColor=catPct>=90?"#34d399":catPct>=60?"#38bdf8":catPct>=30?"#fb923c":"#f87171";
+        return(
+        <div key={cat} style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:8,overflow:"hidden"}}>
+          {/* Category header — clickable to collapse */}
+          <div onClick={()=>toggleCat(cat)}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",background:"#080f1e"}}
+            onMouseEnter={e=>e.currentTarget.style.background="#0c1a30"}
+            onMouseLeave={e=>e.currentTarget.style.background="#080f1e"}>
+            <span style={{fontSize:11,color:"#2e4a66",transition:"transform .2s",display:"inline-block",transform:isOpen?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
+            <span style={{fontSize:11,fontWeight:700,color:"#a78bfa",flex:1}}>{cat}</span>
+            {/* Mini progress bar */}
+            <div style={{width:80,height:5,background:"#0b1526",borderRadius:3,overflow:"hidden"}}>
+              <div style={{height:"100%",width:`${catPct}%`,background:catColor,borderRadius:3}}/>
+            </div>
+            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,fontWeight:700,color:catColor,width:32,textAlign:"right"}}>{catPct}%</span>
+            <span style={{fontSize:9,color:"#2e4a66",width:60,textAlign:"right"}}>{catDone}/{catActs.length} done</span>
+            {canEdit&&<button className="bp" style={{fontSize:9,padding:"1px 7px",marginLeft:4}}
+              onClick={e=>{e.stopPropagation();setAddModal({projId:trackerProj,subId:trackerSub||null,defaultCat:cat});}}>+</button>}
+          </div>
+          {/* Activity rows */}
+          {isOpen&&(
+          <table style={{margin:0}}>
+            <thead><tr>
+              <th>Activity</th><th>Status</th><th>Progress</th>
+              <th>Assigned</th><th>Hours</th>
+              {canEdit&&<th style={{width:36}}></th>}
+            </tr></thead>
+            <tbody>
+              {catActs.map(a=>(
+                <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)}
+                  isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}/>
               ))}
-            </React.Fragment>);
-          })}
-          {ungrouped.map(a=>(
-            <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)} isAdmin={isAdmin}
-              onEdit={handleEdit} onDelete={deleteActivity}
-              isEditing={editActivity?.id===a.id}
-              editActivity={editActivity} setEditActivity={setEditActivity}
-              onSave={saveActivity}/>
-          ))}
-          {visActs.length===0&&(
-            <tr><td colSpan={isAdmin?6:5} style={{textAlign:"center",padding:"24px",color:"#2e4a66",fontStyle:"italic"}}>
-              No activities yet.{isAdmin&&" Click + Add Activity to start."}
-            </td></tr>
-          )}
-        </tbody>
-      </table>
+            </tbody>
+          </table>)}
+        </div>);
+      })}
+
+      {/* Uncategorised activities */}
+      {uncategorised.length>0&&(
+      <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:8,overflow:"hidden"}}>
+        <div style={{padding:"8px 14px",background:"#080f1e",fontSize:10,color:"#4e6479",fontWeight:700}}>UNCATEGORISED</div>
+        <table style={{margin:0}}>
+          <thead><tr>
+            <th>Activity</th><th>Status</th><th>Progress</th>
+            <th>Assigned</th><th>Hours</th>
+            {canEdit&&<th style={{width:36}}></th>}
+          </tr></thead>
+          <tbody>
+            {uncategorised.map(a=>(
+              <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)}
+                isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}/>
+            ))}
+          </tbody>
+        </table>
+      </div>)}
+
+      {visActs.length===0&&(
+        <div style={{textAlign:"center",padding:"32px",color:"#2e4a66",fontSize:12,fontStyle:"italic",background:"#060e1c",borderRadius:8,border:"1px solid #192d47"}}>
+          No activities yet.{canEdit&&" Click + Add Activity to start."}
+        </div>
+      )}
     </div>
 
     {/* Summary strip */}
-    <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+    <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
       {[
         {label:"Completed",  count:visActs.filter(a=>a.status==="Completed").length,  color:"#34d399",bg:"#002414"},
         {label:"In Progress",count:visActs.filter(a=>a.status==="In Progress").length, color:"#38bdf8",bg:"#001a2c"},
@@ -1788,7 +1977,98 @@ function ProjectTracker({projects, activities, subprojects, entries, isAdmin, ac
           <span style={{fontSize:10,color:"#4e6479"}}>{s.label}</span>
         </div>
       ))}
-      <div style={{marginLeft:"auto",fontSize:10,color:"#2e4a66",alignSelf:"center"}}>Click any row to edit</div>
+      <div style={{marginLeft:"auto",fontSize:10,color:"#2e4a66"}}>Click row to edit · Click category header to collapse</div>
+    </div>
+  </div>
+
+  {/* Edit modal */}
+  {editActivity&&(
+    <ActivityEditModal
+      act={{...editActivity, category: editActivity.group_name||editActivity.category||""}}
+      onSave={saveActivity}
+      onClose={()=>setEditActivity(null)}
+      engineers={engineers}/>
+  )}
+
+  {/* Add modal */}
+  {addModal&&(
+    <AddActivityModal
+      projId={addModal.projId} subId={addModal.subId}
+      defaultCat={addModal.defaultCat}
+      onSave={confirmAdd}
+      onClose={()=>setAddModal(null)}/>
+  )}
+  </>);
+}
+
+
+
+/* ════════════════════════════════════════════════════════
+   SUB-PROJECT MODAL (add / edit)
+   ════════════════════════════════════════════════════════ */
+function SubProjectModal({projectId, sub, engineers, onSave, onClose}){
+  const isEdit = !!sub;
+  const [draft, setDraft] = useState(sub
+    ? {...sub}
+    : {project_id:projectId, name:"", pm_name:"", pm_comments:"", pendings:""}
+  );
+  const engList = engineers.filter(e=>e.role_type!=="accountant");
+  return(
+  <div className="modal-ov" onClick={onClose}>
+    <div className="modal" style={{maxWidth:440}} onClick={e=>e.stopPropagation()}>
+      <h3 style={{fontSize:14,fontWeight:700,color:"#f0f6ff",marginBottom:16}}>
+        {isEdit?"Edit Sub-site":"Add Sub-site"}
+        <span style={{fontSize:10,color:"#a78bfa",marginLeft:8,fontWeight:400}}>Project: {projectId}</span>
+      </h3>
+      <div style={{display:"grid",gap:10}}>
+        <div>
+          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>SUB-SITE NAME <span style={{color:"#f87171"}}>*</span></label>
+          <input value={draft.name} onChange={e=>setDraft(p=>({...p,name:e.target.value}))}
+            placeholder="e.g. Ipotesti, Craiova, Bradu…"
+            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>BU ROMANIA PM</label>
+          <input value={draft.pm_name||""} onChange={e=>setDraft(p=>({...p,pm_name:e.target.value}))}
+            placeholder="e.g. Cosmin, Irena, Alexanda…"
+            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>ASSIGNED ENGINEERS</label>
+          <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,maxHeight:140,overflowY:"auto"}}>
+            {engList.map(e=>{
+              const assignedArr = (draft.assigned_engineers||[]).map(String);
+              const sel = assignedArr.includes(String(e.id));
+              return(
+              <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"2px 4px",borderRadius:3,background:sel?"#001a2c":"transparent"}}>
+                <input type="checkbox" checked={sel} onChange={()=>setDraft(p=>{
+                  const cur=(p.assigned_engineers||[]).map(String);
+                  return {...p, assigned_engineers: sel ? cur.filter(x=>x!==String(e.id)) : [...cur,String(e.id)]};
+                })} style={{accentColor:"#38bdf8"}}/>
+                <span style={{fontSize:10,color:sel?"#38bdf8":"#7a8faa"}}>{e.name}</span>
+              </label>);
+            })}
+          </div>
+        </div>
+        <div>
+          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>PM COMMENTS</label>
+          <textarea value={draft.pm_comments||""} onChange={e=>setDraft(p=>({...p,pm_comments:e.target.value}))} rows={2}
+            placeholder="Comments from BU Romania PM…"
+            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#7a8faa",padding:"6px 8px",fontSize:10,resize:"vertical",boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>PENDING ITEMS</label>
+          <textarea value={draft.pendings||""} onChange={e=>setDraft(p=>({...p,pendings:e.target.value}))} rows={2}
+            placeholder="e.g. Waiting for IP list, IOA addresses…"
+            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f87171",padding:"6px 8px",fontSize:10,resize:"vertical",boxSizing:"border-box"}}/>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
+        <button className="bg" onClick={onClose}>Cancel</button>
+        <button className="bp" disabled={!draft.name.trim()} onClick={()=>onSave(draft)}>
+          {isEdit?"Save Changes":"Add Sub-site"}
+        </button>
+      </div>
     </div>
   </div>);
 }
@@ -1837,6 +2117,8 @@ export default function App(){
   const [xlsxReady,setXlsxReady]           = useState(!!window.XLSX);
   const [showProjModal,setShowProjModal]   = useState(false);
   const [editProjModal,setEditProjModal]   = useState(null);
+  const [subProjModal,setSubProjModal]     = useState(null);  // {projectId, sub?} — add/edit sub-project
+  const [expandedProj,setExpandedProj]     = useState({});    // {projId: bool} — show sub-projects in table
   const [showEngModal,setShowEngModal]     = useState(false);
   const [editEngModal,setEditEngModal]     = useState(null);
   const [adminTab,setAdminTab]             = useState("engineers");
@@ -1867,7 +2149,7 @@ export default function App(){
   const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:"",termination_date:"",notes:""});
   const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
-  const [newEntry,setNewEntry]   = useState({projectId:"",taskCategory:"Engineering",taskType:"Basic Engineering",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null});
+  const [newEntry,setNewEntry]   = useState({projectId:"",taskCategory:"Engineering",taskType:"Basic Engineering",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null});
   const [newProj,setNewProj]     = useState({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
   const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
 
@@ -2017,7 +2299,7 @@ export default function App(){
     if(error){showToast("Error: "+error.message,false);return;}
     if(data) setEntries(prev=>[data,...prev]);
     setModalDate(null);
-    setNewEntry({projectId:"",taskCategory:"Engineering",taskType:"Basic Engineering",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null});
+    setNewEntry({projectId:"",taskCategory:"Engineering",taskType:"Basic Engineering",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null});
     showToast("Hours posted ✓");
   };
 
@@ -2585,6 +2867,34 @@ export default function App(){
     setProjects(prev=>prev.filter(p=>p.id!==id));
     setEntries(prev=>prev.filter(e=>e.project_id!==id));
     showToast("Project deleted",false);
+  };
+
+  /* ── SUB-PROJECT CRUD ── */
+  const addSubProject=async({projectId,name,pm_name,pm_comments,pendings})=>{
+    if(!name.trim()){showToast("Sub-project name required",false);return;}
+    const{data,error}=await supabase.from("project_subprojects")
+      .insert({project_id:projectId,name:name.trim(),pm_name,pm_comments,pendings})
+      .select().single();
+    if(error){showToast("Error: "+error.message,false);return;}
+    setSubprojects(prev=>[...prev,data]);
+    setSubProjModal(null); showToast("Sub-project added ✓");
+  };
+  const saveSubProject=async(sub)=>{
+    const{id,...fields}=sub;
+    const{data,error}=await supabase.from("project_subprojects")
+      .update(fields).eq("id",id).select().single();
+    if(error){showToast("Error: "+error.message,false);return;}
+    setSubprojects(prev=>prev.map(s=>s.id===data.id?data:s));
+    setSubProjModal(null); showToast("Sub-project saved ✓");
+  };
+  const deleteSubProject=async(id)=>{
+    if(!window.confirm("Delete this sub-project and unlink its activities?")) return;
+    // Unlink activities (set subproject_id to null)
+    await supabase.from("project_activities").update({subproject_id:null}).eq("subproject_id",id);
+    await supabase.from("project_subprojects").delete().eq("id",id);
+    setSubprojects(prev=>prev.filter(s=>s.id!==id));
+    setActivities(prev=>prev.map(a=>String(a.subproject_id)===String(id)?{...a,subproject_id:null}:a));
+    showToast("Sub-project deleted",false);
   };
 
   /* ── ENGINEER CRUD ── */
@@ -3747,34 +4057,84 @@ export default function App(){
               )}
 
               {/* PROJECTS */}
-              {adminTab==="projects"&&isAdmin&&(
-                <div className="card">
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                    <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Projects ({projects.length})</h3>
-                    <button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>
+              {adminTab==="projects"&&isAdmin&&(()=>{
+                // Pre-build hours map to avoid per-row filter
+                const projHrsMap={};
+                for(const e of entries){ if(e.entry_type==="work"&&e.project_id) projHrsMap[e.project_id]=(projHrsMap[e.project_id]||0)+e.hours; }
+                return(
+                <div style={{display:"grid",gap:12}}>
+                  <div className="card" style={{padding:"12px 16px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                      <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Projects ({projects.length})</h3>
+                      <button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>
+                    </div>
+                    <table>
+                      <thead><tr>
+                        <th style={{width:28}}></th>
+                        <th>ID</th><th>Name</th><th>Client</th><th>Phase</th>
+                        <th>Status</th><th>Billing</th><th>Hours</th>
+                        <th>Sub-sites</th>
+                        <th style={{width:110}}>Actions</th>
+                      </tr></thead>
+                      <tbody>{projects.map(p=>{
+                        const pSubs=subprojects.filter(s=>s.project_id===p.id);
+                        const isExp=expandedProj[p.id];
+                        const hrs=projHrsMap[p.id]||0;
+                        return(<React.Fragment key={p.id}>
+                          <tr>
+                            <td style={{textAlign:"center"}}>
+                              {pSubs.length>0&&(
+                                <button onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}
+                                  style={{background:"none",border:"none",color:"#a78bfa",cursor:"pointer",fontSize:11,padding:0,transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>▶</button>
+                              )}
+                            </td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
+                            <td style={{fontSize:11,fontWeight:500}}>{p.name}</td>
+                            <td style={{color:"#7a8faa",fontSize:11}}>{p.client}</td>
+                            <td style={{color:"#60a5fa",fontSize:11}}>{p.phase}</td>
+                            <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"#1e3a5f",color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span></td>
+                            <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,background:p.billable?"#0c2b4e":"#1a0a00",color:p.billable?"#38bdf8":"#fb923c"}}>{p.billable?"Billable":"Non-Bill"}</span></td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{hrs}h</td>
+                            <td>
+                              {pSubs.length>0
+                                ? <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",fontWeight:700,cursor:"pointer"}} onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}>{pSubs.length} sub-site{pSubs.length>1?"s":""}</span>
+                                : <span style={{fontSize:9,color:"#1a2d3f"}}>—</span>
+                              }
+                            </td>
+                            <td><div style={{display:"flex",gap:4}}>
+                              <button className="be" title="Edit project" onClick={()=>setEditProjModal({...p})}>✎</button>
+                              <button style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"#1a0a30",border:"1px solid #a78bfa30",color:"#a78bfa",cursor:"pointer"}} title="Add sub-site" onClick={()=>setSubProjModal({projectId:p.id,sub:null})}>+⊕</button>
+                              <button className="bd" title="Delete project" onClick={()=>deleteProject(p.id)}>✕</button>
+                            </div></td>
+                          </tr>
+                          {/* Sub-project rows */}
+                          {isExp&&pSubs.map(sp=>(
+                            <tr key={sp.id} style={{background:"#06111f"}}>
+                              <td></td>
+                              <td colSpan={2} style={{paddingLeft:24}}>
+                                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                  <span style={{color:"#2e4a66",fontSize:10}}>└</span>
+                                  <span style={{fontSize:11,color:"#a78bfa",fontWeight:600}}>{sp.name}</span>
+                                </div>
+                              </td>
+                              <td style={{fontSize:10,color:"#7a8faa"}}>{sp.pm_name||"—"}</td>
+                              <td colSpan={2} style={{fontSize:10,color:"#38bdf8"}}>
+                                {(sp.assigned_engineers||[]).map(eid=>engineers.find(e=>String(e.id)===String(eid))?.name).filter(Boolean).join(", ")||"—"}
+                              </td>
+                              <td colSpan={2} style={{fontSize:10,color:"#4e6479",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sp.pendings||""}</td>
+                              <td></td>
+                              <td><div style={{display:"flex",gap:4}}>
+                                <button className="be" style={{fontSize:10}} onClick={()=>setSubProjModal({projectId:p.id,sub:sp})}>✎</button>
+                                <button className="bd" style={{fontSize:10}} onClick={()=>deleteSubProject(sp.id)}>✕</button>
+                              </div></td>
+                            </tr>
+                          ))}
+                        </React.Fragment>);
+                      })}</tbody>
+                    </table>
                   </div>
-                  <table>
-                    <thead><tr><th>ID</th><th>Name</th><th>Client</th><th>Phase</th><th>Status</th><th>Billing</th><th>Total Hours</th><th style={{width:100}}>Actions</th></tr></thead>
-                    <tbody>{projects.map(p=>(
-                      <tr key={p.id}>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
-                        <td style={{fontSize:11,fontWeight:500}}>{p.name}</td>
-                        <td style={{color:"#7a8faa",fontSize:11}}>{p.client}</td>
-                        <td style={{color:"#60a5fa",fontSize:11}}>{p.phase}</td>
-                        <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"#1e3a5f",color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span></td>
-                        <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,background:p.billable?"#0c2b4e":"#1a0a00",color:p.billable?"#38bdf8":"#fb923c"}}>{p.billable?"Billable":"Non-Bill"}</span></td>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>
-                          {entries.filter(e=>e.project_id===p.id&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0)}h
-                        </td>
-                        <td><div style={{display:"flex",gap:5}}>
-                          <button className="be" onClick={()=>setEditProjModal({...p})}>✎</button>
-                          <button className="bd" onClick={()=>deleteProject(p.id)}>✕</button>
-                        </div></td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              )}
+                </div>);
+              })()}
 
               {/* ALL ENTRIES */}
               {adminTab==="entries"&&(
@@ -4651,7 +5011,9 @@ export default function App(){
                   activities={activities}
                   subprojects={subprojects}
                   entries={entries}
+                  engineers={engineers}
                   isAdmin={isAdmin}
+                  isLead={isLead}
                   activitiesLoaded={activitiesLoaded}
                   setActivities={setActivities}
                   showToast={showToast}
@@ -4687,7 +5049,7 @@ export default function App(){
                       {label:"Function Category column (enables KPI function tracking)",sql:`ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS function_category text;`},
                       {label:"Staff table (Finance › Salaries)",sql:`CREATE TABLE IF NOT EXISTS staff (\n  id bigserial PRIMARY KEY, name text NOT NULL, department text DEFAULT 'Engineering',\n  role text, type text DEFAULT 'full_time', salary_usd numeric DEFAULT 0,\n  salary_egp numeric DEFAULT 0, active boolean DEFAULT true,\n  join_date date, termination_date date, notes text, created_at timestamptz DEFAULT now()\n);\nALTER TABLE staff ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "auth_all" ON staff FOR ALL USING (auth.role()='authenticated');`},
                       {label:"Expenses table (Finance › Expenses)",sql:`CREATE TABLE IF NOT EXISTS expenses (\n  id bigserial PRIMARY KEY, category text NOT NULL, description text NOT NULL,\n  amount_usd numeric DEFAULT 0, amount_egp numeric DEFAULT 0,\n  month int NOT NULL, year int NOT NULL, notes text, created_at timestamptz DEFAULT now()\n);\nALTER TABLE expenses ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "auth_all" ON expenses FOR ALL USING (auth.role()='authenticated');`},
-                      {label:"Project Tracker — sub-projects + activities (Tracker tab)",sql:`-- Step 1: Sub-projects (for SCADA Olt sites, Transelectrica sites)\nCREATE TABLE IF NOT EXISTS project_subprojects (\n  id bigserial PRIMARY KEY,\n  project_id text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n  name text NOT NULL, pm_name text, pm_comments text, pendings text,\n  created_at timestamptz DEFAULT now()\n);\n-- Step 2: Activities per project/sub-project\nCREATE TABLE IF NOT EXISTS project_activities (\n  id bigserial PRIMARY KEY,\n  project_id text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n  subproject_id bigint REFERENCES project_subprojects(id) ON DELETE CASCADE,\n  group_name text, activity_name text NOT NULL,\n  status text DEFAULT 'Not Started', progress numeric DEFAULT 0,\n  assigned_to text, start_date date, end_date date, remarks text,\n  sort_order int DEFAULT 0,\n  created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()\n);\n-- Step 3: Link time entries to activities\nALTER TABLE time_entries ADD COLUMN IF NOT EXISTS activity_id bigint REFERENCES project_activities(id) ON DELETE SET NULL;\n-- Step 4: RLS\nALTER TABLE project_subprojects ENABLE ROW LEVEL SECURITY;\nALTER TABLE project_activities ENABLE ROW LEVEL SECURITY;\nDO $$ BEGIN\n  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='project_subprojects' AND policyname='auth_all') THEN\n    CREATE POLICY "auth_all" ON project_subprojects FOR ALL USING (auth.role()='authenticated');\n  END IF;\n  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='project_activities' AND policyname='auth_all') THEN\n    CREATE POLICY "auth_all" ON project_activities FOR ALL USING (auth.role()='authenticated');\n  END IF;\nEND $$;\nCREATE INDEX IF NOT EXISTS idx_activities_project ON project_activities(project_id);\nCREATE INDEX IF NOT EXISTS idx_activities_subproject ON project_activities(subproject_id);\nCREATE INDEX IF NOT EXISTS idx_entries_activity ON time_entries(activity_id);`},
+                      {label:"Project Tracker — sub-projects + activities (Tracker tab)",sql:`-- Step 1: Sub-projects (for SCADA Olt sites, Transelectrica sites)\nCREATE TABLE IF NOT EXISTS project_subprojects (\n  id bigserial PRIMARY KEY,\n  project_id text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n  name text NOT NULL, pm_name text, pm_comments text, pendings text,\n  created_at timestamptz DEFAULT now()\n);\n-- Step 2: Activities per project/sub-project\nCREATE TABLE IF NOT EXISTS project_activities (\n  id bigserial PRIMARY KEY,\n  project_id text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n  subproject_id bigint REFERENCES project_subprojects(id) ON DELETE CASCADE,\n  group_name text, activity_name text NOT NULL,\n  status text DEFAULT 'Not Started', progress numeric DEFAULT 0,\n  assigned_to text, start_date date, end_date date, remarks text,\n  sort_order int DEFAULT 0,\n  created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()\n);\n-- Step 3: Link time entries to activities\nALTER TABLE time_entries ADD COLUMN IF NOT EXISTS activity_id bigint REFERENCES project_activities(id) ON DELETE SET NULL;\nALTER TABLE project_subprojects ADD COLUMN IF NOT EXISTS assigned_engineers jsonb DEFAULT '[]';\n-- Step 4: RLS\nALTER TABLE project_subprojects ENABLE ROW LEVEL SECURITY;\nALTER TABLE project_activities ENABLE ROW LEVEL SECURITY;\nDO $$ BEGIN\n  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='project_subprojects' AND policyname='auth_all') THEN\n    CREATE POLICY "auth_all" ON project_subprojects FOR ALL USING (auth.role()='authenticated');\n  END IF;\n  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='project_activities' AND policyname='auth_all') THEN\n    CREATE POLICY "auth_all" ON project_activities FOR ALL USING (auth.role()='authenticated');\n  END IF;\nEND $$;\nCREATE INDEX IF NOT EXISTS idx_activities_project ON project_activities(project_id);\nCREATE INDEX IF NOT EXISTS idx_activities_subproject ON project_activities(subproject_id);\nCREATE INDEX IF NOT EXISTS idx_entries_activity ON time_entries(activity_id);`},
                     ].map((m,i)=>(
                       <div key={i} style={{marginBottom:12,background:"#060e1c",borderRadius:6,padding:"10px 12px",border:"1px solid #192d47"}}>
                         <div style={{fontSize:10,fontWeight:700,color:"#f59e0b",marginBottom:6}}>{i+1}. {m.label}</div>
@@ -4872,46 +5234,57 @@ export default function App(){
               )}
               {newEntry.type==="work"?<>
                 <div><Lbl>Project</Lbl>
-                  <select value={newEntry.projectId} onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null}))}>
+                  <select value={newEntry.projectId} onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null,_actCat:null,_actSub:null}))}>
                     <option value="">— Select Project —</option>
                     {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
                   </select>
                 </div>
-                {/* Activity selector — shows when project has tracker activities */}
-                {newEntry.projectId&&activities.filter(a=>a.project_id===newEntry.projectId&&a.status!=="Completed").length>0&&(
-                <div><Lbl>Activity <span style={{color:"#38bdf8",fontSize:9}}>(link to project tracker — optional)</span></Lbl>
-                  <select value={newEntry.activityId||""} onChange={e=>setNewEntry(p=>({...p,activityId:e.target.value||null}))}>
-                    <option value="">— General (no specific activity) —</option>
-                    {(()=>{
-                      const projActs=activities.filter(a=>a.project_id===newEntry.projectId&&a.status!=="Completed");
-                      // Group by subproject if applicable
-                      const subNames=[...new Set(projActs.map(a=>{
-                        const sp=subprojects.find(s=>s.id===a.subproject_id);
-                        return sp?sp.name:null;
-                      }).filter(Boolean))];
-                      if(subNames.length>0){
-                        return subNames.map(sn=>{
-                          const subActs=projActs.filter(a=>{const sp=subprojects.find(s=>s.id===a.subproject_id);return sp&&sp.name===sn;});
-                          return [
-                            <option key={`h-${sn}`} disabled style={{color:"#2e4a66"}}>── {sn} ──</option>,
-                            ...subActs.map(a=><option key={a.id} value={a.id}>{a.group_name?`[${a.group_name}] `:""}{a.activity_name} ({Math.round(a.progress*100)}%)</option>)
-                          ];
-                        });
-                      }
-                      const groups=[...new Set(projActs.map(a=>a.group_name).filter(Boolean))];
-                      if(groups.length>0){
-                        return groups.map(g=>{
-                          const gActs=projActs.filter(a=>a.group_name===g);
-                          return [
-                            <option key={`h-${g}`} disabled style={{color:"#2e4a66"}}>── {g} ──</option>,
-                            ...gActs.map(a=><option key={a.id} value={a.id}>{a.activity_name} ({Math.round(a.progress*100)}%)</option>)
-                          ];
-                        });
-                      }
-                      return projActs.map(a=><option key={a.id} value={a.id}>{a.activity_name} ({Math.round(a.progress*100)}%)</option>);
-                    })()}
-                  </select>
-                </div>)}
+                {/* Activity selector — 3-level: Project → Category → Activity */}
+                {newEntry.projectId&&(()=>{
+                  const projActs=activities.filter(a=>a.project_id===newEntry.projectId&&a.status!=="Completed");
+                  if(projActs.length===0) return null;
+                  // Get categories available for this project
+                  const projCats=[...new Set(projActs.map(a=>a.group_name||a.category).filter(Boolean))];
+                  const selCat=newEntry._actCat||projCats[0]||null;
+                  const catActs=selCat?projActs.filter(a=>(a.group_name||a.category)===selCat):projActs;
+                  // Also handle sub-projects
+                  const projSubList=[...new Set(projActs.map(a=>a.subproject_id).filter(Boolean))];
+                  const selSub=newEntry._actSub||null;
+                  const subFilteredActs=selSub?catActs.filter(a=>String(a.subproject_id)===String(selSub)):catActs;
+                  return(
+                  <div style={{background:"#080f1e",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gap:8}}>
+                    <div style={{fontSize:9,fontWeight:700,color:"#38bdf8",letterSpacing:".06em"}}>LINK TO PROJECT ACTIVITY (OPTIONAL)</div>
+                    {/* Sub-project selector (for SCADA Olt, Transelectrica) */}
+                    {projSubList.length>0&&(
+                    <div style={{display:"grid",gridTemplateColumns:"80px 1fr",alignItems:"center",gap:6}}>
+                      <span style={{fontSize:10,color:"#7a8faa"}}>Sub-site</span>
+                      <select value={newEntry._actSub||""} onChange={e=>setNewEntry(p=>({...p,_actSub:e.target.value||null,activityId:null}))}
+                        style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px 6px",fontSize:10}}>
+                        <option value="">All sites</option>
+                        {projSubList.map(sid=>{const sp=subprojects.find(s=>String(s.id)===String(sid));return sp?<option key={sid} value={sid}>{sp.name}</option>:null;})}
+                      </select>
+                    </div>)}
+                    {/* Category selector */}
+                    {projCats.length>0&&(
+                    <div style={{display:"grid",gridTemplateColumns:"80px 1fr",alignItems:"center",gap:6}}>
+                      <span style={{fontSize:10,color:"#7a8faa"}}>Category</span>
+                      <select value={newEntry._actCat||""} onChange={e=>setNewEntry(p=>({...p,_actCat:e.target.value||null,activityId:null}))}
+                        style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px 6px",fontSize:10}}>
+                        <option value="">All categories</option>
+                        {projCats.map(c=><option key={c}>{c}</option>)}
+                      </select>
+                    </div>)}
+                    {/* Activity selector */}
+                    <div style={{display:"grid",gridTemplateColumns:"80px 1fr",alignItems:"center",gap:6}}>
+                      <span style={{fontSize:10,color:"#7a8faa"}}>Activity</span>
+                      <select value={newEntry.activityId||""} onChange={e=>setNewEntry(p=>({...p,activityId:e.target.value||null}))}
+                        style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px 6px",fontSize:10}}>
+                        <option value="">— General —</option>
+                        {subFilteredActs.map(a=><option key={a.id} value={a.id}>{a.activity_name} ({Math.round(a.progress*100)}%)</option>)}
+                      </select>
+                    </div>
+                  </div>);
+                })()}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <div><Lbl>Task Category</Lbl>
                     <select value={newEntry.taskCategory} onChange={e=>setNewEntry(p=>({...p,taskCategory:e.target.value,taskType:TASK_CATEGORIES[e.target.value][0]}))}>
@@ -5000,7 +5373,7 @@ export default function App(){
       {/* New Project */}
       {showProjModal&&(
         <div className="modal-ov" onClick={()=>setShowProjModal(false)}>
-          <div className="modal" onClick={e=>e.stopPropagation()}>
+          <div className="modal" style={{maxWidth:520}} onClick={e=>e.stopPropagation()}>
             <h3 style={{fontSize:15,fontWeight:700,marginBottom:18}}>New Project</h3>
             <div style={{display:"grid",gap:11}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -5020,6 +5393,24 @@ export default function App(){
                 <div><Lbl>Billable?</Lbl><select value={newProj.billable?"yes":"no"} onChange={e=>setNewProj(p=>({...p,billable:e.target.value==="yes"}))}><option value="yes">Yes</option><option value="no">No — Internal</option></select></div>
                 <div><Lbl>Rate per Hour ($)</Lbl><input type="number" value={newProj.rate_per_hour} onChange={e=>setNewProj(p=>({...p,rate_per_hour:+e.target.value}))}/></div>
               </div>
+              {/* Team assignment */}
+              <div>
+                <Lbl>Assigned Team Members</Lbl>
+                <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:160,overflowY:"auto"}}>
+                  {engineers.filter(e=>e.role_type!=="accountant").map(e=>{
+                    const sel=(newProj.assigned_engineers||[]).includes(String(e.id));
+                    return(
+                    <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 4px",borderRadius:4,background:sel?"#001a2c":"transparent"}}>
+                      <input type="checkbox" checked={sel} onChange={()=>setNewProj(p=>{
+                        const cur=p.assigned_engineers||[];
+                        return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
+                      })} style={{accentColor:"#38bdf8"}}/>
+                      <span style={{fontSize:10,color:sel?"#38bdf8":"#7a8faa"}}>{e.name}</span>
+                      <span style={{fontSize:9,color:"#2e4a66",marginLeft:"auto"}}>{e.role}</span>
+                    </label>);
+                  })}
+                </div>
+              </div>
             </div>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
               <button className="bg" onClick={()=>setShowProjModal(false)}>Cancel</button>
@@ -5032,8 +5423,8 @@ export default function App(){
       {/* Edit Project */}
       {editProjModal&&(
         <div className="modal-ov" onClick={()=>setEditProjModal(null)}>
-          <div className="modal" onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:15,fontWeight:700,marginBottom:18}}>Edit Project — {editProjModal.id}</h3>
+          <div className="modal" style={{maxWidth:520}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{fontSize:15,fontWeight:700,marginBottom:18}}>Edit Project — {editProjModal._origId||editProjModal.id}</h3>
             <div style={{display:"grid",gap:11}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
                 <div><Lbl>Project No. <span style={{color:"#f87171",fontSize:9}}>(rename re-links all entries)</span></Lbl><input value={editProjModal.id||""} onChange={e=>setEditProjModal(p=>({...p,id:e.target.value.toUpperCase(),_origId:p._origId||p.id}))}/></div>
@@ -5048,12 +5439,26 @@ export default function App(){
                 <div><Lbl>Origin</Lbl><input value={editProjModal.origin||""} onChange={e=>setEditProjModal(p=>({...p,origin:e.target.value}))}/></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Type</Lbl><select value={editProjModal.type} onChange={e=>setEditProjModal(p=>({...p,type:e.target.value}))}><option>Renewable Energy</option><option>Industrial</option></select></div>
-                <div><Lbl>Phase</Lbl><select value={editProjModal.phase} onChange={e=>setEditProjModal(p=>({...p,phase:e.target.value}))}>{PHASES.map(ph=><option key={ph}>{ph}</option>)}</select></div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Billable?</Lbl><select value={editProjModal.billable?"yes":"no"} onChange={e=>setEditProjModal(p=>({...p,billable:e.target.value==="yes"}))}><option value="yes">Yes</option><option value="no">No</option></select></div>
                 <div><Lbl>Rate per Hour ($)</Lbl><input type="number" value={editProjModal.rate_per_hour} onChange={e=>setEditProjModal(p=>({...p,rate_per_hour:+e.target.value}))}/></div>
+              </div>
+              {/* Team assignment */}
+              <div>
+                <Lbl>Assigned Team Members</Lbl>
+                <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:160,overflowY:"auto"}}>
+                  {engineers.filter(e=>e.role_type!=="accountant").map(e=>{
+                    const sel=(editProjModal.assigned_engineers||[]).includes(String(e.id));
+                    return(
+                    <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 4px",borderRadius:4,background:sel?"#001a2c":"transparent"}}>
+                      <input type="checkbox" checked={sel} onChange={()=>setEditProjModal(p=>{
+                        const cur=p.assigned_engineers||[];
+                        return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
+                      })} style={{accentColor:"#38bdf8"}}/>
+                      <span style={{fontSize:10,color:sel?"#38bdf8":"#7a8faa"}}>{e.name}</span>
+                      <span style={{fontSize:9,color:"#2e4a66",marginLeft:"auto"}}>{e.role}</span>
+                    </label>);
+                  })}
+                </div>
               </div>
             </div>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
@@ -5063,6 +5468,25 @@ export default function App(){
           </div>
         </div>
       )}
+
+      {/* Sub-Project Add/Edit */}
+      {subProjModal&&(()=>{
+        const isEdit=!!subProjModal.sub;
+        const [spDraft,setSpDraft]=([subProjModal.sub
+          ?{...subProjModal.sub}
+          :{name:"",pm_name:"",pm_comments:"",pendings:""}
+        ].map(v=>v))[0];
+        // Use a controlled component wrapper
+        return(
+        <SubProjectModal
+          key={subProjModal.sub?.id||"new"}
+          projectId={subProjModal.projectId}
+          sub={subProjModal.sub||null}
+          engineers={engineers}
+          onSave={isEdit?saveSubProject:addSubProject}
+          onClose={()=>setSubProjModal(null)}
+        />);
+      })()}
 
       {/* Add Engineer */}
       {showEngModal&&(
