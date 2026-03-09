@@ -3399,20 +3399,13 @@ export default function App(){
      4. Admins/Leads/Accountants/Senior posting ON BEHALF of an engineer
         → use the TARGET engineer's assignment, not the poster's role
   */
-  const getPostableProjects = useCallback((forEngineerId, posterRole) => {
-    // posterRole = role of the person CLICKING Post Hours (myProfile.role_type)
-    // forEngineerId = the engineer whose ID will go on the time entry
-    //
-    // Rules (no exceptions):
-    //   1. Project must be Active
-    //   2. If posterRole is admin/accountant/senior_management → can post to any Active project
-    //   3. Everyone else (engineer/lead): forEngineerId must be in assigned_engineers
-    //      - Empty assigned_engineers [] = nobody assigned yet → only admins can post
-    const posterPrivileged = posterRole==="admin"||posterRole==="accountant"||posterRole==="senior_management";
+  const getPostableProjects = useCallback((forEngineerId) => {
+    // Rule — no exceptions, no role bypasses:
+    // 1. Project must be Active
+    // 2. forEngineerId must be in assigned_engineers
+    //    Empty assigned_engineers [] = nobody assigned = project not available to anyone
     return projects.filter(p => {
       if((p.status||"").trim() !== "Active") return false;
-      if(posterPrivileged) return true;
-      // engineer or lead: must be explicitly assigned
       const ae = (p.assigned_engineers || []).map(String);
       return ae.includes(String(forEngineerId));
     });
@@ -3435,18 +3428,13 @@ export default function App(){
       const targetProj=projects.find(p=>p.id===newEntry.projectId);
       if(!targetProj){showToast("Project not found",false);return;}
       if((targetProj.status||"").trim()!=="Active"){showToast(`Cannot post hours — project is ${targetProj.status||"inactive"}`,false);return;}
-      // Assignment check — mirrors getPostableProjects exactly:
-      // Admin/acct/senior can post to any Active project.
-      // Engineer/lead: must be explicitly in assigned_engineers (empty list = blocked).
-      const _posterRole = myProfile?.role_type||"engineer";
-      const _posterPrivileged = _posterRole==="admin"||_posterRole==="accountant"||_posterRole==="senior_management";
-      if(!_posterPrivileged){
-        const ae=(targetProj.assigned_engineers||[]).map(String);
-        if(!ae.includes(String(engId))){
-          const targetEngName=engineers.find(e=>String(e.id)===String(engId))?.name||"Engineer";
-          showToast(`${targetEngName} is not assigned to ${targetProj.id}`,false);
-          return;
-        }
+      // Assignment check — no role exemptions:
+      // The target engineer (engId) MUST be in assigned_engineers, always.
+      const ae=(targetProj.assigned_engineers||[]).map(String);
+      if(!ae.includes(String(engId))){
+        const targetEngName=engineers.find(e=>String(e.id)===String(engId))?.name||"Engineer";
+        showToast(`${targetEngName} is not assigned to ${targetProj.id}`,false);
+        return;
       }
     }
     const basePayload={
@@ -3498,14 +3486,10 @@ export default function App(){
         if(!proj||(proj.status||"").trim()!=="Active"){
           showToast(`Cannot paste — project ${e.project_id} is no longer active`,false);return;
         }
-        const _pr=myProfile?.role_type||"engineer";
-        const _pp=_pr==="admin"||_pr==="accountant"||_pr==="senior_management";
-        if(!_pp){
-          const ae=(proj.assigned_engineers||[]).map(String);
-          if(!ae.includes(String(engId))){
-            const nm=engineers.find(x=>String(x.id)===String(engId))?.name||"Engineer";
-            showToast(`Cannot paste — ${nm} is not assigned to ${e.project_id}`,false);return;
-          }
+        const ae=(proj.assigned_engineers||[]).map(String);
+        if(!ae.includes(String(engId))){
+          const nm=engineers.find(x=>String(x.id)===String(engId))?.name||"Engineer";
+          showToast(`Cannot paste — ${nm} is not assigned to ${e.project_id}`,false);return;
         }
       }
     }
@@ -5747,8 +5731,7 @@ export default function App(){
           ? engineers.find(e=>e.id===viewEngId||String(e.id)===String(viewEngId))
           : myProfile;
         const _targetRole = _targetEng?.role_type||"engineer";
-        const _posterRole = myProfile?.role_type||"engineer";
-        const _availProjs = getPostableProjects(_postForId, _posterRole);
+        const _availProjs = getPostableProjects(_postForId);
         const _noProjects = isWork && _availProjs.length===0;
         const groupCats = TAXONOMY_GROUPS[newEntry._group]||[];
         const catActs = ACTIVITY_TAXONOMY[newEntry.taskCategory]||[];
