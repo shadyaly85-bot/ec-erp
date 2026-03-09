@@ -1536,6 +1536,18 @@ const ACTIVITY_TAXONOMY = {
 };
 const TAXONOMY_CATS = Object.keys(ACTIVITY_TAXONOMY);
 
+/* ── Category Groups: used in Add/Edit Activity modal ── */
+const TAXONOMY_GROUPS = {
+  "SCADA": ["Templates","Database","Displays","Reports","Dashboard"],
+  "Field": ["RTU Configuration","Protection Relays","PPC","Commissioning"],
+  "General": ["Documentation"],
+};
+const TAXONOMY_GROUP_NAMES = Object.keys(TAXONOMY_GROUPS);
+// Reverse map: category -> group
+const CAT_TO_GROUP = {};
+Object.entries(TAXONOMY_GROUPS).forEach(([g,cats])=>cats.forEach(c=>{CAT_TO_GROUP[c]=g;}));
+
+
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component (no IIFE, no re-render loops)
    ════════════════════════════════════════════════════════ */
@@ -1544,24 +1556,51 @@ const STATUS_BG={"Completed":"#002414","In Progress":"#001a2c","Not Started":"#0
 
 /* ── Inline category/activity editor modal ── */
 function ActivityEditModal({act, onSave, onClose, engineers}){
+  const initGroup = CAT_TO_GROUP[act.category]||TAXONOMY_GROUP_NAMES[0];
   const [draft, setDraft] = useState({...act});
-  const catActs = ACTIVITY_TAXONOMY[draft.category] || [];
+  const [group, setGroup] = useState(initGroup);
+  const catActs = ACTIVITY_TAXONOMY[draft.category]||[];
   const INP = {width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"};
   const LBL = {fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4};
+  const GROUP_COLORS = {"SCADA":"#38bdf8","Field":"#a78bfa","General":"#34d399"};
+
+  const handleGroupChange = g => {
+    setGroup(g);
+    const firstCat = TAXONOMY_GROUPS[g][0];
+    setDraft(p=>({...p, category:firstCat, activity_name:ACTIVITY_TAXONOMY[firstCat]?.[0]||p.activity_name}));
+  };
+
   return(
   <div className="modal-ov" onClick={onClose}>
     <div className="modal" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
       <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:14}}>Edit Activity</h3>
       <div style={{display:"grid",gap:10}}>
+
+        {/* Group */}
+        <div>
+          <label style={LBL}>GROUP</label>
+          <div style={{display:"flex",gap:6}}>
+            {TAXONOMY_GROUP_NAMES.map(g=>(
+              <button key={g} onClick={()=>handleGroupChange(g)}
+                style={{flex:1,padding:"6px 8px",borderRadius:6,border:`1px solid ${group===g?(GROUP_COLORS[g]||"#38bdf8")+"60":"#192d47"}`,
+                  background:group===g?(GROUP_COLORS[g]||"#38bdf8")+"15":"#060e1c",
+                  color:group===g?(GROUP_COLORS[g]||"#38bdf8"):"#4e6479",
+                  fontSize:11,fontWeight:700,cursor:"pointer",transition:"all .15s"}}>
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Category */}
         <div>
           <label style={LBL}>CATEGORY</label>
           <select value={draft.category||""} onChange={e=>setDraft(p=>({...p,category:e.target.value,activity_name:ACTIVITY_TAXONOMY[e.target.value]?.[0]||p.activity_name}))}
             style={INP}>
-            <option value="">— No Category —</option>
-            {TAXONOMY_CATS.map(c=><option key={c}>{c}</option>)}
+            {(TAXONOMY_GROUPS[group]||TAXONOMY_CATS).map(c=><option key={c}>{c}</option>)}
           </select>
         </div>
+
         {/* Activity name */}
         <div>
           <label style={LBL}>ACTIVITY NAME</label>
@@ -1578,6 +1617,7 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
               style={{...INP,marginTop:6,border:"1px solid #38bdf8"}}/>
           )}
         </div>
+
         {/* Status + Progress */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div>
@@ -1593,7 +1633,8 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
               style={{...INP,color:"#38bdf8",fontFamily:"'IBM Plex Mono',monospace"}}/>
           </div>
         </div>
-        {/* Start + End dates */}
+
+        {/* Dates */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div>
             <label style={LBL}>START DATE</label>
@@ -1603,9 +1644,10 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
           <div>
             <label style={LBL}>END DATE <span style={{color:"#4e6479",fontWeight:400}}>(deadline)</span></label>
             <input type="date" value={draft.end_date||""} onChange={e=>setDraft(p=>({...p,end_date:e.target.value||null}))}
-              style={{...INP,colorScheme:"dark",color: draft.end_date&&new Date(draft.end_date)<new Date()&&draft.status!=="Completed"?"#f87171":"#f0f6ff"}}/>
+              style={{...INP,colorScheme:"dark",color:draft.end_date&&new Date(draft.end_date)<new Date()&&draft.status!=="Completed"?"#f87171":"#f0f6ff"}}/>
           </div>
         </div>
+
         {/* Assigned to */}
         <div>
           <label style={LBL}>ASSIGNED TO</label>
@@ -1619,6 +1661,7 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
               placeholder="Engineer name…" style={INP}/>
           )}
         </div>
+
         {/* Remarks */}
         <div>
           <label style={LBL}>REMARKS / BLOCKERS</label>
@@ -1636,30 +1679,68 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
 }
 
 /* ── Add Activity modal ── */
+/* ── Add Activity modal ── */
 function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers}){
-  const [cat,       setCat]      = useState(defaultCat||TAXONOMY_CATS[0]);
-  const [actName,   setActName]  = useState(ACTIVITY_TAXONOMY[defaultCat||TAXONOMY_CATS[0]]?.[0]||"");
+  // Determine initial group from defaultCat
+  const initGroup = defaultCat ? (CAT_TO_GROUP[defaultCat]||TAXONOMY_GROUP_NAMES[0]) : TAXONOMY_GROUP_NAMES[0];
+  const initCat   = defaultCat || TAXONOMY_GROUPS[initGroup][0];
+  const [group,     setGroup]    = useState(initGroup);
+  const [cat,       setCat]      = useState(initCat);
+  const [actName,   setActName]  = useState(ACTIVITY_TAXONOMY[initCat]?.[0]||"");
   const [custom,    setCustom]   = useState("");
   const [startDate, setStartDate]= useState("");
   const [endDate,   setEndDate]  = useState("");
   const [assignedTo,setAssignedTo]=useState("");
-  const catActs  = ACTIVITY_TAXONOMY[cat]||[];
+
+  const groupCats = TAXONOMY_GROUPS[group]||[];
+  const catActs   = ACTIVITY_TAXONOMY[cat]||[];
   const finalName = actName==="Custom…" ? custom : actName;
+
+  const handleGroupChange = g => {
+    setGroup(g);
+    const firstCat = TAXONOMY_GROUPS[g][0];
+    setCat(firstCat);
+    setActName(ACTIVITY_TAXONOMY[firstCat]?.[0]||"");
+  };
+  const handleCatChange = c => {
+    setCat(c);
+    setActName(ACTIVITY_TAXONOMY[c]?.[0]||"");
+  };
+
   const INP = {width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"};
   const LBL = {fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4};
+  const GROUP_COLORS = {"SCADA":"#38bdf8","Field":"#a78bfa","General":"#34d399"};
+
   return(
   <div className="modal-ov" onClick={onClose}>
     <div className="modal" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
       <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:14}}>Add Activity</h3>
       <div style={{display:"grid",gap:10}}>
-        {/* Category */}
+
+        {/* Group selector (SCADA / Field / General) */}
+        <div>
+          <label style={LBL}>GROUP</label>
+          <div style={{display:"flex",gap:6}}>
+            {TAXONOMY_GROUP_NAMES.map(g=>(
+              <button key={g} onClick={()=>handleGroupChange(g)}
+                style={{flex:1,padding:"6px 8px",borderRadius:6,border:`1px solid ${group===g?(GROUP_COLORS[g]||"#38bdf8")+"60":"#192d47"}`,
+                  background:group===g?(GROUP_COLORS[g]||"#38bdf8")+"15":"#060e1c",
+                  color:group===g?(GROUP_COLORS[g]||"#38bdf8"):"#4e6479",
+                  fontSize:11,fontWeight:700,cursor:"pointer",transition:"all .15s"}}>
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Category (filtered by group) */}
         <div>
           <label style={LBL}>CATEGORY</label>
-          <select value={cat} onChange={e=>{setCat(e.target.value);setActName(ACTIVITY_TAXONOMY[e.target.value]?.[0]||"");}} style={INP}>
-            {TAXONOMY_CATS.map(c=><option key={c}>{c}</option>)}
-            <option value="">— Custom Category —</option>
+          <select value={cat} onChange={e=>handleCatChange(e.target.value)} style={INP}>
+            {groupCats.map(c=><option key={c}>{c}</option>)}
           </select>
         </div>
+
         {/* Activity name */}
         <div>
           <label style={LBL}>ACTIVITY</label>
@@ -1676,6 +1757,7 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
               style={{...INP,marginTop:6,border:"1px solid #38bdf8"}}/>
           )}
         </div>
+
         {/* Dates */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <div>
@@ -1689,6 +1771,7 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
               style={{...INP,colorScheme:"dark"}}/>
           </div>
         </div>
+
         {/* Assigned to */}
         {engineers&&engineers.length>0&&(
         <div>
