@@ -434,6 +434,149 @@ const Lbl=({children})=><div style={{fontSize:11,color:"#4e6479",marginBottom:4}
 ════════════════════════════════════════════ */
 
 /* ── Projects Page Component (extracted to avoid IIFE hook issues) ── */
+/* ── Edit Project Activities (standalone component — hooks-safe) ── */
+function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast}){
+  const [aDraft, setADraft] = React.useState(null);
+  const projActs = (activities||[]).filter(a=>a.project_id===projId);
+  const blank = {project_id:projId,group_name:"SCADA",category:"Templates",activity_name:"",status:"Not Started",progress:0,assigned_to:"",start_date:"",end_date:"",remarks:""};
+
+  const saveAct = async()=>{
+    if(!aDraft?.activity_name?.trim()){if(showToast)showToast("Activity name required",false);return;}
+    if(aDraft.id){
+      const{id,...fields}=aDraft;
+      const{data,error}=await supabase.from("project_activities").update(fields).eq("id",id).select().single();
+      if(error){if(showToast)showToast("Error: "+error.message,false);return;}
+      if(setActivities)setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
+    }else{
+      const{data,error}=await supabase.from("project_activities").insert(aDraft).select().single();
+      if(error){if(showToast)showToast("Error: "+error.message,false);return;}
+      if(setActivities)setActivities(prev=>[...prev,data]);
+    }
+    setADraft(null);
+    if(showToast)showToast("Activity saved ✓");
+  };
+  const delAct = async(id)=>{
+    if(!window.confirm("Delete this activity?"))return;
+    await supabase.from("project_activities").delete().eq("id",id);
+    if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id));
+    if(showToast)showToast("Activity deleted");
+  };
+
+  const GROUP_COLORS={"SCADA":"#38bdf8","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+  const STATUS_STYLE={
+    "Completed":{bg:"#002414",color:"#34d399"},
+    "In Progress":{bg:"#001a2c",color:"#38bdf8"},
+    "On Hold":{bg:"#1a0f00",color:"#fb923c"},
+    "Not Started":{bg:"#0a0f18",color:"#4e6479"},
+  };
+
+  if(aDraft) return(
+    <div style={{display:"grid",gap:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <span style={{fontSize:13,fontWeight:700,color:"#38bdf8"}}>{aDraft.id?"Edit Activity":"New Activity"}</span>
+        <button className="bg" style={{fontSize:10,padding:"3px 10px"}} onClick={()=>setADraft(null)}>← Back</button>
+      </div>
+      <div>
+        <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>ACTIVITY NAME *</label>
+        <input value={aDraft.activity_name||""} onChange={e=>setADraft(p=>({...p,activity_name:e.target.value}))} placeholder="e.g. Configure RTU communication" style={{width:"100%",boxSizing:"border-box"}}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div>
+          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>GROUP</label>
+          <select value={aDraft.group_name||"SCADA"} onChange={e=>setADraft(p=>({...p,group_name:e.target.value}))}>
+            {["SCADA","RTU-PLC","Protection","General"].map(g=><option key={g}>{g}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>CATEGORY</label>
+          <input value={aDraft.category||""} onChange={e=>setADraft(p=>({...p,category:e.target.value}))} placeholder="e.g. Templates"/>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div>
+          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>STATUS</label>
+          <select value={aDraft.status||"Not Started"} onChange={e=>setADraft(p=>({...p,status:e.target.value}))}>
+            {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>PROGRESS %</label>
+          <input type="number" min="0" max="100" step="5" value={Math.round((aDraft.progress||0)*100)} onChange={e=>setADraft(p=>({...p,progress:+e.target.value/100}))}/>
+        </div>
+      </div>
+      <div>
+        <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>ASSIGNED TO</label>
+        <select value={aDraft.assigned_to||""} onChange={e=>setADraft(p=>({...p,assigned_to:e.target.value}))}>
+          <option value="">— Unassigned —</option>
+          {(engineers||[]).filter(e=>isEngActive(e)&&e.role_type!=="accountant"&&e.role_type!=="senior_management").map(e=>(
+            <option key={e.id} value={e.name}>{e.name} · {e.role}</option>
+          ))}
+        </select>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div>
+          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>START DATE</label>
+          <input type="date" value={aDraft.start_date||""} onChange={e=>setADraft(p=>({...p,start_date:e.target.value||null}))}/>
+        </div>
+        <div>
+          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>END DATE</label>
+          <input type="date" value={aDraft.end_date||""} onChange={e=>setADraft(p=>({...p,end_date:e.target.value||null}))}/>
+        </div>
+      </div>
+      <div>
+        <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>REMARKS</label>
+        <input value={aDraft.remarks||""} onChange={e=>setADraft(p=>({...p,remarks:e.target.value}))} placeholder="Optional notes"/>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
+        <button className="bg" onClick={()=>setADraft(null)}>Cancel</button>
+        <button className="bp" onClick={saveAct}>{aDraft.id?"Save Changes":"Add Activity"}</button>
+      </div>
+    </div>
+  );
+
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <span style={{fontSize:11,color:"#4e6479"}}>{projActs.length} activit{projActs.length===1?"y":"ies"} for {projId}</span>
+        <button className="bp" style={{fontSize:10,padding:"4px 12px"}} onClick={()=>setADraft({...blank})}>+ Add Activity</button>
+      </div>
+      {projActs.length===0&&(
+        <div style={{textAlign:"center",padding:"28px 0",color:"#1e3a5f",fontSize:11,border:"1px dashed #0f1e2e",borderRadius:6}}>
+          No activities yet — add the first one above.
+        </div>
+      )}
+      <div style={{display:"grid",gap:5,maxHeight:280,overflowY:"auto"}}>
+        {projActs.map(a=>{
+          const ss=STATUS_STYLE[a.status]||STATUS_STYLE["Not Started"];
+          const gc=GROUP_COLORS[a.group_name]||"#4e6479";
+          const pct=Math.round((a.progress||0)*100);
+          return(
+          <div key={a.id} style={{background:"#060e1c",border:"1px solid #0f1e2e",borderRadius:6,padding:"8px 12px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:600,color:"#f0f6ff",marginBottom:4}}>{a.activity_name}</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center"}}>
+                  <span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:gc+"20",color:gc}}>{a.group_name}</span>
+                  {a.category&&<span style={{fontSize:9,color:"#4e6479"}}>{a.category}</span>}
+                  <span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:ss.bg,color:ss.color}}>{a.status}</span>
+                  {a.assigned_to&&<span style={{fontSize:9,color:"#7a8faa"}}>👤 {a.assigned_to}</span>}
+                </div>
+                {pct>0&&<div style={{marginTop:6,background:"#0a0f18",borderRadius:3,height:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"#38bdf8",borderRadius:3}}/>
+                </div>}
+              </div>
+              <div style={{display:"flex",gap:4,flexShrink:0}}>
+                <button className="be" style={{fontSize:9,padding:"3px 7px"}} onClick={()=>setADraft({...a})}>✎</button>
+                <button className="bd" style={{fontSize:9,padding:"3px 7px"}} onClick={()=>delAct(a.id)}>✕</button>
+              </div>
+            </div>
+          </div>);
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setProjStatusFilter,
   monthEntries,projStats,isAdmin,isAcct,isLead,setShowProjModal,setEditProjModal,deleteProject,fmtCurrency,
   activities,setActivities,engineers,supabase,showToast}){
@@ -4220,7 +4363,7 @@ export default function App(){
   };
   const saveEditProject=async()=>{
     if(!editProjModal) return;
-    const {_origId,...rest}=editProjModal;
+    const {_origId,_tab,...rest}=editProjModal;
     const origId=_origId||rest.id;
     const newId=rest.id;
     const idChanged=_origId&&_origId!==newId;
@@ -6406,8 +6549,8 @@ export default function App(){
             </div>}
             {/* ── TEAM TAB ── */}
             {epTab==="team"&&<div>
-              <div style={{fontSize:10,color:"#4e6479",marginBottom:8}}>Select engineers assigned to this project. Only assigned engineers can post hours.</div>
-              <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:240,overflowY:"auto"}}>
+              <div style={{fontSize:11,color:"#4e6479",marginBottom:10}}>Select engineers assigned to this project. Only assigned engineers can post hours.</div>
+              <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"6px 8px",display:"grid",gridTemplateColumns:"1fr",gap:4,maxHeight:300,overflowY:"auto"}}>
                 {engineers.filter(e=>{
                   if(!isEngActive(e)) return false;
                   if(e.role_type==="accountant"||e.role_type==="senior_management") return false;
@@ -6415,124 +6558,39 @@ export default function App(){
                   return true;
                 }).map(e=>{
                   const sel=(editProjModal.assigned_engineers||[]).includes(String(e.id));
+                  const nameParts=(e.name||"").trim().split(" ");
+                  const displayName=nameParts.length>=2?nameParts[0]+" "+nameParts[nameParts.length-1]:e.name;
                   return(
-                  <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"4px 6px",borderRadius:4,background:sel?"#001a2c":"transparent",border:sel?"1px solid #0ea5e920":"1px solid transparent"}}>
+                  <label key={e.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"7px 10px",borderRadius:6,
+                    background:sel?"#001e36":"#060e1c",border:`1px solid ${sel?"#0ea5e940":"#0f1e2e"}`,transition:"background .15s"}}>
                     <input type="checkbox" checked={sel} onChange={()=>setEditProjModal(p=>{
                       const cur=p.assigned_engineers||[];
                       return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
-                    })} style={{accentColor:"#38bdf8"}}/>
-                    <div className="av" style={{width:22,height:22,fontSize:8,flexShrink:0}}>{e.name?.slice(0,2).toUpperCase()}</div>
+                    })} style={{accentColor:"#38bdf8",width:14,height:14,flexShrink:0}}/>
+                    <div className="av" style={{width:30,height:30,fontSize:11,flexShrink:0}}>{(e.name||"").slice(0,2).toUpperCase()}</div>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:10,color:sel?"#38bdf8":"#dde3ef",fontWeight:sel?600:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.name}</div>
-                      <div style={{fontSize:9,color:"#2e4a66"}}>{e.role} · {ROLE_LABELS[e.role_type]||e.role_type}</div>
+                      <div style={{fontSize:12,fontWeight:600,color:sel?"#38bdf8":"#f0f6ff",letterSpacing:.2}}>{displayName}</div>
+                      <div style={{fontSize:10,color:"#4e6479",marginTop:1}}>{e.role} · <span style={{color:ROLE_COLORS[e.role_type]||"#4e6479"}}>{ROLE_LABELS[e.role_type]||e.role_type}</span></div>
                     </div>
+                    {sel&&<span style={{fontSize:9,color:"#38bdf8",background:"#38bdf820",padding:"2px 6px",borderRadius:3,flexShrink:0}}>✓ Assigned</span>}
                   </label>);
                 })}
               </div>
-              <div style={{fontSize:9,color:"#2e4a66",marginTop:6}}>
-                {(editProjModal.assigned_engineers||[]).length} member{(editProjModal.assigned_engineers||[]).length!==1?"s":""} assigned
+              <div style={{fontSize:10,color:"#4e6479",marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span>{(editProjModal.assigned_engineers||[]).length} engineer{(editProjModal.assigned_engineers||[]).length!==1?"s":""} assigned</span>
+                {(editProjModal.assigned_engineers||[]).length>0&&
+                  <button style={{background:"none",border:"none",color:"#f87171",fontSize:10,cursor:"pointer"}}
+                    onClick={()=>setEditProjModal(p=>({...p,assigned_engineers:[]}))}>Clear all</button>}
               </div>
             </div>}
             {/* ── ACTIVITIES TAB ── */}
-            {epTab==="activities"&&(()=>{
-              const [aDraft,setADraft]=React.useState(null); // null=list, object=editing
-              const saveAct=async()=>{
-                if(!aDraft?.activity_name?.trim()){showToast("Activity name required",false);return;}
-                const projId=editProjModal._origId||editProjModal.id;
-                if(aDraft.id){
-                  const{id,...fields}=aDraft;
-                  const{data,error}=await supabase.from("project_activities").update(fields).eq("id",id).select().single();
-                  if(error){showToast("Error: "+error.message,false);return;}
-                  setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
-                }else{
-                  const payload={...aDraft,project_id:projId};
-                  const{data,error}=await supabase.from("project_activities").insert(payload).select().single();
-                  if(error){showToast("Error: "+error.message,false);return;}
-                  setActivities(prev=>[...prev,data]);
-                }
-                setADraft(null); showToast("Activity saved ✓");
-              };
-              const delAct=async(id)=>{
-                if(!window.confirm("Delete this activity?"))return;
-                await supabase.from("project_activities").delete().eq("id",id);
-                setActivities(prev=>prev.filter(a=>a.id!==id));
-                showToast("Activity deleted");
-              };
-              const projId=editProjModal._origId||editProjModal.id;
-              const blankAct={project_id:projId,group_name:"SCADA",category:"Templates",activity_name:"",status:"Not Started",progress:0,assigned_to:"",start_date:"",end_date:"",remarks:""};
-              return(
-              <div>
-                {!aDraft&&<>
-                  <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-                    <button className="bp" style={{fontSize:10}} onClick={()=>setADraft({...blankAct})}>+ Add Activity</button>
-                  </div>
-                  {epActs.length===0&&<div style={{textAlign:"center",padding:20,color:"#1e3a5f",fontSize:11}}>No activities yet. Add the first one.</div>}
-                  <div style={{display:"grid",gap:4}}>
-                    {epActs.map(a=>(
-                      <div key={a.id} style={{background:"#060e1c",borderRadius:6,padding:"8px 10px",border:"1px solid #0f1e2e",display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"center"}}>
-                        <div>
-                          <div style={{fontSize:11,fontWeight:600,color:"#dde3ef"}}>{a.activity_name}</div>
-                          <div style={{fontSize:9,color:"#4e6479",marginTop:2}}>
-                            <span style={{color:a.group_name==="SCADA"?"#38bdf8":a.group_name==="RTU-PLC"?"#a78bfa":a.group_name==="Protection"?"#f87171":"#34d399"}}>{a.group_name}</span>
-                            {a.category&&<span style={{color:"#2e4a66"}}> / {a.category}</span>}
-                            {a.assigned_to&&<span style={{color:"#7a8faa",marginLeft:8}}>👤 {a.assigned_to}</span>}
-                            <span style={{marginLeft:8,padding:"1px 5px",borderRadius:3,
-                              background:a.status==="Completed"?"#002414":a.status==="In Progress"?"#001a2c":"#0a0f18",
-                              color:a.status==="Completed"?"#34d399":a.status==="In Progress"?"#38bdf8":"#4e6479"}}>
-                              {a.status}
-                            </span>
-                            <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",marginLeft:8}}>{Math.round((a.progress||0)*100)}%</span>
-                          </div>
+            {epTab==="activities"&&<EditProjActivities
+              projId={editProjModal._origId||editProjModal.id}
+              activities={activities} setActivities={setActivities}
+              engineers={engineers} isEngActive={isEngActive}
+              supabase={supabase} showToast={showToast}
+            />}
                         </div>
-                        <div style={{display:"flex",gap:4}}>
-                          <button className="be" style={{fontSize:9,padding:"2px 6px"}} onClick={()=>setADraft({...a})}>✎</button>
-                          <button className="bd" style={{fontSize:9,padding:"2px 6px"}} onClick={()=>delAct(a.id)}>✕</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>}
-                {aDraft&&<div style={{display:"grid",gap:10}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                    <span style={{fontSize:12,fontWeight:700,color:"#38bdf8"}}>{aDraft.id?"Edit Activity":"New Activity"}</span>
-                    <button className="bg" style={{fontSize:9,padding:"2px 8px"}} onClick={()=>setADraft(null)}>← Back</button>
-                  </div>
-                  <div><Lbl>Activity Name *</Lbl><input value={aDraft.activity_name||""} onChange={e=>setADraft(p=>({...p,activity_name:e.target.value}))} placeholder="e.g. Configure RTU communication"/></div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                    <div><Lbl>Group</Lbl>
-                      <select value={aDraft.group_name||"SCADA"} onChange={e=>setADraft(p=>({...p,group_name:e.target.value}))}>
-                        {["SCADA","RTU-PLC","Protection","General"].map(g=><option key={g}>{g}</option>)}
-                      </select></div>
-                    <div><Lbl>Category</Lbl><input value={aDraft.category||""} onChange={e=>setADraft(p=>({...p,category:e.target.value}))} placeholder="e.g. Templates"/></div>
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                    <div><Lbl>Status</Lbl>
-                      <select value={aDraft.status||"Not Started"} onChange={e=>setADraft(p=>({...p,status:e.target.value}))}>
-                        {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
-                      </select></div>
-                    <div><Lbl>Progress %</Lbl>
-                      <input type="number" min="0" max="100" step="5" value={Math.round((aDraft.progress||0)*100)} onChange={e=>setADraft(p=>({...p,progress:+e.target.value/100}))}/></div>
-                  </div>
-                  <div><Lbl>Assigned To</Lbl>
-                    <select value={aDraft.assigned_to||""} onChange={e=>setADraft(p=>({...p,assigned_to:e.target.value}))}>
-                      <option value="">— Unassigned —</option>
-                      {engineers.filter(e=>isEngActive(e)&&e.role_type!=="accountant"&&e.role_type!=="senior_management").map(e=>(
-                        <option key={e.id} value={e.name}>{e.name} · {e.role}</option>
-                      ))}
-                    </select></div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                    <div><Lbl>Start Date</Lbl><input type="date" value={aDraft.start_date||""} onChange={e=>setADraft(p=>({...p,start_date:e.target.value||null}))}/></div>
-                    <div><Lbl>End Date</Lbl><input type="date" value={aDraft.end_date||""} onChange={e=>setADraft(p=>({...p,end_date:e.target.value||null}))}/></div>
-                  </div>
-                  <div><Lbl>Remarks</Lbl><input value={aDraft.remarks||""} onChange={e=>setADraft(p=>({...p,remarks:e.target.value}))} placeholder="Optional"/></div>
-                  <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-                    <button className="bg" onClick={()=>setADraft(null)}>Cancel</button>
-                    <button className="bp" onClick={saveAct}>{aDraft.id?"Save Changes":"Add Activity"}</button>
-                  </div>
-                </div>}
-              </div>);
-            })()}
-            </div>
             {epTab!=="activities"&&<div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",borderTop:"1px solid #192d47",paddingTop:14}}>
               <button className="bg" onClick={()=>setEditProjModal(null)}>Cancel</button>
               <button className="bp" onClick={saveEditProject}>Save Changes</button>
