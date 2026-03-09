@@ -5961,7 +5961,8 @@ export default function App(){
                     </p>
                     <div style={{position:"relative"}}>
                       <pre style={{fontSize:11,color:"#34d399",background:"#060e1c",border:"1px solid #34d39930",borderRadius:6,padding:"12px 14px",margin:0,fontFamily:"'IBM Plex Mono',monospace",whiteSpace:"pre-wrap",userSelect:"all",lineHeight:1.7}}>
-{`DO $$ DECLARE t text;
+{`-- 1. Fix RLS policies (full access for authenticated users)
+DO $$ DECLARE t text;
 BEGIN
   FOR t IN SELECT tablename FROM pg_tables
     WHERE schemaname = 'public' LOOP
@@ -5971,7 +5972,18 @@ BEGIN
       'CREATE POLICY "auth_all" ON %I
        FOR ALL USING (auth.role() = ''authenticated'')', t);
   END LOOP;
-END $$;`}
+END $$;
+
+-- 2. Fix role_type column to accept all roles including senior_management
+ALTER TABLE engineers
+  DROP CONSTRAINT IF EXISTS engineers_role_type_check;
+
+ALTER TABLE engineers
+  ADD CONSTRAINT engineers_role_type_check
+  CHECK (role_type IN (
+    'engineer','lead','accountant',
+    'senior_management','admin'
+  ));`}
                       </pre>
                     </div>
                     <button className="bp" style={{marginTop:10,fontSize:11}} onClick={()=>{
