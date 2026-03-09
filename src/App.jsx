@@ -43,7 +43,7 @@ const ROLES_LIST   = ["Electrical Engineer","Automation Engineer","PLC Programme
 // accountant: read-only, export invoices + reports, no editing
 // admin: full access
 const ROLE_TYPES   = ["engineer","lead","accountant","senior_management","admin"];
-const ROLE_LABELS  = {engineer:"Engineer",lead:"Lead Engineer",accountant:"Accountant",admin:"Admin"};
+const ROLE_LABELS  = {engineer:"Engineer",lead:"Lead Engineer",accountant:"Accountant",senior_management:"Senior Management",admin:"Admin"};
 const ROLE_COLORS  = {engineer:"#4e6479",lead:"#38bdf8",accountant:"#a78bfa",admin:"#34d399"};
 
 const fmt          = d => d.toISOString().slice(0,10);
@@ -2287,7 +2287,37 @@ function SubProjectModal({projectId, sub, engineers, onSave, onClose}){
    PROJECTS TAB — standalone component (prevents hang)
    ════════════════════════════════════════════════════════ */
 function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, setExpandedProj,
-  setShowProjModal, setEditProjModal, setSubProjModal, deleteProject, deleteSubProject}){
+  setShowProjModal, setEditProjModal, setSubProjModal, deleteProject, deleteSubProject,
+  activities, setActivities, supabase, showToast, isAdmin, isLead}){
+  const [actModal,setActModal] = React.useState(null); // {projId, act:null|object}
+  const [actDraft,setActDraft] = React.useState({});
+  const canManageActs = isAdmin||isLead;
+
+  const openActModal=(projId,act=null)=>{
+    setActDraft(act?{...act}:{project_id:projId,group_name:"SCADA",category:"Templates",activity_name:"",status:"Not Started",progress:0,assigned_to:"",remarks:""});
+    setActModal({projId,act});
+  };
+  const saveAct=async()=>{
+    if(!actDraft.activity_name?.trim()){if(showToast)showToast("Activity name required",false);return;}
+    if(actModal.act){
+      const{id,...fields}=actDraft;
+      const{data,error}=await supabase.from("project_activities").update(fields).eq("id",id).select().single();
+      if(error){if(showToast)showToast("Error: "+error.message,false);return;}
+      if(setActivities) setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
+    } else {
+      const{data,error}=await supabase.from("project_activities").insert(actDraft).select().single();
+      if(error){if(showToast)showToast("Error: "+error.message,false);return;}
+      if(setActivities) setActivities(prev=>[...prev,data]);
+    }
+    setActModal(null);
+    if(showToast)showToast("Activity saved ✓");
+  };
+  const delAct=async(id)=>{
+    if(!window.confirm("Delete this activity?")) return;
+    await supabase.from("project_activities").delete().eq("id",id);
+    if(setActivities) setActivities(prev=>prev.filter(a=>a.id!==id));
+    if(showToast)showToast("Activity deleted");
+  };
 
   const projHrsMap = useMemo(()=>{
     const m={};
@@ -3346,7 +3376,18 @@ export default function App(){
         supabase.from("staff").select("*").order("name"),
         supabase.from("expenses").select("*").order("year",{ascending:false}),
       ]);
-      if(staffRes.data) setStaff(staffRes.data);
+      if(staffRes.data){
+        setStaff(staffRes.data);
+        // Sync termination_date from staff → engineers
+        const TODAY2=new Date().toISOString().slice(0,10);
+        setEngineers(prev=>prev.map(eng=>{
+          const match=staffRes.data.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
+          if(match&&match.termination_date&&match.termination_date<=TODAY2){
+            return {...eng,is_active:false,termination_date:eng.termination_date||match.termination_date};
+          }
+          return eng;
+        }));
+      }
       if(expRes.data)   setExpenses(expRes.data);
       if(profR.data){ setMyProfile(profR.data); setBrowseEngId(profR.data.id); }
       if(notifR.data) setNotifications(notifR.data);
@@ -4148,7 +4189,14 @@ export default function App(){
   /* ── ENGINEER CRUD ── */
   const addEngineer=async()=>{
     if(!newEng.name){showToast("Name required",false);return;}
-    const {data,error}=await supabase.from("engineers").insert(newEng).select().single();
+    let insertPayload={...newEng};
+    let {data,error}=await supabase.from("engineers").insert(insertPayload).select().single();
+    if(error&&(error.message?.includes("is_active")||error.message?.includes("termination_date")||error.message?.includes("join_date"))){
+      const {is_active,termination_date,join_date,...safePayload}=insertPayload;
+      const res=await supabase.from("engineers").insert(safePayload).select().single();
+      data=res.data; error=res.error;
+      if(data) data={...data,is_active:true,termination_date:null,join_date:null};
+    }
     if(error){showToast("Error: "+error.message,false);return;}
     setEngineers(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));
     setShowEngModal(false);
@@ -4158,11 +4206,21 @@ export default function App(){
   const saveEditEngineer=async()=>{
     if(!editEngModal) return;
     const {id,...rest}=editEngModal;
-    const {data,error}=await supabase.from("engineers").update(rest).eq("id",id).select().single();
+    let {data,error}=await supabase.from("engineers").update(rest).eq("id",id).select().single();
+    // If new columns don't exist yet, retry without them and update local state manually
+    if(error&&(error.message?.includes("is_active")||error.message?.includes("termination_date")||error.message?.includes("join_date"))){
+      const {is_active,termination_date,join_date,...safeRest}=rest;
+      const res=await supabase.from("engineers").update(safeRest).eq("id",id).select().single();
+      data=res.data; error=res.error;
+      // Still update local state with the new fields even though DB doesn't have them yet
+      if(data) data={...data,is_active,termination_date,join_date};
+      showToast("⚠ Run SQL migration to persist status changes",false);
+    }
     if(error){showToast("Error: "+error.message,false);return;}
-    setEngineers(prev=>prev.map(e=>e.id===data.id?data:e));
-    // Update my own profile if I edited myself
-    if(data.id===myProfile?.id) setMyProfile(data);
+    // Merge all fields including any that DB returned
+    const merged={...editEngModal,...(data||{})};
+    setEngineers(prev=>prev.map(e=>e.id===id?merged:e));
+    if(id===myProfile?.id) setMyProfile(merged);
     setEditEngModal(null); showToast("Updated ✓");
   };
   const deleteEngineer=async id=>{
@@ -5348,7 +5406,7 @@ export default function App(){
               <div style={{display:"flex",gap:4,marginBottom:18,background:"#060e1c",borderRadius:8,padding:4,width:"fit-content"}}>
                 {[
                   {id:"engineers",label:"👥 Engineers",show:isAdmin},
-                  {id:"projects", label:"◈ Projects",  show:isAdmin},
+                  {id:"projects", label:"◈ Projects",  show:isAdmin||isLead},
                   {id:"entries",  label:"⏱ All Entries",show:true},
                   {id:"settings", label:"⚙ Info",   show:isAdmin},
                   {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct},
@@ -5415,7 +5473,7 @@ export default function App(){
               )}
 
               {/* PROJECTS */}
-              {adminTab==="projects"&&isAdmin&&(
+              {adminTab==="projects"&&(isAdmin||isLead)&&(
                 <ProjectsTab
                   projects={projects}
                   subprojects={subprojects}
@@ -6412,7 +6470,7 @@ export default function App(){
                   })}
                 </div>
               </div>
-              <div>
+              <div style={{display:"grid",gridTemplateColumns:(editExp||newExp).currency==="EGP"?"1fr 1fr":"1fr",gap:10}}>
                 <div>
                   <Lbl>AMOUNT</Lbl>
                   <input type="number" min="0" step="0.01"
@@ -6425,7 +6483,15 @@ export default function App(){
                     }}
                     placeholder="0.00"/>
                 </div>
-
+                {(editExp||newExp).currency==="EGP"&&(
+                  <div>
+                    <Lbl>EGP RATE <span style={{color:"#4e6479",fontWeight:400}}>(for this entry)</span></Lbl>
+                    <input type="number" min="1" max="999" step="0.5"
+                      value={(editExp||newExp).entry_rate||""}
+                      onChange={e=>editExp?setEditExp(p=>({...p,entry_rate:e.target.value?+e.target.value:null})):setNewExp(p=>({...p,entry_rate:e.target.value?+e.target.value:null}))}
+                      placeholder={String(egpRate)}/>
+                  </div>
+                )}
               </div>
               {/* Live conversion preview */}
               {(()=>{
