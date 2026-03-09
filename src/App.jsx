@@ -3867,10 +3867,13 @@ export default function App(){
   };
 
   /* ── SUB-PROJECT CRUD ── */
-  const addSubProject=async({projectId,name,pm_name,pm_comments,pendings})=>{
-    if(!name.trim()){showToast("Sub-project name required",false);return;}
+  const addSubProject=async(draft)=>{
+    const pid=draft.project_id||draft.projectId;
+    const{name,pm_name,pm_comments,pendings,assigned_engineers}=draft;
+    if(!name||!name.trim()){showToast("Sub-project name required",false);return;}
+    if(!pid){showToast("Error: missing project",false);return;}
     const{data,error}=await supabase.from("project_subprojects")
-      .insert({project_id:projectId,name:name.trim(),pm_name,pm_comments,pendings})
+      .insert({project_id:pid,name:name.trim(),pm_name,pm_comments,pendings,assigned_engineers:assigned_engineers||[]})
       .select().single();
     if(error){showToast("Error: "+error.message,false);return;}
     setSubprojects(prev=>[...prev,data]);
