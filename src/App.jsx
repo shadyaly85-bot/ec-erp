@@ -3507,6 +3507,7 @@ export default function App(){
   const [loading,setLoading]         = useState(false);
 
   const [view,setView]               = useState("dashboard");
+  const [teamViewMode,setTeamViewMode] = useState("org"); // "org" | "grid"
   const [browseEngId,setBrowseEngId] = useState(null);
   const [weekOf,setWeekOf]           = useState(fmt(today));
   const [month,setMonth]             = useState(today.getMonth());
@@ -5274,8 +5275,196 @@ export default function App(){
                 </div>
               )}
 
-              {/* Cards grid */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
+              {/* View toggle */}
+              <div style={{display:"flex",gap:6,marginBottom:14,alignItems:"center"}}>
+                {[["org","🏢 Org Chart"],["grid","⊞ Grid"]].map(([m,l])=>(
+                  <button key={m} onClick={()=>setTeamViewMode(m)}
+                    style={{padding:"5px 14px",borderRadius:6,border:`1px solid ${teamViewMode===m?"#38bdf8":"#192d47"}`,
+                      background:teamViewMode===m?"#38bdf815":"transparent",
+                      color:teamViewMode===m?"#38bdf8":"#4e6479",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── ORG CHART VIEW ── */}
+              {teamViewMode==="org"&&(()=>{
+                // Find engineer by partial name match
+                const findEng = (namePart) => engStats.find(e=>e.name?.toLowerCase().includes(namePart.toLowerCase()));
+
+                // Org chart structure from org chart PDF
+                // Top: Radu Brasoveanu (CEO Romain - external, no card)
+                // Level 1: Sameh Said (CTO Romain), Shady Aly (EM Egypt)
+                // Under Sameh: Ahmed Hassan (Tech Lead), Ahmed Farahat (Tech Lead), Omar Fahim (Accountant)
+                // Under Shady: Ziad El Gayar, Khaled Abdallah, Ismail Falogy, Ahmed Ragab
+                //   Under Ziad/Khaled: Ahmed Essam, Ruqaya Hamdy, Alaa Mahmoud, Shehab Mohamed, Ibrahim Ghorab
+                //   Under Ismail: (Protection junior TBD)
+                //   Under Ahmed Ragab: (RTU junior TBD)
+
+                const OC={bg:"#0b1526",border:"1px solid #192d47",borderRadius:8,padding:"10px 12px",textAlign:"center",cursor:"pointer",minWidth:130,position:"relative"};
+                const LINE_V={width:2,background:"#192d47",margin:"0 auto"};
+                const LINE_H={height:2,background:"#192d47",flex:1};
+
+                const EngCard=({namePart,externalName,externalTitle,externalSub,dimmed})=>{
+                  const eng=namePart?findEng(namePart):null;
+                  const isSelected=eng&&filterEngineer===String(eng.id);
+                  const active=eng?isEngActive(eng):true;
+                  if(!eng&&externalName){
+                    // External / placeholder card
+                    return(
+                      <div style={{...OC,background:"#060e1c",border:"1px dashed #192d47",opacity:0.6,minWidth:110,padding:"8px 10px"}}>
+                        <div style={{width:32,height:32,borderRadius:"50%",background:"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 6px",fontSize:11,color:"#4e6479",fontWeight:700}}>
+                          {externalName.slice(0,2).toUpperCase()}
+                        </div>
+                        <div style={{fontSize:11,fontWeight:600,color:"#4e6479"}}>{externalName}</div>
+                        <div style={{fontSize:9,color:"#2e4a66",marginTop:2}}>{externalTitle}</div>
+                        {externalSub&&<div style={{fontSize:8,color:"#1e3a5f",marginTop:1}}>{externalSub}</div>}
+                      </div>
+                    );
+                  }
+                  if(!eng) return null;
+                  const wh=eng.workHrs||0;
+                  const util=eng.utilization||0;
+                  return(
+                    <div onClick={()=>setFilterEngineer(isSelected?"ALL":String(eng.id))}
+                      style={{...OC,
+                        opacity:!active?0.45:dimmed?0.7:1,
+                        border:isSelected?"1px solid #38bdf8":!active?"1px solid #0f1e2e":"1px solid #192d47",
+                        background:isSelected?"#001e36":OC.bg,
+                        filter:!active?"grayscale(1)":"none",
+                        transition:"all .15s"}}>
+                      <div className="av" style={{width:34,height:34,fontSize:11,margin:"0 auto 6px",
+                        background:ROLE_COLORS[eng.role_type]?"#0b1526":"#0b1526",
+                        border:`2px solid ${ROLE_COLORS[eng.role_type]||"#192d47"}40`}}>
+                        {eng.name?.slice(0,2).toUpperCase()}
+                      </div>
+                      <div style={{fontSize:11,fontWeight:700,color:isSelected?"#38bdf8":"#f0f6ff",lineHeight:1.2,marginBottom:3}}>
+                        {eng.name?.split(" ").slice(0,2).join(" ")}
+                        {!active&&<span style={{fontSize:8,marginLeft:4,color:"#f87171"}}>LEFT</span>}
+                      </div>
+                      <div style={{fontSize:8,color:"#2e4a66",marginBottom:4,lineHeight:1.3}}>{eng.role}</div>
+                      <span style={{fontSize:8,padding:"1px 5px",borderRadius:3,
+                        background:(ROLE_COLORS[eng.role_type]||"#4e6479")+"20",
+                        color:ROLE_COLORS[eng.role_type]||"#4e6479"}}>
+                        {ROLE_LABELS[eng.role_type]||eng.role_type}
+                      </span>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3,marginTop:6}}>
+                        <div style={{background:"#060e1c",borderRadius:4,padding:"3px 2px"}}>
+                          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:700,color:"#38bdf8"}}>{wh}h</div>
+                          <div style={{fontSize:7,color:"#253a52"}}>hrs</div>
+                        </div>
+                        <div style={{background:"#060e1c",borderRadius:4,padding:"3px 2px"}}>
+                          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:700,color:util>=80?"#34d399":util>=60?"#fb923c":"#f87171"}}>{util}%</div>
+                          <div style={{fontSize:7,color:"#253a52"}}>util</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                };
+
+                // Connector helpers
+                const VLine=({h=20})=><div style={{...LINE_V,height:h}}/>;
+                const HBranch=({children,gap=12})=>(
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                    <VLine h={16}/>
+                    <div style={{display:"flex",alignItems:"flex-start",gap,position:"relative"}}>
+                      {React.Children.map(children,(child,i)=>(
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>{child}</div>
+                      ))}
+                    </div>
+                  </div>
+                );
+
+                return(
+                  <div style={{overflowX:"auto",paddingBottom:16}}>
+                    <div style={{minWidth:900,display:"flex",flexDirection:"column",alignItems:"center",gap:0}}>
+
+                      {/* ── TOP: Radu Brasoveanu (External CEO) ── */}
+                      <EngCard externalName="Radu Brasoveanu" externalTitle="CEO" externalSub="Romain (External)"/>
+                      <VLine h={20}/>
+
+                      {/* ── LEVEL 1: Sameh Said + Shady Aly ── */}
+                      <div style={{display:"flex",gap:80,alignItems:"flex-start",position:"relative"}}>
+                        {/* Horizontal connector line */}
+                        <div style={{position:"absolute",top:0,left:"25%",right:"25%",height:2,background:"#192d47"}}/>
+
+                        {/* LEFT BRANCH: Sameh Said */}
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                          <EngCard namePart="Sameh"/>
+
+                          <HBranch gap={10}>
+                            {/* Ahmed Hassan */}
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                              <VLine h={16}/>
+                              <EngCard namePart="Ahmed Hassan"/>
+                            </div>
+                            {/* Ahmed Farahat */}
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                              <VLine h={16}/>
+                              <EngCard namePart="Farahat"/>
+                            </div>
+                            {/* Omar Fahim */}
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                              <VLine h={16}/>
+                              <EngCard namePart="Omar"/>
+                            </div>
+                          </HBranch>
+                        </div>
+
+                        {/* RIGHT BRANCH: Shady Aly */}
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                          <EngCard namePart="Shady"/>
+
+                          <VLine h={16}/>
+
+                          {/* L2 under Shady: Ziad, Khaled, Ismail, Ahmed Ragab */}
+                          <div style={{display:"flex",gap:10,alignItems:"flex-start",position:"relative"}}>
+                            <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"#192d47"}}/>
+
+                            {/* Ziad El Gayar → juniors */}
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                              <VLine h={16}/>
+                              <EngCard namePart="Ziad"/>
+                              <HBranch gap={8}>
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><VLine h={16}/><EngCard namePart="Essam"/></div>
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><VLine h={16}/><EngCard namePart="Ruqaya"/></div>
+                              </HBranch>
+                            </div>
+
+                            {/* Khaled Abdallah → juniors */}
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                              <VLine h={16}/>
+                              <EngCard namePart="Khaled"/>
+                              <HBranch gap={8}>
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><VLine h={16}/><EngCard namePart="Alaa"/></div>
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><VLine h={16}/><EngCard namePart="Shehab"/></div>
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><VLine h={16}/><EngCard namePart="Ghorab"/></div>
+                              </HBranch>
+                            </div>
+
+                            {/* Ismail Falogy → Protection Lead */}
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                              <VLine h={16}/>
+                              <EngCard namePart="Ismail"/>
+                            </div>
+
+                            {/* Ahmed Ragab → RTU Lead */}
+                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                              <VLine h={16}/>
+                              <EngCard namePart="Ragab"/>
+                            </div>
+
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ── GRID VIEW ── */}
+              {teamViewMode==="grid"&&<div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
                 {filteredTeam.map(eng=>(
                   <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",
                     opacity:!isEngActive(eng)?0.5:1,
@@ -5325,7 +5514,8 @@ export default function App(){
                     })()}
                   </div>
                 ))}
-              </div>
+              </div>}
+
             </div>
           );})()}
 
