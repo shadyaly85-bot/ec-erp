@@ -1,16 +1,4 @@
-im
-
-  // ─── Org Chart loader ───
-  const loadOrgChart = useCallback(async()=>{
-    if(!session) return;
-    const{data}=await supabase.from("org_chart").select("*").order("sort_order");
-    if(data) setOrgNodes(data);
-    setOrgLoaded(true);
-  },[session]);
-
-  useEffect(()=>{ if(session&&!orgLoaded) loadOrgChart(); },[session,orgLoaded,loadOrgChart]);
-
-port React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "./supabase";
 
 
@@ -3716,6 +3704,17 @@ export default function App(){
   useEffect(()=>{
     if(session&&!activitiesLoaded){ loadTrackerData(); }
   },[session,activitiesLoaded,loadTrackerData]);
+
+  // ─── Org Chart loader ───
+  const loadOrgChart = useCallback(async()=>{
+    if(!session) return;
+    const{data}=await supabase.from("org_chart").select("*").order("sort_order");
+    if(data) setOrgNodes(data);
+    setOrgLoaded(true);
+  },[session]);
+
+  useEffect(()=>{ if(session&&!orgLoaded) loadOrgChart(); },[session,orgLoaded,loadOrgChart]);
+
 
   const unreadCount=notifications.filter(n=>!n.read).length;
   const markAllRead=async()=>{
