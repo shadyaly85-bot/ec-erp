@@ -3273,7 +3273,7 @@ export default function App(){
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
   const [newEntry,setNewEntry]   = useState({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
   const [newProj,setNewProj]     = useState({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
-  const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
+  const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
 
   const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3500);};
 
@@ -5345,7 +5345,7 @@ export default function App(){
                       const wdStr=engWd().map(d=>["Su","Mo","Tu","We","Th","Fr","Sa"][d]).join("+");
                       return(
                         <tr key={eng.id}>
-                          <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="av" style={{fontSize:9,width:26,height:26}}>{eng.name?.slice(0,2).toUpperCase()}</div><span style={{fontWeight:500}}>{eng.name}</span></div></td>
+                          <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="av" style={{fontSize:9,width:26,height:26,opacity:eng.is_active===false?0.4:1}}>{eng.name?.slice(0,2).toUpperCase()}</div><div><span style={{fontWeight:500,color:eng.is_active===false?"#4e6479":"inherit"}}>{eng.name}</span>{eng.is_active===false&&<span style={{marginLeft:5,fontSize:9,padding:"1px 5px",borderRadius:3,background:"#f8717120",color:"#f87171"}}>INACTIVE</span>}</div></div></td>
                           <td style={{color:"#7a8faa",fontSize:11}}>{eng.role}</td>
                           <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#152639",color:"#4e6479"}}>{eng.level}</span></td>
                           <td style={{color:"#4e6479",fontSize:11}}>{eng.email||"—"}</td>
@@ -6126,7 +6126,15 @@ export default function App(){
               <div>
                 <Lbl>Assigned Team Members</Lbl>
                 <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:160,overflowY:"auto"}}>
-                  {engineers.filter(e=>e.role_type!=="accountant").map(e=>{
+                  {engineers.filter(e=>{
+                    if(e.is_active===false) return false;
+                    if(e.role_type==="accountant"||e.role_type==="senior_management") return false;
+                    if(isLead&&!isAdmin){
+                      // Leads can only assign themselves or engineers
+                      return e.id===myProfile?.id||e.role_type==="engineer";
+                    }
+                    return true;
+                  }).map(e=>{
                     const sel=(newProj.assigned_engineers||[]).includes(String(e.id));
                     return(
                     <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 4px",borderRadius:4,background:sel?"#001a2c":"transparent"}}>
@@ -6135,7 +6143,7 @@ export default function App(){
                         return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
                       })} style={{accentColor:"#38bdf8"}}/>
                       <span style={{fontSize:10,color:sel?"#38bdf8":"#7a8faa"}}>{e.name}</span>
-                      <span style={{fontSize:9,color:"#2e4a66",marginLeft:"auto"}}>{e.role}</span>
+                      <span style={{fontSize:9,color:"#2e4a66",marginLeft:"auto"}}>{e.role} · {e.role_type==="lead"?"Lead":e.level||""}</span>
                     </label>);
                   })}
                 </div>
@@ -6175,7 +6183,14 @@ export default function App(){
               <div>
                 <Lbl>Assigned Team Members</Lbl>
                 <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:160,overflowY:"auto"}}>
-                  {engineers.filter(e=>e.role_type!=="accountant").map(e=>{
+                  {engineers.filter(e=>{
+                    if(e.is_active===false) return false;
+                    if(e.role_type==="accountant"||e.role_type==="senior_management") return false;
+                    if(isLead&&!isAdmin){
+                      return e.id===myProfile?.id||e.role_type==="engineer";
+                    }
+                    return true;
+                  }).map(e=>{
                     const sel=(editProjModal.assigned_engineers||[]).includes(String(e.id));
                     return(
                     <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 4px",borderRadius:4,background:sel?"#001a2c":"transparent"}}>
@@ -6184,7 +6199,7 @@ export default function App(){
                         return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
                       })} style={{accentColor:"#38bdf8"}}/>
                       <span style={{fontSize:10,color:sel?"#38bdf8":"#7a8faa"}}>{e.name}</span>
-                      <span style={{fontSize:9,color:"#2e4a66",marginLeft:"auto"}}>{e.role}</span>
+                      <span style={{fontSize:9,color:"#2e4a66",marginLeft:"auto"}}>{e.role} · {e.role_type==="lead"?"Lead":e.level||""}</span>
                     </label>);
                   })}
                 </div>
@@ -6235,6 +6250,17 @@ export default function App(){
                 </div>
               </div>
             </div>
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
+                <span style={{fontSize:11,color:"#7a8faa",flex:1}}>Employment Status</span>
+                {["Active","Inactive"].map(s=>{
+                  const active=s==="Active";
+                  const sel=(newEng.is_active!==false)===active;
+                  return <button key={s} onClick={()=>setNewEng(p=>({...p,is_active:active}))}
+                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"#192d47"}`,
+                      background:sel?(active?"#34d399":"#f87171")+"15":"#060e1c",
+                      color:sel?(active?"#34d399":"#f87171"):"#4e6479",fontSize:11,fontWeight:600,cursor:"pointer"}}>{s}</button>;
+                })}
+              </div>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
               <button className="bg" onClick={()=>setShowEngModal(false)}>Cancel</button>
               <button className="bp" onClick={addEngineer}>Add Member</button>
@@ -6256,6 +6282,17 @@ export default function App(){
               <div><Lbl>Job Role</Lbl><select value={editEngModal.role||""} onChange={e=>setEditEngModal(p=>({...p,role:e.target.value}))}>{ROLES_LIST.map(r=><option key={r}>{r}</option>)}</select></div>
               <div><Lbl>Email</Lbl><input type="email" value={editEngModal.email||""} onChange={e=>setEditEngModal(p=>({...p,email:e.target.value}))}/></div>
               <div><Lbl>Access Role</Lbl><select value={editEngModal.role_type||"engineer"} onChange={e=>setEditEngModal(p=>({...p,role_type:e.target.value}))}>{ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
+                <span style={{fontSize:11,color:"#7a8faa",flex:1}}>Employment Status</span>
+                {["Active","Inactive"].map(s=>{
+                  const active=s==="Active";
+                  const sel=(editEngModal.is_active!==false)===active;
+                  return <button key={s} onClick={()=>setEditEngModal(p=>({...p,is_active:active}))}
+                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"#192d47"}`,
+                      background:sel?(active?"#34d399":"#f87171")+"15":"#060e1c",
+                      color:sel?(active?"#34d399":"#f87171"):"#4e6479",fontSize:11,fontWeight:600,cursor:"pointer"}}>{s}</button>;
+                })}
+              </div>
             </div>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
               <button className="bg" onClick={()=>setEditEngModal(null)}>Cancel</button>
