@@ -3273,7 +3273,7 @@ export default function App(){
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
   const [newEntry,setNewEntry]   = useState({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
   const [newProj,setNewProj]     = useState({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
-  const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
+  const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:"",termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
 
   const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3500);};
 
@@ -3289,6 +3289,15 @@ export default function App(){
   // Role helpers
   const role      = myProfile?.role_type||"engineer";
   const isAdmin   = role==="admin";
+  // Helper: is engineer currently active? Works before & after is_active migration.
+  // Engineer is inactive if: is_active===false OR termination_date is set and in the past.
+  const TODAY_STR = new Date().toISOString().slice(0,10);
+  const isEngActive = (e) => {
+    if(!e) return false;
+    if(e.is_active===false) return false;
+    if(e.termination_date && e.termination_date <= TODAY_STR) return false;
+    return true;
+  };
   const isSenior  = role==="senior_management";
   const isLead    = role==="lead"||role==="admin";
   const isAcct    = role==="accountant"||role==="admin"||role==="senior_management";
@@ -4583,7 +4592,7 @@ export default function App(){
                   {canEditAny&&(
                     <div><Lbl>Browse Engineer</Lbl>
                       <select style={{width:190}} value={viewEngId||""} onChange={e=>setBrowseEngId(+e.target.value)}>
-                        {engineers.filter(e=>e.is_active!==false).map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
+                        {engineers.filter(e=>isEngActive(e)).map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
                       </select>
                     </div>
                   )}
@@ -4791,13 +4800,13 @@ export default function App(){
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:12}}>
                 <div>
                   <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Team</h1>
-                  <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{engineers.filter(e=>e.is_active!==false).length} active · {engineers.length} total · {MONTHS[month]} {year}</p>
+                  <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{engineers.filter(e=>isEngActive(e)).length} active · {engineers.length} total · {MONTHS[month]} {year}</p>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
                   <div><Lbl>Engineer</Lbl>
                     <select style={{width:160}} value={filterEngineer} onChange={e=>setFilterEngineer(e.target.value)}>
                       <option value="ALL">All Engineers</option>
-                      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}{e.is_active===false?" (inactive)":""}</option>)}
+                      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}{!isEngActive(e)?" (inactive)":""}</option>)}
                     </select>
                   </div>
                   <div><Lbl>Project</Lbl>
@@ -4907,11 +4916,11 @@ export default function App(){
               <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
                 {filteredTeam.map(eng=>(
                   <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",
-                    opacity:eng.is_active===false?0.5:1,
-                    border:filterEngineer===String(eng.id)?"1px solid #38bdf8":eng.is_active===false?"1px solid #0f1e2e":"1px solid #192d47"}}
+                    opacity:!isEngActive(eng)?0.5:1,
+                    border:filterEngineer===String(eng.id)?"1px solid #38bdf8":!isEngActive(eng)?"1px solid #0f1e2e":"1px solid #192d47"}}
                     onClick={()=>setFilterEngineer(filterEngineer===String(eng.id)?"ALL":String(eng.id))}>
-                    <div className="av" style={{width:44,height:44,fontSize:13,margin:"0 auto 8px",filter:eng.is_active===false?"grayscale(1)":"none"}}>{eng.name?.slice(0,2).toUpperCase()}</div>
-                    <div style={{fontSize:13,fontWeight:600}}>{eng.name}{eng.is_active===false&&<span style={{fontSize:9,marginLeft:5,color:"#f87171",background:"#f8717115",padding:"1px 4px",borderRadius:3}}>LEFT</span>}</div>
+                    <div className="av" style={{width:44,height:44,fontSize:13,margin:"0 auto 8px",filter:!isEngActive(eng)?"grayscale(1)":"none"}}>{eng.name?.slice(0,2).toUpperCase()}</div>
+                    <div style={{fontSize:13,fontWeight:600}}>{eng.name}{!isEngActive(eng)&&<span style={{fontSize:9,marginLeft:5,color:"#f87171",background:"#f8717115",padding:"1px 4px",borderRadius:3}}>LEFT</span>}</div>
                     <div style={{fontSize:10,color:"#2e4a66",marginBottom:4}}>{eng.role}</div>
                     <div style={{marginBottom:8}}><span className="role-badge" style={{background:ROLE_COLORS[eng.role_type]+"20",color:ROLE_COLORS[eng.role_type]||"#4e6479"}}>{ROLE_LABELS[eng.role_type]||eng.role_type}</span></div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:7}}>
@@ -5369,7 +5378,7 @@ export default function App(){
                       const wdStr=engWd().map(d=>["Su","Mo","Tu","We","Th","Fr","Sa"][d]).join("+");
                       return(
                         <tr key={eng.id}>
-                          <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="av" style={{fontSize:9,width:26,height:26,opacity:eng.is_active===false?0.4:1}}>{eng.name?.slice(0,2).toUpperCase()}</div><div><span style={{fontWeight:500,color:eng.is_active===false?"#4e6479":"inherit"}}>{eng.name}</span>{eng.is_active===false&&<span style={{marginLeft:5,fontSize:9,padding:"1px 5px",borderRadius:3,background:"#f8717120",color:"#f87171"}}>INACTIVE</span>}</div></div></td>
+                          <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="av" style={{fontSize:9,width:26,height:26,opacity:!isEngActive(eng)?0.4:1}}>{eng.name?.slice(0,2).toUpperCase()}</div><div><span style={{fontWeight:500,color:!isEngActive(eng)?"#4e6479":"inherit"}}>{eng.name}</span>{!isEngActive(eng)&&<span style={{marginLeft:5,fontSize:9,padding:"1px 5px",borderRadius:3,background:"#f8717120",color:"#f87171"}}>INACTIVE</span>}</div></div></td>
                           <td style={{color:"#7a8faa",fontSize:11}}>{eng.role}</td>
                           <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#152639",color:"#4e6479"}}>{eng.level}</span></td>
                           <td style={{color:"#4e6479",fontSize:11}}>{eng.email||"—"}</td>
@@ -6151,10 +6160,9 @@ export default function App(){
                 <Lbl>Assigned Team Members</Lbl>
                 <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:160,overflowY:"auto"}}>
                   {engineers.filter(e=>{
-                    if(e.is_active===false) return false;
+                    if(!isEngActive(e)) return false;
                     if(e.role_type==="accountant"||e.role_type==="senior_management") return false;
                     if(isLead&&!isAdmin){
-                      // Leads can only assign themselves or engineers
                       return e.id===myProfile?.id||e.role_type==="engineer";
                     }
                     return true;
@@ -6208,7 +6216,7 @@ export default function App(){
                 <Lbl>Assigned Team Members</Lbl>
                 <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:160,overflowY:"auto"}}>
                   {engineers.filter(e=>{
-                    if(e.is_active===false) return false;
+                    if(!isEngActive(e)) return false;
                     if(e.role_type==="accountant"||e.role_type==="senior_management") return false;
                     if(isLead&&!isAdmin){
                       return e.id===myProfile?.id||e.role_type==="engineer";
@@ -6278,7 +6286,7 @@ export default function App(){
                 <span style={{fontSize:11,color:"#7a8faa",flex:1}}>Employment Status</span>
                 {["Active","Inactive"].map(s=>{
                   const active=s==="Active";
-                  const sel=(newEng.is_active!==false)===active;
+                  const sel=(newEng.is_active!==false&&!newEng.termination_date)===active;
                   return <button key={s} onClick={()=>setNewEng(p=>({...p,is_active:active}))}
                     style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"#192d47"}`,
                       background:sel?(active?"#34d399":"#f87171")+"15":"#060e1c",
@@ -6306,12 +6314,16 @@ export default function App(){
               <div><Lbl>Job Role</Lbl><select value={editEngModal.role||""} onChange={e=>setEditEngModal(p=>({...p,role:e.target.value}))}>{ROLES_LIST.map(r=><option key={r}>{r}</option>)}</select></div>
               <div><Lbl>Email</Lbl><input type="email" value={editEngModal.email||""} onChange={e=>setEditEngModal(p=>({...p,email:e.target.value}))}/></div>
               <div><Lbl>Access Role</Lbl><select value={editEngModal.role_type||"engineer"} onChange={e=>setEditEngModal(p=>({...p,role_type:e.target.value}))}>{ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><Lbl>Join Date</Lbl><input type="date" value={editEngModal.join_date||""} onChange={e=>setEditEngModal(p=>({...p,join_date:e.target.value||null}))}/></div>
+                <div><Lbl>Left Date <span style={{color:"#4e6479",fontWeight:400}}>(sets inactive)</span></Lbl><input type="date" value={editEngModal.termination_date||""} onChange={e=>setEditEngModal(p=>({...p,termination_date:e.target.value||null,is_active:e.target.value?false:p.is_active}))}/></div>
+              </div>
               <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
-                <span style={{fontSize:11,color:"#7a8faa",flex:1}}>Employment Status</span>
+                <span style={{fontSize:11,color:"#7a8faa",flex:1}}>Status</span>
                 {["Active","Inactive"].map(s=>{
                   const active=s==="Active";
-                  const sel=(editEngModal.is_active!==false)===active;
-                  return <button key={s} onClick={()=>setEditEngModal(p=>({...p,is_active:active}))}
+                  const sel=isEngActive(editEngModal)===active;
+                  return <button key={s} onClick={()=>setEditEngModal(p=>({...p,is_active:active,termination_date:active?null:p.termination_date||TODAY_STR}))}
                     style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"#192d47"}`,
                       background:sel?(active?"#34d399":"#f87171")+"15":"#060e1c",
                       color:sel?(active?"#34d399":"#f87171"):"#4e6479",fontSize:11,fontWeight:600,cursor:"pointer"}}>{s}</button>;
