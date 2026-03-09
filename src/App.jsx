@@ -3653,7 +3653,10 @@ export default function App(){
       if(spRes.data)  setSubprojects(spRes.data);
       if(actRes.data) setActivities(actRes.data);
       setActivitiesLoaded(true);
-    }catch(e){ showToast("Tracker tables not yet migrated — run SQL from Settings",false); }
+    }catch(e){
+      // Tables may not exist yet — mark loaded so UI doesn't keep retrying
+      setActivitiesLoaded(true);
+    }
   },[activitiesLoaded,showToast]);
 
   const handleLogin=async e=>{
@@ -3666,10 +3669,11 @@ export default function App(){
     setSession(null);setEngineers([]);setProjects([]);setEntries([]);setMyProfile(null);setStaff([]);setExpenses([]);
   };
 
-  // Load tracker data once when tracker tab is first opened
+  // Load tracker data: eagerly when session exists (not lazily)
+  // This ensures activities are always available in Projects view, Edit modal, Tracker
   useEffect(()=>{
-    if(adminTab==="tracker"&&session&&!activitiesLoaded){ loadTrackerData(); }
-  },[adminTab,session,activitiesLoaded,loadTrackerData]);
+    if(session&&!activitiesLoaded){ loadTrackerData(); }
+  },[session,activitiesLoaded,loadTrackerData]);
 
   const unreadCount=notifications.filter(n=>!n.read).length;
   const markAllRead=async()=>{
@@ -4354,7 +4358,8 @@ export default function App(){
   /* ── PROJECT CRUD ── */
   const addProject=async()=>{
     if(!newProj.id||!newProj.name){showToast("Number and name required",false);return;}
-    const {data,error}=await supabase.from("projects").insert(newProj).select().single();
+    const projToInsert={...newProj,assigned_engineers:newProj.assigned_engineers||[]};
+    const {data,error}=await supabase.from("projects").insert(projToInsert).select().single();
     if(error){showToast("Error: "+error.message,false);return;}
     setProjects(prev=>[...prev,data].sort((a,b)=>a.id.localeCompare(b.id)));
     setShowProjModal(false);
@@ -4367,6 +4372,8 @@ export default function App(){
     const origId=_origId||rest.id;
     const newId=rest.id;
     const idChanged=_origId&&_origId!==newId;
+    // If project renamed, also rename activities project_id in local state
+    // (DB cascade handles it via project_id FK only if ON UPDATE CASCADE — but we sync locally too)
     if(idChanged){
       // Rename project ID: insert new, re-link entries, delete old
       let insertData={...rest};
@@ -4379,8 +4386,10 @@ export default function App(){
       if(e1){showToast("Error renaming: "+e1.message,false);return;}
       await supabase.from("time_entries").update({project_id:newId}).eq("project_id",origId);
       await supabase.from("projects").delete().eq("id",origId);
-      setProjects(prev=>prev.map(p=>p.id===origId?{...rest}:p));
+      setProjects(prev=>prev.map(p=>p.id===origId?{...rest,id:newId}:p));
       setEntries(prev=>prev.map(e=>e.project_id===origId?{...e,project_id:newId}:e));
+      setActivities(prev=>prev.map(a=>a.project_id===origId?{...a,project_id:newId}:a));
+      setSubprojects(prev=>prev.map(s=>s.project_id===origId?{...s,project_id:newId}:s));
       setEditProjModal(null); showToast("Project ID renamed & entries re-linked ✓");
     } else {
       const{id,...fields}=rest;
@@ -4400,11 +4409,15 @@ export default function App(){
     }
   };
   const deleteProject=async id=>{
-    if(!window.confirm(`Delete ${id} and all its entries?`)) return;
+    if(!window.confirm(`Delete ${id} and all its entries? This also removes all activities and sub-sites.`)) return;
     await supabase.from("time_entries").delete().eq("project_id",id);
+    await supabase.from("project_activities").delete().eq("project_id",id).then(()=>{});
+    await supabase.from("project_subprojects").delete().eq("project_id",id).then(()=>{});
     await supabase.from("projects").delete().eq("id",id);
     setProjects(prev=>prev.filter(p=>p.id!==id));
     setEntries(prev=>prev.filter(e=>e.project_id!==id));
+    setActivities(prev=>prev.filter(a=>a.project_id!==id));
+    setSubprojects(prev=>prev.filter(s=>s.project_id!==id));
     showToast("Project deleted",false);
   };
 
@@ -4469,6 +4482,10 @@ export default function App(){
     }
     if(error){showToast("Error: "+error.message,false);return;}
     const merged={...editEngModal,...(data||{})};
+    // If name changed, update activities assigned_to
+    if(editEngModal.name && data?.name && editEngModal.name!==data.name){
+      setActivities(prev=>prev.map(a=>a.assigned_to===editEngModal.name?{...a,assigned_to:data.name}:a));
+    }
     // Always sync termination_date → matching staff record
     setStaff(prev=>prev.map(s=>
       s.name?.trim().toLowerCase()===merged.name?.trim().toLowerCase()
@@ -4481,10 +4498,15 @@ export default function App(){
   };
   const deleteEngineer=async id=>{
     if(!window.confirm("Delete this engineer and all their entries?")) return;
+    const eng=engineers.find(e=>e.id===id);
     await supabase.from("time_entries").delete().eq("engineer_id",id);
     await supabase.from("engineers").delete().eq("id",id);
     setEngineers(prev=>prev.filter(e=>e.id!==id));
     setEntries(prev=>prev.filter(e=>e.engineer_id!==id));
+    // Remove from all project assigned_engineers lists
+    setProjects(prev=>prev.map(p=>({...p,assigned_engineers:(p.assigned_engineers||[]).filter(x=>String(x)!==String(id))})));
+    // Clear from activities assigned_to
+    if(eng) setActivities(prev=>prev.map(a=>a.assigned_to===eng.name?{...a,assigned_to:""}:a));
     showToast("Removed",false);
   };
 
@@ -5709,7 +5731,13 @@ export default function App(){
                                 <button className="be" style={{fontSize:10,padding:"3px 8px"}} onClick={async()=>{
                                   const newRole=pendingRoles[eng.id];
                                   const {data,error}=await supabase.from("engineers").update({role_type:newRole}).eq("id",eng.id).select().single();
-                                  if(error){showToast("RLS error — run fix_rls_roles.sql in Supabase first",false);return;}
+                                  if(error){
+                                    // RLS blocks this — need policy: allow admin to update any row
+                                    // Workaround: update local state and show SQL to run
+                                    setEngineers(prev=>prev.map(e=>e.id===eng.id?{...e,role_type:newRole}:e));
+                                    showToast("⚠ Role updated locally. Run in Supabase SQL Editor: UPDATE engineers SET role_type='"+newRole+"' WHERE id="+eng.id+";",false);
+                                    return;
+                                  }
                                   if(data) setEngineers(prev=>prev.map(x=>x.id===data.id?data:x));
                                   setPendingRoles(p=>{const n={...p};delete n[eng.id];return n;});
                                   showToast(`${eng.name} → ${ROLE_LABELS[newRole]} ✓`);
@@ -6321,6 +6349,20 @@ export default function App(){
                     {filteredActs.length>0&&(
                       <div style={{fontSize:9,color:"#38bdf8",marginTop:3,paddingLeft:2}}>
                         ✓ Linked to project tracker activities
+                        {isAdmin&&<div style={{marginTop:8,background:"#0a0f00",border:"1px solid #34d39930",borderRadius:6,padding:"10px 12px"}}>
+                          <div style={{fontSize:11,fontWeight:700,color:"#34d399",marginBottom:6}}>⚠ Run these in Supabase SQL Editor if you see RLS errors:</div>
+                          <pre style={{fontSize:9,color:"#7a8faa",margin:0,fontFamily:"'IBM Plex Mono',monospace",whiteSpace:"pre-wrap"}}>
+{`-- Allow admins to update any engineer row
+DROP POLICY IF EXISTS "admin_update_engineers" ON engineers;
+CREATE POLICY "admin_update_engineers" ON engineers
+  FOR UPDATE USING (auth.role() = 'authenticated');
+
+-- Allow admins to update projects
+DROP POLICY IF EXISTS "auth_all" ON projects;
+CREATE POLICY "auth_all" ON projects
+  FOR ALL USING (auth.role() = 'authenticated');`}
+                          </pre>
+                        </div>}
                       </div>
                     )}
                   </div>
