@@ -5953,6 +5953,41 @@ export default function App(){
               {/* SETTINGS */}
               {adminTab==="settings"&&isAdmin&&(
                 <div style={{maxWidth:600,display:"grid",gap:14}}>
+                  {/* ── RLS Fix SQL ── */}
+                  <div className="card" style={{border:"1px solid #f8717140",background:"#0d0806"}}>
+                    <h3 style={{fontSize:13,fontWeight:700,color:"#f87171",marginBottom:4}}>⚠ Database Fix Required (Run Once)</h3>
+                    <p style={{fontSize:11,color:"#7a8faa",marginBottom:10,lineHeight:1.6}}>
+                      If role changes or engineer edits show RLS errors, run this SQL in your <strong style={{color:"#38bdf8"}}>Supabase SQL Editor</strong> once to grant full access to all authenticated users.
+                    </p>
+                    <div style={{position:"relative"}}>
+                      <pre style={{fontSize:11,color:"#34d399",background:"#060e1c",border:"1px solid #34d39930",borderRadius:6,padding:"12px 14px",margin:0,fontFamily:"'IBM Plex Mono',monospace",whiteSpace:"pre-wrap",userSelect:"all",lineHeight:1.7}}>
+{`DO $$ DECLARE t text;
+BEGIN
+  FOR t IN SELECT tablename FROM pg_tables
+    WHERE schemaname = 'public' LOOP
+    EXECUTE format(
+      'DROP POLICY IF EXISTS "auth_all" ON %I', t);
+    EXECUTE format(
+      'CREATE POLICY "auth_all" ON %I
+       FOR ALL USING (auth.role() = ''authenticated'')', t);
+  END LOOP;
+END $$;`}
+                      </pre>
+                    </div>
+                    <button className="bp" style={{marginTop:10,fontSize:11}} onClick={()=>{
+                      const sql = `DO $$ DECLARE t text;
+BEGIN
+  FOR t IN SELECT tablename FROM pg_tables
+    WHERE schemaname = 'public' LOOP
+    EXECUTE format('DROP POLICY IF EXISTS "auth_all" ON %I', t);
+    EXECUTE format('CREATE POLICY "auth_all" ON %I FOR ALL USING (auth.role() = ''authenticated'')', t);
+  END LOOP;
+END $$;`;
+                      navigator.clipboard.writeText(sql).then(()=>showToast("SQL copied to clipboard ✓")).catch(()=>showToast("Copy failed — select text manually",false));
+                    }}>📋 Copy SQL</button>
+                    <p style={{fontSize:10,color:"#4e6479",marginTop:8}}>After copying: open Supabase → SQL Editor → paste → Run</p>
+                  </div>
+
                   <div className="card">
                     <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:4}}>Access Role Descriptions</h3>
                     <p style={{fontSize:11,color:"#2e4a66",marginBottom:14,lineHeight:1.6}}>Each role controls what features are visible and accessible.</p>
@@ -6373,18 +6408,6 @@ export default function App(){
                     {filteredActs.length>0&&(
                       <div style={{fontSize:9,color:"#38bdf8",marginTop:3,paddingLeft:2}}>
                         ✓ Linked to project tracker activities
-                        {isAdmin&&<div style={{marginTop:8,background:"#0a0800",border:"1px solid #f8717130",borderRadius:6,padding:"10px 12px"}}>
-                          <div style={{fontSize:11,fontWeight:700,color:"#f87171",marginBottom:6}}>⚠ Required: Run this SQL in Supabase SQL Editor to fix RLS (role changes, engineer edits):</div>
-                          <pre style={{fontSize:9,color:"#7a8faa",margin:0,fontFamily:"'IBM Plex Mono',monospace",whiteSpace:"pre-wrap",userSelect:"all"}}>
-{`-- Full authenticated access for all tables (run once)
-DO $$ DECLARE t text;
-BEGIN FOR t IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP
-  EXECUTE format('DROP POLICY IF EXISTS "auth_all" ON %I', t);
-  EXECUTE format('CREATE POLICY "auth_all" ON %I FOR ALL USING (auth.role()=''authenticated'')', t);
-END LOOP; END $$;`}
-                          </pre>
-                          <div style={{fontSize:9,color:"#4e6479",marginTop:6}}>Select all text above → copy → paste in Supabase SQL Editor → Run</div>
-                        </div>}
                       </div>
                     )}
                   </div>
