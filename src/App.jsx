@@ -435,7 +435,37 @@ const Lbl=({children})=><div style={{fontSize:11,color:"#4e6479",marginBottom:4}
 
 /* ── Projects Page Component (extracted to avoid IIFE hook issues) ── */
 function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setProjStatusFilter,
-  monthEntries,projStats,isAdmin,isAcct,setShowProjModal,setEditProjModal,deleteProject,fmtCurrency}){
+  monthEntries,projStats,isAdmin,isAcct,isLead,setShowProjModal,setEditProjModal,deleteProject,fmtCurrency,
+  activities,setActivities,engineers,supabase,showToast}){
+  const [pvActModal,setPvActModal] = React.useState(null);
+  const [pvActDraft,setPvActDraft] = React.useState({});
+  const canManage = isAdmin||isLead;
+
+  const openPvAct=(projId,act=null)=>{
+    setPvActDraft(act?{...act}:{project_id:projId,group_name:"SCADA",category:"Templates",activity_name:"",status:"Not Started",progress:0,assigned_to:"",remarks:""});
+    setPvActModal({projId,act});
+  };
+  const savePvAct=async()=>{
+    if(!pvActDraft.activity_name?.trim()){if(showToast)showToast("Activity name required",false);return;}
+    if(pvActModal.act){
+      const{id,...fields}=pvActDraft;
+      const{data,error}=await supabase.from("project_activities").update(fields).eq("id",id).select().single();
+      if(error){if(showToast)showToast("Error: "+error.message,false);return;}
+      if(setActivities)setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
+    }else{
+      const{data,error}=await supabase.from("project_activities").insert(pvActDraft).select().single();
+      if(error){if(showToast)showToast("Error: "+error.message,false);return;}
+      if(setActivities)setActivities(prev=>[...prev,data]);
+    }
+    setPvActModal(null);
+    if(showToast)showToast("Activity saved ✓");
+  };
+  const delPvAct=async(id)=>{
+    if(!window.confirm("Delete this activity?"))return;
+    await supabase.from("project_activities").delete().eq("id",id);
+    if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id));
+    if(showToast)showToast("Activity deleted");
+  };
   const filteredProjects=projects.filter(p=>{
     const ms=projStatusFilter==="ALL"||p.status===projStatusFilter;
     const mq=!projSearch||p.name.toLowerCase().includes(projSearch.toLowerCase())||
@@ -486,10 +516,8 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                   <span style={{fontSize:9,padding:"2px 7px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,
                     background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"#1e3a5f",
                     color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span>
-                  {isAdmin&&<>
-                    <button style={{background:"#0ea5e9",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:10,cursor:"pointer"}} onClick={()=>setEditProjModal({...p})}>✎</button>
-                    <button style={{background:"#ef4444",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:10,cursor:"pointer"}} onClick={()=>deleteProject(p.id)}>✕</button>
-                  </>}
+                  {canManage&&<button style={{background:"#0ea5e9",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:10,cursor:"pointer"}} onClick={()=>setEditProjModal({...p})}>✎</button>}
+                  {isAdmin&&<button style={{background:"#ef4444",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:10,cursor:"pointer"}} onClick={()=>deleteProject(p.id)}>✕</button>}
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,fontSize:11,marginBottom:10,color:"#dde3ef"}}>
@@ -511,13 +539,85 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                 ))}
               </div>}
               <div style={{paddingTop:9,borderTop:"1px solid #192d47"}}>
-                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:"#38bdf8"}}>{ps?.hours||0}h</div>
-                {(isAdmin||isAcct)&&p.billable&&<div style={{fontSize:10,color:"#a78bfa"}}>{fmtCurrency(ps?.revenue||0)}</div>}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:"#38bdf8"}}>{ps?.hours||0}h</div>
+                    {(isAdmin||isAcct)&&p.billable&&<div style={{fontSize:10,color:"#a78bfa"}}>{fmtCurrency(ps?.revenue||0)}</div>}
+                  </div>
+                  {canManage&&<button className="bp" style={{fontSize:9,padding:"2px 8px"}} onClick={()=>openPvAct(p.id)}>+ Activity</button>}
+                </div>
+                {/* Activities mini-list */}
+                {canManage&&(()=>{
+                  const pActs=(activities||[]).filter(a=>a.project_id===p.id);
+                  if(!pActs.length) return null;
+                  return(
+                    <div style={{marginTop:8,display:"grid",gap:2}}>
+                      {pActs.slice(0,5).map(a=>(
+                        <div key={a.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                          background:"#060e1c",borderRadius:4,padding:"3px 7px",fontSize:9}}>
+                          <span style={{color:"#7a8faa",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</span>
+                          <span style={{fontFamily:"'IBM Plex Mono',monospace",color:
+                            a.status==="Completed"?"#34d399":a.status==="In Progress"?"#38bdf8":"#4e6479",
+                            marginLeft:6,whiteSpace:"nowrap"}}>{Math.round((a.progress||0)*100)}%</span>
+                          <button onClick={()=>openPvAct(p.id,a)} style={{background:"none",border:"none",color:"#2e4a66",cursor:"pointer",fontSize:10,padding:"0 3px"}}>✎</button>
+                          <button onClick={()=>delPvAct(a.id)} style={{background:"none",border:"none",color:"#2e4a66",cursor:"pointer",fontSize:10,padding:"0 3px"}}>✕</button>
+                        </div>
+                      ))}
+                      {pActs.length>5&&<div style={{fontSize:9,color:"#2e4a66",textAlign:"center"}}>+{pActs.length-5} more</div>}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Activity Modal */}
+      {pvActModal&&(
+        <div className="modal-ov" onClick={()=>setPvActModal(null)}>
+          <div className="modal" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{fontSize:14,fontWeight:700,marginBottom:16}}>{pvActModal.act?"Edit":"Add"} Activity — {pvActModal.projId}</h3>
+            <div style={{display:"grid",gap:10}}>
+              <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Activity Name</label>
+                <input value={pvActDraft.activity_name||""} onChange={e=>setPvActDraft(p=>({...p,activity_name:e.target.value}))} placeholder="e.g. Configure RTU communication"/></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Group</label>
+                  <select value={pvActDraft.group_name||"SCADA"} onChange={e=>setPvActDraft(p=>({...p,group_name:e.target.value}))}>
+                    {["SCADA","RTU-PLC","Protection","General"].map(g=><option key={g}>{g}</option>)}
+                  </select></div>
+                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Category</label>
+                  <input value={pvActDraft.category||""} onChange={e=>setPvActDraft(p=>({...p,category:e.target.value}))} placeholder="e.g. Templates"/></div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Status</label>
+                  <select value={pvActDraft.status||"Not Started"} onChange={e=>setPvActDraft(p=>({...p,status:e.target.value}))}>
+                    {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
+                  </select></div>
+                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Progress %</label>
+                  <input type="number" min="0" max="100" step="5" value={Math.round((pvActDraft.progress||0)*100)} onChange={e=>setPvActDraft(p=>({...p,progress:+e.target.value/100}))}/></div>
+              </div>
+              <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Assigned To</label>
+                <select value={pvActDraft.assigned_to||""} onChange={e=>setPvActDraft(p=>({...p,assigned_to:e.target.value}))}>
+                  <option value="">— Unassigned —</option>
+                  {(engineers||[]).filter(e=>(e.is_active!==false)).map(e=><option key={e.id} value={e.name}>{e.name} · {e.role}</option>)}
+                </select></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Start Date</label>
+                  <input type="date" value={pvActDraft.start_date||""} onChange={e=>setPvActDraft(p=>({...p,start_date:e.target.value||null}))}/></div>
+                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>End Date</label>
+                  <input type="date" value={pvActDraft.end_date||""} onChange={e=>setPvActDraft(p=>({...p,end_date:e.target.value||null}))}/></div>
+              </div>
+              <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Remarks</label>
+                <input value={pvActDraft.remarks||""} onChange={e=>setPvActDraft(p=>({...p,remarks:e.target.value}))} placeholder="Optional"/></div>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:16,justifyContent:"flex-end"}}>
+              <button className="bg" onClick={()=>setPvActModal(null)}>Cancel</button>
+              <button className="bp" onClick={savePvAct}>{pvActModal.act?"Save Changes":"Add Activity"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3319,13 +3419,15 @@ export default function App(){
   // Role helpers
   const role      = myProfile?.role_type||"engineer";
   const isAdmin   = role==="admin";
-  // Helper: is engineer currently active? Works before & after is_active migration.
-  // Engineer is inactive if: is_active===false OR termination_date is set and in the past.
+  // isEngActive: checks termination_date (from engineers row OR synced from staff).
+  // Does NOT rely on is_active column — works with no DB migration.
   const TODAY_STR = new Date().toISOString().slice(0,10);
   const isEngActive = (e) => {
     if(!e) return false;
+    // termination_date set and in the past → inactive
+    if(e.termination_date && String(e.termination_date).slice(0,10) <= TODAY_STR) return false;
+    // explicit is_active false (if column exists)
     if(e.is_active===false) return false;
-    if(e.termination_date && e.termination_date <= TODAY_STR) return false;
     return true;
   };
   const isSenior  = role==="senior_management";
@@ -3377,15 +3479,15 @@ export default function App(){
         supabase.from("expenses").select("*").order("year",{ascending:false}),
       ]);
       if(staffRes.data){
-        setStaff(staffRes.data);
-        // Sync termination_date from staff → engineers
-        const TODAY2=new Date().toISOString().slice(0,10);
+        const sData=staffRes.data;
+        setStaff(sData);
+        // Always sync termination_date from staff → engineers by name match
+        // This makes status work without any DB migration on engineers table
         setEngineers(prev=>prev.map(eng=>{
-          const match=staffRes.data.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
-          if(match&&match.termination_date&&match.termination_date<=TODAY2){
-            return {...eng,is_active:false,termination_date:eng.termination_date||match.termination_date};
-          }
-          return eng;
+          const match=sData.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
+          if(!match) return eng;
+          // Staff termination_date wins if set; clearing it restores active
+          return {...eng, termination_date: match.termination_date||eng.termination_date||null};
         }));
       }
       if(expRes.data)   setExpenses(expRes.data);
@@ -3692,7 +3794,15 @@ export default function App(){
     };
     if(editStaff){
       const{data,error}=await supabase.from("staff").update(payload).eq("id",editStaff.id).select().single();
-      if(!error&&data){setStaff(prev=>prev.map(s=>s.id===data.id?data:s));showToast("Staff updated");setEditStaff(null);setShowStaffModal(false);}
+      if(!error&&data){
+        setStaff(prev=>prev.map(s=>s.id===data.id?data:s));
+        // Sync termination_date to engineers immediately (no DB migration needed)
+        setEngineers(prev=>prev.map(eng=>{
+          if(eng.name?.trim().toLowerCase()!==data.name?.trim().toLowerCase()) return eng;
+          return {...eng, termination_date: data.termination_date||null};
+        }));
+        showToast("Staff updated");setEditStaff(null);setShowStaffModal(false);
+      }
       else showToast(error?.message||"Error",false);
     } else {
       const{data,error}=await supabase.from("staff").insert(payload).select().single();
@@ -4206,19 +4316,22 @@ export default function App(){
   const saveEditEngineer=async()=>{
     if(!editEngModal) return;
     const {id,...rest}=editEngModal;
+    // Try full update first; if termination_date/is_active columns missing, strip them
     let {data,error}=await supabase.from("engineers").update(rest).eq("id",id).select().single();
-    // If new columns don't exist yet, retry without them and update local state manually
     if(error&&(error.message?.includes("is_active")||error.message?.includes("termination_date")||error.message?.includes("join_date"))){
       const {is_active,termination_date,join_date,...safeRest}=rest;
       const res=await supabase.from("engineers").update(safeRest).eq("id",id).select().single();
       data=res.data; error=res.error;
-      // Still update local state with the new fields even though DB doesn't have them yet
-      if(data) data={...data,is_active,termination_date,join_date};
-      showToast("⚠ Run SQL migration to persist status changes",false);
+      if(data) data={...data, termination_date: termination_date||null, is_active, join_date};
     }
     if(error){showToast("Error: "+error.message,false);return;}
-    // Merge all fields including any that DB returned
     const merged={...editEngModal,...(data||{})};
+    // Always sync termination_date → matching staff record
+    setStaff(prev=>prev.map(s=>
+      s.name?.trim().toLowerCase()===merged.name?.trim().toLowerCase()
+      ?{...s, termination_date: merged.termination_date||null}
+      :s
+    ));
     setEngineers(prev=>prev.map(e=>e.id===id?merged:e));
     if(id===myProfile?.id) setMyProfile(merged);
     setEditEngModal(null); showToast("Updated ✓");
@@ -4842,9 +4955,11 @@ export default function App(){
             projects={projects} projSearch={projSearch} setProjSearch={setProjSearch}
             projStatusFilter={projStatusFilter} setProjStatusFilter={setProjStatusFilter}
             monthEntries={monthEntries} projStats={projStats}
-            isAdmin={isAdmin} isAcct={isAcct}
+            isAdmin={isAdmin} isAcct={isAcct} isLead={isLead}
             setShowProjModal={setShowProjModal} setEditProjModal={setEditProjModal} deleteProject={deleteProject}
             fmtCurrency={fmtCurrency}
+            activities={activities} setActivities={setActivities}
+            engineers={engineers} supabase={supabase} showToast={showToast}
           />}
 
           {/* ════ TEAM ════ */}
@@ -6248,13 +6363,32 @@ export default function App(){
       )}
 
       {/* Edit Project */}
-      {editProjModal&&(
+      {editProjModal&&(()=>{
+        const epTab=editProjModal._tab||"details";
+        const epActs=(activities||[]).filter(a=>a.project_id===(editProjModal._origId||editProjModal.id));
+        const setEpTab=t=>setEditProjModal(p=>({...p,_tab:t}));
+        return(
         <div className="modal-ov" onClick={()=>setEditProjModal(null)}>
-          <div className="modal" style={{maxWidth:520}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:15,fontWeight:700,marginBottom:18}}>Edit Project — {editProjModal._origId||editProjModal.id}</h3>
-            <div style={{display:"grid",gap:11}}>
+          <div className="modal" style={{maxWidth:580,maxHeight:"85vh",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{fontSize:15,fontWeight:700,marginBottom:12}}>Edit Project — {editProjModal._origId||editProjModal.id}</h3>
+            {/* Tab bar */}
+            <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid #192d47"}}>
+              {(isAdmin?[["details","⚙ Details"],["team","👥 Team"],["activities","📋 Activities"]]:[["details","⚙ Details"],["team","👥 Team"],["activities","📋 Activities"]]).map(([t,l])=>(
+                <button key={t} onClick={()=>setEpTab(t)}
+                  style={{padding:"6px 14px",border:"none",borderBottom:epTab===t?"2px solid #38bdf8":"2px solid transparent",
+                    background:"transparent",color:epTab===t?"#38bdf8":"#4e6479",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                  {l}{t==="activities"?` (${epActs.length})`:""}
+                </button>
+              ))}
+            </div>
+            <div style={{overflowY:"auto",flex:1}}>
+            {/* ── DETAILS TAB ── */}
+            {epTab==="details"&&<div style={{display:"grid",gap:11}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
-                <div><Lbl>Project No. <span style={{color:"#f87171",fontSize:9}}>(rename re-links all entries)</span></Lbl><input value={editProjModal.id||""} onChange={e=>setEditProjModal(p=>({...p,id:e.target.value.toUpperCase(),_origId:p._origId||p.id}))}/></div>
+                <div><Lbl>Project No. <span style={{color:"#f87171",fontSize:9}}>(rename re-links all entries)</span></Lbl>
+                  {isAdmin?<input value={editProjModal.id||""} onChange={e=>setEditProjModal(p=>({...p,id:e.target.value.toUpperCase(),_origId:p._origId||p.id}))}/>
+                  :<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#38bdf8",padding:"8px 0"}}>{editProjModal.id}</div>}
+                </div>
                 <div><Lbl>Project Name</Lbl><input value={editProjModal.name} onChange={e=>setEditProjModal(p=>({...p,name:e.target.value}))}/></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -6265,43 +6399,147 @@ export default function App(){
                 <div><Lbl>Client</Lbl><input value={editProjModal.client||""} onChange={e=>setEditProjModal(p=>({...p,client:e.target.value}))}/></div>
                 <div><Lbl>Origin</Lbl><input value={editProjModal.origin||""} onChange={e=>setEditProjModal(p=>({...p,origin:e.target.value}))}/></div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Billable?</Lbl><select value={editProjModal.billable?"yes":"no"} onChange={e=>setEditProjModal(p=>({...p,billable:e.target.value==="yes"}))}><option value="yes">Yes</option><option value="no">No</option></select></div>
                 <div><Lbl>Rate per Hour ($)</Lbl><input type="number" value={editProjModal.rate_per_hour} onChange={e=>setEditProjModal(p=>({...p,rate_per_hour:+e.target.value}))}/></div>
+              </div>}
+            </div>}
+            {/* ── TEAM TAB ── */}
+            {epTab==="team"&&<div>
+              <div style={{fontSize:10,color:"#4e6479",marginBottom:8}}>Select engineers assigned to this project. Only assigned engineers can post hours.</div>
+              <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:240,overflowY:"auto"}}>
+                {engineers.filter(e=>{
+                  if(!isEngActive(e)) return false;
+                  if(e.role_type==="accountant"||e.role_type==="senior_management") return false;
+                  if(isLead&&!isAdmin) return e.id===myProfile?.id||e.role_type==="engineer"||e.role_type==="lead";
+                  return true;
+                }).map(e=>{
+                  const sel=(editProjModal.assigned_engineers||[]).includes(String(e.id));
+                  return(
+                  <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"4px 6px",borderRadius:4,background:sel?"#001a2c":"transparent",border:sel?"1px solid #0ea5e920":"1px solid transparent"}}>
+                    <input type="checkbox" checked={sel} onChange={()=>setEditProjModal(p=>{
+                      const cur=p.assigned_engineers||[];
+                      return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
+                    })} style={{accentColor:"#38bdf8"}}/>
+                    <div className="av" style={{width:22,height:22,fontSize:8,flexShrink:0}}>{e.name?.slice(0,2).toUpperCase()}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:10,color:sel?"#38bdf8":"#dde3ef",fontWeight:sel?600:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.name}</div>
+                      <div style={{fontSize:9,color:"#2e4a66"}}>{e.role} · {ROLE_LABELS[e.role_type]||e.role_type}</div>
+                    </div>
+                  </label>);
+                })}
               </div>
-              {/* Team assignment */}
+              <div style={{fontSize:9,color:"#2e4a66",marginTop:6}}>
+                {(editProjModal.assigned_engineers||[]).length} member{(editProjModal.assigned_engineers||[]).length!==1?"s":""} assigned
+              </div>
+            </div>}
+            {/* ── ACTIVITIES TAB ── */}
+            {epTab==="activities"&&(()=>{
+              const [aDraft,setADraft]=React.useState(null); // null=list, object=editing
+              const saveAct=async()=>{
+                if(!aDraft?.activity_name?.trim()){showToast("Activity name required",false);return;}
+                const projId=editProjModal._origId||editProjModal.id;
+                if(aDraft.id){
+                  const{id,...fields}=aDraft;
+                  const{data,error}=await supabase.from("project_activities").update(fields).eq("id",id).select().single();
+                  if(error){showToast("Error: "+error.message,false);return;}
+                  setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
+                }else{
+                  const payload={...aDraft,project_id:projId};
+                  const{data,error}=await supabase.from("project_activities").insert(payload).select().single();
+                  if(error){showToast("Error: "+error.message,false);return;}
+                  setActivities(prev=>[...prev,data]);
+                }
+                setADraft(null); showToast("Activity saved ✓");
+              };
+              const delAct=async(id)=>{
+                if(!window.confirm("Delete this activity?"))return;
+                await supabase.from("project_activities").delete().eq("id",id);
+                setActivities(prev=>prev.filter(a=>a.id!==id));
+                showToast("Activity deleted");
+              };
+              const projId=editProjModal._origId||editProjModal.id;
+              const blankAct={project_id:projId,group_name:"SCADA",category:"Templates",activity_name:"",status:"Not Started",progress:0,assigned_to:"",start_date:"",end_date:"",remarks:""};
+              return(
               <div>
-                <Lbl>Assigned Team Members</Lbl>
-                <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:160,overflowY:"auto"}}>
-                  {engineers.filter(e=>{
-                    if(!isEngActive(e)) return false;
-                    if(e.role_type==="accountant"||e.role_type==="senior_management") return false;
-                    if(isLead&&!isAdmin){
-                      return e.id===myProfile?.id||e.role_type==="engineer";
-                    }
-                    return true;
-                  }).map(e=>{
-                    const sel=(editProjModal.assigned_engineers||[]).includes(String(e.id));
-                    return(
-                    <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 4px",borderRadius:4,background:sel?"#001a2c":"transparent"}}>
-                      <input type="checkbox" checked={sel} onChange={()=>setEditProjModal(p=>{
-                        const cur=p.assigned_engineers||[];
-                        return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
-                      })} style={{accentColor:"#38bdf8"}}/>
-                      <span style={{fontSize:10,color:sel?"#38bdf8":"#7a8faa"}}>{e.name}</span>
-                      <span style={{fontSize:9,color:"#2e4a66",marginLeft:"auto"}}>{e.role} · {e.role_type==="lead"?"Lead":e.level||""}</span>
-                    </label>);
-                  })}
-                </div>
-              </div>
+                {!aDraft&&<>
+                  <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+                    <button className="bp" style={{fontSize:10}} onClick={()=>setADraft({...blankAct})}>+ Add Activity</button>
+                  </div>
+                  {epActs.length===0&&<div style={{textAlign:"center",padding:20,color:"#1e3a5f",fontSize:11}}>No activities yet. Add the first one.</div>}
+                  <div style={{display:"grid",gap:4}}>
+                    {epActs.map(a=>(
+                      <div key={a.id} style={{background:"#060e1c",borderRadius:6,padding:"8px 10px",border:"1px solid #0f1e2e",display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"center"}}>
+                        <div>
+                          <div style={{fontSize:11,fontWeight:600,color:"#dde3ef"}}>{a.activity_name}</div>
+                          <div style={{fontSize:9,color:"#4e6479",marginTop:2}}>
+                            <span style={{color:a.group_name==="SCADA"?"#38bdf8":a.group_name==="RTU-PLC"?"#a78bfa":a.group_name==="Protection"?"#f87171":"#34d399"}}>{a.group_name}</span>
+                            {a.category&&<span style={{color:"#2e4a66"}}> / {a.category}</span>}
+                            {a.assigned_to&&<span style={{color:"#7a8faa",marginLeft:8}}>👤 {a.assigned_to}</span>}
+                            <span style={{marginLeft:8,padding:"1px 5px",borderRadius:3,
+                              background:a.status==="Completed"?"#002414":a.status==="In Progress"?"#001a2c":"#0a0f18",
+                              color:a.status==="Completed"?"#34d399":a.status==="In Progress"?"#38bdf8":"#4e6479"}}>
+                              {a.status}
+                            </span>
+                            <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",marginLeft:8}}>{Math.round((a.progress||0)*100)}%</span>
+                          </div>
+                        </div>
+                        <div style={{display:"flex",gap:4}}>
+                          <button className="be" style={{fontSize:9,padding:"2px 6px"}} onClick={()=>setADraft({...a})}>✎</button>
+                          <button className="bd" style={{fontSize:9,padding:"2px 6px"}} onClick={()=>delAct(a.id)}>✕</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>}
+                {aDraft&&<div style={{display:"grid",gap:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"#38bdf8"}}>{aDraft.id?"Edit Activity":"New Activity"}</span>
+                    <button className="bg" style={{fontSize:9,padding:"2px 8px"}} onClick={()=>setADraft(null)}>← Back</button>
+                  </div>
+                  <div><Lbl>Activity Name *</Lbl><input value={aDraft.activity_name||""} onChange={e=>setADraft(p=>({...p,activity_name:e.target.value}))} placeholder="e.g. Configure RTU communication"/></div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                    <div><Lbl>Group</Lbl>
+                      <select value={aDraft.group_name||"SCADA"} onChange={e=>setADraft(p=>({...p,group_name:e.target.value}))}>
+                        {["SCADA","RTU-PLC","Protection","General"].map(g=><option key={g}>{g}</option>)}
+                      </select></div>
+                    <div><Lbl>Category</Lbl><input value={aDraft.category||""} onChange={e=>setADraft(p=>({...p,category:e.target.value}))} placeholder="e.g. Templates"/></div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                    <div><Lbl>Status</Lbl>
+                      <select value={aDraft.status||"Not Started"} onChange={e=>setADraft(p=>({...p,status:e.target.value}))}>
+                        {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
+                      </select></div>
+                    <div><Lbl>Progress %</Lbl>
+                      <input type="number" min="0" max="100" step="5" value={Math.round((aDraft.progress||0)*100)} onChange={e=>setADraft(p=>({...p,progress:+e.target.value/100}))}/></div>
+                  </div>
+                  <div><Lbl>Assigned To</Lbl>
+                    <select value={aDraft.assigned_to||""} onChange={e=>setADraft(p=>({...p,assigned_to:e.target.value}))}>
+                      <option value="">— Unassigned —</option>
+                      {engineers.filter(e=>isEngActive(e)&&e.role_type!=="accountant"&&e.role_type!=="senior_management").map(e=>(
+                        <option key={e.id} value={e.name}>{e.name} · {e.role}</option>
+                      ))}
+                    </select></div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                    <div><Lbl>Start Date</Lbl><input type="date" value={aDraft.start_date||""} onChange={e=>setADraft(p=>({...p,start_date:e.target.value||null}))}/></div>
+                    <div><Lbl>End Date</Lbl><input type="date" value={aDraft.end_date||""} onChange={e=>setADraft(p=>({...p,end_date:e.target.value||null}))}/></div>
+                  </div>
+                  <div><Lbl>Remarks</Lbl><input value={aDraft.remarks||""} onChange={e=>setADraft(p=>({...p,remarks:e.target.value}))} placeholder="Optional"/></div>
+                  <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                    <button className="bg" onClick={()=>setADraft(null)}>Cancel</button>
+                    <button className="bp" onClick={saveAct}>{aDraft.id?"Save Changes":"Add Activity"}</button>
+                  </div>
+                </div>}
+              </div>);
+            })()}
             </div>
-            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
+            {epTab!=="activities"&&<div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",borderTop:"1px solid #192d47",paddingTop:14}}>
               <button className="bg" onClick={()=>setEditProjModal(null)}>Cancel</button>
               <button className="bp" onClick={saveEditProject}>Save Changes</button>
-            </div>
+            </div>}
           </div>
-        </div>
-      )}
+        </div>);
+      })()}
 
       {/* Sub-Project Add/Edit */}
       {subProjModal&&(
