@@ -7,15 +7,10 @@ const LOGO_SRC="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEA
 const LogoImg=()=>(<img src={LOGO_SRC} alt="ENEVO Group" style={{width:64,height:64,borderRadius:12,objectFit:"contain",background:"transparent"}}/>);
 
 /* ─── STATIC DATA ─── */
-const TASK_CATEGORIES = {
-  "Engineering":   ["Basic Engineering","Detailed Engineering","Electrical Design","Control Logic Design","P&ID Review","Cause & Effect Review"],
-  "Software":      ["PLC Programming","SCADA Development","HMI Development","OPC Configuration","FAT Preparation","Software Testing"],
-  "Documentation": ["Technical Writing","Datasheet Preparation","Wiring Diagrams","Cable Schedules","I/O List Preparation","Operation Manual"],
-  "Project Mgmt":  ["Project Planning","Progress Reporting","Client Meeting","Internal Meeting","Change Management"],
-  "Commissioning": ["Site Survey","Pre-commissioning","Loop Checking","System Integration Test","Cold Commissioning","Hot Commissioning"],
-  "Quality":       ["Design Review","Code Review","Document Control","Quality Audit"],
-  "Training":      ["Internal Training","Client Training","Knowledge Transfer"],
-};
+/* TASK_CATEGORIES now mirrors TAXONOMY_GROUPS/ACTIVITY_TAXONOMY from Project Tracker */
+const TASK_CATEGORIES = TAXONOMY_GROUPS; // group -> [categories]
+// For backwards-compat: flat map of category -> activities (same as ACTIVITY_TAXONOMY)
+const TASK_TYPES = ACTIVITY_TAXONOMY;
 const LEAVE_TYPES  = ["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
 const FUNCTION_CATS = [
   "Internal Training — Given",
@@ -3273,7 +3268,7 @@ export default function App(){
   const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:"",termination_date:"",notes:""});
   const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
-  const [newEntry,setNewEntry]   = useState({projectId:"",taskCategory:"Engineering",taskType:"Basic Engineering",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null});
+  const [newEntry,setNewEntry]   = useState({projectId:"",_group:TAXONOMY_GROUP_NAMES[0],taskCategory:TAXONOMY_GROUPS[TAXONOMY_GROUP_NAMES[0]][0],taskType:ACTIVITY_TAXONOMY[TAXONOMY_GROUPS[TAXONOMY_GROUP_NAMES[0]][0]]?.[0]||"",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
   const [newProj,setNewProj]     = useState({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
   const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
 
@@ -3402,8 +3397,8 @@ export default function App(){
       engineer_id:engId,
       project_id: (isLeave||isFunc)?null:newEntry.projectId,
       date,
-      task_category:(isLeave)?null:isFunc?"Function":newEntry.taskCategory,
-      task_type:   (isLeave)?null:isFunc?funcCat:newEntry.taskType,
+      task_category:(isLeave)?null:isFunc?"Function":(newEntry._group||newEntry.taskCategory),
+      task_type:   (isLeave)?null:isFunc?funcCat:(newEntry.taskCategory||newEntry.taskType),
       hours:       isLeave?8:+newEntry.hours,
       activity:    newEntry.activity,
       entry_type:  (newEntry.type==="function")?"work":newEntry.type,
@@ -3423,7 +3418,7 @@ export default function App(){
     if(error){showToast("Error: "+error.message,false);return;}
     if(data) setEntries(prev=>[data,...prev]);
     setModalDate(null);
-    setNewEntry({projectId:"",taskCategory:"Engineering",taskType:"Basic Engineering",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null});
+    setNewEntry({projectId:"",_group:TAXONOMY_GROUP_NAMES[0],taskCategory:TAXONOMY_GROUPS[TAXONOMY_GROUP_NAMES[0]][0],taskType:ACTIVITY_TAXONOMY[TAXONOMY_GROUPS[TAXONOMY_GROUP_NAMES[0]][0]]?.[0]||"",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
     showToast("Hours posted ✓");
   };
 
@@ -5541,119 +5536,316 @@ export default function App(){
       {/* ════ MODALS ════ */}
 
       {/* Add Entry */}
-      {modalDate&&(
+      {modalDate&&(()=>{
+        const step = newEntry._step||1;
+        const isWork = newEntry.type==="work";
+        const isLeave = newEntry.type==="leave";
+        const isFunc = newEntry.type==="function";
+        const groupCats = TAXONOMY_GROUPS[newEntry._group]||[];
+        const catActs = ACTIVITY_TAXONOMY[newEntry.taskCategory]||[];
+        const projActs = isWork&&newEntry.projectId
+          ? activities.filter(a=>a.project_id===newEntry.projectId&&a.status!=="Completed")
+          : [];
+        const projSubList=[...new Set(projActs.map(a=>a.subproject_id).filter(Boolean))];
+        const filteredActs = projActs.filter(a=>{
+          const matchSub = !newEntry._actSub || String(a.subproject_id)===String(newEntry._actSub);
+          const matchCat = !newEntry._actCat || a.category===newEntry._actCat || a.group_name===newEntry._actCat;
+          return matchSub && matchCat;
+        });
+
+        const INP={width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:5,color:"#f0f6ff",padding:"7px 10px",fontSize:12,boxSizing:"border-box"};
+        const LBL={fontSize:10,color:"#7a8faa",fontWeight:700,display:"block",marginBottom:4,letterSpacing:".05em"};
+        const GC={"SCADA":"#38bdf8","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+
+        // Step pill indicator
+        const totalSteps = isLeave?2:isFunc?3:4;
+        const StepBar=()=>(
+          <div style={{display:"flex",gap:4,marginBottom:16}}>
+            {Array.from({length:totalSteps},(_,i)=>(
+              <div key={i} style={{flex:1,height:3,borderRadius:99,
+                background:i<step?"#38bdf8":"#192d47",
+                transition:"background .2s"}}/>
+            ))}
+          </div>
+        );
+
+        const Btn=({children,onClick,disabled,primary})=>(
+          <button onClick={onClick} disabled={disabled}
+            style={{padding:"8px 18px",borderRadius:6,border:"none",cursor:disabled?"not-allowed":"pointer",
+              background:primary?"#1d4ed8":"#0f1f35",color:disabled?"#2e4a66":"#f0f6ff",
+              fontSize:12,fontWeight:700,opacity:disabled?.5:1,transition:"all .15s"}}>
+            {children}
+          </button>
+        );
+
+        return(
         <div className="modal-ov" onClick={()=>setModalDate(null)}>
-          <div className="modal" onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:15,fontWeight:700,marginBottom:4}}>Post Hours</h3>
-            <p style={{fontSize:11,color:"#2e4a66",marginBottom:18,fontFamily:"'IBM Plex Mono',monospace"}}>
-              {new Date(modalDate).toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}
-              {canEdit&&viewEng&&<span> · {viewEng.name}</span>}
-            </p>
-            <div style={{display:"grid",gap:11}}>
-              <div><Lbl>Entry Type</Lbl>
-                <select value={newEntry.type} onChange={e=>setNewEntry(p=>({...p,type:e.target.value}))}>
-                  <option value="work">Work</option>
-                  <option value="leave">Leave / Absence</option>
-                  <option value="function">Function / Activity</option>
-                </select>
-              </div>
-              {newEntry.type==="function"&&(
-                <div style={{display:"grid",gap:11}}>
-                  <div><Lbl>Function Category</Lbl>
-                    <select value={newEntry.taskType||FUNCTION_CATS[0]} onChange={e=>setNewEntry(p=>({...p,taskType:e.target.value,function_category:e.target.value}))}>
-                      {FUNCTION_CATS.map(c=><option key={c}>{c}</option>)}
-                    </select>
+          <div className="modal" style={{maxWidth:420}} onClick={e=>e.stopPropagation()}>
+
+            {/* Header */}
+            <div style={{marginBottom:14}}>
+              <h3 style={{fontSize:14,fontWeight:700,color:"#f0f6ff",marginBottom:2}}>Post Hours</h3>
+              <p style={{fontSize:10,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace",margin:0}}>
+                {new Date(modalDate).toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}
+                {canEdit&&viewEng&&<span> · {viewEng.name}</span>}
+              </p>
+            </div>
+
+            <StepBar/>
+
+            <div style={{display:"grid",gap:12}}>
+
+              {/* ── STEP 1: Entry type ── */}
+              {step===1&&(
+                <div>
+                  <label style={LBL}>WHAT ARE YOU LOGGING?</label>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:4}}>
+                    {[
+                      {v:"work",   icon:"🔧", label:"Work"},
+                      {v:"function",icon:"📋",label:"Function"},
+                      {v:"leave",  icon:"🌴", label:"Leave"},
+                    ].map(({v,icon,label})=>(
+                      <button key={v} onClick={()=>setNewEntry(p=>({...p,type:v,_step:2}))}
+                        style={{padding:"14px 8px",borderRadius:8,border:`2px solid ${newEntry.type===v?"#38bdf8":"#192d47"}`,
+                          background:newEntry.type===v?"#38bdf8"+"18":"#060e1c",
+                          color:newEntry.type===v?"#38bdf8":"#4e6479",
+                          fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",
+                          flexDirection:"column",alignItems:"center",gap:4}}>
+                        <span style={{fontSize:20}}>{icon}</span>{label}
+                      </button>
+                    ))}
                   </div>
-                  <div><Lbl>Hours</Lbl><input type="number" min=".5" max="12" step=".5" value={newEntry.hours} onChange={e=>setNewEntry(p=>({...p,hours:+e.target.value}))}/></div>
-                  <div><Lbl>Description</Lbl><textarea rows={2} value={newEntry.activity} onChange={e=>setNewEntry(p=>({...p,activity:e.target.value}))} placeholder="Describe the activity…" style={{resize:"vertical"}}/></div>
                 </div>
               )}
-              {newEntry.type==="work"?<>
-                <div><Lbl>Project</Lbl>
-                  <select value={newEntry.projectId} onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null,_actCat:null,_actSub:null}))}>
-                    <option value="">— Select Project —</option>
-                    {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
-                  </select>
+
+              {/* ── STEP 2 for LEAVE: type + hours ── */}
+              {step===2&&isLeave&&(
+                <div style={{display:"grid",gap:12}}>
+                  <div>
+                    <label style={LBL}>LEAVE TYPE</label>
+                    <select value={newEntry.leaveType} onChange={e=>setNewEntry(p=>({...p,leaveType:e.target.value}))} style={INP}>
+                      {LEAVE_TYPES.map(t=><option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div style={{padding:"10px 12px",background:"#080f1e",borderRadius:6,border:"1px solid #192d47",fontSize:11,color:"#4e6479"}}>
+                    ℹ️ Leave entries are logged as a full 8-hour day automatically.
+                  </div>
                 </div>
-                {/* Activity selector — 3-level: Project → Category → Activity */}
-                {newEntry.projectId&&(()=>{
-                  const projActs=activities.filter(a=>a.project_id===newEntry.projectId&&a.status!=="Completed");
-                  if(projActs.length===0) return null;
-                  // Get categories available for this project
-                  const projCats=[...new Set(projActs.map(a=>a.group_name||a.category).filter(Boolean))];
-                  const selCat=newEntry._actCat||projCats[0]||null;
-                  const catActs=selCat?projActs.filter(a=>(a.group_name||a.category)===selCat):projActs;
-                  // Also handle sub-projects
-                  const projSubList=[...new Set(projActs.map(a=>a.subproject_id).filter(Boolean))];
-                  const selSub=newEntry._actSub||null;
-                  const subFilteredActs=selSub?catActs.filter(a=>String(a.subproject_id)===String(selSub)):catActs;
-                  return(
-                  <div style={{background:"#080f1e",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gap:8}}>
-                    <div style={{fontSize:9,fontWeight:700,color:"#38bdf8",letterSpacing:".06em"}}>LINK TO PROJECT ACTIVITY (OPTIONAL)</div>
-                    {/* Sub-project selector (for SCADA Olt, Transelectrica) */}
-                    {projSubList.length>0&&(
-                    <div style={{display:"grid",gridTemplateColumns:"80px 1fr",alignItems:"center",gap:6}}>
-                      <span style={{fontSize:10,color:"#7a8faa"}}>Sub-site</span>
-                      <select value={newEntry._actSub||""} onChange={e=>setNewEntry(p=>({...p,_actSub:e.target.value||null,activityId:null}))}
-                        style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px 6px",fontSize:10}}>
-                        <option value="">All sites</option>
-                        {projSubList.map(sid=>{const sp=subprojects.find(s=>String(s.id)===String(sid));return sp?<option key={sid} value={sid}>{sp.name}</option>:null;})}
-                      </select>
-                    </div>)}
-                    {/* Category selector */}
-                    {projCats.length>0&&(
-                    <div style={{display:"grid",gridTemplateColumns:"80px 1fr",alignItems:"center",gap:6}}>
-                      <span style={{fontSize:10,color:"#7a8faa"}}>Category</span>
-                      <select value={newEntry._actCat||""} onChange={e=>setNewEntry(p=>({...p,_actCat:e.target.value||null,activityId:null}))}
-                        style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px 6px",fontSize:10}}>
-                        <option value="">All categories</option>
-                        {projCats.map(c=><option key={c}>{c}</option>)}
-                      </select>
-                    </div>)}
-                    {/* Activity selector */}
-                    <div style={{display:"grid",gridTemplateColumns:"80px 1fr",alignItems:"center",gap:6}}>
-                      <span style={{fontSize:10,color:"#7a8faa"}}>Activity</span>
-                      <select value={newEntry.activityId||""} onChange={e=>setNewEntry(p=>({...p,activityId:e.target.value||null}))}
-                        style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"4px 6px",fontSize:10}}>
-                        <option value="">— General —</option>
-                        {subFilteredActs.map(a=><option key={a.id} value={a.id}>{a.activity_name} ({Math.round(a.progress*100)}%)</option>)}
+              )}
+
+              {/* ── STEP 2 for FUNCTION: category ── */}
+              {step===2&&isFunc&&(
+                <div style={{display:"grid",gap:12}}>
+                  <div>
+                    <label style={LBL}>FUNCTION CATEGORY</label>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                      {FUNCTION_CATS.map(c=>(
+                        <button key={c} onClick={()=>setNewEntry(p=>({...p,taskType:c,function_category:c}))}
+                          style={{padding:"7px 8px",borderRadius:6,border:`1px solid ${newEntry.taskType===c?"#38bdf8":"#192d47"}`,
+                            background:newEntry.taskType===c?"#38bdf8"+"18":"#060e1c",
+                            color:newEntry.taskType===c?"#38bdf8":"#4e6479",
+                            fontSize:10,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── STEP 3 for FUNCTION: hours + description ── */}
+              {step===3&&isFunc&&(
+                <div style={{display:"grid",gap:12}}>
+                  <div style={{padding:"8px 12px",background:"#38bdf8"+"12",borderRadius:6,border:"1px solid #38bdf8"+"40",fontSize:11,color:"#38bdf8",fontWeight:700}}>
+                    {newEntry.taskType||FUNCTION_CATS[0]}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"100px 1fr",gap:10,alignItems:"start"}}>
+                    <div>
+                      <label style={LBL}>HOURS</label>
+                      <input type="number" min=".5" max="12" step=".5" value={newEntry.hours}
+                        onChange={e=>setNewEntry(p=>({...p,hours:+e.target.value}))} style={INP}/>
+                    </div>
+                    <div>
+                      <label style={LBL}>DESCRIPTION</label>
+                      <textarea rows={2} value={newEntry.activity}
+                        onChange={e=>setNewEntry(p=>({...p,activity:e.target.value}))}
+                        placeholder="Describe the activity…" style={{...INP,resize:"vertical"}}/>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── STEP 2 for WORK: project + sub-site ── */}
+              {step===2&&isWork&&(
+                <div style={{display:"grid",gap:12}}>
+                  <div>
+                    <label style={LBL}>PROJECT</label>
+                    <select value={newEntry.projectId}
+                      onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null,_actCat:null,_actSub:null}))}
+                      style={INP}>
+                      <option value="">— Select Project —</option>
+                      {projects.filter(p=>p.status==="Active").map(p=>(
+                        <option key={p.id} value={p.id}>{p.id} — {p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Sub-site if available */}
+                  {newEntry.projectId&&projSubList.length>0&&(
+                    <div>
+                      <label style={LBL}>SUB-SITE <span style={{color:"#4e6479",fontWeight:400}}>(optional)</span></label>
+                      <select value={newEntry._actSub||""}
+                        onChange={e=>setNewEntry(p=>({...p,_actSub:e.target.value||null,activityId:null}))}
+                        style={INP}>
+                        <option value="">— All sub-sites —</option>
+                        {projSubList.map(sid=>{
+                          const sp=subprojects.find(s=>String(s.id)===String(sid));
+                          return sp?<option key={sid} value={sid}>{sp.name}</option>:null;
+                        })}
                       </select>
                     </div>
-                  </div>);
-                })()}
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <div><Lbl>Task Category</Lbl>
-                    <select value={newEntry.taskCategory} onChange={e=>setNewEntry(p=>({...p,taskCategory:e.target.value,taskType:TASK_CATEGORIES[e.target.value][0]}))}>
-                      {Object.keys(TASK_CATEGORIES).map(c=><option key={c}>{c}</option>)}
+                  )}
+                </div>
+              )}
+
+              {/* ── STEP 3 for WORK: group + category + activity ── */}
+              {step===3&&isWork&&(
+                <div style={{display:"grid",gap:12}}>
+
+                  {/* Group pills */}
+                  <div>
+                    <label style={LBL}>WORK GROUP</label>
+                    <div style={{display:"flex",gap:6}}>
+                      {TAXONOMY_GROUP_NAMES.map(g=>(
+                        <button key={g} onClick={()=>setNewEntry(p=>({
+                            ...p,_group:g,
+                            taskCategory:TAXONOMY_GROUPS[g][0],
+                            taskType:ACTIVITY_TAXONOMY[TAXONOMY_GROUPS[g][0]]?.[0]||"",
+                            activityId:null
+                          }))}
+                          style={{flex:1,padding:"6px 4px",borderRadius:6,
+                            border:`1px solid ${newEntry._group===g?(GC[g]||"#38bdf8")+"80":"#192d47"}`,
+                            background:newEntry._group===g?(GC[g]||"#38bdf8")+"15":"#060e1c",
+                            color:newEntry._group===g?(GC[g]||"#38bdf8"):"#4e6479",
+                            fontSize:10,fontWeight:700,cursor:"pointer"}}>
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Category dropdown */}
+                  <div>
+                    <label style={LBL}>CATEGORY</label>
+                    <select value={newEntry.taskCategory}
+                      onChange={e=>setNewEntry(p=>({...p,taskCategory:e.target.value,taskType:ACTIVITY_TAXONOMY[e.target.value]?.[0]||"",activityId:null}))}
+                      style={INP}>
+                      {groupCats.map(c=><option key={c}>{c}</option>)}
                     </select>
                   </div>
-                  <div><Lbl>Task Type</Lbl>
-                    <select value={newEntry.taskType} onChange={e=>setNewEntry(p=>({...p,taskType:e.target.value}))}>
-                      {(TASK_CATEGORIES[newEntry.taskCategory]||[]).map(t=><option key={t}>{t}</option>)}
-                    </select>
+
+                  {/* Activity — from tracker if available, else from taxonomy */}
+                  <div>
+                    <label style={LBL}>ACTIVITY</label>
+                    {filteredActs.length>0?(
+                      <select value={newEntry.activityId||""}
+                        onChange={e=>setNewEntry(p=>({...p,activityId:e.target.value||null,
+                          taskType:filteredActs.find(a=>String(a.id)===e.target.value)?.activity_name||p.taskType}))}
+                        style={{...INP,borderColor:"#38bdf8"+"60"}}>
+                        <option value="">— General (no specific activity) —</option>
+                        {filteredActs
+                          .filter(a=>!newEntry.taskCategory||a.category===newEntry.taskCategory)
+                          .map(a=>(
+                          <option key={a.id} value={a.id}>
+                            {a.activity_name} · {Math.round((a.progress||0)*100)}%
+                          </option>
+                        ))}
+                      </select>
+                    ):(
+                      <select value={newEntry.taskType}
+                        onChange={e=>setNewEntry(p=>({...p,taskType:e.target.value}))}
+                        style={INP}>
+                        {catActs.map(t=><option key={t}>{t}</option>)}
+                        <option value="Other">Other…</option>
+                      </select>
+                    )}
+                    {filteredActs.length>0&&(
+                      <div style={{fontSize:9,color:"#38bdf8",marginTop:3,paddingLeft:2}}>
+                        ✓ Linked to project tracker activities
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div><Lbl>Hours</Lbl><input type="number" min=".5" max="12" step=".5" value={newEntry.hours} onChange={e=>setNewEntry(p=>({...p,hours:+e.target.value}))}/></div>
-                <div><Lbl>Activity Description <span style={{color:"#38bdf8"}}>(important for reports)</span></Lbl>
-                  <textarea rows={3} placeholder="e.g. Developed PLC logic for pump control sequence…" value={newEntry.activity} onChange={e=>setNewEntry(p=>({...p,activity:e.target.value}))} style={{resize:"vertical"}}/>
-                </div>
-              </>:(
-                <div><Lbl>Leave Type</Lbl>
-                  <select value={newEntry.leaveType} onChange={e=>setNewEntry(p=>({...p,leaveType:e.target.value}))}>
-                    {LEAVE_TYPES.map(t=><option key={t}>{t}</option>)}
-                  </select>
+              )}
+
+              {/* ── STEP 4 for WORK: hours + description ── */}
+              {step===4&&isWork&&(
+                <div style={{display:"grid",gap:12}}>
+                  {/* Summary badge */}
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <span style={{padding:"3px 8px",borderRadius:99,background:(GC[newEntry._group]||"#38bdf8")+"18",
+                      color:GC[newEntry._group]||"#38bdf8",fontSize:10,fontWeight:700}}>
+                      {newEntry._group}
+                    </span>
+                    <span style={{padding:"3px 8px",borderRadius:99,background:"#192d47",color:"#7a8faa",fontSize:10}}>
+                      {newEntry.taskCategory}
+                    </span>
+                    {newEntry.taskType&&(
+                      <span style={{padding:"3px 8px",borderRadius:99,background:"#192d47",color:"#7a8faa",fontSize:10}}>
+                        {newEntry.taskType.length>30?newEntry.taskType.slice(0,28)+"…":newEntry.taskType}
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{display:"grid",gridTemplateColumns:"100px 1fr",gap:10,alignItems:"start"}}>
+                    <div>
+                      <label style={LBL}>HOURS</label>
+                      <input type="number" min=".5" max="12" step=".5" value={newEntry.hours}
+                        onChange={e=>setNewEntry(p=>({...p,hours:+e.target.value}))} style={INP}/>
+                    </div>
+                    <div>
+                      <label style={LBL}>NOTES <span style={{color:"#4e6479",fontWeight:400}}>(optional)</span></label>
+                      <textarea rows={2} value={newEntry.activity}
+                        onChange={e=>setNewEntry(p=>({...p,activity:e.target.value}))}
+                        placeholder="e.g. Completed BESS display animations…"
+                        style={{...INP,resize:"vertical"}}/>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
-            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
-              <button className="bg" onClick={()=>setModalDate(null)}>Cancel</button>
-              <button className="bp" onClick={()=>addEntry(modalDate)}>Post Hours</button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Edit Entry */}
+            {/* Navigation */}
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:18,gap:10}}>
+              <div>
+                {step>1&&(
+                  <Btn onClick={()=>setNewEntry(p=>({...p,_step:p._step-1}))}>← Back</Btn>
+                )}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <Btn onClick={()=>setModalDate(null)}>Cancel</Btn>
+                {step<totalSteps?(
+                  <Btn primary
+                    disabled={
+                      (step===2&&isWork&&!newEntry.projectId)||
+                      (step===2&&isFunc&&!newEntry.taskType)
+                    }
+                    onClick={()=>setNewEntry(p=>({...p,_step:p._step+1}))}>
+                    Next →
+                  </Btn>
+                ):(
+                  <Btn primary
+                    disabled={!newEntry.hours||(isWork&&!newEntry.projectId)}
+                    onClick={()=>addEntry(modalDate)}>
+                    ✓ Post Hours
+                  </Btn>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>);
+      })()}
+
       {editEntry&&(
         <div className="modal-ov" onClick={()=>setEditEntry(null)}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
