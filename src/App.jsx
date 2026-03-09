@@ -3399,17 +3399,15 @@ export default function App(){
      4. Admins/Leads/Accountants/Senior posting ON BEHALF of an engineer
         → use the TARGET engineer's assignment, not the poster's role
   */
-  const getPostableProjects = useCallback((forEngineerId, forRoleType) => {
-    const isPureEngineer = forRoleType === "engineer";
+  const getPostableProjects = useCallback((forEngineerId) => {
+    // Rule: project must be Active AND the target engineer must be assigned.
+    // This applies to everyone — admin posting for engineer X uses X's assignments.
+    // If a project has NO assigned_engineers configured → open to all engineers.
     return projects.filter(p => {
-      // Only Active projects
-      if(p.status !== "Active") return false;
-      // Non-engineers (lead/admin/acct/senior) can post to any active project
-      if(!isPureEngineer) return true;
-      // Engineers: must be assigned
+      const st = (p.status||"").trim();
+      if(st !== "Active") return false;
       const ae = (p.assigned_engineers || []).map(String);
-      // If no assignments configured → open to all engineers
-      if(ae.length === 0) return true;
+      if(ae.length === 0) return true; // unassigned project = open to all
       return ae.includes(String(forEngineerId));
     });
   }, [projects]);
@@ -3430,16 +3428,15 @@ export default function App(){
     if(!isLeave&&!isFunc){
       const targetProj=projects.find(p=>p.id===newEntry.projectId);
       if(!targetProj){showToast("Project not found",false);return;}
-      if(targetProj.status!=="Active"){showToast(`Cannot post to project with status: ${targetProj.status}`,false);return;}
-      // Validate: engineer must be assigned (use target engineer's role, not poster's role)
-      const targetEng=engineers.find(e=>e.id===engId);
-      const targetRole=targetEng?.role_type||"engineer";
-      if(targetRole==="engineer"){
-        const ae=(targetProj.assigned_engineers||[]).map(String);
-        if(ae.length>0&&!ae.includes(String(engId))){
-          showToast(`${targetEng?.name||"Engineer"} is not assigned to ${targetProj.id}`,false);
-          return;
-        }
+      if((targetProj.status||"").trim()!=="Active"){showToast(`Cannot post hours — project is ${targetProj.status||"inactive"}`,false);return;}
+      // Assignment check: ALWAYS based on the engineer the hours are FOR (engId).
+      // No role is exempt — admin posting for engineer X must have X assigned.
+      // Exception: project with empty assigned_engineers list = open to all.
+      const ae=(targetProj.assigned_engineers||[]).map(String);
+      if(ae.length>0&&!ae.includes(String(engId))){
+        const targetEngName=engineers.find(e=>String(e.id)===String(engId))?.name||"Engineer";
+        showToast(`${targetEngName} is not assigned to ${targetProj.id}`,false);
+        return;
       }
     }
     const basePayload={
@@ -3484,6 +3481,20 @@ export default function App(){
     if(!clipboard||!clipboard.entries.length){showToast("Nothing in clipboard",false);return;}
     if(!isDateAllowed(targetDate)){showToast("Cannot post to locked date",false);return;}
     const engId = canEditAny?viewEngId:myProfile.id;
+    // Validate all work entries reference still-active projects
+    for(const e of clipboard.entries){
+      if(e.entry_type==="work"&&e.project_id){
+        const proj=projects.find(p=>p.id===e.project_id);
+        if(!proj||(proj.status||"").trim()!=="Active"){
+          showToast(`Cannot paste — project ${e.project_id} is no longer active`,false);return;
+        }
+        const ae=(proj.assigned_engineers||[]).map(String);
+        if(ae.length>0&&!ae.includes(String(engId))){
+          const nm=engineers.find(x=>String(x.id)===String(engId))?.name||"Engineer";
+          showToast(`Cannot paste — ${nm} is not assigned to ${e.project_id}`,false);return;
+        }
+      }
+    }
     const inserts = clipboard.entries.map(e=>({
       engineer_id: engId,
       project_id:  e.project_id,
@@ -3498,7 +3509,13 @@ export default function App(){
       activity_id: e.activity_id||null,
       function_category: e.function_category||null,
     }));
-    const {data,error}=await supabase.from("time_entries").insert(inserts).select();
+    // Try with function_category; fall back without it if column not yet migrated
+    let {data,error}=await supabase.from("time_entries").insert(inserts).select();
+    if(error&&error.message&&error.message.includes("function_category")){
+      const stripped=inserts.map(({function_category,...rest})=>rest);
+      const res=await supabase.from("time_entries").insert(stripped).select();
+      data=res.data; error=res.error;
+    }
     if(error){showToast("Paste error: "+error.message,false);return;}
     if(data) setEntries(prev=>[...data,...prev]);
     showToast(`Pasted ${inserts.length} entr${inserts.length===1?"y":"ies"} to ${targetDate} ✓`);
@@ -5716,7 +5733,7 @@ export default function App(){
           ? engineers.find(e=>e.id===viewEngId||String(e.id)===String(viewEngId))
           : myProfile;
         const _targetRole = _targetEng?.role_type||"engineer";
-        const _availProjs = getPostableProjects(_postForId, _targetRole);
+        const _availProjs = getPostableProjects(_postForId);
         const _noProjects = isWork && _targetRole==="engineer" && _availProjs.length===0;
         const groupCats = TAXONOMY_GROUPS[newEntry._group]||[];
         const catActs = ACTIVITY_TAXONOMY[newEntry.taskCategory]||[];
