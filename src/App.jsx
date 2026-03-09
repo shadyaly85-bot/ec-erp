@@ -1477,6 +1477,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
    PROJECT ACTIVITY TAXONOMY
    ════════════════════════════════════════════════════════ */
 const ACTIVITY_TAXONOMY = {
+  /* ── SCADA ── */
   "Templates": [
     "Block Template","Turbine Template","ESS Template",
     "Inverter MA Template","Inverter MB Template","Inverter ME Template",
@@ -1508,18 +1509,27 @@ const ACTIVITY_TAXONOMY = {
   "Dashboard": [
     "SCADA Dashboard","Local App Dashboard","Dispatch Dashboard","Custom Dashboard",
   ],
+  /* ── RTU-PLC ── */
   "RTU Configuration": [
     "Hardware Configuration","Communication Configuration",
     "Application & Protocol Configuration","RTU Settings",
     "DI/DO Signals","Modbus Signals","DNP3 Signals",
     "IEC-61850 Data Import","Logics (CFC Editor)","Signal List Creation","Other RTU",
   ],
-  "Protection Relays": [
-    "Siemens 7SJ82 Configuration","Siemens 7SJ82 IEC 61850 SCD",
-    "Siemens 7SJ82 Protection Functions","Siemens 7SJ82 Protection Settings",
-    "ABB REX615 Configuration","ABB REX615 IEC 61850 SCD",
-    "ABB REX615 Protection Functions","ABB REX615 Protection Settings",
-    "Schematic Revision","Other Protection",
+  "PLC Programming": [
+    "PLC Hardware Setup","PLC I/O Configuration","PLC Network Configuration",
+    "Ladder Logic Programming","Function Block Diagram (FBD)","Structured Text (ST)",
+    "Sequential Function Chart (SFC)","Instruction List (IL)",
+    "PLC Analog Signal Scaling","PLC Digital I/O Mapping",
+    "PLC Communication (Modbus TCP)","PLC Communication (Profibus)","PLC Communication (Profinet)",
+    "PLC Communication (EtherNet/IP)","PLC Communication (IEC-61850)",
+    "HMI Integration","PLC Alarm Configuration","PLC Data Logging",
+    "PLC Control Logic — Inverter","PLC Control Logic — Transformer",
+    "PLC Control Logic — Generator","PLC Control Logic — Feeder",
+    "PLC Control Logic — BESS","PLC Control Logic — Weather Station",
+    "PLC Interlock Logic","PLC Sequence Logic","PLC FAT Testing","PLC SAT Testing",
+    "PLC Factory Acceptance Test","PLC Site Acceptance Test",
+    "PLC Backup & Version Control","Other PLC",
   ],
   "PPC": [
     "PPC Integration","IOA Configuration","Outstation Configuration",
@@ -1527,26 +1537,49 @@ const ACTIVITY_TAXONOMY = {
   ],
   "Commissioning": [
     "FAT Preparation","FAT Execution","SAT Preparation","SAT Execution",
-    "Site Support","Remote Commissioning","Punch List Resolution","Other Commissioning",
+    "Site Support","Remote Commissioning","Loop Check","Punch List Resolution","Other Commissioning",
   ],
+  /* ── Protection ── */
+  "Protection Relays": [
+    "Siemens 7SJ82 Configuration","Siemens 7SJ82 IEC 61850 SCD",
+    "Siemens 7SJ82 Protection Functions","Siemens 7SJ82 Protection Settings",
+    "ABB REX615 Configuration","ABB REX615 IEC 61850 SCD",
+    "ABB REX615 Protection Functions","ABB REX615 Protection Settings",
+    "Schneider Sepam Configuration","Schneider Sepam Settings",
+    "GE Multilin Configuration","GE Multilin Settings",
+    "Protection Coordination Study","Protection Settings Verification",
+    "Distance Protection","Differential Protection","Overcurrent Protection",
+    "Earth Fault Protection","Busbar Protection",
+    "Schematic Revision","IEC 61850 SCD Engineering","Other Protection",
+  ],
+  "Protection Testing": [
+    "Relay Test Plan Preparation","Primary Injection Testing","Secondary Injection Testing",
+    "End-to-End Testing","Trip Circuit Verification","Protection Commissioning",
+    "COMTRADE Analysis","Other Protection Testing",
+  ],
+  /* ── General ── */
   "Documentation": [
     "TQ Register","Operating Manual","As-Built Documentation",
-    "Test Procedures","Project Handover","Other Documentation",
+    "Test Procedures","Project Handover","Lessons Learned","Other Documentation",
+  ],
+  "Project Management": [
+    "Kick-off Meeting","Progress Meeting","Client Communication",
+    "Schedule Update","Risk Register","Change Order Management",
+    "Subcontractor Coordination","Other PM",
   ],
 };
 const TAXONOMY_CATS = Object.keys(ACTIVITY_TAXONOMY);
 
-/* ── Category Groups: used in Add/Edit Activity modal ── */
+/* ── Category Groups ── */
 const TAXONOMY_GROUPS = {
-  "SCADA": ["Templates","Database","Displays","Reports","Dashboard"],
-  "Field": ["RTU Configuration","Protection Relays","PPC","Commissioning"],
-  "General": ["Documentation"],
+  "SCADA":      ["Templates","Database","Displays","Reports","Dashboard"],
+  "RTU-PLC":    ["RTU Configuration","PLC Programming","PPC","Commissioning"],
+  "Protection": ["Protection Relays","Protection Testing"],
+  "General":    ["Documentation","Project Management"],
 };
 const TAXONOMY_GROUP_NAMES = Object.keys(TAXONOMY_GROUPS);
-// Reverse map: category -> group
 const CAT_TO_GROUP = {};
 Object.entries(TAXONOMY_GROUPS).forEach(([g,cats])=>cats.forEach(c=>{CAT_TO_GROUP[c]=g;}));
-
 
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component (no IIFE, no re-render loops)
@@ -1562,7 +1595,7 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
   const catActs = ACTIVITY_TAXONOMY[draft.category]||[];
   const INP = {width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"};
   const LBL = {fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4};
-  const GROUP_COLORS = {"SCADA":"#38bdf8","Field":"#a78bfa","General":"#34d399"};
+  const GROUP_COLORS = {"SCADA":"#38bdf8","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
 
   const handleGroupChange = g => {
     setGroup(g);
@@ -1709,7 +1742,7 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
 
   const INP = {width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"};
   const LBL = {fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4};
-  const GROUP_COLORS = {"SCADA":"#38bdf8","Field":"#a78bfa","General":"#34d399"};
+  const GROUP_COLORS = {"SCADA":"#38bdf8","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
 
   return(
   <div className="modal-ov" onClick={onClose}>
