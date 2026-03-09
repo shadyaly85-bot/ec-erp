@@ -3390,6 +3390,30 @@ export default function App(){
   };
 
   /* ── ADD ENTRY ── */
+  /* ── Project eligibility: which projects can a given engineer post work hours to? ──
+     Rules:
+     1. Project must be Active (not Completed, On Hold, or any other status)
+     2. If project has assigned_engineers list with at least 1 entry →
+        engineer MUST be in that list
+     3. If project has empty assigned_engineers → visible to ALL engineers
+     4. Admins/Leads/Accountants/Senior posting ON BEHALF of an engineer
+        → use the TARGET engineer's assignment, not the poster's role
+  */
+  const getPostableProjects = useCallback((forEngineerId, forRoleType) => {
+    const isPureEngineer = forRoleType === "engineer";
+    return projects.filter(p => {
+      // Only Active projects
+      if(p.status !== "Active") return false;
+      // Non-engineers (lead/admin/acct/senior) can post to any active project
+      if(!isPureEngineer) return true;
+      // Engineers: must be assigned
+      const ae = (p.assigned_engineers || []).map(String);
+      // If no assignments configured → open to all engineers
+      if(ae.length === 0) return true;
+      return ae.includes(String(forEngineerId));
+    });
+  }, [projects]);
+
   const addEntry=async date=>{
     if(!isDateAllowed(date)){showToast("Cannot post hours outside the allowed date range",false);return;}
     const proj=projects.find(p=>p.id===newEntry.projectId);
@@ -3402,6 +3426,22 @@ export default function App(){
     if(!isLeave&&!isFunc&&!newEntry.projectId){showToast("Please select a project",false);return;}
     // Validate: admin posting for engineer must have engineer selected
     if(canEditAny&&!viewEngId){showToast("Please select an engineer",false);return;}
+    // Validate: project must still be Active
+    if(!isLeave&&!isFunc){
+      const targetProj=projects.find(p=>p.id===newEntry.projectId);
+      if(!targetProj){showToast("Project not found",false);return;}
+      if(targetProj.status!=="Active"){showToast(`Cannot post to project with status: ${targetProj.status}`,false);return;}
+      // Validate: engineer must be assigned (use target engineer's role, not poster's role)
+      const targetEng=engineers.find(e=>e.id===engId);
+      const targetRole=targetEng?.role_type||"engineer";
+      if(targetRole==="engineer"){
+        const ae=(targetProj.assigned_engineers||[]).map(String);
+        if(ae.length>0&&!ae.includes(String(engId))){
+          showToast(`${targetEng?.name||"Engineer"} is not assigned to ${targetProj.id}`,false);
+          return;
+        }
+      }
+    }
     const basePayload={
       engineer_id:engId,
       project_id: (isLeave||isFunc)?null:newEntry.projectId,
@@ -5670,6 +5710,14 @@ export default function App(){
         const isWork = newEntry.type==="work";
         const isLeave = newEntry.type==="leave";
         const isFunc = newEntry.type==="function";
+        // Determine target engineer (who hours are being posted FOR)
+        const _postForId = canEditAny ? viewEngId : myProfile?.id;
+        const _targetEng = canEditAny
+          ? engineers.find(e=>e.id===viewEngId||String(e.id)===String(viewEngId))
+          : myProfile;
+        const _targetRole = _targetEng?.role_type||"engineer";
+        const _availProjs = getPostableProjects(_postForId, _targetRole);
+        const _noProjects = isWork && _targetRole==="engineer" && _availProjs.length===0;
         const groupCats = TAXONOMY_GROUPS[newEntry._group]||[];
         const catActs = ACTIVITY_TAXONOMY[newEntry.taskCategory]||[];
         const projActs = isWork&&newEntry.projectId
@@ -5808,25 +5856,12 @@ export default function App(){
               {step===2&&isWork&&(
                 <div style={{display:"grid",gap:12}}>
                   {(()=>{
-                    // Determine which engineer we're posting for
-                    const postingForId = canEditAny ? viewEngId : myProfile?.id;
-                    const availableProjs = projects.filter(p=>{
-                      if(p.status!=="Active") return false;
-                      if(isAdmin||isLead||isAcct||isSenior) return true;
-                      const ae=p.assigned_engineers||[];
-                      // If project has no assignments configured, visible to all
-                      if(ae.length===0) return true;
-                      return ae.includes(String(postingForId))||ae.includes(postingForId);
-                    });
-                    const targetEng = canEditAny ? engineers.find(e=>e.id===viewEngId) : null;
-                    const isEngineeerRole = targetEng ? (targetEng.role_type==="engineer") : (!isAdmin&&!isLead&&!isAcct&&!isSenior);
-                    const noProjects = isEngineeerRole && availableProjs.length===0;
                     return(
                     <div>
                       <label style={LBL}>PROJECT</label>
-                      {noProjects?(
+                      {_noProjects?(
                         <div style={{padding:"12px",background:"#1a0a0a",border:"1px solid #f8717140",borderRadius:6,fontSize:11,color:"#f87171",textAlign:"center"}}>
-                          ⚠ {targetEng?.name||"This engineer"} is not assigned to any active project.<br/>
+                          ⚠ {_targetEng?.name||"This engineer"} is not assigned to any active project.<br/>
                           <span style={{color:"#4e6479",fontSize:10}}>Ask an admin to assign projects first.</span>
                         </div>
                       ):(
@@ -5834,7 +5869,7 @@ export default function App(){
                           onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null,_actCat:null,_actSub:null}))}
                           style={{...INP,borderColor:!newEntry.projectId?"#f87171":"#192d47"}}>
                           <option value="">— Select Project —</option>
-                          {availableProjs.map(p=>(
+                          {_availProjs.map(p=>(
                             <option key={p.id} value={p.id}>{p.id} — {p.name}</option>
                           ))}
                         </select>
@@ -5978,7 +6013,7 @@ export default function App(){
                 {step<totalSteps?(
                   <Btn primary
                     disabled={
-                      (step===2&&isWork&&!newEntry.projectId)||
+                      (step===2&&isWork&&(_noProjects||!newEntry.projectId))||
                       (step===2&&isFunc&&!newEntry.taskType)
                     }
                     onClick={()=>setNewEntry(p=>({...p,_step:p._step+1}))}>
