@@ -4583,7 +4583,7 @@ export default function App(){
                   {canEditAny&&(
                     <div><Lbl>Browse Engineer</Lbl>
                       <select style={{width:190}} value={viewEngId||""} onChange={e=>setBrowseEngId(+e.target.value)}>
-                        {engineers.map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
+                        {engineers.filter(e=>e.is_active!==false).map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
                       </select>
                     </div>
                   )}
@@ -4791,13 +4791,13 @@ export default function App(){
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:12}}>
                 <div>
                   <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Team</h1>
-                  <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{engineers.length} members · {MONTHS[month]} {year}</p>
+                  <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{engineers.filter(e=>e.is_active!==false).length} active · {engineers.length} total · {MONTHS[month]} {year}</p>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
                   <div><Lbl>Engineer</Lbl>
                     <select style={{width:160}} value={filterEngineer} onChange={e=>setFilterEngineer(e.target.value)}>
                       <option value="ALL">All Engineers</option>
-                      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+                      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}{e.is_active===false?" (inactive)":""}</option>)}
                     </select>
                   </div>
                   <div><Lbl>Project</Lbl>
@@ -4906,10 +4906,12 @@ export default function App(){
               {/* Cards grid */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
                 {filteredTeam.map(eng=>(
-                  <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",border:filterEngineer===String(eng.id)?"1px solid #38bdf8":"1px solid #192d47"}}
+                  <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",
+                    opacity:eng.is_active===false?0.5:1,
+                    border:filterEngineer===String(eng.id)?"1px solid #38bdf8":eng.is_active===false?"1px solid #0f1e2e":"1px solid #192d47"}}
                     onClick={()=>setFilterEngineer(filterEngineer===String(eng.id)?"ALL":String(eng.id))}>
-                    <div className="av" style={{width:44,height:44,fontSize:13,margin:"0 auto 8px"}}>{eng.name?.slice(0,2).toUpperCase()}</div>
-                    <div style={{fontSize:13,fontWeight:600}}>{eng.name}</div>
+                    <div className="av" style={{width:44,height:44,fontSize:13,margin:"0 auto 8px",filter:eng.is_active===false?"grayscale(1)":"none"}}>{eng.name?.slice(0,2).toUpperCase()}</div>
+                    <div style={{fontSize:13,fontWeight:600}}>{eng.name}{eng.is_active===false&&<span style={{fontSize:9,marginLeft:5,color:"#f87171",background:"#f8717115",padding:"1px 4px",borderRadius:3}}>LEFT</span>}</div>
                     <div style={{fontSize:10,color:"#2e4a66",marginBottom:4}}>{eng.role}</div>
                     <div style={{marginBottom:8}}><span className="role-badge" style={{background:ROLE_COLORS[eng.role_type]+"20",color:ROLE_COLORS[eng.role_type]||"#4e6479"}}>{ROLE_LABELS[eng.role_type]||eng.role_type}</span></div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:7}}>
@@ -4928,6 +4930,28 @@ export default function App(){
                     </div>
                     {(isAdmin||isAcct)&&<div style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",marginBottom:5}}>{fmtCurrency(eng.revenue)}</div>}
                     <div style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"#152639",color:"#4e6479",display:"inline-block"}}>{eng.level}</div>
+                    {/* Assigned projects */}
+                    {(()=>{
+                      const myProjs=projects.filter(p=>
+                        p.status==="Active"&&
+                        (p.assigned_engineers||[]).map(String).includes(String(eng.id))
+                      );
+                      if(!myProjs.length) return(
+                        <div style={{fontSize:9,color:"#1e3a5f",marginTop:6}}>no assigned projects</div>
+                      );
+                      return(
+                        <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:3,justifyContent:"center"}}>
+                          {myProjs.slice(0,4).map(p=>(
+                            <span key={p.id} style={{fontSize:8,padding:"1px 5px",borderRadius:3,
+                              background:"#0a1e30",border:"1px solid #192d47",color:"#38bdf8",
+                              whiteSpace:"nowrap",maxWidth:70,overflow:"hidden",textOverflow:"ellipsis"}}>
+                              {p.id}
+                            </span>
+                          ))}
+                          {myProjs.length>4&&<span style={{fontSize:8,color:"#2e4a66"}}>+{myProjs.length-4}</span>}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
