@@ -2700,7 +2700,12 @@ const wasEmployed=(s,y,m)=>{
 // Month expenses
 const monthExp=expenses.filter(e=>e.month===finMonth&&e.year===finYear);
 const monthExpNonSalary=monthExp.filter(e=>e.category!=="Salaries");
-const totalExpUSD=monthExpNonSalary.reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
+// Expenses: USD stored as-is. EGP uses entry_rate only (never global egpRate).
+const totalExpUSD=monthExpNonSalary.reduce((s,e)=>{
+  if(e.amount_usd>0) return s+e.amount_usd;
+  if(e.amount_egp>0&&e.entry_rate>0) return s+(e.amount_egp/e.entry_rate);
+  return s; // EGP without entry_rate: no conversion (rate required at entry time)
+},0);
 const totalExpEGP=monthExpNonSalary.reduce((s,e)=>s+(e.amount_egp||0),0);
 const salaryCatUSD=monthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
 // Only count staff employed this specific month
@@ -3014,7 +3019,11 @@ const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov"
               <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0c2b4e",color:"#38bdf8",fontWeight:700}}>{e.category}</span></td>
               <td style={{fontWeight:500}}>{e.description}</td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c",fontWeight:700}}>
-                {e.amount_usd>0?fmtCurrency(e.amount_usd):<span style={{color:"#38bdf8",fontSize:10}}>{"≈"}{fmtCurrency(Math.round((e.amount_egp||0)/egpRate))}</span>}
+                {e.amount_usd>0
+                  ? fmtCurrency(e.amount_usd)
+                  : e.amount_egp>0&&e.entry_rate>0
+                    ? <span style={{color:"#38bdf8",fontSize:10}}>≈{fmtCurrency(Math.round(e.amount_egp/e.entry_rate*100)/100)}</span>
+                    : <span style={{color:"#1e3a5f",fontSize:10}}>—</span>}
               </td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{e.amount_egp?`EGP ${e.amount_egp.toLocaleString()}`:"-"}</td>
               <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic"}}>{e.notes||""}</td>
@@ -5750,7 +5759,7 @@ export default function App(){
                                     // RLS blocks this — need policy: allow admin to update any row
                                     // Workaround: update local state and show SQL to run
                                     setEngineers(prev=>prev.map(e=>e.id===eng.id?{...e,role_type:newRole}:e));
-                                    showToast("⚠ Role updated locally. Run in Supabase SQL Editor: UPDATE engineers SET role_type='"+newRole+"' WHERE id="+eng.id+";",false);
+                                    showToast("Role set locally ✓ — To persist: run SQL migration in Admin › Info tab",false);
                                     return;
                                   }
                                   if(data) setEngineers(prev=>prev.map(x=>x.id===data.id?data:x));
@@ -6364,19 +6373,17 @@ export default function App(){
                     {filteredActs.length>0&&(
                       <div style={{fontSize:9,color:"#38bdf8",marginTop:3,paddingLeft:2}}>
                         ✓ Linked to project tracker activities
-                        {isAdmin&&<div style={{marginTop:8,background:"#0a0f00",border:"1px solid #34d39930",borderRadius:6,padding:"10px 12px"}}>
-                          <div style={{fontSize:11,fontWeight:700,color:"#34d399",marginBottom:6}}>⚠ Run these in Supabase SQL Editor if you see RLS errors:</div>
-                          <pre style={{fontSize:9,color:"#7a8faa",margin:0,fontFamily:"'IBM Plex Mono',monospace",whiteSpace:"pre-wrap"}}>
-{`-- Allow admins to update any engineer row
-DROP POLICY IF EXISTS "admin_update_engineers" ON engineers;
-CREATE POLICY "admin_update_engineers" ON engineers
-  FOR UPDATE USING (auth.role() = 'authenticated');
-
--- Allow admins to update projects
-DROP POLICY IF EXISTS "auth_all" ON projects;
-CREATE POLICY "auth_all" ON projects
-  FOR ALL USING (auth.role() = 'authenticated');`}
+                        {isAdmin&&<div style={{marginTop:8,background:"#0a0800",border:"1px solid #f8717130",borderRadius:6,padding:"10px 12px"}}>
+                          <div style={{fontSize:11,fontWeight:700,color:"#f87171",marginBottom:6}}>⚠ Required: Run this SQL in Supabase SQL Editor to fix RLS (role changes, engineer edits):</div>
+                          <pre style={{fontSize:9,color:"#7a8faa",margin:0,fontFamily:"'IBM Plex Mono',monospace",whiteSpace:"pre-wrap",userSelect:"all"}}>
+{`-- Full authenticated access for all tables (run once)
+DO $$ DECLARE t text;
+BEGIN FOR t IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP
+  EXECUTE format('DROP POLICY IF EXISTS "auth_all" ON %I', t);
+  EXECUTE format('CREATE POLICY "auth_all" ON %I FOR ALL USING (auth.role()=''authenticated'')', t);
+END LOOP; END $$;`}
                           </pre>
+                          <div style={{fontSize:9,color:"#4e6479",marginTop:6}}>Select all text above → copy → paste in Supabase SQL Editor → Run</div>
                         </div>}
                       </div>
                     )}
