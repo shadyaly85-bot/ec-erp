@@ -3946,7 +3946,7 @@ export default function App(){
 
     const laggards=[];
     engs.forEach(eng=>{
-      if(eng.role_type==="accountant") return; // skip non-engineers
+      if(["accountant","senior_management","admin"].includes(eng.role_type)) return; // skip non-posting roles
       // Any work or function entry Mon→Fri this week?
       const hasWeekHours=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")));
       if(!hasWeekHours) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
@@ -4969,7 +4969,7 @@ export default function App(){
                   {canEditAny&&(
                     <div><Lbl>Browse Engineer</Lbl>
                       <select style={{width:190}} value={viewEngId||""} onChange={e=>setBrowseEngId(+e.target.value)}>
-                        {engineers.filter(e=>isEngActive(e)).map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
+                        {engineers.filter(e=>isEngActive(e)&&e.role_type!=="admin"&&e.role_type!=="senior_management"&&e.role_type!=="accountant").map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
                       </select>
                     </div>
                   )}
@@ -5370,11 +5370,11 @@ export default function App(){
                     >
                       {/* Edit/delete buttons */}
                       {orgEditing&&isAdmin&&(
-                        <div style={{position:"absolute",top:4,right:4,display:"flex",gap:3}}>
-                          <button onClick={e=>{e.stopPropagation();setOrgEditNode({...node});}}
-                            style={{background:"#192d47",border:"none",color:"#38bdf8",width:18,height:18,borderRadius:3,fontSize:9,cursor:"pointer",padding:0}}>✎</button>
-                          <button onClick={e=>{e.stopPropagation();deleteNode(node.id);}}
-                            style={{background:"#1a0808",border:"none",color:"#f87171",width:18,height:18,borderRadius:3,fontSize:9,cursor:"pointer",padding:0}}>✕</button>
+                        <div style={{position:"absolute",top:4,right:4,display:"flex",gap:3,zIndex:20}}>
+                          <button onClick={e=>{e.stopPropagation();e.preventDefault();setOrgEditNode({...node});}}
+                            style={{background:"#192d47",border:"1px solid #38bdf860",color:"#38bdf8",width:22,height:22,borderRadius:4,fontSize:10,cursor:"pointer",padding:0,zIndex:20}}>✎</button>
+                          <button onClick={e=>{e.stopPropagation();e.preventDefault();deleteNode(node.id);}}
+                            style={{background:"#1a0808",border:"1px solid #f8717160",color:"#f87171",width:22,height:22,borderRadius:4,fontSize:10,cursor:"pointer",padding:0,zIndex:20}}>✕</button>
                         </div>
                       )}
                       {/* Avatar */}
@@ -5428,12 +5428,7 @@ export default function App(){
                           const kids = children(node.id);
                           return(
                             <div key={node.id} style={{display:"flex",flexDirection:"column",alignItems:"center",position:"relative"}}>
-                              {/* Drop zone for reordering — only in edit mode */}
-                              {orgEditing&&(
-                                <div onDragOver={e=>e.preventDefault()}
-                                  onDrop={e=>{e.preventDefault();e.stopPropagation();if(orgDragId&&orgDragId!==node.id) moveNode(orgDragId,node.parent_id||null);}}
-                                  style={{position:"absolute",top:0,left:0,right:0,bottom:0,zIndex:10,borderRadius:8,border:"1px dashed transparent"}}/>
-                              )}
+                              {/* Drop zone removed — was blocking edit/delete buttons */}
                               <OrgCard node={node}/>
                               {kids.length>0&&(
                                 <>
