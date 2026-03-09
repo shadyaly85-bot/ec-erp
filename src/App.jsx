@@ -1094,10 +1094,12 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
       pm.totalHrs+=e.hours;
       if(p.billable) pm.billableHrs+=e.hours;
       pm.daySet.add(e.date);
-      const tk=e.task_type||"Other";
-      if(!pm.tasks[tk]) pm.tasks[tk]={hrs:0,engSet:new Set()};
+      const tk=e.task_category||e.task_type||"Other";
+      const tkDetail=e.task_type||"Other";
+      if(!pm.tasks[tk]) pm.tasks[tk]={hrs:0,engSet:new Set(),details:{}};
       pm.tasks[tk].hrs+=e.hours;
       pm.tasks[tk].engSet.add(e.engineer_id);
+      pm.tasks[tk].details[tkDetail]=(pm.tasks[tk].details[tkDetail]||0)+e.hours;
       const eid=e.engineer_id;
       const eng=engineers.find(x=>x.id===eid);
       if(!pm.engineers[eid]) pm.engineers[eid]={name:eng?.name||"Unknown",hrs:0,tasks:{}};
@@ -3215,6 +3217,7 @@ export default function App(){
   const [toast,setToast]             = useState(null);
   const [modalDate,setModalDate]     = useState(null);
   const [editEntry,setEditEntry]     = useState(null);
+  const [clipboard,setClipboard]     = useState(null); // {date, entries:[]} for copy/paste
   const [activeRpt,setActiveRpt]     = useState("utilization");
   const [rptEngId,setRptEngId]       = useState(null); // for individual timesheet export
   const [invoiceProjId,setInvoiceProjId] = useState("ALL"); // ALL or specific project id
@@ -3420,6 +3423,40 @@ export default function App(){
     setModalDate(null);
     setNewEntry({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
     showToast("Hours posted ✓");
+  };
+
+
+  /* ── Copy a day's entries to clipboard ── */
+  const copyDay = date => {
+    const dayEntries = entries.filter(e=>e.date===date&&e.engineer_id===(canEditAny?viewEngId:myProfile.id));
+    if(!dayEntries.length){showToast("No entries to copy",false);return;}
+    setClipboard({date, entries:dayEntries});
+    showToast(`Copied ${dayEntries.length} entr${dayEntries.length===1?"y":"ies"} from ${date} ✓`);
+  };
+
+  /* ── Paste clipboard entries to target date ── */
+  const pasteDay = async targetDate => {
+    if(!clipboard||!clipboard.entries.length){showToast("Nothing in clipboard",false);return;}
+    if(!isDateAllowed(targetDate)){showToast("Cannot post to locked date",false);return;}
+    const engId = canEditAny?viewEngId:myProfile.id;
+    const inserts = clipboard.entries.map(e=>({
+      engineer_id: engId,
+      project_id:  e.project_id,
+      date:        targetDate,
+      task_category: e.task_category,
+      task_type:   e.task_type,
+      hours:       e.hours,
+      activity:    e.activity,
+      entry_type:  e.entry_type,
+      leave_type:  e.leave_type||null,
+      billable:    e.billable||false,
+      activity_id: e.activity_id||null,
+      function_category: e.function_category||null,
+    }));
+    const {data,error}=await supabase.from("time_entries").insert(inserts).select();
+    if(error){showToast("Paste error: "+error.message,false);return;}
+    if(data) setEntries(prev=>[...data,...prev]);
+    showToast(`Pasted ${inserts.length} entr${inserts.length===1?"y":"ies"} to ${targetDate} ✓`);
   };
 
   const saveEditEntry=async()=>{
@@ -4102,13 +4139,17 @@ export default function App(){
   const taskStats=useMemo(()=>{
     const map={};
     workEntries.forEach(e=>{
-      if(!e.task_category) return;
-      if(!map[e.task_category]) map[e.task_category]={category:e.task_category,hours:0,billable:0,tasks:{}};
-      map[e.task_category].hours+=e.hours;
-      // Derive billable from project
+      const grp = e.task_category||CAT_TO_GROUP[e.task_type]||"General";
+      if(!map[grp]) map[grp]={category:grp,hours:0,billable:0,tasks:{}};
+      map[grp].hours+=e.hours;
       const p=projects.find(x=>x.id===e.project_id);
-      if(p&&p.billable) map[e.task_category].billable+=e.hours;
-      map[e.task_category].tasks[e.task_type]=(map[e.task_category].tasks[e.task_type]||0)+e.hours;
+      if(p&&p.billable) map[grp].billable+=e.hours;
+      // task_type = category (e.g. "Templates"), nested under group
+      const cat = e.task_type||"Other";
+      if(!map[grp].tasks[cat]) map[grp].tasks[cat]={hrs:0,activities:{}};
+      map[grp].tasks[cat].hrs+=e.hours;
+      // activity = sub-item
+      if(e.activity) map[grp].tasks[cat].activities[e.activity]=(map[grp].tasks[cat].activities[e.activity]||0)+e.hours;
     });
     return Object.values(map).sort((a,b)=>b.hours-a.hours);
   },[workEntries,projects]);
@@ -4501,6 +4542,21 @@ export default function App(){
                 </div>
               </div>}
 
+              {/* Clipboard banner */}
+              {clipboard&&(
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                  background:"#a78bfa18",border:"1px solid #a78bfa60",borderRadius:8,
+                  padding:"8px 14px",marginBottom:10,fontSize:11}}>
+                  <span style={{color:"#a78bfa",fontWeight:700}}>
+                    ⎘ Clipboard: {clipboard.entries.length} entr{clipboard.entries.length===1?"y":"ies"} from {clipboard.date}
+                    <span style={{color:"#7a8faa",fontWeight:400,marginLeft:6}}>
+                      — click ⎙ Paste on any allowed day to copy
+                    </span>
+                  </span>
+                  <button onClick={()=>setClipboard(null)}
+                    style={{background:"none",border:"none",color:"#4e6479",cursor:"pointer",fontSize:13}}>✕</button>
+                </div>
+              )}
               {/* 7-day week grid */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:7}}>
                 {weekDays.map(day=>{
@@ -4526,10 +4582,28 @@ export default function App(){
                           <div style={{fontSize:9,color:"#253a52"}}>{new Date(day).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
                           {dh>0&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#38bdf8",marginTop:1}}>{dh}h</div>}
                         </div>
-                        {allowed&&<button className="bp" style={{padding:"2px 5px",fontSize:10,
-                          background:isWE?"linear-gradient(135deg,#b45309,#92400e)":isFuture?"linear-gradient(135deg,#7c3aed,#6d28d9)":undefined
-                        }} onClick={()=>setModalDate(day)}>+</button>}
-                        {!allowed&&<span style={{fontSize:8,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>LOCKED</span>}
+                        <div style={{display:"flex",flexDirection:"column",gap:2,alignItems:"flex-end"}}>
+                          {allowed&&<button className="bp" style={{padding:"2px 5px",fontSize:10,
+                            background:isWE?"linear-gradient(135deg,#b45309,#92400e)":isFuture?"linear-gradient(135deg,#7c3aed,#6d28d9)":undefined
+                          }} onClick={()=>setModalDate(day)}>+</button>}
+                          {de.length>0&&allowed&&(
+                            <button title="Copy this day" onClick={()=>copyDay(day)}
+                              style={{padding:"2px 5px",fontSize:9,borderRadius:4,border:"1px solid #192d47",
+                                background:clipboard?.date===day?"#38bdf818":"#060e1c",
+                                color:clipboard?.date===day?"#38bdf8":"#4e6479",cursor:"pointer",lineHeight:1}}>
+                              {clipboard?.date===day?"✓ Copied":"⎘ Copy"}
+                            </button>
+                          )}
+                          {clipboard&&allowed&&clipboard.date!==day&&(
+                            <button title={`Paste ${clipboard.entries.length} entr${clipboard.entries.length===1?"y":"ies"} from ${clipboard.date}`}
+                              onClick={()=>pasteDay(day)}
+                              style={{padding:"2px 5px",fontSize:9,borderRadius:4,border:"1px solid #a78bfa60",
+                                background:"#a78bfa18",color:"#a78bfa",cursor:"pointer",lineHeight:1}}>
+                              ⎙ Paste
+                            </button>
+                          )}
+                          {!allowed&&<span style={{fontSize:8,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>LOCKED</span>}
+                        </div>
                       </div>
                       {de.map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
@@ -4923,32 +4997,81 @@ export default function App(){
               )}
 
               {/* Task analysis */}
-              {activeRpt==="task"&&(
+              {activeRpt==="task"&&(()=>{
+                const GC={"SCADA":"#38bdf8","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+                return(
                 <div className="card">
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                    <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa"}}>Task Categories</h3>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                    <div>
+                      <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",margin:0}}>Task Analysis</h3>
+                      <p style={{fontSize:11,color:"#2e4a66",marginTop:2,marginBottom:0}}>{MONTHS[month]} {year} · {totalWorkHrs}h work logged</p>
+                    </div>
                     <button className="bp" onClick={buildTaskPDF}>⬇ Export PDF</button>
                   </div>
-                  {taskStats.map(cat=>{const pct=totalWorkHrs?Math.round(cat.hours/totalWorkHrs*100):0;return(
-                    <div key={cat.category} style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid #0d1a2d"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-                        <span style={{fontWeight:600}}>{cat.category}</span>
+
+                  {taskStats.length===0&&<p style={{color:"#253a52",fontSize:12}}>No work hours logged for this period.</p>}
+
+                  {taskStats.map(grp=>{
+                    const pct=totalWorkHrs?Math.round(grp.hours/totalWorkHrs*100):0;
+                    const gc=GC[grp.category]||"#38bdf8";
+                    return(
+                    <div key={grp.category} style={{marginBottom:18,paddingBottom:18,borderBottom:"1px solid #0d1a2d"}}>
+                      {/* Group header + bar */}
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{width:10,height:10,borderRadius:3,background:gc,flexShrink:0}}/>
+                          <span style={{fontWeight:700,fontSize:13,color:gc}}>{grp.category}</span>
+                        </div>
                         <div style={{display:"flex",gap:14,fontSize:11}}>
-                          <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{cat.hours}h ({pct}%)</span>
-                          <span style={{color:"#34d399"}}>{cat.hours?Math.round(cat.billable/cat.hours*100):0}% billable</span>
+                          <span style={{fontFamily:"'IBM Plex Mono',monospace",color:gc,fontWeight:700}}>{grp.hours}h</span>
+                          <span style={{color:"#4e6479"}}>{pct}%</span>
+                          <span style={{color:"#34d399"}}>{grp.hours?Math.round(grp.billable/grp.hours*100):0}% billable</span>
                         </div>
                       </div>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                        {Object.entries(cat.tasks).sort((a,b)=>b[1]-a[1]).map(([task,hrs])=>(
-                          <span key={task} style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:4,padding:"2px 7px",fontSize:10}}>
-                            {task} <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{hrs}h</span>
-                          </span>
-                        ))}
+                      {/* Group progress bar */}
+                      <div style={{background:"#060e1c",height:6,borderRadius:4,overflow:"hidden",marginBottom:10}}>
+                        <div style={{height:"100%",width:`${pct}%`,background:gc,borderRadius:4,transition:"width .4s"}}/>
+                      </div>
+                      {/* Category pills with activity drill-down */}
+                      <div style={{display:"grid",gap:6}}>
+                        {Object.entries(grp.tasks).sort((a,b)=>b[1].hrs-a[1].hrs).map(([cat,catData])=>{
+                          const catPct=grp.hours?Math.round(catData.hrs/grp.hours*100):0;
+                          const topActs=Object.entries(catData.activities||{}).sort((a,b)=>b[1]-a[1]).slice(0,4);
+                          return(
+                          <div key={cat} style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px"}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:topActs.length?4:0}}>
+                              <span style={{fontSize:11,fontWeight:600,color:"#7a8faa"}}>{cat}</span>
+                              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                                <div style={{background:"#0d1a2d",height:4,borderRadius:3,width:50,overflow:"hidden"}}>
+                                  <div style={{height:"100%",width:`${catPct}%`,background:gc+"80",borderRadius:3}}/>
+                                </div>
+                                <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:gc}}>{catData.hrs}h</span>
+                                <span style={{fontSize:9,color:"#2e4a66"}}>{catPct}%</span>
+                              </div>
+                            </div>
+                            {topActs.length>0&&(
+                              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                                {topActs.map(([act,hrs])=>(
+                                  <span key={act} style={{background:"#080f1e",border:"1px solid #0d1a2d",borderRadius:4,
+                                    padding:"2px 6px",fontSize:9,color:"#4e6479"}}>
+                                    {act.length>30?act.slice(0,28)+"…":act}
+                                    <span style={{color:"#38bdf8",fontFamily:"'IBM Plex Mono',monospace",marginLeft:4}}>{hrs}h</span>
+                                  </span>
+                                ))}
+                                {Object.keys(catData.activities||{}).length>4&&(
+                                  <span style={{fontSize:9,color:"#2e4a66",padding:"2px 4px"}}>
+                                    +{Object.keys(catData.activities).length-4} more
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>);
+                        })}
                       </div>
                     </div>
                   );})}
-                </div>
-              )}
+                </div>);
+              })()}
 
               {/* ════ PROJECT TASKS ANALYSIS ════ */}
               {activeRpt==="projtasks"&&<ProjectTasksReport allEntries={entries} projects={projects} engineers={engineers} MONTHS={MONTHS} fmtCurrency={fmtCurrency} fmtPct={fmtPct} isAdmin={isAdmin} isAcct={isAcct}/>}
