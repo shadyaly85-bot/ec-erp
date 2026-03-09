@@ -42,7 +42,7 @@ const ROLES_LIST   = ["Electrical Engineer","Automation Engineer","PLC Programme
 // lead: post own hours, edit any engineer hours, export individual timesheet PDF
 // accountant: read-only, export invoices + reports, no editing
 // admin: full access
-const ROLE_TYPES   = ["engineer","lead","accountant","admin"];
+const ROLE_TYPES   = ["engineer","lead","accountant","senior_management","admin"];
 const ROLE_LABELS  = {engineer:"Engineer",lead:"Lead Engineer",accountant:"Accountant",admin:"Admin"};
 const ROLE_COLORS  = {engineer:"#4e6479",lead:"#38bdf8",accountant:"#a78bfa",admin:"#34d399"};
 
@@ -2389,7 +2389,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
 function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, setEgpRate,
   finTab, setFinTab, finMonth, setFinMonth, finYear, setFinYear,
   setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
-  deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin}){
+  deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior}){
 
   const derived = useMemo(()=>{
     const activeStaff=staff.filter(s=>s.active!==false);
@@ -2397,7 +2397,7 @@ const totalPayrollUSD=activeStaff.reduce((s,x)=>s+(x.salary_usd||0),0);
 const totalPayrollEGP=activeStaff.reduce((s,x)=>s+(x.salary_egp||0),0);
 
 // Exchange rate helper
-const toUSD=(usd,egp)=>(usd&&usd>0)?usd:((egp||0)/egpRate);
+const toUSD=(usd,egp,rate)=>(usd&&usd>0)?usd:((egp||0)/(rate||egpRate));
 
 // Company start date = earliest join_date across all staff (fallback: no limit)
 const allJoinDates=activeStaff.map(s=>s.join_date).filter(Boolean).map(d=>new Date(d));
@@ -2417,9 +2417,9 @@ const wasEmployed=(s,y,m)=>{
 // Month expenses
 const monthExp=expenses.filter(e=>e.month===finMonth&&e.year===finYear);
 const monthExpNonSalary=monthExp.filter(e=>e.category!=="Salaries");
-const totalExpUSD=monthExpNonSalary.reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
+const totalExpUSD=monthExpNonSalary.reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
 const totalExpEGP=monthExpNonSalary.reduce((s,e)=>s+(e.amount_egp||0),0);
-const salaryCatUSD=monthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
+const salaryCatUSD=monthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
 // Only count staff employed this specific month
 const staffThisMonth=activeStaff.filter(s=>wasEmployed(s,finYear,finMonth));
 const totalPayrollUSDeff=staffThisMonth.reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp),0);
@@ -2442,8 +2442,8 @@ const ytdData=ytdMonths.map(m=>{
   const mE=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===m&&e.entry_type==="work";});
   const rev=mE.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
   const mMonthExp=expenses.filter(e=>e.month===m&&e.year===finYear);
-  const mExpUSD=mMonthExp.filter(e=>e.category!=="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
-  const mSalaryCat=mMonthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp),0);
+  const mExpUSD=mMonthExp.filter(e=>e.category!=="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
+  const mSalaryCat=mMonthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
   const mPayroll=activeStaff.filter(s=>wasEmployed(s,finYear,m)).reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp),0);
   const cost=mPayroll+mSalaryCat+mExpUSD;
   return{m,rev,cost,net:rev-cost};
@@ -2716,7 +2716,7 @@ const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov"
       <div className="card">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontSize:11,fontWeight:700,color:"#7a8faa"}}>EXPENSES — {MONTHS_[finMonth]} {finYear} ({monthExp.length})</div>
-          <button className="bp" onClick={()=>{setEditExp(null);setNewExp(p=>({...p,month:finMonth,year:finYear}));setShowExpModal(true)}}>+ Add Expense</button>
+          {!isSenior&&<button className="bp" onClick={()=>{setEditExp(null);setNewExp(p=>({...p,month:finMonth,year:finYear}));setShowExpModal(true)}}>+ Add Expense</button>}
         </div>
         {monthExp.length===0?<div style={{color:"#2e4a66",fontSize:11,textAlign:"center",padding:20}}>No expenses posted for {MONTHS_[finMonth]} {finYear}</div>:(
         <table>
@@ -2731,8 +2731,8 @@ const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov"
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{e.amount_egp?`EGP ${e.amount_egp.toLocaleString()}`:"-"}</td>
               <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic"}}>{e.notes||""}</td>
               <td><div style={{display:"flex",gap:4}}>
-                <button className="be" onClick={()=>{setEditExp({...e});setShowExpModal(true)}}>✎</button>
-                <button className="bd" onClick={()=>deleteExpense(e.id)}>✕</button>
+                {!isSenior&&<><button className="be" onClick={()=>{setEditExp({...e});setShowExpModal(true)}}>✎</button>
+                <button className="bd" onClick={()=>deleteExpense(e.id)}>✕</button></>}
               </div></td>
             </tr>
           ))}</tbody>
@@ -3269,7 +3269,7 @@ export default function App(){
   const [showExpModal,setShowExpModal]     = useState(false);
   const [editExp,setEditExp]               = useState(null);
   const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:"",termination_date:"",notes:""});
-  const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
+  const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:null,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
   const [newEntry,setNewEntry]   = useState({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
   const [newProj,setNewProj]     = useState({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
@@ -3289,8 +3289,9 @@ export default function App(){
   // Role helpers
   const role      = myProfile?.role_type||"engineer";
   const isAdmin   = role==="admin";
+  const isSenior  = role==="senior_management";
   const isLead    = role==="lead"||role==="admin";
-  const isAcct    = role==="accountant"||role==="admin";
+  const isAcct    = role==="accountant"||role==="admin"||role==="senior_management";
   const canEditAny= isLead; // admin + lead can edit any engineer's entries
   const canEdit   = true;   // everyone can edit/delete their own entries
   const canReport = isLead||isAcct; // admin + lead + accountant can see reports
@@ -3606,7 +3607,7 @@ export default function App(){
       else showToast(error?.message||"Error",false);
     } else {
       const{data,error}=await supabase.from("expenses").insert(payload).select().single();
-      if(!error&&data){setExpenses(prev=>[data,...prev]);showToast("Expense added");setShowExpModal(false);setNewExp({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});}
+      if(!error&&data){setExpenses(prev=>[data,...prev]);showToast("Expense added");setShowExpModal(false);setNewExp({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:egpRate,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});}
       else showToast(error?.message||"Error",false);
     }
   },[editExp,newExp,showToast]);
@@ -4256,8 +4257,8 @@ export default function App(){
     {id:"team",     icon:"◉",label:"Team"},
     ...(canReport?[{id:"reports",icon:"⊞",label:"Reports & PDF"}]:[]),
     ...(isAdmin||role==="lead"?[{id:"admin",icon:"⚙",label:isAdmin?"Admin Panel":"Lead Panel"}]:[]),
-    {id:"mysettings",icon:"☰",label:"My Settings"},
-    ...(isAdmin?[{id:"import",icon:"⬆",label:"Import Excel"}]:[]),
+    {id:"mysettings",icon:"ℹ",label:"Info"},
+    ...(isAdmin&&!isSenior?[{id:"import",icon:"⬆",label:"Import Excel"}]:[]),
   ];
 
   return(
@@ -5242,7 +5243,7 @@ export default function App(){
                   {id:"engineers",label:"👥 Engineers",show:isAdmin},
                   {id:"projects", label:"◈ Projects",  show:isAdmin},
                   {id:"entries",  label:"⏱ All Entries",show:true},
-                  {id:"settings", label:"⚙ Settings",   show:isAdmin},
+                  {id:"settings", label:"⚙ Info",   show:isAdmin||isSenior},
                   {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct},
                   {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead},
                   {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead},
@@ -5482,10 +5483,11 @@ export default function App(){
                     <p style={{fontSize:11,color:"#2e4a66",marginBottom:14,lineHeight:1.6}}>Each role controls what features are visible and accessible.</p>
                     <div style={{display:"grid",gap:8}}>
                       {[
-                        {role:"engineer",label:"Engineer",color:"#4e6479",perms:"Post own hours · View dashboard, projects, team · No reports"},
-                        {role:"lead",    label:"Lead Engineer",color:"#38bdf8",perms:"All Engineer permissions + Edit any engineer's hours · Export individual timesheet PDF · View reports"},
-                        {role:"accountant",label:"Accountant",color:"#a78bfa",perms:"Read-only access · Export all reports + invoices · See rates & revenue · Cannot edit entries"},
-                        {role:"admin",   label:"Admin",color:"#34d399",perms:"Full access · Manage engineers/projects · All reports & invoices · Configure settings"},
+                        {role:"engineer",label:"Engineer",color:"#4e6479",perms:"Post own hours on assigned projects only · View dashboard, projects & team · No reports access"},
+                        {role:"lead",    label:"Lead Engineer",color:"#38bdf8",perms:"Post & edit any engineer's hours · View all reports · Export individual timesheets · Manage project tracker"},
+                        {role:"accountant",label:"Accountant",color:"#a78bfa",perms:"Full Finance tab access · Add/edit/delete expenses · Export all reports & invoices · View rates & revenue"},
+                        {role:"senior_management",label:"Senior Management",color:"#fb923c",perms:"View-only admin access · Export all reports · No data entry or editing allowed"},
+                        {role:"admin",   label:"Admin",color:"#34d399",perms:"Full access · Manage engineers & projects · All reports & invoices · Configure system settings"},
                       ].map(r=>(
                         <div key={r.role} style={{background:"#060e1c",border:`1px solid ${r.color}30`,borderRadius:8,padding:"10px 14px"}}>
                           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
@@ -5807,7 +5809,13 @@ export default function App(){
                       onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null,_actCat:null,_actSub:null}))}
                       style={INP}>
                       <option value="">— Select Project —</option>
-                      {projects.filter(p=>p.status==="Active").map(p=>(
+                      {projects.filter(p=>{
+                        if(p.status!=="Active") return false;
+                        if(isAdmin||isLead||isAcct||isSenior) return true;
+                        // Engineers: only see projects they are assigned to
+                        const ae=p.assigned_engineers||[];
+                        return ae.length===0||ae.includes(String(myProfile?.id))||ae.includes(myProfile?.id);
+                      }).map(p=>(
                         <option key={p.id} value={p.id}>{p.id} — {p.name}</option>
                       ))}
                     </select>
@@ -6244,10 +6252,59 @@ export default function App(){
                 </select>
               </div>
               <div><Lbl>Description</Lbl><input value={(editExp||newExp).description} onChange={e=>editExp?setEditExp(p=>({...p,description:e.target.value})):setNewExp(p=>({...p,description:e.target.value}))} placeholder="e.g. Office Rent — Cairo HQ"/></div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Amount (USD)</Lbl><input type="number" value={(editExp||newExp).amount_usd||""} onChange={e=>editExp?setEditExp(p=>({...p,amount_usd:+e.target.value})):setNewExp(p=>({...p,amount_usd:+e.target.value}))} placeholder="0"/></div>
-                <div><Lbl>Amount (EGP)</Lbl><input type="number" value={(editExp||newExp).amount_egp||""} onChange={e=>editExp?setEditExp(p=>({...p,amount_egp:+e.target.value})):setNewExp(p=>({...p,amount_egp:+e.target.value}))} placeholder="0"/></div>
+              {/* Currency selector + single amount + optional rate */}
+              <div>
+                <Lbl>CURRENCY</Lbl>
+                <div style={{display:"flex",gap:8}}>
+                  {["USD","EGP"].map(cur=>{
+                    const active=(editExp||newExp).currency===cur||(!(editExp||newExp).currency&&cur==="USD");
+                    return(
+                    <button key={cur} onClick={()=>editExp?setEditExp(p=>({...p,currency:cur})):setNewExp(p=>({...p,currency:cur}))}
+                      style={{flex:1,padding:"7px",borderRadius:6,border:`1px solid ${active?(cur==="USD"?"#38bdf8":"#a78bfa")+"80":"#192d47"}`,
+                        background:active?(cur==="USD"?"#38bdf8":"#a78bfa")+"15":"#060e1c",
+                        color:active?(cur==="USD"?"#38bdf8":"#a78bfa"):"#4e6479",
+                        fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                      {cur}
+                    </button>);
+                  })}
+                </div>
               </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div>
+                  <Lbl>AMOUNT</Lbl>
+                  <input type="number" min="0" step="0.01"
+                    value={(editExp||newExp).currency==="EGP"?(editExp||newExp).amount_egp||"":((editExp||newExp).amount_usd||"")}
+                    onChange={e=>{
+                      const v=+e.target.value;
+                      const cur=(editExp||newExp).currency||"USD";
+                      if(editExp) setEditExp(p=>cur==="EGP"?{...p,amount_egp:v,amount_usd:0}:{...p,amount_usd:v,amount_egp:0});
+                      else setNewExp(p=>cur==="EGP"?{...p,amount_egp:v,amount_usd:0}:{...p,amount_usd:v,amount_egp:0});
+                    }}
+                    placeholder="0.00"/>
+                </div>
+                <div>
+                  <Lbl>EGP RATE <span style={{color:"#4e6479",fontWeight:400}}>(this entry)</span></Lbl>
+                  <input type="number" min="1" step="0.5"
+                    value={(editExp||newExp).entry_rate||egpRate}
+                    onChange={e=>editExp?setEditExp(p=>({...p,entry_rate:+e.target.value})):setNewExp(p=>({...p,entry_rate:+e.target.value}))}
+                    placeholder={String(egpRate)}/>
+                </div>
+              </div>
+              {/* Live conversion preview */}
+              {(()=>{
+                const exp=editExp||newExp;
+                const rate=exp.entry_rate||egpRate;
+                const cur=exp.currency||"USD";
+                const usdVal=cur==="USD"?(exp.amount_usd||0):Math.round((exp.amount_egp||0)/rate*100)/100;
+                const egpVal=cur==="EGP"?(exp.amount_egp||0):Math.round((exp.amount_usd||0)*rate);
+                if(!usdVal&&!egpVal) return null;
+                return(
+                <div style={{padding:"6px 10px",background:"#060e1c",borderRadius:5,border:"1px solid #192d47",fontSize:10,color:"#4e6479",display:"flex",gap:16}}>
+                  <span>≈ <span style={{color:"#38bdf8",fontFamily:"'IBM Plex Mono',monospace"}}>${usdVal.toLocaleString()}</span></span>
+                  <span>≈ <span style={{color:"#a78bfa",fontFamily:"'IBM Plex Mono',monospace"}}>EGP {egpVal.toLocaleString()}</span></span>
+                  <span style={{color:"#2e4a66"}}>@ {rate} EGP/$</span>
+                </div>);
+              })()}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Month</Lbl>
                   <select value={(editExp||newExp).month} onChange={e=>editExp?setEditExp(p=>({...p,month:+e.target.value})):setNewExp(p=>({...p,month:+e.target.value}))}>
