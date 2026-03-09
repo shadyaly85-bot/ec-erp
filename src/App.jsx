@@ -4066,7 +4066,13 @@ export default function App(){
     const idChanged=_origId&&_origId!==newId;
     if(idChanged){
       // Rename project ID: insert new, re-link entries, delete old
-      const{error:e1}=await supabase.from("projects").insert({...rest});
+      let insertData={...rest};
+      let {error:e1}=await supabase.from("projects").insert(insertData);
+      if(e1&&e1.message&&e1.message.includes("assigned_engineers")){
+        const{assigned_engineers:_ae,...restNoAE}=insertData;
+        const r2=await supabase.from("projects").insert(restNoAE);
+        e1=r2.error;
+      }
       if(e1){showToast("Error renaming: "+e1.message,false);return;}
       await supabase.from("time_entries").update({project_id:newId}).eq("project_id",origId);
       await supabase.from("projects").delete().eq("id",origId);
@@ -4075,9 +4081,18 @@ export default function App(){
       setEditProjModal(null); showToast("Project ID renamed & entries re-linked ✓");
     } else {
       const{id,...fields}=rest;
-      const{data,error}=await supabase.from("projects").update(fields).eq("id",id).select().single();
+      let {data,error}=await supabase.from("projects").update(fields).eq("id",id).select().single();
+      // Fallback: if assigned_engineers column doesn't exist yet, save without it
+      if(error&&error.message&&error.message.includes("assigned_engineers")){
+        const{assigned_engineers:_ae,...fieldsNoAE}=fields;
+        const res=await supabase.from("projects").update(fieldsNoAE).eq("id",id).select().single();
+        data=res.data; error=res.error;
+        if(!error) showToast("⚠ Saved — but run the 'Assigned Engineers' migration in Admin › Info to enable assignment tracking",false);
+      }
       if(error){showToast("Error: "+error.message,false);return;}
-      setProjects(prev=>prev.map(p=>p.id===data.id?data:p));
+      if(data){
+        setProjects(prev=>prev.map(p=>p.id===data.id?{...data,assigned_engineers:fields.assigned_engineers||[]}:p));
+      }
       setEditProjModal(null); showToast("Project updated ✓");
     }
   };
@@ -5556,22 +5571,6 @@ export default function App(){
                         </div>
                       ))}
                     </div>
-                  </div>
-                  <div className="card" style={{borderColor:"#f59e0b30"}}>
-                    <h3 style={{fontSize:13,fontWeight:700,color:"#f59e0b",marginBottom:6}}>⚙️ Required Supabase SQL Migrations</h3>
-                    <p style={{fontSize:11,color:"#2e4a66",marginBottom:12,lineHeight:1.6}}>Run these once in your Supabase SQL editor to enable all features. The app works without them but falls back gracefully.</p>
-                    {[
-                      {label:"Function Category column (enables KPI function tracking)",sql:`ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS function_category text;`},
-                      {label:"Staff table (Finance › Salaries)",sql:`CREATE TABLE IF NOT EXISTS staff (\n  id bigserial PRIMARY KEY, name text NOT NULL, department text DEFAULT 'Engineering',\n  role text, type text DEFAULT 'full_time', salary_usd numeric DEFAULT 0,\n  salary_egp numeric DEFAULT 0, active boolean DEFAULT true,\n  join_date date, termination_date date, notes text, created_at timestamptz DEFAULT now()\n);\nALTER TABLE staff ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "auth_all" ON staff FOR ALL USING (auth.role()='authenticated');`},
-                      {label:"Expenses table (Finance › Expenses)",sql:`CREATE TABLE IF NOT EXISTS expenses (\n  id bigserial PRIMARY KEY, category text NOT NULL, description text NOT NULL,\n  amount_usd numeric DEFAULT 0, amount_egp numeric DEFAULT 0,\n  month int NOT NULL, year int NOT NULL, notes text, created_at timestamptz DEFAULT now()\n);\nALTER TABLE expenses ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "auth_all" ON expenses FOR ALL USING (auth.role()='authenticated');`},
-                      {label:"Project Tracker — sub-projects + activities (Tracker tab)",sql:`-- Step 1: Sub-projects (for SCADA Olt sites, Transelectrica sites)\nCREATE TABLE IF NOT EXISTS project_subprojects (\n  id bigserial PRIMARY KEY,\n  project_id text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n  name text NOT NULL, pm_name text, pm_comments text, pendings text,\n  created_at timestamptz DEFAULT now()\n);\n-- Step 2: Activities per project/sub-project\nCREATE TABLE IF NOT EXISTS project_activities (\n  id bigserial PRIMARY KEY,\n  project_id text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,\n  subproject_id bigint REFERENCES project_subprojects(id) ON DELETE CASCADE,\n  group_name text, activity_name text NOT NULL,\n  status text DEFAULT 'Not Started', progress numeric DEFAULT 0,\n  assigned_to text, start_date date, end_date date, remarks text,\n  sort_order int DEFAULT 0,\n  created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()\n);\n-- Step 3: Link time entries to activities\nALTER TABLE time_entries ADD COLUMN IF NOT EXISTS activity_id bigint REFERENCES project_activities(id) ON DELETE SET NULL;\nALTER TABLE project_subprojects ADD COLUMN IF NOT EXISTS assigned_engineers jsonb DEFAULT '[]';\n-- Step 4: RLS\nALTER TABLE project_subprojects ENABLE ROW LEVEL SECURITY;\nALTER TABLE project_activities ENABLE ROW LEVEL SECURITY;\nDO $$ BEGIN\n  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='project_subprojects' AND policyname='auth_all') THEN\n    CREATE POLICY "auth_all" ON project_subprojects FOR ALL USING (auth.role()='authenticated');\n  END IF;\n  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='project_activities' AND policyname='auth_all') THEN\n    CREATE POLICY "auth_all" ON project_activities FOR ALL USING (auth.role()='authenticated');\n  END IF;\nEND $$;\nCREATE INDEX IF NOT EXISTS idx_activities_project ON project_activities(project_id);\nCREATE INDEX IF NOT EXISTS idx_activities_subproject ON project_activities(subproject_id);\nCREATE INDEX IF NOT EXISTS idx_entries_activity ON time_entries(activity_id);`},
-                    ].map((m,i)=>(
-                      <div key={i} style={{marginBottom:12,background:"#060e1c",borderRadius:6,padding:"10px 12px",border:"1px solid #192d47"}}>
-                        <div style={{fontSize:10,fontWeight:700,color:"#f59e0b",marginBottom:6}}>{i+1}. {m.label}</div>
-                        <pre style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8",whiteSpace:"pre-wrap",wordBreak:"break-all",margin:0,lineHeight:1.6}}>{m.sql}</pre>
-                        <button className="bg" style={{fontSize:10,marginTop:8}} onClick={()=>{navigator.clipboard.writeText(m.sql);showToast("SQL copied ✓");}}>📋 Copy SQL</button>
-                      </div>
-                    ))}
                   </div>
                 </div>
               )}
