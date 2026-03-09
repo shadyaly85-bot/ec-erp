@@ -3397,6 +3397,11 @@ export default function App(){
     const isFunc=newEntry.type==="function";
     const isLeave=newEntry.type==="leave";
     const funcCat=isFunc?(newEntry.taskType||newEntry.function_category||FUNCTION_CATS[0]):null;
+    const actId=(!isLeave&&!isFunc&&newEntry.activityId)?newEntry.activityId:null;
+    // Validate: work entries must have a project
+    if(!isLeave&&!isFunc&&!newEntry.projectId){showToast("Please select a project",false);return;}
+    // Validate: admin posting for engineer must have engineer selected
+    if(canEditAny&&!viewEngId){showToast("Please select an engineer",false);return;}
     const basePayload={
       engineer_id:engId,
       project_id: (isLeave||isFunc)?null:newEntry.projectId,
@@ -3410,7 +3415,6 @@ export default function App(){
       billable:    !isLeave&&!isFunc&&(projects.find(p=>p.id===newEntry.projectId)?.billable||false),
       activity_id: actId,
     };
-    const actId=(!isLeave&&!isFunc&&newEntry.activityId)?newEntry.activityId:null;
     // Try with function_category col; auto-fallback if migration not yet run
     let {data,error}=await supabase.from("time_entries")
       .insert(isFunc?{...basePayload,function_category:funcCat}:basePayload)
@@ -5243,7 +5247,7 @@ export default function App(){
                   {id:"engineers",label:"👥 Engineers",show:isAdmin},
                   {id:"projects", label:"◈ Projects",  show:isAdmin},
                   {id:"entries",  label:"⏱ All Entries",show:true},
-                  {id:"settings", label:"⚙ Info",   show:isAdmin||isSenior},
+                  {id:"settings", label:"⚙ Info",   show:isAdmin},
                   {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct},
                   {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead},
                   {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead},
@@ -5803,23 +5807,40 @@ export default function App(){
               {/* ── STEP 2 for WORK: project + sub-site ── */}
               {step===2&&isWork&&(
                 <div style={{display:"grid",gap:12}}>
-                  <div>
-                    <label style={LBL}>PROJECT</label>
-                    <select value={newEntry.projectId}
-                      onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null,_actCat:null,_actSub:null}))}
-                      style={INP}>
-                      <option value="">— Select Project —</option>
-                      {projects.filter(p=>{
-                        if(p.status!=="Active") return false;
-                        if(isAdmin||isLead||isAcct||isSenior) return true;
-                        // Engineers: only see projects they are assigned to
-                        const ae=p.assigned_engineers||[];
-                        return ae.length===0||ae.includes(String(myProfile?.id))||ae.includes(myProfile?.id);
-                      }).map(p=>(
-                        <option key={p.id} value={p.id}>{p.id} — {p.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {(()=>{
+                    // Determine which engineer we're posting for
+                    const postingForId = canEditAny ? viewEngId : myProfile?.id;
+                    const availableProjs = projects.filter(p=>{
+                      if(p.status!=="Active") return false;
+                      if(isAdmin||isLead||isAcct||isSenior) return true;
+                      const ae=p.assigned_engineers||[];
+                      // If project has no assignments configured, visible to all
+                      if(ae.length===0) return true;
+                      return ae.includes(String(postingForId))||ae.includes(postingForId);
+                    });
+                    const targetEng = canEditAny ? engineers.find(e=>e.id===viewEngId) : null;
+                    const isEngineeerRole = targetEng ? (targetEng.role_type==="engineer") : (!isAdmin&&!isLead&&!isAcct&&!isSenior);
+                    const noProjects = isEngineeerRole && availableProjs.length===0;
+                    return(
+                    <div>
+                      <label style={LBL}>PROJECT</label>
+                      {noProjects?(
+                        <div style={{padding:"12px",background:"#1a0a0a",border:"1px solid #f8717140",borderRadius:6,fontSize:11,color:"#f87171",textAlign:"center"}}>
+                          ⚠ {targetEng?.name||"This engineer"} is not assigned to any active project.<br/>
+                          <span style={{color:"#4e6479",fontSize:10}}>Ask an admin to assign projects first.</span>
+                        </div>
+                      ):(
+                        <select value={newEntry.projectId}
+                          onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null,_actCat:null,_actSub:null}))}
+                          style={{...INP,borderColor:!newEntry.projectId?"#f87171":"#192d47"}}>
+                          <option value="">— Select Project —</option>
+                          {availableProjs.map(p=>(
+                            <option key={p.id} value={p.id}>{p.id} — {p.name}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>);
+                  })()}
                   {/* Sub-site if available */}
                   {newEntry.projectId&&projSubList.length>0&&(
                     <div>
@@ -6269,7 +6290,7 @@ export default function App(){
                   })}
                 </div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div>
                 <div>
                   <Lbl>AMOUNT</Lbl>
                   <input type="number" min="0" step="0.01"
@@ -6282,13 +6303,7 @@ export default function App(){
                     }}
                     placeholder="0.00"/>
                 </div>
-                <div>
-                  <Lbl>EGP RATE <span style={{color:"#4e6479",fontWeight:400}}>(this entry)</span></Lbl>
-                  <input type="number" min="1" step="0.5"
-                    value={(editExp||newExp).entry_rate||egpRate}
-                    onChange={e=>editExp?setEditExp(p=>({...p,entry_rate:+e.target.value})):setNewExp(p=>({...p,entry_rate:+e.target.value}))}
-                    placeholder={String(egpRate)}/>
-                </div>
+
               </div>
               {/* Live conversion preview */}
               {(()=>{
