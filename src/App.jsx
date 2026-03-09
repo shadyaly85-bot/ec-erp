@@ -1488,7 +1488,7 @@ const ACTIVITY_TAXONOMY = {
   ],
   "Database": [
     "Common Station Database","Block Database","Turbine Database",
-    "ESS Database","Inverter MA Database","Inverter MB Database","Inverter ME Database",
+    "BESS Database","Inverter MA Database","Inverter MB Database","Inverter ME Database",
     "Network Analyzer Database","PACK Database",
     "Circuit Breaker Database","Circuit Breaker With Command Database",
     "110 kV Database","20 kV Database","33 kV Database",
@@ -1508,6 +1508,12 @@ const ACTIVITY_TAXONOMY = {
   ],
   "Dashboard": [
     "SCADA Dashboard","Local App Dashboard","Dispatch Dashboard","Custom Dashboard",
+  ],
+  "GIS": [
+    "GIS Layer Configuration","GIS Substation Layout","GIS Line Routing",
+    "GIS Asset Tagging","GIS Network Topology","GIS Feeder Diagram",
+    "GIS Integration with SCADA","GIS Background Map Setup",
+    "GIS Coordinate System Setup","GIS Export / Report","Other GIS",
   ],
   /* ── RTU-PLC ── */
   "RTU Configuration": [
@@ -1572,7 +1578,7 @@ const TAXONOMY_CATS = Object.keys(ACTIVITY_TAXONOMY);
 
 /* ── Category Groups ── */
 const TAXONOMY_GROUPS = {
-  "SCADA":      ["Templates","Database","Displays","Reports","Dashboard"],
+  "SCADA":      ["Templates","Database","Displays","Reports","Dashboard","GIS"],
   "RTU-PLC":    ["RTU Configuration","PLC Programming","PPC","Commissioning"],
   "Protection": ["Protection Relays","Protection Testing"],
   "General":    ["Documentation","Project Management"],
