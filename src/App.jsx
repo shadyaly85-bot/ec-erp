@@ -1,4 +1,16 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+im
+
+  // ─── Org Chart loader ───
+  const loadOrgChart = useCallback(async()=>{
+    if(!session) return;
+    const{data}=await supabase.from("org_chart").select("*").order("sort_order");
+    if(data) setOrgNodes(data);
+    setOrgLoaded(true);
+  },[session]);
+
+  useEffect(()=>{ if(session&&!orgLoaded) loadOrgChart(); },[session,orgLoaded,loadOrgChart]);
+
+port React, { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "./supabase";
 
 
@@ -3508,6 +3520,11 @@ export default function App(){
 
   const [view,setView]               = useState("dashboard");
   const [teamViewMode,setTeamViewMode] = useState("org"); // "org" | "grid"
+  const [orgNodes,setOrgNodes]         = useState([]); // [{id,engineer_id,name,title,parent_id,is_external,sort_order}]
+  const [orgLoaded,setOrgLoaded]       = useState(false);
+  const [orgEditing,setOrgEditing]     = useState(false);
+  const [orgEditNode,setOrgEditNode]   = useState(null); // node being edited
+  const [orgDragId,setOrgDragId]       = useState(null); // dragging node id
   const [browseEngId,setBrowseEngId] = useState(null);
   const [weekOf,setWeekOf]           = useState(fmt(today));
   const [month,setMonth]             = useState(today.getMonth());
@@ -5289,179 +5306,284 @@ export default function App(){
 
               {/* ── ORG CHART VIEW ── */}
               {teamViewMode==="org"&&(()=>{
-                // Find engineer by partial name match
-                const findEng = (namePart) => engStats.find(e=>e.name?.toLowerCase().includes(namePart.toLowerCase()));
+                // Build tree from flat orgNodes array
+                const roots = orgNodes.filter(n=>!n.parent_id);
+                const children = (pid) => orgNodes.filter(n=>n.parent_id===pid).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
 
-                // Org chart structure from org chart PDF
-                // Top: Radu Brasoveanu (CEO Romain - external, no card)
-                // Level 1: Sameh Said (CTO Romain), Shady Aly (EM Egypt)
-                // Under Sameh: Ahmed Hassan (Tech Lead), Ahmed Farahat (Tech Lead), Omar Fahim (Accountant)
-                // Under Shady: Ziad El Gayar, Khaled Abdallah, Ismail Falogy, Ahmed Ragab
-                //   Under Ziad/Khaled: Ahmed Essam, Ruqaya Hamdy, Alaa Mahmoud, Shehab Mohamed, Ibrahim Ghorab
-                //   Under Ismail: (Protection junior TBD)
-                //   Under Ahmed Ragab: (RTU junior TBD)
-
-                const OC={bg:"#0b1526",border:"1px solid #192d47",borderRadius:8,padding:"10px 12px",textAlign:"center",cursor:"pointer",minWidth:130,position:"relative"};
-                const LINE_V={width:2,background:"#192d47",margin:"0 auto"};
-                const LINE_H={height:2,background:"#192d47",flex:1};
-
-                const EngCard=({namePart,externalName,externalTitle,externalSub,dimmed})=>{
-                  const eng=namePart?findEng(namePart):null;
-                  const isSelected=eng&&filterEngineer===String(eng.id);
-                  const active=eng?isEngActive(eng):true;
-                  if(!eng&&externalName){
-                    // External / placeholder card
-                    return(
-                      <div style={{...OC,background:"#060e1c",border:"1px dashed #192d47",opacity:0.6,minWidth:110,padding:"8px 10px"}}>
-                        <div style={{width:32,height:32,borderRadius:"50%",background:"#1e3a5f",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 6px",fontSize:11,color:"#4e6479",fontWeight:700}}>
-                          {externalName.slice(0,2).toUpperCase()}
-                        </div>
-                        <div style={{fontSize:11,fontWeight:600,color:"#4e6479"}}>{externalName}</div>
-                        <div style={{fontSize:9,color:"#2e4a66",marginTop:2}}>{externalTitle}</div>
-                        {externalSub&&<div style={{fontSize:8,color:"#1e3a5f",marginTop:1}}>{externalSub}</div>}
-                      </div>
-                    );
+                const saveNode = async(node) => {
+                  const{id,...fields}=node;
+                  if(id&&id>0){
+                    const{error}=await supabase.from("org_chart").update(fields).eq("id",id);
+                    if(error){showToast("Save error: "+error.message,false);return;}
+                    setOrgNodes(prev=>prev.map(n=>n.id===id?{...n,...fields}:n));
+                  } else {
+                    const{data,error}=await supabase.from("org_chart").insert(fields).select().single();
+                    if(error){showToast("Insert error: "+error.message,false);return;}
+                    setOrgNodes(prev=>[...prev,data]);
                   }
-                  if(!eng) return null;
-                  const wh=eng.workHrs||0;
-                  const util=eng.utilization||0;
+                  setOrgEditNode(null);
+                  showToast("Saved ✓");
+                };
+
+                const deleteNode = async(id) => {
+                  if(!window.confirm("Delete this node? Children will become unattached.")) return;
+                  await supabase.from("org_chart").delete().eq("id",id);
+                  setOrgNodes(prev=>prev.filter(n=>n.id!==id));
+                  showToast("Deleted");
+                };
+
+                const moveNode = async(nodeId, newParentId) => {
+                  const node = orgNodes.find(n=>n.id===nodeId);
+                  if(!node) return;
+                  const updated = {...node, parent_id: newParentId||null};
+                  await supabase.from("org_chart").update({parent_id:newParentId||null}).eq("id",nodeId);
+                  setOrgNodes(prev=>prev.map(n=>n.id===nodeId?updated:n));
+                  showToast("Moved ✓");
+                };
+
+                // Card component
+                const OrgCard = ({node}) => {
+                  const eng = node.engineer_id ? engStats.find(e=>e.id===node.engineer_id) : null;
+                  const active = eng ? isEngActive(eng) : true;
+                  const isDragging = orgDragId===node.id;
+                  const wh = eng?.workHrs||0;
+                  const util = eng?.utilization||0;
+                  const rc = eng ? (ROLE_COLORS[eng.role_type]||"#4e6479") : "#2e4a66";
+
                   return(
-                    <div onClick={()=>setFilterEngineer(isSelected?"ALL":String(eng.id))}
-                      style={{...OC,
-                        opacity:!active?0.45:dimmed?0.7:1,
-                        border:isSelected?"1px solid #38bdf8":!active?"1px solid #0f1e2e":"1px solid #192d47",
-                        background:isSelected?"#001e36":OC.bg,
+                    <div
+                      draggable={orgEditing}
+                      onDragStart={orgEditing?()=>setOrgDragId(node.id):undefined}
+                      onDragEnd={orgEditing?()=>setOrgDragId(null):undefined}
+                      onDragOver={orgEditing?e=>e.preventDefault():undefined}
+                      onDrop={orgEditing?e=>{e.preventDefault();e.stopPropagation();if(orgDragId&&orgDragId!==node.id) moveNode(orgDragId,node.id);}:undefined}
+                      style={{
+                        background: node.is_external?"#060e1c":"#0b1526",
+                        border: orgEditing?"1px dashed #38bdf870":`1px solid ${node.is_external?"#1e3a5f30":"#192d47"}`,
+                        borderRadius:8, padding:"10px 12px", textAlign:"center",
+                        minWidth:120, maxWidth:140, cursor:orgEditing?"grab":"pointer",
+                        opacity: isDragging?0.4:!active?0.5:1,
                         filter:!active?"grayscale(1)":"none",
-                        transition:"all .15s"}}>
-                      <div className="av" style={{width:34,height:34,fontSize:11,margin:"0 auto 6px",
-                        background:ROLE_COLORS[eng.role_type]?"#0b1526":"#0b1526",
-                        border:`2px solid ${ROLE_COLORS[eng.role_type]||"#192d47"}40`}}>
-                        {eng.name?.slice(0,2).toUpperCase()}
+                        transition:"all .15s", position:"relative",
+                        boxShadow: orgEditing?"0 0 0 1px #38bdf820":undefined,
+                      }}
+                      onClick={()=>{ if(!orgEditing&&eng) setFilterEngineer(filterEngineer===String(eng.id)?"ALL":String(eng.id)); }}
+                    >
+                      {/* Edit/delete buttons */}
+                      {orgEditing&&isAdmin&&(
+                        <div style={{position:"absolute",top:4,right:4,display:"flex",gap:3}}>
+                          <button onClick={e=>{e.stopPropagation();setOrgEditNode({...node});}}
+                            style={{background:"#192d47",border:"none",color:"#38bdf8",width:18,height:18,borderRadius:3,fontSize:9,cursor:"pointer",padding:0}}>✎</button>
+                          <button onClick={e=>{e.stopPropagation();deleteNode(node.id);}}
+                            style={{background:"#1a0808",border:"none",color:"#f87171",width:18,height:18,borderRadius:3,fontSize:9,cursor:"pointer",padding:0}}>✕</button>
+                        </div>
+                      )}
+                      {/* Avatar */}
+                      <div style={{width:34,height:34,borderRadius:"50%",
+                        background:node.is_external?"#1e3a5f":"#0b1526",
+                        border:`2px solid ${rc}40`,
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        margin:"0 auto 6px",fontSize:11,fontWeight:700,color:rc}}>
+                        {(node.name||"?").slice(0,2).toUpperCase()}
                       </div>
-                      <div style={{fontSize:11,fontWeight:700,color:isSelected?"#38bdf8":"#f0f6ff",lineHeight:1.2,marginBottom:3}}>
-                        {eng.name?.split(" ").slice(0,2).join(" ")}
-                        {!active&&<span style={{fontSize:8,marginLeft:4,color:"#f87171"}}>LEFT</span>}
+                      {/* Name */}
+                      <div style={{fontSize:11,fontWeight:700,color:node.is_external?"#4e6479":"#f0f6ff",lineHeight:1.2,marginBottom:2}}>
+                        {node.name}
+                        {!active&&eng&&<span style={{fontSize:7,marginLeft:3,color:"#f87171"}}>LEFT</span>}
                       </div>
-                      <div style={{fontSize:8,color:"#2e4a66",marginBottom:4,lineHeight:1.3}}>{eng.role}</div>
-                      <span style={{fontSize:8,padding:"1px 5px",borderRadius:3,
-                        background:(ROLE_COLORS[eng.role_type]||"#4e6479")+"20",
-                        color:ROLE_COLORS[eng.role_type]||"#4e6479"}}>
+                      {/* Title */}
+                      {node.title&&<div style={{fontSize:8,color:"#2e4a66",marginBottom:4,lineHeight:1.3}}>{node.title}</div>}
+                      {/* Role badge */}
+                      {eng&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:3,background:rc+"20",color:rc}}>
                         {ROLE_LABELS[eng.role_type]||eng.role_type}
-                      </span>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3,marginTop:6}}>
-                        <div style={{background:"#060e1c",borderRadius:4,padding:"3px 2px"}}>
-                          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:700,color:"#38bdf8"}}>{wh}h</div>
-                          <div style={{fontSize:7,color:"#253a52"}}>hrs</div>
+                      </span>}
+                      {node.is_external&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:3,background:"#192d47",color:"#2e4a66"}}>External</span>}
+                      {/* Stats */}
+                      {eng&&!node.is_external&&(
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3,marginTop:6}}>
+                          <div style={{background:"#060e1c",borderRadius:4,padding:"3px 2px"}}>
+                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:700,color:"#38bdf8"}}>{wh}h</div>
+                            <div style={{fontSize:7,color:"#253a52"}}>hrs</div>
+                          </div>
+                          <div style={{background:"#060e1c",borderRadius:4,padding:"3px 2px"}}>
+                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:700,color:util>=80?"#34d399":util>=60?"#fb923c":"#f87171"}}>{util}%</div>
+                            <div style={{fontSize:7,color:"#253a52"}}>util</div>
+                          </div>
                         </div>
-                        <div style={{background:"#060e1c",borderRadius:4,padding:"3px 2px"}}>
-                          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:700,color:util>=80?"#34d399":util>=60?"#fb923c":"#f87171"}}>{util}%</div>
-                          <div style={{fontSize:7,color:"#253a52"}}>util</div>
-                        </div>
+                      )}
+                    </div>
+                  );
+                };
+
+                // Recursive tree renderer
+                const RenderLevel = ({nodes, depth=0}) => {
+                  if(!nodes.length) return null;
+                  return(
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                      <div style={{display:"flex",gap:16,alignItems:"flex-start",position:"relative"}}>
+                        {/* Horizontal top connector bar when multiple siblings */}
+                        {nodes.length>1&&(
+                          <div style={{position:"absolute",top:0,left:"calc(50% - (100% - 140px)/2)",right:"calc(50% - (100% - 140px)/2)",height:2,background:"#192d47",maxWidth:"100%",minWidth:0}}/>
+                        )}
+                        {nodes.map(node=>{
+                          const kids = children(node.id);
+                          return(
+                            <div key={node.id} style={{display:"flex",flexDirection:"column",alignItems:"center",position:"relative"}}>
+                              {/* Drop zone for reordering — only in edit mode */}
+                              {orgEditing&&(
+                                <div onDragOver={e=>e.preventDefault()}
+                                  onDrop={e=>{e.preventDefault();e.stopPropagation();if(orgDragId&&orgDragId!==node.id) moveNode(orgDragId,node.parent_id||null);}}
+                                  style={{position:"absolute",top:0,left:0,right:0,bottom:0,zIndex:10,borderRadius:8,border:"1px dashed transparent"}}/>
+                              )}
+                              <OrgCard node={node}/>
+                              {kids.length>0&&(
+                                <>
+                                  <div style={{width:2,height:16,background:"#192d47"}}/>
+                                  <RenderLevel nodes={kids} depth={depth+1}/>
+                                </>
+                              )}
+                              {/* Add child button in edit mode */}
+                              {orgEditing&&isAdmin&&(
+                                <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:node.id,is_external:false,sort_order:kids.length})}
+                                  style={{marginTop:6,background:"#0b1a2e",border:"1px dashed #38bdf840",color:"#38bdf870",
+                                    borderRadius:6,padding:"2px 10px",fontSize:9,cursor:"pointer",width:"100%"}}>
+                                  + add
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
                 };
 
-                // Connector helpers
-                const VLine=({h=20})=><div style={{...LINE_V,height:h}}/>;
-                const HBranch=({children,gap=12})=>(
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                    <VLine h={16}/>
-                    <div style={{display:"flex",alignItems:"flex-start",gap,position:"relative"}}>
-                      {React.Children.map(children,(child,i)=>(
-                        <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>{child}</div>
-                      ))}
-                    </div>
-                  </div>
-                );
-
                 return(
-                  <div style={{overflowX:"auto",paddingBottom:16}}>
-                    <div style={{minWidth:900,display:"flex",flexDirection:"column",alignItems:"center",gap:0}}>
+                  <div>
+                    {/* Toolbar */}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                      <div style={{fontSize:11,color:"#2e4a66"}}>
+                        {orgEditing
+                          ? <span style={{color:"#fb923c"}}>✎ Edit mode — drag cards to reparent · click ✎ to edit · click + to add child</span>
+                          : <span>Click any card to filter · {orgNodes.length} people</span>}
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        {isAdmin&&(
+                          <>
+                            <button onClick={()=>setOrgEditing(e=>!e)}
+                              style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",
+                                background:orgEditing?"#fb923c20":"#192d47",
+                                border:`1px solid ${orgEditing?"#fb923c":"#2e4a66"}`,
+                                color:orgEditing?"#fb923c":"#7a8faa"}}>
+                              {orgEditing?"✓ Done Editing":"✎ Edit Chart"}
+                            </button>
+                            {orgEditing&&(
+                              <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:null,is_external:false,sort_order:roots.length})}
+                                style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",
+                                  background:"#34d39915",border:"1px solid #34d39940",color:"#34d399"}}>
+                                + Root Node
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
 
-                      {/* ── TOP: Radu Brasoveanu (External CEO) ── */}
-                      <EngCard externalName="Radu Brasoveanu" externalTitle="CEO" externalSub="Romain (External)"/>
-                      <VLine h={20}/>
+                    {/* Empty state */}
+                    {orgNodes.length===0&&!orgEditing&&(
+                      <div style={{textAlign:"center",padding:"60px 20px",color:"#2e4a66"}}>
+                        <div style={{fontSize:32,marginBottom:12}}>🏢</div>
+                        <div style={{fontSize:14,fontWeight:600,color:"#4e6479",marginBottom:8}}>No org chart yet</div>
+                        <div style={{fontSize:11,marginBottom:16}}>Click "Edit Chart" to build your org chart</div>
+                        {isAdmin&&<button onClick={()=>setOrgEditing(true)} style={{padding:"8px 20px",borderRadius:6,background:"#38bdf820",border:"1px solid #38bdf840",color:"#38bdf8",fontSize:12,cursor:"pointer"}}>✎ Edit Chart</button>}
+                      </div>
+                    )}
 
-                      {/* ── LEVEL 1: Sameh Said + Shady Aly ── */}
-                      <div style={{display:"flex",gap:80,alignItems:"flex-start",position:"relative"}}>
-                        {/* Horizontal connector line */}
-                        <div style={{position:"absolute",top:0,left:"25%",right:"25%",height:2,background:"#192d47"}}/>
-
-                        {/* LEFT BRANCH: Sameh Said */}
-                        <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                          <EngCard namePart="Sameh"/>
-
-                          <HBranch gap={10}>
-                            {/* Ahmed Hassan */}
-                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                              <VLine h={16}/>
-                              <EngCard namePart="Ahmed Hassan"/>
+                    {/* Chart */}
+                    {orgNodes.length>0&&(
+                      <div style={{overflowX:"auto",paddingBottom:20}}>
+                        <div style={{minWidth:600,display:"flex",flexDirection:"column",alignItems:"center",gap:0,paddingTop:8}}>
+                          {/* Top-level drop zone */}
+                          {orgEditing&&(
+                            <div onDragOver={e=>e.preventDefault()}
+                              onDrop={e=>{e.preventDefault();if(orgDragId) moveNode(orgDragId,null);}}
+                              style={{width:"100%",padding:"6px",textAlign:"center",fontSize:9,color:"#2e4a66",
+                                border:"1px dashed #192d47",borderRadius:6,marginBottom:8}}>
+                              ↑ Drop here to make root
                             </div>
-                            {/* Ahmed Farahat */}
-                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                              <VLine h={16}/>
-                              <EngCard namePart="Farahat"/>
-                            </div>
-                            {/* Omar Fahim */}
-                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                              <VLine h={16}/>
-                              <EngCard namePart="Omar"/>
-                            </div>
-                          </HBranch>
+                          )}
+                          <RenderLevel nodes={roots.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))}/>
                         </div>
+                      </div>
+                    )}
 
-                        {/* RIGHT BRANCH: Shady Aly */}
-                        <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                          <EngCard namePart="Shady"/>
+                    {/* Edit Node Modal */}
+                    {orgEditNode&&(
+                      <div style={{position:"fixed",inset:0,background:"#00000090",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}
+                        onClick={e=>{if(e.target===e.currentTarget)setOrgEditNode(null);}}>
+                        <div style={{background:"#0d1b2e",border:"1px solid #192d47",borderRadius:12,padding:24,width:360,display:"grid",gap:12}}>
+                          <div style={{fontSize:14,fontWeight:700,color:"#38bdf8",marginBottom:4}}>
+                            {orgEditNode.id?"Edit Node":"Add Node"}
+                          </div>
 
-                          <VLine h={16}/>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:"#4e6479",marginBottom:4}}>DISPLAY NAME *</div>
+                            <input value={orgEditNode.name||""} onChange={e=>setOrgEditNode(p=>({...p,name:e.target.value}))}
+                              placeholder="e.g. Sameh Said" style={{width:"100%",boxSizing:"border-box"}}/>
+                          </div>
 
-                          {/* L2 under Shady: Ziad, Khaled, Ismail, Ahmed Ragab */}
-                          <div style={{display:"flex",gap:10,alignItems:"flex-start",position:"relative"}}>
-                            <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"#192d47"}}/>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:"#4e6479",marginBottom:4}}>TITLE / ROLE LABEL</div>
+                            <input value={orgEditNode.title||""} onChange={e=>setOrgEditNode(p=>({...p,title:e.target.value}))}
+                              placeholder="e.g. CTO · Romain" style={{width:"100%",boxSizing:"border-box"}}/>
+                          </div>
 
-                            {/* Ziad El Gayar → juniors */}
-                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                              <VLine h={16}/>
-                              <EngCard namePart="Ziad"/>
-                              <HBranch gap={8}>
-                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><VLine h={16}/><EngCard namePart="Essam"/></div>
-                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><VLine h={16}/><EngCard namePart="Ruqaya"/></div>
-                              </HBranch>
-                            </div>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:"#4e6479",marginBottom:4}}>LINK TO ENGINEER (optional)</div>
+                            <select value={orgEditNode.engineer_id||""} onChange={e=>setOrgEditNode(p=>({...p,engineer_id:e.target.value?+e.target.value:null}))}
+                              style={{width:"100%",boxSizing:"border-box"}}>
+                              <option value="">— External / No link —</option>
+                              {engineers.map(e=><option key={e.id} value={e.id}>{e.name} · {e.role}</option>)}
+                            </select>
+                          </div>
 
-                            {/* Khaled Abdallah → juniors */}
-                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                              <VLine h={16}/>
-                              <EngCard namePart="Khaled"/>
-                              <HBranch gap={8}>
-                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><VLine h={16}/><EngCard namePart="Alaa"/></div>
-                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><VLine h={16}/><EngCard namePart="Shehab"/></div>
-                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}><VLine h={16}/><EngCard namePart="Ghorab"/></div>
-                              </HBranch>
-                            </div>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:"#4e6479",marginBottom:4}}>REPORTS TO</div>
+                            <select value={orgEditNode.parent_id||""} onChange={e=>setOrgEditNode(p=>({...p,parent_id:e.target.value?+e.target.value:null}))}
+                              style={{width:"100%",boxSizing:"border-box"}}>
+                              <option value="">— Top level (root) —</option>
+                              {orgNodes.filter(n=>n.id!==orgEditNode.id).map(n=>(
+                                <option key={n.id} value={n.id}>{n.name}</option>
+                              ))}
+                            </select>
+                          </div>
 
-                            {/* Ismail Falogy → Protection Lead */}
-                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                              <VLine h={16}/>
-                              <EngCard namePart="Ismail"/>
-                            </div>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <input type="checkbox" id="extChk" checked={!!orgEditNode.is_external}
+                              onChange={e=>setOrgEditNode(p=>({...p,is_external:e.target.checked}))}/>
+                            <label htmlFor="extChk" style={{fontSize:11,color:"#7a8faa",cursor:"pointer"}}>External person (dashed card)</label>
+                          </div>
 
-                            {/* Ahmed Ragab → RTU Lead */}
-                            <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                              <VLine h={16}/>
-                              <EngCard namePart="Ragab"/>
-                            </div>
+                          <div>
+                            <div style={{fontSize:10,fontWeight:700,color:"#4e6479",marginBottom:4}}>SORT ORDER</div>
+                            <input type="number" value={orgEditNode.sort_order||0} onChange={e=>setOrgEditNode(p=>({...p,sort_order:+e.target.value}))}
+                              style={{width:80}}/>
+                          </div>
 
+                          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
+                            <button className="bg" onClick={()=>setOrgEditNode(null)}>Cancel</button>
+                            <button className="bp" onClick={()=>{
+                              if(!orgEditNode.name?.trim()){showToast("Name required",false);return;}
+                              saveNode(orgEditNode);
+                            }}>Save Node</button>
                           </div>
                         </div>
                       </div>
-
-                    </div>
+                    )}
                   </div>
                 );
               })()}
+
 
               {/* ── GRID VIEW ── */}
               {teamViewMode==="grid"&&<div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
