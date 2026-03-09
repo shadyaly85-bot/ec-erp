@@ -483,13 +483,23 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         <div>
           <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>GROUP</label>
-          <select value={aDraft.group_name||"SCADA"} onChange={e=>setADraft(p=>({...p,group_name:e.target.value}))}>
+          <select value={aDraft.group_name||"SCADA"} onChange={e=>{
+            const g=e.target.value;
+            const cats={"SCADA":["Templates","Database","Displays","Reports","Dashboard","GIS","Symbols"],"RTU-PLC":["RTU Configuration","PLC Programming","PPC","Commissioning"],"Protection":["Protection Relays","Protection Testing"],"General":["Documentation","Project Management"]};
+            setADraft(p=>({...p,group_name:g,category:(cats[g]||[])[0]||""}));
+          }}>
             {["SCADA","RTU-PLC","Protection","General"].map(g=><option key={g}>{g}</option>)}
           </select>
         </div>
         <div>
           <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>CATEGORY</label>
-          <input value={aDraft.category||""} onChange={e=>setADraft(p=>({...p,category:e.target.value}))} placeholder="e.g. Templates"/>
+          {(()=>{
+            const cats={"SCADA":["Templates","Database","Displays","Reports","Dashboard","GIS","Symbols"],"RTU-PLC":["RTU Configuration","PLC Programming","PPC","Commissioning"],"Protection":["Protection Relays","Protection Testing"],"General":["Documentation","Project Management"]};
+            const opts=cats[aDraft.group_name||"SCADA"]||[];
+            return <select value={aDraft.category||opts[0]||""} onChange={e=>setADraft(p=>({...p,category:e.target.value}))}>
+              {opts.map(cat=><option key={cat}>{cat}</option>)}
+            </select>;
+          })()}
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -2715,7 +2725,12 @@ const ytdData=ytdMonths.map(m=>{
   const mE=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===m&&e.entry_type==="work";});
   const rev=mE.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
   const mMonthExp=expenses.filter(e=>e.month===m&&e.year===finYear);
-  const mExpUSD=mMonthExp.filter(e=>e.category!=="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
+  // Non-salary expenses: use entry_rate for EGP. If no entry_rate set, treat EGP as 0 (explicit rate required).
+const mExpUSD=mMonthExp.filter(e=>e.category!=="Salaries").reduce((s,e)=>{
+  if(e.amount_usd>0) return s+e.amount_usd;
+  if(e.amount_egp>0&&e.entry_rate>0) return s+(e.amount_egp/e.entry_rate);
+  return s; // EGP with no rate: excluded (needs explicit rate)
+},0);
   const mSalaryCat=mMonthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
   const mPayroll=activeStaff.filter(s=>wasEmployed(s,finYear,m)).reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp),0);
   const cost=mPayroll+mSalaryCat+mExpUSD;
@@ -2786,8 +2801,8 @@ const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov"
     </select>
     {/* EGP/USD Rate box */}
     <div style={{display:"flex",alignItems:"center",gap:6,background:"#060e1c",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
-      <span style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".05em"}}>EGP/USD</span>
-      <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value))}
+      <div><span style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".05em"}}>EGP/USD</span><div style={{fontSize:8,color:"#1e3a5f",marginTop:1}}>salaries only</div></div>
+      <input title="Used for EGP salary → USD conversion only. Expenses use their own per-entry rate." type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value))}
         style={{width:55,background:"transparent",border:"none",color:"#38bdf8",fontSize:13,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"center",outline:"none"}}
         min="1" step="0.5"/>
       <span style={{fontSize:9,color:"#2e4a66"}}>per $1</span>
@@ -6808,43 +6823,40 @@ CREATE POLICY "auth_all" ON projects
                   })}
                 </div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:(editExp||newExp).currency==="EGP"?"1fr 1fr":"1fr",gap:10}}>
-                <div>
-                  <Lbl>AMOUNT</Lbl>
-                  <input type="number" min="0" step="0.01"
-                    value={(editExp||newExp).currency==="EGP"?(editExp||newExp).amount_egp||"":((editExp||newExp).amount_usd||"")}
-                    onChange={e=>{
-                      const v=+e.target.value;
-                      const cur=(editExp||newExp).currency||"USD";
-                      if(editExp) setEditExp(p=>cur==="EGP"?{...p,amount_egp:v,amount_usd:0}:{...p,amount_usd:v,amount_egp:0});
-                      else setNewExp(p=>cur==="EGP"?{...p,amount_egp:v,amount_usd:0}:{...p,amount_usd:v,amount_egp:0});
-                    }}
-                    placeholder="0.00"/>
-                </div>
-                {(editExp||newExp).currency==="EGP"&&(
-                  <div>
-                    <Lbl>EGP RATE <span style={{color:"#4e6479",fontWeight:400}}>(for this entry)</span></Lbl>
-                    <input type="number" min="1" max="999" step="0.5"
-                      value={(editExp||newExp).entry_rate||""}
-                      onChange={e=>editExp?setEditExp(p=>({...p,entry_rate:e.target.value?+e.target.value:null})):setNewExp(p=>({...p,entry_rate:e.target.value?+e.target.value:null}))}
-                      placeholder={String(egpRate)}/>
-                  </div>
-                )}
-              </div>
-              {/* Live conversion preview */}
               {(()=>{
                 const exp=editExp||newExp;
-                const rate=exp.entry_rate||egpRate;
                 const cur=exp.currency||"USD";
-                const usdVal=cur==="USD"?(exp.amount_usd||0):Math.round((exp.amount_egp||0)/rate*100)/100;
-                const egpVal=cur==="EGP"?(exp.amount_egp||0):Math.round((exp.amount_usd||0)*rate);
-                if(!usdVal&&!egpVal) return null;
-                return(
-                <div style={{padding:"6px 10px",background:"#060e1c",borderRadius:5,border:"1px solid #192d47",fontSize:10,color:"#4e6479",display:"flex",gap:16}}>
-                  <span>≈ <span style={{color:"#38bdf8",fontFamily:"'IBM Plex Mono',monospace"}}>${usdVal.toLocaleString()}</span></span>
-                  <span>≈ <span style={{color:"#a78bfa",fontFamily:"'IBM Plex Mono',monospace"}}>EGP {egpVal.toLocaleString()}</span></span>
-                  <span style={{color:"#2e4a66"}}>@ {rate} EGP/$</span>
-                </div>);
+                const isEGP=cur==="EGP";
+                const rate=exp.entry_rate||egpRate;
+                const amtVal=isEGP?(exp.amount_egp||""):(exp.amount_usd||"");
+                const setAmt=v=>{ if(editExp) setEditExp(p=>isEGP?{...p,amount_egp:v,amount_usd:0}:{...p,amount_usd:v,amount_egp:0}); else setNewExp(p=>isEGP?{...p,amount_egp:v,amount_usd:0}:{...p,amount_usd:v,amount_egp:0}); };
+                const setRate=v=>{ if(editExp) setEditExp(p=>({...p,entry_rate:v||null})); else setNewExp(p=>({...p,entry_rate:v||null})); };
+                return(<>
+                  <div style={{display:"grid",gridTemplateColumns:isEGP?"2fr 1fr":"1fr",gap:10}}>
+                    <div>
+                      <Lbl>{isEGP?"AMOUNT (EGP)":"AMOUNT (USD)"}</Lbl>
+                      <input type="number" min="0" step={isEGP?"1":"0.01"}
+                        value={amtVal}
+                        onChange={e=>setAmt(+e.target.value)}
+                        placeholder={isEGP?"0":"0.00"}/>
+                    </div>
+                    {isEGP&&(
+                      <div>
+                        <Lbl>RATE <span style={{color:"#4e6479",fontWeight:400,fontSize:9}}>EGP/$</span></Lbl>
+                        <input type="number" min="1" max="9999" step="1"
+                          value={exp.entry_rate||""}
+                          onChange={e=>setRate(e.target.value?+e.target.value:null)}
+                          placeholder={String(egpRate)}/>
+                      </div>
+                    )}
+                  </div>
+                  {isEGP&&(exp.amount_egp>0)&&(
+                    <div style={{padding:"5px 10px",background:"#060e1c",borderRadius:4,border:"1px solid #0f1e2e",fontSize:10,color:"#4e6479"}}>
+                      ≈ <span style={{color:"#38bdf8",fontFamily:"'IBM Plex Mono',monospace"}}>${(Math.round((exp.amount_egp||0)/(rate)*100)/100).toLocaleString()}</span>
+                      <span style={{marginLeft:8}}>@ {rate} EGP/$</span>
+                    </div>
+                  )}
+                </>);
               })()}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Month</Lbl>
