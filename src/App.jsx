@@ -7,10 +7,7 @@ const LOGO_SRC="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEA
 const LogoImg=()=>(<img src={LOGO_SRC} alt="ENEVO Group" style={{width:64,height:64,borderRadius:12,objectFit:"contain",background:"transparent"}}/>);
 
 /* ─── STATIC DATA ─── */
-/* TASK_CATEGORIES now mirrors TAXONOMY_GROUPS/ACTIVITY_TAXONOMY from Project Tracker */
-const TASK_CATEGORIES = TAXONOMY_GROUPS; // group -> [categories]
-// For backwards-compat: flat map of category -> activities (same as ACTIVITY_TAXONOMY)
-const TASK_TYPES = ACTIVITY_TAXONOMY;
+/* TASK_CATEGORIES defined below after TAXONOMY_GROUPS — see line ~1590 */
 const LEAVE_TYPES  = ["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
 const FUNCTION_CATS = [
   "Internal Training — Given",
@@ -1589,6 +1586,9 @@ const TAXONOMY_GROUPS = {
   "General":    ["Documentation","Project Management"],
 };
 const TAXONOMY_GROUP_NAMES = Object.keys(TAXONOMY_GROUPS);
+/* TASK_CATEGORIES = alias for TAXONOMY_GROUPS (used in Post Hours & reports) */
+const TASK_CATEGORIES = TAXONOMY_GROUPS;
+const TASK_TYPES = ACTIVITY_TAXONOMY;
 const CAT_TO_GROUP = {};
 Object.entries(TAXONOMY_GROUPS).forEach(([g,cats])=>cats.forEach(c=>{CAT_TO_GROUP[c]=g;}));
 
@@ -3268,7 +3268,7 @@ export default function App(){
   const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:"",termination_date:"",notes:""});
   const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
-  const [newEntry,setNewEntry]   = useState({projectId:"",_group:TAXONOMY_GROUP_NAMES[0],taskCategory:TAXONOMY_GROUPS[TAXONOMY_GROUP_NAMES[0]][0],taskType:ACTIVITY_TAXONOMY[TAXONOMY_GROUPS[TAXONOMY_GROUP_NAMES[0]][0]]?.[0]||"",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
+  const [newEntry,setNewEntry]   = useState({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
   const [newProj,setNewProj]     = useState({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
   const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
 
@@ -3418,7 +3418,7 @@ export default function App(){
     if(error){showToast("Error: "+error.message,false);return;}
     if(data) setEntries(prev=>[data,...prev]);
     setModalDate(null);
-    setNewEntry({projectId:"",_group:TAXONOMY_GROUP_NAMES[0],taskCategory:TAXONOMY_GROUPS[TAXONOMY_GROUP_NAMES[0]][0],taskType:ACTIVITY_TAXONOMY[TAXONOMY_GROUPS[TAXONOMY_GROUP_NAMES[0]][0]]?.[0]||"",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
+    setNewEntry({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
     showToast("Hours posted ✓");
   };
 
@@ -5868,13 +5868,13 @@ export default function App(){
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <div><Lbl>Task Category</Lbl>
-                    <select value={editEntry.taskCategory||editEntry.task_category||"Engineering"} onChange={e=>setEditEntry(p=>({...p,taskCategory:e.target.value,taskType:TASK_CATEGORIES[e.target.value][0]}))}>
+                    <select value={editEntry.taskCategory||editEntry.task_category||"SCADA"} onChange={e=>setEditEntry(p=>({...p,taskCategory:e.target.value,taskType:(TASK_CATEGORIES[e.target.value]||[])[0]||""}))}>
                       {Object.keys(TASK_CATEGORIES).map(c=><option key={c}>{c}</option>)}
                     </select>
                   </div>
                   <div><Lbl>Task Type</Lbl>
                     <select value={editEntry.taskType||editEntry.task_type||""} onChange={e=>setEditEntry(p=>({...p,taskType:e.target.value}))}>
-                      {(TASK_CATEGORIES[editEntry.taskCategory||editEntry.task_category||"Engineering"]||[]).map(t=><option key={t}>{t}</option>)}
+                      {(TASK_CATEGORIES[editEntry.taskCategory||editEntry.task_category||"SCADA"]||[]).map(t=><option key={t}>{t}</option>)}
                     </select>
                   </div>
                 </div>
