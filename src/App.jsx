@@ -1515,6 +1515,16 @@ const ACTIVITY_TAXONOMY = {
     "GIS Integration with SCADA","GIS Background Map Setup",
     "GIS Coordinate System Setup","GIS Export / Report","Other GIS",
   ],
+  "Symbols": [
+    "Circuit Breaker Symbol","Disconnector Symbol","Earth Switch Symbol",
+    "Transformer Symbol","Busbar Symbol","Cable / Line Symbol",
+    "Inverter Symbol","Generator Symbol","BESS Symbol",
+    "Weather Station Symbol","Measurement Symbol","Protection Relay Symbol",
+    "PLC / RTU Symbol","Motor Symbol","Pump Symbol","Valve Symbol",
+    "Capacitor Bank Symbol","Surge Arrester Symbol",
+    "110 kV Equipment Symbol","33 kV Equipment Symbol","20 kV Equipment Symbol","0.4 kV Equipment Symbol",
+    "Animated Status Symbol","Alarm Indicator Symbol","Custom Symbol","Other Symbol",
+  ],
   /* ── RTU-PLC ── */
   "RTU Configuration": [
     "Hardware Configuration","Communication Configuration",
@@ -1578,7 +1588,7 @@ const TAXONOMY_CATS = Object.keys(ACTIVITY_TAXONOMY);
 
 /* ── Category Groups ── */
 const TAXONOMY_GROUPS = {
-  "SCADA":      ["Templates","Database","Displays","Reports","Dashboard","GIS"],
+  "SCADA":      ["Templates","Database","Displays","Reports","Dashboard","GIS","Symbols"],
   "RTU-PLC":    ["RTU Configuration","PLC Programming","PPC","Commissioning"],
   "Protection": ["Protection Relays","Protection Testing"],
   "General":    ["Documentation","Project Management"],
