@@ -3587,12 +3587,12 @@ export default function App(){
   const [editStaff,setEditStaff]           = useState(null);
   const [showExpModal,setShowExpModal]     = useState(false);
   const [editExp,setEditExp]               = useState(null);
-  const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:"",termination_date:"",notes:""});
+  const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:null,termination_date:null,notes:""});
   const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:null,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
   const [newEntry,setNewEntry]   = useState({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
   const [newProj,setNewProj]     = useState({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
-  const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:"",termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
+  const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
 
   const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3500);};
 
@@ -4010,7 +4010,7 @@ export default function App(){
       else showToast(error?.message||"Error",false);
     } else {
       const{data,error}=await supabase.from("staff").insert(payload).select().single();
-      if(!error&&data){setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));showToast("Staff added");setShowStaffModal(false);setNewStaff({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:"",termination_date:"",notes:""});}
+      if(!error&&data){setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));showToast("Staff added");setShowStaffModal(false);setNewStaff({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:null,termination_date:null,notes:""});}
       else showToast(error?.message||"Error",false);
     }
   },[editStaff,newStaff,showToast]);
@@ -4511,20 +4511,49 @@ export default function App(){
 
   /* ── ENGINEER CRUD ── */
   const addEngineer=async()=>{
-    if(!newEng.name){showToast("Name required",false);return;}
-    let insertPayload={...newEng};
-    let {data,error}=await supabase.from("engineers").insert(insertPayload).select().single();
+    if(!newEng.name.trim()){showToast("Name required",false);return;}
+    if(!newEng.email.trim()){showToast("Email required",false);return;}
+    // Always sanitize date fields — empty string kills Postgres date columns
+    const payload={
+      name:      newEng.name.trim(),
+      email:     newEng.email.trim().toLowerCase(),
+      role:      newEng.role||ROLES_LIST[0],
+      level:     newEng.level||"Mid",
+      role_type: newEng.role_type||"engineer",
+      is_active: newEng.is_active!==false,
+      join_date:        newEng.join_date||null,
+      termination_date: null,
+      weekend_days: newEng.weekend_days||JSON.stringify(DEFAULT_WEEKEND),
+    };
+    let {data,error}=await supabase.from("engineers").insert(payload).select().single();
+    // Fallback: if DB schema is missing newer columns, retry without them
     if(error&&(error.message?.includes("is_active")||error.message?.includes("termination_date")||error.message?.includes("join_date"))){
-      const {is_active,termination_date,join_date,...safePayload}=insertPayload;
-      const res=await supabase.from("engineers").insert(safePayload).select().single();
-      data=res.data; error=res.error;
+      const {is_active,termination_date,join_date,...safe}=payload;
+      const r2=await supabase.from("engineers").insert(safe).select().single();
+      data=r2.data; error=r2.error;
       if(data) data={...data,is_active:true,termination_date:null,join_date:null};
     }
-    if(error){showToast("Error: "+error.message,false);return;}
+    if(error){showToast("Error adding member: "+error.message,false);return;}
+    // Add to engineers list
     setEngineers(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));
+    // Auto-create matching staff record so Finance/payroll is in sync
+    const staffPayload={
+      name:       data.name,
+      department: "Engineering",
+      role:       data.role||"",
+      type:       "full_time",
+      active:     true,
+      salary_usd: 0,
+      salary_egp: 0,
+      join_date:  data.join_date||null,
+      termination_date: null,
+      notes:      "",
+    };
+    const {data:sd,error:se}=await supabase.from("staff").insert(staffPayload).select().single();
+    if(!se&&sd) setStaff(prev=>[...prev,sd].sort((a,b)=>a.name.localeCompare(b.name)));
     setShowEngModal(false);
-    setNewEng({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
-    showToast("Engineer added ✓");
+    setNewEng({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
+    showToast("Member added ✓ — update salary in Finance > Staff");
   };
   const saveEditEngineer=async()=>{
     if(!editEngModal) return;
