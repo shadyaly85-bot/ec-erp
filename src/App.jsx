@@ -3587,7 +3587,7 @@ export default function App(){
   const [editStaff,setEditStaff]           = useState(null);
   const [showExpModal,setShowExpModal]     = useState(false);
   const [editExp,setEditExp]               = useState(null);
-  const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:null,termination_date:null,notes:""});
+  const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:null,termination_date:null,email:"",level:"Mid",role_type:"engineer",notes:""});
   const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:null,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
   const [newEntry,setNewEntry]   = useState({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
@@ -3991,29 +3991,64 @@ export default function App(){
   const saveStaff=useCallback(async()=>{
     const raw=editStaff?{...editStaff}:{...newStaff};
     if(!raw.name.trim()){showToast("Name required",false);return;}
-    // Postgres rejects empty string for date columns — convert to null
     const payload={...raw,
       join_date:        raw.join_date||null,
       termination_date: raw.termination_date||null,
     };
     if(editStaff){
+      // ── EDIT: update staff record ──
       const{data,error}=await supabase.from("staff").update(payload).eq("id",editStaff.id).select().single();
-      if(!error&&data){
-        setStaff(prev=>prev.map(s=>s.id===data.id?data:s));
-        // Sync termination_date to engineers immediately (no DB migration needed)
-        setEngineers(prev=>prev.map(eng=>{
-          if(eng.name?.trim().toLowerCase()!==data.name?.trim().toLowerCase()) return eng;
-          return {...eng, termination_date: data.termination_date||null};
-        }));
-        showToast("Staff updated");setEditStaff(null);setShowStaffModal(false);
+      if(error){showToast(error.message||"Error",false);return;}
+      setStaff(prev=>prev.map(s=>s.id===data.id?data:s));
+      // Sync ALL common fields to matching engineer record
+      const matchEng=engineers.find(e=>e.name?.trim().toLowerCase()===data.name?.trim().toLowerCase());
+      if(matchEng){
+        const engSync={
+          role:            data.role||matchEng.role,
+          is_active:       data.active!==false,
+          join_date:       data.join_date||null,
+          termination_date:data.termination_date||null,
+        };
+        const{data:ed}=await supabase.from("engineers").update(engSync).eq("id",matchEng.id).select().single();
+        if(ed) setEngineers(prev=>prev.map(e=>e.id===matchEng.id?{...e,...engSync}:e));
       }
-      else showToast(error?.message||"Error",false);
+      showToast("Staff updated");setEditStaff(null);setShowStaffModal(false);
     } else {
+      // ── ADD: insert staff record ──
       const{data,error}=await supabase.from("staff").insert(payload).select().single();
-      if(!error&&data){setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));showToast("Staff added");setShowStaffModal(false);setNewStaff({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:null,termination_date:null,notes:""});}
-      else showToast(error?.message||"Error",false);
+      if(error){showToast(error.message||"Error",false);return;}
+      setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));
+      // Auto-create engineer record so they appear in team lists
+      // Only if email provided and no existing engineer with same name
+      const existsEng=engineers.find(e=>e.name?.trim().toLowerCase()===data.name?.trim().toLowerCase());
+      if(!existsEng&&raw.email?.trim()){
+        const engPayload={
+          name:      data.name,
+          email:     raw.email.trim().toLowerCase(),
+          role:      data.role||ROLES_LIST[0],
+          level:     raw.level||"Mid",
+          role_type: raw.role_type||"engineer",
+          is_active: data.active!==false,
+          join_date: data.join_date||null,
+          termination_date: data.termination_date||null,
+          weekend_days: JSON.stringify(DEFAULT_WEEKEND),
+        };
+        let{data:ed,error:ee}=await supabase.from("engineers").insert(engPayload).select().single();
+        if(ee&&(ee.message?.includes("is_active")||ee.message?.includes("termination_date")||ee.message?.includes("join_date"))){
+          const{is_active,termination_date,join_date,...safeEng}=engPayload;
+          const r2=await supabase.from("engineers").insert(safeEng).select().single();
+          ed=r2.data;
+          if(ed) ed={...ed,is_active:true,termination_date:null,join_date:null};
+        }
+        if(ed) setEngineers(prev=>[...prev,ed].sort((a,b)=>a.name.localeCompare(b.name)));
+        showToast("Staff + engineer record created ✓");
+      } else {
+        showToast("Staff added ✓"+(existsEng?" (linked to existing engineer)":""));
+      }
+      setShowStaffModal(false);
+      setNewStaff({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:null,termination_date:null,email:"",level:"Mid",role_type:"engineer",notes:""});
     }
-  },[editStaff,newStaff,showToast]);
+  },[editStaff,newStaff,engineers,showToast]);
 
   const deleteStaff=useCallback(async(id)=>{
     if(!window.confirm("Delete this staff member?")) return;
@@ -4572,12 +4607,18 @@ export default function App(){
     if(editEngModal.name && data?.name && editEngModal.name!==data.name){
       setActivities(prev=>prev.map(a=>a.assigned_to===editEngModal.name?{...a,assigned_to:data.name}:a));
     }
-    // Always sync termination_date → matching staff record
-    setStaff(prev=>prev.map(s=>
-      s.name?.trim().toLowerCase()===merged.name?.trim().toLowerCase()
-      ?{...s, termination_date: merged.termination_date||null}
-      :s
-    ));
+    // Sync ALL common fields back to matching staff record
+    const staffSync={
+      role:            merged.role||"",
+      active:          merged.is_active!==false,
+      join_date:       merged.join_date||null,
+      termination_date:merged.termination_date||null,
+    };
+    const matchStaff=staff.find(s=>s.name?.trim().toLowerCase()===merged.name?.trim().toLowerCase());
+    if(matchStaff){
+      supabase.from("staff").update(staffSync).eq("id",matchStaff.id).then(()=>{});
+      setStaff(prev=>prev.map(s=>s.id===matchStaff.id?{...s,...staffSync}:s));
+    }
     setEngineers(prev=>prev.map(e=>e.id===id?merged:e));
     if(id===myProfile?.id) setMyProfile(merged);
     setEditEngModal(null); showToast("Updated ✓");
@@ -7204,20 +7245,23 @@ END $$;`;
       {/* ── STAFF MODAL ── */}
       {showStaffModal&&(
         <div className="modal-ov" onClick={()=>{setShowStaffModal(false);setEditStaff(null);}}>
-          <div className="modal" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:15,fontWeight:700,marginBottom:18}}>{editStaff?"Edit Staff":"Add Staff Member"}</h3>
+          <div className="modal" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{fontSize:15,fontWeight:700,marginBottom:4}}>{editStaff?"Edit Staff Member":"Add Staff Member"}</h3>
+            {!editStaff&&<p style={{fontSize:10,color:"#2e4a66",marginBottom:16}}>This will also create an engineer login record if email is provided.</p>}
             <div style={{display:"grid",gap:11}}>
+              {/* Row 1: Name + Type */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Full Name</Lbl><input value={(editStaff||newStaff).name} onChange={e=>editStaff?setEditStaff(p=>({...p,name:e.target.value})):setNewStaff(p=>({...p,name:e.target.value}))}/></div>
-                <div><Lbl>Type</Lbl>
-                  <select value={(editStaff||newStaff).type} onChange={e=>editStaff?setEditStaff(p=>({...p,type:e.target.value})):setNewStaff(p=>({...p,type:e.target.value}))}>
+                <div><Lbl>Employment Type</Lbl>
+                  <select value={(editStaff||newStaff).type||"full_time"} onChange={e=>editStaff?setEditStaff(p=>({...p,type:e.target.value})):setNewStaff(p=>({...p,type:e.target.value}))}>
                     {["full_time","part_time","contractor","intern"].map(t=><option key={t} value={t}>{t.replace("_"," ")}</option>)}
                   </select>
                 </div>
               </div>
+              {/* Row 2: Department + Job Title */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Department</Lbl>
-                  <select value={(editStaff||newStaff).department} onChange={e=>editStaff?setEditStaff(p=>({...p,department:e.target.value})):setNewStaff(p=>({...p,department:e.target.value}))}>
+                  <select value={(editStaff||newStaff).department||"Engineering"} onChange={e=>editStaff?setEditStaff(p=>({...p,department:e.target.value})):setNewStaff(p=>({...p,department:e.target.value}))}>
                     {["Engineering","Management","Finance","Operations","IT","Administration","Other"].map(d=><option key={d}>{d}</option>)}
                   </select>
                 </div>
@@ -7228,23 +7272,63 @@ END $$;`;
                   </select>
                 </div>
               </div>
+              {/* Row 3: Email (for engineer record) + Level — new staff only */}
+              {!editStaff&&(
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div>
+                    <Lbl>Email <span style={{color:"#2e4a66",fontWeight:400}}>(signup email)</span></Lbl>
+                    <input type="email" value={newStaff.email||""} onChange={e=>setNewStaff(p=>({...p,email:e.target.value}))} placeholder="name@enevoegy.com"/>
+                  </div>
+                  <div><Lbl>Level</Lbl>
+                    <select value={newStaff.level||"Mid"} onChange={e=>setNewStaff(p=>({...p,level:e.target.value}))}>
+                      {["Junior","Mid","Senior","Lead","Manager","Director"].map(l=><option key={l}>{l}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+              {/* Row 4: Access Role — new staff only */}
+              {!editStaff&&(
+                <div>
+                  <Lbl>System Access Role</Lbl>
+                  <select value={newStaff.role_type||"engineer"} onChange={e=>setNewStaff(p=>({...p,role_type:e.target.value}))}>
+                    {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                  </select>
+                  <div style={{fontSize:10,color:"#2e4a66",marginTop:3}}>
+                    {(newStaff.role_type||"engineer")==="engineer"&&"Can log hours & view own timesheets"}
+                    {(newStaff.role_type||"engineer")==="lead"&&"Can view all timesheets + approve hours"}
+                    {(newStaff.role_type||"engineer")==="accountant"&&"Full Finance tab access"}
+                    {(newStaff.role_type||"engineer")==="senior_management"&&"View-only access across all tabs"}
+                    {(newStaff.role_type||"engineer")==="admin"&&"Full access to everything"}
+                  </div>
+                </div>
+              )}
+              {/* Salaries */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Monthly Salary (USD)</Lbl><input type="number" value={(editStaff||newStaff).salary_usd||""} onChange={e=>editStaff?setEditStaff(p=>({...p,salary_usd:+e.target.value})):setNewStaff(p=>({...p,salary_usd:+e.target.value}))} placeholder="0"/></div>
                 <div><Lbl>Monthly Salary (EGP)</Lbl><input type="number" value={(editStaff||newStaff).salary_egp||""} onChange={e=>editStaff?setEditStaff(p=>({...p,salary_egp:+e.target.value})):setNewStaff(p=>({...p,salary_egp:+e.target.value}))} placeholder="0"/></div>
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <input type="checkbox" id="staffActive" checked={(editStaff||newStaff).active!==false} onChange={e=>editStaff?setEditStaff(p=>({...p,active:e.target.checked})):setNewStaff(p=>({...p,active:e.target.checked}))}/>
-                <label htmlFor="staffActive" style={{fontSize:11,color:"#7a8faa"}}>Active employee</label>
-              </div>
+              {/* Dates */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Join / Start Date</Lbl><input type="date" value={(editStaff||newStaff).join_date||""} onChange={e=>editStaff?setEditStaff(p=>({...p,join_date:e.target.value})):setNewStaff(p=>({...p,join_date:e.target.value}))}/></div>
-                <div><Lbl>Termination Date</Lbl><input type="date" value={(editStaff||newStaff).termination_date||""} onChange={e=>editStaff?setEditStaff(p=>({...p,termination_date:e.target.value})):setNewStaff(p=>({...p,termination_date:e.target.value}))} placeholder="Leave blank if active"/></div>
+                <div><Lbl>Join / Start Date</Lbl><input type="date" value={(editStaff||newStaff).join_date||""} onChange={e=>editStaff?setEditStaff(p=>({...p,join_date:e.target.value||null})):setNewStaff(p=>({...p,join_date:e.target.value||null}))}/></div>
+                <div><Lbl>Termination Date</Lbl><input type="date" value={(editStaff||newStaff).termination_date||""} onChange={e=>editStaff?setEditStaff(p=>({...p,termination_date:e.target.value||null})):setNewStaff(p=>({...p,termination_date:e.target.value||null}))}/></div>
               </div>
-              <div><Lbl>Notes</Lbl><input value={(editStaff||newStaff).notes||""} onChange={e=>editStaff?setEditStaff(p=>({...p,notes:e.target.value})):setNewStaff(p=>({...p,notes:e.target.value}))} placeholder="Optional notes"/></div>
+              {/* Active status */}
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
+                <span style={{fontSize:11,color:"#7a8faa",flex:1}}>Employment Status</span>
+                {["Active","Inactive"].map(s=>{
+                  const active=s==="Active";
+                  const sel=(editStaff||newStaff).active!==false===active;
+                  return <button key={s} onClick={()=>editStaff?setEditStaff(p=>({...p,active})):setNewStaff(p=>({...p,active}))}
+                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"#192d47"}`,
+                      background:sel?(active?"#34d399":"#f87171")+"15":"#060e1c",
+                      color:sel?(active?"#34d399":"#f87171"):"#4e6479",fontSize:11,fontWeight:600,cursor:"pointer"}}>{s}</button>;
+                })}
+              </div>
+              <div><Lbl>Notes</Lbl><input value={(editStaff||newStaff).notes||""} onChange={e=>editStaff?setEditStaff(p=>({...p,notes:e.target.value})):setNewStaff(p=>({...p,notes:e.target.value}))} placeholder="Optional"/></div>
             </div>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
               <button className="bg" onClick={()=>{setShowStaffModal(false);setEditStaff(null);}}>Cancel</button>
-              <button className="bp" onClick={saveStaff}>{editStaff?"Save Changes":"Add Staff"}</button>
+              <button className="bp" onClick={saveStaff}>{editStaff?"Save Changes":"Add Member"}</button>
             </div>
           </div>
         </div>
