@@ -5292,12 +5292,14 @@ export default function App(){
               )}
 
               {/* View toggle */}
-              <div style={{display:"flex",gap:6,marginBottom:14,alignItems:"center"}}>
-                {[["org","🏢 Org Chart"],["grid","⊞ Grid"]].map(([m,l])=>(
+              <div style={{display:"flex",gap:6,marginBottom:16,alignItems:"center"}}>
+                {[["org","Org Chart"],["grid","Grid"]].map(([m,l])=>(
                   <button key={m} onClick={()=>setTeamViewMode(m)}
-                    style={{padding:"5px 14px",borderRadius:6,border:`1px solid ${teamViewMode===m?"#38bdf8":"#192d47"}`,
-                      background:teamViewMode===m?"#38bdf815":"transparent",
-                      color:teamViewMode===m?"#38bdf8":"#4e6479",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                    style={{padding:"4px 14px",borderRadius:20,fontSize:10,fontWeight:600,cursor:"pointer",
+                      letterSpacing:".05em",textTransform:"uppercase",
+                      border:`1px solid ${teamViewMode===m?"#38bdf840":"#0f1e2e"}`,
+                      background:teamViewMode===m?"#38bdf810":"transparent",
+                      color:teamViewMode===m?"#38bdf8":"#1e3a5f"}}>
                     {l}
                   </button>
                 ))}
@@ -5340,14 +5342,13 @@ export default function App(){
                   showToast("Moved ✓");
                 };
 
-                // Card component
+                // Card component — clean, elegant, no stats
                 const OrgCard = ({node}) => {
                   const eng = node.engineer_id ? engStats.find(e=>e.id===node.engineer_id) : null;
                   const active = eng ? isEngActive(eng) : true;
                   const isDragging = orgDragId===node.id;
-                  const wh = eng?.workHrs||0;
-                  const util = eng?.utilization||0;
                   const rc = eng ? (ROLE_COLORS[eng.role_type]||"#4e6479") : "#2e4a66";
+                  const initials = (node.name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
 
                   return(
                     <div
@@ -5357,57 +5358,71 @@ export default function App(){
                       onDragOver={orgEditing?e=>e.preventDefault():undefined}
                       onDrop={orgEditing?e=>{e.preventDefault();e.stopPropagation();if(orgDragId&&orgDragId!==node.id) moveNode(orgDragId,node.id);}:undefined}
                       style={{
-                        background: node.is_external?"#060e1c":"#0b1526",
-                        border: orgEditing?"1px dashed #38bdf870":`1px solid ${node.is_external?"#1e3a5f30":"#192d47"}`,
-                        borderRadius:8, padding:"10px 12px", textAlign:"center",
-                        minWidth:120, maxWidth:140, cursor:orgEditing?"grab":"pointer",
-                        opacity: isDragging?0.4:!active?0.5:1,
-                        filter:!active?"grayscale(1)":"none",
-                        transition:"all .15s", position:"relative",
-                        boxShadow: orgEditing?"0 0 0 1px #38bdf820":undefined,
+                        background: node.is_external?"transparent":"#080f1c",
+                        border: node.is_external
+                          ? "1px dashed #1e3a5f"
+                          : orgEditing
+                            ? `1px solid ${rc}50`
+                            : `1px solid ${rc}25`,
+                        borderRadius:12,
+                        padding:"16px 14px 14px",
+                        textAlign:"center",
+                        width:148,
+                        cursor: orgEditing?"grab":"default",
+                        opacity: isDragging?0.3:!active?0.4:1,
+                        filter: !active?"grayscale(1)":"none",
+                        transition:"border-color .2s, box-shadow .2s",
+                        position:"relative",
+                        boxShadow: orgEditing?`0 0 0 1px ${rc}20`:`0 2px 12px #00000040`,
                       }}
-                      onClick={()=>{ if(!orgEditing&&eng) setFilterEngineer(filterEngineer===String(eng.id)?"ALL":String(eng.id)); }}
                     >
-                      {/* Edit/delete buttons */}
+                      {/* Edit/delete buttons — only in edit mode */}
                       {orgEditing&&isAdmin&&(
-                        <div style={{position:"absolute",top:4,right:4,display:"flex",gap:3,zIndex:20}}>
+                        <div style={{position:"absolute",top:6,right:6,display:"flex",gap:4,zIndex:20}}>
                           <button onClick={e=>{e.stopPropagation();e.preventDefault();setOrgEditNode({...node});}}
-                            style={{background:"#192d47",border:"1px solid #38bdf860",color:"#38bdf8",width:22,height:22,borderRadius:4,fontSize:10,cursor:"pointer",padding:0,zIndex:20}}>✎</button>
+                            style={{background:"#0d1b2e",border:"1px solid #38bdf830",color:"#38bdf8",width:20,height:20,
+                              borderRadius:4,fontSize:9,cursor:"pointer",padding:0,zIndex:20,lineHeight:"20px"}}>✎</button>
                           <button onClick={e=>{e.stopPropagation();e.preventDefault();deleteNode(node.id);}}
-                            style={{background:"#1a0808",border:"1px solid #f8717160",color:"#f87171",width:22,height:22,borderRadius:4,fontSize:10,cursor:"pointer",padding:0,zIndex:20}}>✕</button>
+                            style={{background:"#0d1b2e",border:"1px solid #f8717130",color:"#f87171",width:20,height:20,
+                              borderRadius:4,fontSize:9,cursor:"pointer",padding:0,zIndex:20,lineHeight:"20px"}}>✕</button>
                         </div>
                       )}
-                      {/* Avatar */}
-                      <div style={{width:34,height:34,borderRadius:"50%",
-                        background:node.is_external?"#1e3a5f":"#0b1526",
-                        border:`2px solid ${rc}40`,
-                        display:"flex",alignItems:"center",justifyContent:"center",
-                        margin:"0 auto 6px",fontSize:11,fontWeight:700,color:rc}}>
-                        {(node.name||"?").slice(0,2).toUpperCase()}
+
+                      {/* Avatar circle with role color ring */}
+                      <div style={{
+                        width:48, height:48, borderRadius:"50%",
+                        background:`linear-gradient(135deg, ${rc}18, ${rc}08)`,
+                        border:`1.5px solid ${rc}35`,
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                        margin:"0 auto 10px",
+                        fontSize:14, fontWeight:700, color:rc,
+                        letterSpacing:".02em",
+                        boxShadow:`0 0 0 4px ${rc}0a`,
+                      }}>
+                        {initials}
                       </div>
+
                       {/* Name */}
-                      <div style={{fontSize:11,fontWeight:700,color:node.is_external?"#4e6479":"#f0f6ff",lineHeight:1.2,marginBottom:2}}>
+                      <div style={{
+                        fontSize:12, fontWeight:700,
+                        color: node.is_external?"#3a5269":"#c8d8e8",
+                        lineHeight:1.3, marginBottom:4,
+                        letterSpacing:"-.01em",
+                      }}>
                         {node.name}
-                        {!active&&eng&&<span style={{fontSize:7,marginLeft:3,color:"#f87171"}}>LEFT</span>}
+                        {!active&&eng&&(
+                          <div style={{fontSize:8,color:"#f87171",marginTop:2,letterSpacing:".05em",fontWeight:500}}>INACTIVE</div>
+                        )}
                       </div>
+
                       {/* Title */}
-                      {node.title&&<div style={{fontSize:8,color:"#2e4a66",marginBottom:4,lineHeight:1.3}}>{node.title}</div>}
-                      {/* Role badge */}
-                      {eng&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:3,background:rc+"20",color:rc}}>
-                        {ROLE_LABELS[eng.role_type]||eng.role_type}
-                      </span>}
-                      {node.is_external&&<span style={{fontSize:8,padding:"1px 5px",borderRadius:3,background:"#192d47",color:"#2e4a66"}}>External</span>}
-                      {/* Stats */}
-                      {eng&&!node.is_external&&(
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:3,marginTop:6}}>
-                          <div style={{background:"#060e1c",borderRadius:4,padding:"3px 2px"}}>
-                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:700,color:"#38bdf8"}}>{wh}h</div>
-                            <div style={{fontSize:7,color:"#253a52"}}>hrs</div>
-                          </div>
-                          <div style={{background:"#060e1c",borderRadius:4,padding:"3px 2px"}}>
-                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:700,color:util>=80?"#34d399":util>=60?"#fb923c":"#f87171"}}>{util}%</div>
-                            <div style={{fontSize:7,color:"#253a52"}}>util</div>
-                          </div>
+                      {node.title&&(
+                        <div style={{
+                          fontSize:9.5, color: node.is_external?"#1e3a5f":"#2e4a66",
+                          lineHeight:1.4, letterSpacing:".02em",
+                          fontStyle: node.is_external?"italic":"normal",
+                        }}>
+                          {node.title}
                         </div>
                       )}
                     </div>
@@ -5415,34 +5430,42 @@ export default function App(){
                 };
 
                 // Recursive tree renderer
+                const CONN = "#1a2e44";  // connector line color
                 const RenderLevel = ({nodes, depth=0}) => {
                   if(!nodes.length) return null;
+                  const gap = 24;
                   return(
                     <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                      <div style={{display:"flex",gap:16,alignItems:"flex-start",position:"relative"}}>
-                        {/* Horizontal top connector bar when multiple siblings */}
+                      <div style={{display:"flex",gap,alignItems:"flex-start",position:"relative"}}>
+                        {/* Horizontal bridge line across siblings */}
                         {nodes.length>1&&(
-                          <div style={{position:"absolute",top:0,left:"calc(50% - (100% - 140px)/2)",right:"calc(50% - (100% - 140px)/2)",height:2,background:"#192d47",maxWidth:"100%",minWidth:0}}/>
+                          <div style={{
+                            position:"absolute", top:0,
+                            left:`calc(50% - (100% - 148px) / 2)`,
+                            right:`calc(50% - (100% - 148px) / 2)`,
+                            height:1, background:CONN,
+                          }}/>
                         )}
                         {nodes.map(node=>{
                           const kids = children(node.id);
                           return(
-                            <div key={node.id} style={{display:"flex",flexDirection:"column",alignItems:"center",position:"relative"}}>
-                              {/* Drop zone removed — was blocking edit/delete buttons */}
+                            <div key={node.id} style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                              {/* Vertical drop from bridge to card */}
+                              {nodes.length>1&&<div style={{width:1,height:16,background:CONN}}/>}
                               <OrgCard node={node}/>
-                              {kids.length>0&&(
-                                <>
-                                  <div style={{width:2,height:16,background:"#192d47"}}/>
-                                  <RenderLevel nodes={kids} depth={depth+1}/>
-                                </>
-                              )}
-                              {/* Add child button in edit mode */}
+                              {/* Add child button */}
                               {orgEditing&&isAdmin&&(
                                 <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:node.id,is_external:false,sort_order:kids.length})}
-                                  style={{marginTop:6,background:"#0b1a2e",border:"1px dashed #38bdf840",color:"#38bdf870",
-                                    borderRadius:6,padding:"2px 10px",fontSize:9,cursor:"pointer",width:"100%"}}>
+                                  style={{marginTop:5,background:"transparent",border:"1px dashed #1a3050",color:"#1e3a5f",
+                                    borderRadius:6,padding:"1px 8px",fontSize:8,cursor:"pointer",width:"100%",letterSpacing:".05em"}}>
                                   + add
                                 </button>
+                              )}
+                              {kids.length>0&&(
+                                <>
+                                  <div style={{width:1,height:20,background:CONN}}/>
+                                  <RenderLevel nodes={kids} depth={depth+1}/>
+                                </>
                               )}
                             </div>
                           );
