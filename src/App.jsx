@@ -405,9 +405,8 @@ function buildInvoicePDF(projects, entries, engineers, m, y, filterId){
 }
 
 /* ─── SIGNUP SCREEN ─── */
-function SignupScreen({
+function SignupScreen({onBack}){
   const T = useT(); // theme tokens
-onBack}){
   const [form,setForm]=useState({email:"",password:"",name:"",role:ROLES_LIST[0],level:"Mid"});
   const [err,setErr]=useState(""); const [loading,setLoading]=useState(false);
   const handle=async e=>{
@@ -461,9 +460,8 @@ const Lbl=({children})=><div style={{fontSize:11,color:T.text3,marginBottom:4}}>
 
 /* ── Projects Page Component (extracted to avoid IIFE hook issues) ── */
 /* ── Edit Project Activities (standalone component — hooks-safe) ── */
-function EditProjActivities({
+function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast}){
   const T = useT(); // theme tokens
-projId, activities, setActivities, engineers, isEngActive, supabase, showToast}){
   const [aDraft, setADraft] = React.useState(null);
   const projActs = (activities||[]).filter(a=>a.project_id===projId);
   const blank = {project_id:projId,group_name:"SCADA",category:"Templates",activity_name:"",status:"Not Started",progress:0,assigned_to:"",start_date:"",end_date:"",remarks:""};
@@ -615,11 +613,10 @@ projId, activities, setActivities, engineers, isEngActive, supabase, showToast})
   );
 }
 
-function ProjectsView({
-  const T = useT(); // theme tokens
-projects,projSearch,setProjSearch,projStatusFilter,setProjStatusFilter,
+function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setProjStatusFilter,
   monthEntries,projStats,isAdmin,isAcct,isLead,setShowProjModal,setEditProjModal,deleteProject,fmtCurrency,
   activities,setActivities,engineers,supabase,showToast}){
+  const T = useT(); // theme tokens
   const [pvActModal,setPvActModal] = React.useState(null);
   const [pvActDraft,setPvActDraft] = React.useState({});
   const canManage = isAdmin||isLead; // accountant: read-only, cannot add/edit/delete projects
@@ -1407,9 +1404,8 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
 }
 
 /* ── ProjectTasksReport Component ── */
-function ProjectTasksReport({
+function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fmtPct,isAdmin,isAcct}){
   const T = useT(); // theme tokens
-allEntries,projects,engineers,MONTHS,fmtCurrency,fmtPct,isAdmin,isAcct}){
   const [selProj,setSelProj]=useState("ALL");
   // "ALL" means all-time, otherwise "YYYY-MM"
   const [filterMonth,setFilterMonth]=useState("ALL");
@@ -1678,9 +1674,8 @@ allEntries,projects,engineers,MONTHS,fmtCurrency,fmtPct,isAdmin,isAcct}){
 }
 
 /* ── VacationReport Component ── */
-function VacationReport({
+function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onExport}){
   const T = useT(); // theme tokens
-engineers,leaveEntries,allEntries,month,year,MONTHS,onExport}){
   const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
   const typeColors={"Annual Leave":"#38bdf8","Sick Leave":"#f87171","Public Holiday":"#fb923c","Business Travel":"#a78bfa","Training External":"#34d399","Unpaid Leave":"#6b7280"};
 
@@ -1947,9 +1942,8 @@ const STATUS_COLOR={"Completed":"#34d399","In Progress":"#38bdf8","Not Started":
 const STATUS_BG={"Completed":T.statusActive.bg,"In Progress":T.track,"Not Started":T.track,"On Hold":"#1c0f00"};
 
 /* ── Inline category/activity editor modal ── */
-function ActivityEditModal({
+function ActivityEditModal({act, onSave, onClose, engineers}){
   const T = useT(); // theme tokens
-act, onSave, onClose, engineers}){
   const initGroup = CAT_TO_GROUP[act.category]||TAXONOMY_GROUP_NAMES[0];
   const [draft, setDraft] = useState({...act});
   const [group, setGroup] = useState(initGroup);
@@ -2074,9 +2068,8 @@ act, onSave, onClose, engineers}){
 
 /* ── Add Activity modal ── */
 /* ── Add Activity modal ── */
-function AddActivityModal({
+function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers}){
   const T = useT(); // theme tokens
-projId, subId, defaultCat, onSave, onClose, engineers}){
   // Determine initial group from defaultCat
   const initGroup = defaultCat ? (CAT_TO_GROUP[defaultCat]||TAXONOMY_GROUP_NAMES[0]) : TAXONOMY_GROUP_NAMES[0];
   const initCat   = defaultCat || TAXONOMY_GROUPS[initGroup][0];
@@ -2193,9 +2186,8 @@ projId, subId, defaultCat, onSave, onClose, engineers}){
 }
 
 /* ── Single activity row ── */
-function ActivityRow({
+function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete}){
   const T = useT(); // theme tokens
-a, actHrs, isAdmin, onEdit, onDelete}){
   const pct      = Math.round(a.progress*100);
   const sc       = STATUS_COLOR[a.status]||T.text3;
   const today    = new Date(); today.setHours(0,0,0,0);
@@ -2236,9 +2228,8 @@ a, actHrs, isAdmin, onEdit, onDelete}){
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component
    ════════════════════════════════════════════════════════ */
-function ProjectTracker({
+function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, showToast}){
   const T = useT(); // theme tokens
-projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, showToast}){
   const canEdit = isAdmin || isLead;
   const [trackerProj,  setTrackerProj]  = useState(null);
   const [trackerSub,   setTrackerSub]   = useState(null);
@@ -2570,9 +2561,8 @@ projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, 
 /* ════════════════════════════════════════════════════════
    SUB-PROJECT MODAL (add / edit)
    ════════════════════════════════════════════════════════ */
-function SubProjectModal({
+function SubProjectModal({projectId, sub, engineers, onSave, onClose}){
   const T = useT(); // theme tokens
-projectId, sub, engineers, onSave, onClose}){
   const isEdit = !!sub;
   const [draft, setDraft] = useState(sub
     ? {...sub}
@@ -2642,11 +2632,10 @@ projectId, sub, engineers, onSave, onClose}){
 /* ════════════════════════════════════════════════════════
    PROJECTS TAB — standalone component (prevents hang)
    ════════════════════════════════════════════════════════ */
-function ProjectsTab({
-  const T = useT(); // theme tokens
-projects, subprojects, entries, engineers, expandedProj, setExpandedProj,
+function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, setExpandedProj,
   setShowProjModal, setEditProjModal, setSubProjModal, deleteProject, deleteSubProject,
   activities, setActivities, supabase, showToast, isAdmin, isLead}){
+  const T = useT(); // theme tokens
   const [actModal,setActModal] = React.useState(null); // {projId, act:null|object}
   const [actDraft,setActDraft] = React.useState({});
   const canEdit = isAdmin||isLead;       // guards add/edit/delete buttons
@@ -2775,12 +2764,11 @@ projects, subprojects, entries, engineers, expandedProj, setExpandedProj,
 /* ════════════════════════════════════════════════════════
    FINANCE TAB — standalone component
    ════════════════════════════════════════════════════════ */
-function FinanceTab({
-  const T = useT(); // theme tokens
-staff, entries, expenses, projects, engineers, egpRate, setEgpRate,
+function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, setEgpRate,
   finTab, setFinTab, finMonth, setFinMonth, finYear, setFinYear,
   setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
   deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior}){
+  const T = useT(); // theme tokens
 
   const derived = useMemo(()=>{
     const activeStaff=staff.filter(s=>s.active!==false);
@@ -3162,9 +3150,8 @@ const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov"
 /* ════════════════════════════════════════════════════════
    FUNCTIONS TAB — standalone component
    ════════════════════════════════════════════════════════ */
-function FunctionsTab({
+function FunctionsTab({entries, engineers, funcYear, setFuncYear, funcEngId, setFuncEngId, deleteEntry, isAdmin, year, setShowFuncModal}){
   const T = useT(); // theme tokens
-entries, engineers, funcYear, setFuncYear, funcEngId, setFuncEngId, deleteEntry, isAdmin, year, setShowFuncModal}){
 
   const {funcEntries, yearFuncs, totalFuncHrs, catTotals, maxCat, engFuncMap} = useMemo(()=>{
     const funcEntries=entries.filter(e=>
@@ -3271,9 +3258,8 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"#38bdf8":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#1a0808":s<=75?"#1c0f00":s<=95?T.track:T.statusActive.bg;
 
-function KPIsTab({
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, year, notifications, alertDay, setAlertDay}){
   const T = useT(); // theme tokens
-entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, year, notifications, alertDay, setAlertDay}){
   const yearEntries = useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
   const engKPIs = useMemo(()=>{
 /* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
