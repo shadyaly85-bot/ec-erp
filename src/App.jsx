@@ -128,6 +128,10 @@ const PDF_STYLE = `
   table{width:100%;border-collapse:collapse;font-size:10px}
   th{background:#0f2a50;color:#fff;padding:6px 8px;text-align:left;font-weight:600;font-size:9px;letter-spacing:.05em;text-transform:uppercase}
   td{padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top}tr:nth-child(even) td{background:#f8fafc}
+  .cover-page td{vertical-align:middle !important;padding:0 !important}
+  .cover-page th{vertical-align:middle !important;padding:0 !important}
+  .cover-page tr:nth-child(even) td{background:transparent !important}
+  .cover-page table td,.cover-page table th{border:none !important}
   .footer{display:none}
   @media print{
     body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -1275,72 +1279,101 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
     </tr>`;
   }).join("");
 
-  // Build summary rows with fully explicit inline colors — no inheritance from PDF_STYLE body
+  // Build summary rows — 100% explicit inline styles, zero inheritance
   const coverSummaryRows = projList.map((pm,i)=>{
     const pct   = grandTotal ? Math.round(pm.totalHrs/grandTotal*100) : 0;
     const bPct  = pm.totalHrs ? Math.round(pm.billableHrs/pm.totalHrs*100) : 0;
-    const rowBg = i%2===0 ? "rgba(255,255,255,0.05)" : "transparent";
+    const rowBg = i%2===0 ? "#0f2845" : "#0c1e36";
     const stBg  = pm.proj.status==="Active" ? "#064e3b" : pm.proj.status==="Completed" ? "#1e3a5f" : "#431407";
     const stCol = pm.proj.status==="Active" ? "#6ee7b7" : pm.proj.status==="Completed" ? "#93c5fd" : "#fdba74";
-    return `<tr style="background:${rowBg};border-bottom:1px solid rgba(255,255,255,0.06)">
-      <td style="padding:9px 12px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#38bdf8;font-weight:700;white-space:nowrap">${pm.proj.id}</td>
-      <td style="padding:9px 12px;font-size:10px;font-weight:600;color:#f1f5f9">${pm.proj.name||pm.proj.id}</td>
-      <td style="padding:9px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:#7dd3fc">${pm.totalHrs}h</td>
-      <td style="padding:9px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#94a3b8">${pct}%</td>
-      <td style="padding:9px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:#6ee7b7">${bPct}%</td>
-      <td style="padding:9px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#c4b5fd">${Object.keys(pm.engineers).length}</td>
-      <td style="padding:9px 12px"><span style="display:inline-block;padding:3px 8px;border-radius:4px;font-size:8px;font-weight:700;letter-spacing:.04em;background:${stBg};color:${stCol}">${pm.proj.status||"Active"}</span></td>
+    // Hours bar — visual width relative to max
+    const barW  = grandTotal ? Math.max(4, Math.round(pm.totalHrs/grandTotal*120)) : 4;
+    const displayName = (pm.proj.name && pm.proj.name.trim()) ? pm.proj.name : pm.proj.id;
+    return `<tr>
+      <td style="padding:8px 12px;background:${rowBg};font-family:'IBM Plex Mono',monospace;font-size:9px;color:#38bdf8;font-weight:700;white-space:nowrap;border-bottom:1px solid #0a1e38">${pm.proj.id}</td>
+      <td style="padding:8px 12px;background:${rowBg};font-size:10px;font-weight:600;color:#e2eaf4;border-bottom:1px solid #0a1e38">${displayName}</td>
+      <td style="padding:8px 12px;background:${rowBg};border-bottom:1px solid #0a1e38">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:0 0 auto;width:${barW}px;height:5px;background:#1d6fa8;border-radius:3px"></div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:#7dd3fc">${pm.totalHrs}h</span>
+        </div>
+      </td>
+      <td style="padding:8px 12px;background:${rowBg};text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#94a3b8;border-bottom:1px solid #0a1e38">${pct}%</td>
+      <td style="padding:8px 12px;background:${rowBg};text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:#6ee7b7;border-bottom:1px solid #0a1e38">${bPct}%</td>
+      <td style="padding:8px 12px;background:${rowBg};text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#c4b5fd;border-bottom:1px solid #0a1e38">${Object.keys(pm.engineers).length}</td>
+      <td style="padding:8px 12px;background:${rowBg};border-bottom:1px solid #0a1e38"><span style="display:inline-block;padding:3px 9px;border-radius:20px;font-size:8px;font-weight:700;letter-spacing:.05em;background:${stBg};color:${stCol}">${pm.proj.status||"Active"}</span></td>
     </tr>`;
   }).join("");
 
   const coverHTML=`
-  <div style="background:#0a1628;color:#f1f5f9;padding:0;min-height:100vh;box-sizing:border-box;font-family:'IBM Plex Sans',sans-serif">
-    <!-- Header band -->
-    <div style="background:linear-gradient(135deg,#0f2a50,#1a4a7a);padding:40px 48px 32px;position:relative;overflow:hidden">
-      <div style="position:absolute;right:-40px;top:-40px;width:220px;height:220px;border:1.5px solid rgba(56,189,248,0.12);border-radius:50%"></div>
-      <div style="position:absolute;right:60px;top:30px;width:120px;height:120px;border:1px solid rgba(56,189,248,0.07);border-radius:50%"></div>
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px">
-        <img src="${LOGO_SRC}" alt="ENEVO" style="width:52px;height:52px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
-        <div>
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.22em;color:#38bdf8;font-weight:700;margin-bottom:3px">ENEVO GROUP · PROJECT TASKS ANALYSIS</div>
-          <div style="font-size:11px;color:#94a3b8;font-weight:500">Industrial & Renewable Energy Automation</div>
+  <div style="background:#060e1c;font-family:'IBM Plex Sans',Arial,sans-serif;box-sizing:border-box;min-height:100vh" class="cover-page">
+
+    <!-- TOP HEADER STRIP -->
+    <div style="background:linear-gradient(120deg,#071428 0%,#0e2748 50%,#071428 100%);padding:36px 52px 30px;border-bottom:2px solid #0ea5e920">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <img src="${LOGO_SRC}" style="width:48px;height:48px;border-radius:10px;object-fit:contain"/>
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.2em;color:#38bdf8;font-weight:700">ENEVO GROUP</div>
+            <div style="font-size:10px;color:#475569;margin-top:2px">Industrial & Renewable Energy Automation</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:9px;color:#334155;font-family:'IBM Plex Mono',monospace">${now}</div>
+          <div style="font-size:9px;color:#334155;font-family:'IBM Plex Mono',monospace;margin-top:2px">CONFIDENTIAL</div>
         </div>
       </div>
-      <div style="font-size:32px;font-weight:700;color:#f1f5f9;letter-spacing:-.02em;margin-bottom:4px">All Projects Report</div>
-      <div style="font-size:12px;color:#64748b;font-weight:500;margin-bottom:28px">Period: ${periodLabel||"All Time"}  ·  Generated ${now}</div>
-      <!-- KPI row -->
+
+      <div style="margin-bottom:24px">
+        <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;letter-spacing:.18em;color:#0ea5e9;font-weight:700;margin-bottom:8px;text-transform:uppercase">Project Tasks Analysis Report</div>
+        <div style="font-size:34px;font-weight:700;color:#f0f6ff;letter-spacing:-.025em;line-height:1.1;margin-bottom:6px">All Projects</div>
+        <div style="font-size:13px;color:#4a6580;font-weight:500">Period: ${periodLabel||"All Time"}</div>
+      </div>
+
+      <!-- KPI CARDS — 4 columns -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
         ${[
-          {l:"Total Hours",   v:grandTotal+"h",  c:"#38bdf8", bg:"rgba(56,189,248,0.08)",  br:"rgba(56,189,248,0.2)"},
-          {l:"Projects",      v:projList.length,  c:"#c4b5fd", bg:"rgba(167,139,250,0.08)", br:"rgba(167,139,250,0.2)"},
-          {l:"Billable Hours",v:totalBillable+"h",c:"#6ee7b7", bg:"rgba(52,211,153,0.08)",  br:"rgba(52,211,153,0.2)"},
-          {l:"Engineers",     v:allEngs.size,     c:"#fbbf24", bg:"rgba(251,191,36,0.08)",  br:"rgba(251,191,36,0.2)"},
-        ].map(k=>`<div style="background:${k.bg};border:1px solid ${k.br};border-radius:10px;padding:14px 16px">
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
-          <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.1em;margin-top:6px;font-weight:600">${k.l}</div>
-        </div>`).join("")}
+          {l:"Total Hours",   v:grandTotal+"h",   c:"#38bdf8", border:"#1d4e6a"},
+          {l:"Projects",      v:projList.length,   c:"#a78bfa", border:"#3d2d6a"},
+          {l:"Billable Hours",v:totalBillable+"h", c:"#34d399", border:"#0d4a34"},
+          {l:"Engineers",     v:allEngs.size,      c:"#fbbf24", border:"#5a3e00"},
+        ].map(k=>`
+          <div style="background:#071428;border:1px solid ${k.border};border-radius:10px;padding:14px 18px;border-top:3px solid ${k.c}">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:800;color:${k.c};line-height:1">${k.v}</div>
+            <div style="font-size:9px;color:#4a6580;text-transform:uppercase;letter-spacing:.1em;margin-top:7px;font-weight:600">${k.l}</div>
+          </div>
+        `).join("")}
       </div>
     </div>
-    <!-- Summary table section — solid dark background, all colors explicit -->
-    <div style="padding:28px 48px 40px;background:#0d1d35">
-      <div style="font-size:9px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:.15em;margin-bottom:12px">Project Summary</div>
-      <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Sans',sans-serif">
+
+    <!-- SUMMARY TABLE -->
+    <div style="padding:28px 52px 44px;background:#060e1c">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="width:3px;height:16px;background:#0ea5e9;border-radius:2px"></div>
+        <div style="font-size:9px;font-weight:700;color:#0ea5e9;text-transform:uppercase;letter-spacing:.18em">Project Summary — ${projList.length} Projects</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
         <thead>
-          <tr style="background:#0f2845;border-bottom:2px solid #1e4976">
-            <th style="padding:10px 12px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">ID</th>
-            <th style="padding:10px 12px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Project Name</th>
-            <th style="padding:10px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Hours</th>
-            <th style="padding:10px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Share</th>
-            <th style="padding:10px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Billable%</th>
-            <th style="padding:10px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Engs</th>
-            <th style="padding:10px 12px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Status</th>
+          <tr style="background:#071428;border-bottom:1px solid #0ea5e930">
+            <th style="padding:10px 12px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:.12em;color:#0ea5e9;text-transform:uppercase;border-bottom:2px solid #0ea5e940">ID</th>
+            <th style="padding:10px 12px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:.12em;color:#0ea5e9;text-transform:uppercase;border-bottom:2px solid #0ea5e940">Project Name</th>
+            <th style="padding:10px 12px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:.12em;color:#0ea5e9;text-transform:uppercase;border-bottom:2px solid #0ea5e940">Hours</th>
+            <th style="padding:10px 12px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:.12em;color:#0ea5e9;text-transform:uppercase;border-bottom:2px solid #0ea5e940">Share</th>
+            <th style="padding:10px 12px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:.12em;color:#0ea5e9;text-transform:uppercase;border-bottom:2px solid #0ea5e940">Billable</th>
+            <th style="padding:10px 12px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:.12em;color:#0ea5e9;text-transform:uppercase;border-bottom:2px solid #0ea5e940">Engs</th>
+            <th style="padding:10px 12px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:700;letter-spacing:.12em;color:#0ea5e9;text-transform:uppercase;border-bottom:2px solid #0ea5e940">Status</th>
           </tr>
         </thead>
         <tbody>${coverSummaryRows}</tbody>
       </table>
-      <div style="margin-top:24px;padding-top:16px;border-top:1px solid #1a3050;display:flex;justify-content:space-between;font-size:8px;color:#334155;font-family:'IBM Plex Mono',monospace">
-        <span>ENEVO Group · Industrial & Renewable Energy Automation</span>
-        <span>CONFIDENTIAL</span>
+
+      <!-- Bottom branding line -->
+      <div style="margin-top:28px;padding-top:14px;border-top:1px solid #0d1e30;display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          <img src="${LOGO_SRC}" style="width:20px;height:20px;border-radius:4px;object-fit:contain;opacity:.5"/>
+          <span style="font-size:8px;color:#1e3a52;font-family:'IBM Plex Mono',monospace">ENEVO Group EC-ERP · Confidential</span>
+        </div>
+        <span style="font-size:8px;color:#1e3a52;font-family:'IBM Plex Mono',monospace">${now}</span>
       </div>
     </div>
   </div>`;
@@ -2675,11 +2708,11 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
                 }
               </td>
               <td><div style={{display:"flex",gap:4}}>
-                <button className="be" title="Edit project" onClick={()=>setEditProjModal({...p})}>✎</button>
-                <button style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"#1a0a30",
+                {canEdit&&<button className="be" title="Edit project" onClick={()=>setEditProjModal({...p})}>✎</button>}
+                {canEdit&&<button style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"#1a0a30",
                   border:"1px solid #a78bfa30",color:"#a78bfa",cursor:"pointer"}}
-                  title="Add sub-site" onClick={()=>setSubProjModal({projectId:p.id,sub:null})}>+⊕</button>
-                <button className="bd" title="Delete project" onClick={()=>deleteProject(p.id)}>✕</button>
+                  title="Add sub-site" onClick={()=>setSubProjModal({projectId:p.id,sub:null})}>+⊕</button>}
+                {isAdmin&&<button className="bd" title="Delete project" onClick={()=>deleteProject(p.id)}>✕</button>}
               </div></td>
             </tr>
             {/* Sub-project rows */}
@@ -2700,8 +2733,8 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
                   maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sp.pendings||""}</td>
                 <td></td>
                 <td><div style={{display:"flex",gap:4}}>
-                  <button className="be" style={{fontSize:10}} onClick={()=>setSubProjModal({projectId:p.id,sub:sp})}>✎</button>
-                  <button className="bd" style={{fontSize:10}} onClick={()=>deleteSubProject(sp.id)}>✕</button>
+                  {canEdit&&<button className="be" style={{fontSize:10}} onClick={()=>setSubProjModal({projectId:p.id,sub:sp})}>✎</button>}
+                  {isAdmin&&<button className="bd" style={{fontSize:10}} onClick={()=>deleteSubProject(sp.id)}>✕</button>}
                 </div></td>
               </tr>
             ))}
@@ -3671,6 +3704,7 @@ export default function App(){
   // Redirect senior_management away from data-entry pages
   useEffect(()=>{
     if(isSenior&&(view==="timesheet")) setView("dashboard");
+    if(view==="mysettings") setView("dashboard"); // Info merged into Admin › Info tab
   },[isSenior,view]);
   // When accountant first opens Finance Panel, default to Finance tab
   useEffect(()=>{
@@ -4885,7 +4919,7 @@ export default function App(){
     ...(!isSenior?[{id:"team",icon:"◉",label:"Team"}]:[]),
     ...(canReport?[{id:"reports",icon:"⊞",label:"Reports & PDF"}]:[]),
     ...(isAdmin||isAcct||role==="lead"?[{id:"admin",icon:"⚙",label:isAdmin?"Admin Panel":isAcct?"Finance Panel":"Lead Panel"}]:[]),
-    {id:"mysettings",icon:"ℹ",label:"Info"},
+    // Info tab removed from sidebar — weekend settings moved into admin panel Info tab
     ...(isAdmin&&!isSenior?[{id:"import",icon:"⬆",label:"Import Excel"}]:[]),
   ];
 
@@ -5590,31 +5624,34 @@ export default function App(){
                         )}
                       </div>
 
-                      {/* Title (manual) or engineer role (auto from linked engineer) */}
-                      {(node.title||eng)&&(
-                        <div style={{marginTop:2}}>
-                          {node.title&&(
-                            <div style={{
-                              fontSize:10, color: node.is_external?"#3d5c75":"#7aa0be",
-                              lineHeight:1.4, letterSpacing:".01em",
-                              fontStyle: node.is_external?"italic":"normal",
-                              fontWeight:500,
-                            }}>
-                              {node.title}
-                            </div>
-                          )}
-                          {eng&&!node.is_external&&(
-                            <div style={{
-                              fontSize:8.5, color:rc,
-                              marginTop: node.title?3:0,
-                              letterSpacing:".05em", textTransform:"uppercase",
-                              fontWeight:700, opacity:0.8,
-                            }}>
-                              {eng.role}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      {/* Title + role — always shown when linked or title set */}
+                      <div style={{marginTop:2,minHeight:18}}>
+                        {/* job title: node.title (manual) or eng.role (from DB) or ROLE_LABELS fallback */}
+                        {(node.title||eng?.role||eng)&&(
+                          <div style={{
+                            fontSize:10, color: node.is_external?"#3d5c75":"#7aa0be",
+                            lineHeight:1.4, letterSpacing:".01em",
+                            fontStyle: node.is_external?"italic":"normal",
+                            fontWeight:500,
+                          }}>
+                            {node.title||(eng?.role)||(eng?ROLE_LABELS[eng.role_type]||"":"")}
+                          </div>
+                        )}
+                        {/* role type badge — colored chip below title */}
+                        {eng&&!node.is_external&&(
+                          <div style={{
+                            display:"inline-block",
+                            marginTop:4,
+                            padding:"1px 6px",
+                            borderRadius:3,
+                            fontSize:8, fontWeight:700,
+                            letterSpacing:".06em", textTransform:"uppercase",
+                            background:`${rc}18`, color:rc,
+                          }}>
+                            {ROLE_LABELS[eng.role_type]||eng.role_type}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 };
@@ -5679,7 +5716,7 @@ export default function App(){
                     return `<div class="level">${ns.map(n=>`<div class="branch">${buildCard2(n)}${ch2(n.id).length?`<div class="vl"></div><div class="sub">${buildLevel2(ch2(n.id))}</div>`:""}</div>`).join("")}</div>`;
                   };
                   const rts=orgNodes.filter(n=>!n.parent_id).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-                  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>*{margin:0;padding:0;box-sizing:border-box;}body{background:#04080f;font-family:'Segoe UI',Arial,sans-serif;padding:32px 28px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}.hdr{display:flex;align-items:center;gap:18px;margin-bottom:44px;padding-bottom:20px;border-bottom:1px solid #1a2e44;}.hdr img{width:52px;height:52px;border-radius:10px;object-fit:contain;}.hdr h1{font-size:20px;font-weight:700;color:#c8d8e8;letter-spacing:-.02em;}.hdr p{font-size:10px;color:#2e4a66;margin-top:3px;letter-spacing:.06em;text-transform:uppercase;}.chart{display:flex;flex-direction:column;align-items:center;}.level{display:flex;gap:18px;align-items:flex-start;justify-content:center;position:relative;}.branch{display:flex;flex-direction:column;align-items:center;}.vl{width:1px;height:18px;background:#1a2e44;}.sub{display:flex;flex-direction:column;align-items:center;}.card{width:142px;background:#080f1c;border-radius:11px;padding:14px 11px 12px;text-align:center;}.avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 9px;font-size:13px;font-weight:700;}.name{font-size:11.5px;font-weight:700;line-height:1.3;margin-bottom:2px;letter-spacing:-.01em;}.jtitle{font-size:9px;color:#2e4a66;line-height:1.4;letter-spacing:.02em;}.jrole{font-size:7.5px;color:#1e3a5f;letter-spacing:.05em;text-transform:uppercase;font-weight:600;margin-top:2px;}@media print{@page{margin:10mm;size:A4 landscape;}}</style></head><body><div class="hdr"><img src="${LOGO_SRC}"/><div><h1>Organisation Chart</h1><p>ENEVO Group · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div><div class="chart">${buildLevel2(rts)}</div><script>window.onload=()=>setTimeout(()=>{window.print();},400);</script></body></html>`;
+                  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>*{margin:0;padding:0;box-sizing:border-box;}body{background:#04080f;font-family:'Segoe UI',Arial,sans-serif;padding:32px 28px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}.hdr{display:flex;align-items:center;gap:18px;margin-bottom:44px;padding-bottom:20px;border-bottom:1px solid #1a2e44;}.hdr img{width:52px;height:52px;border-radius:10px;object-fit:contain;}.hdr h1{font-size:20px;font-weight:700;color:#c8d8e8;letter-spacing:-.02em;}.hdr p{font-size:10px;color:#2e4a66;margin-top:3px;letter-spacing:.06em;text-transform:uppercase;}.chart{display:flex;flex-direction:column;align-items:center;}.level{display:flex;gap:18px;align-items:flex-start;justify-content:center;position:relative;}.branch{display:flex;flex-direction:column;align-items:center;}.vl{width:1px;height:18px;background:#1a2e44;}.sub{display:flex;flex-direction:column;align-items:center;}.card{width:142px;background:#080f1c;border-radius:11px;padding:14px 11px 12px;text-align:center;}.avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 9px;font-size:13px;font-weight:700;}.name{font-size:11.5px;font-weight:700;line-height:1.3;margin-bottom:2px;letter-spacing:-.01em;}.jtitle{font-size:9px;color:#2e4a66;line-height:1.4;letter-spacing:.02em;}.jrole{font-size:7.5px;color:#1e3a5f;letter-spacing:.05em;text-transform:uppercase;font-weight:600;margin-top:2px;}@media print{@page{margin:10mm;size:A4 landscape;}}</style></head><body><div class="hdr"><img src="${LOGO_SRC}"/><div><h1>Organization Chart</h1><p>ENEVO Group · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div><div class="chart">${buildLevel2(rts)}</div><script>window.onload=()=>setTimeout(()=>{window.print();},400);</script></body></html>`;
                   const w=window.open("","_blank");
                   if(w){w.document.write(html);w.document.close();}
                   else showToast("Allow popups to export PDF",false);
@@ -5691,9 +5728,9 @@ export default function App(){
                       <div style={{display:"flex",alignItems:"center",gap:14}}>
                         <img src={LOGO_SRC} alt="ENEVO" style={{width:40,height:40,borderRadius:9,objectFit:"contain",opacity:0.85}}/>
                         <div>
-                          <div style={{fontSize:17,fontWeight:700,color:"#c8d8e8",letterSpacing:"-.02em"}}>Organisation</div>
-                          <div style={{fontSize:10,color:"#1e3a5f",marginTop:1,letterSpacing:".05em",textTransform:"uppercase"}}>
-                            {orgEditing?<span style={{color:"#fb923c60"}}>edit mode</span>:`ENEVO Group · ${orgNodes.filter(n=>!n.is_external).length} members`}
+                          <div style={{fontSize:17,fontWeight:700,color:"#e8f2fb",letterSpacing:"-.02em"}}>Organization Chart</div>
+                          <div style={{fontSize:10,color:"#4e7a9a",marginTop:1,letterSpacing:".05em",textTransform:"uppercase"}}>
+                            {orgEditing?<span style={{color:"#fb923c",fontWeight:700}}>EDIT MODE</span>:`ENEVO Group · ${orgNodes.filter(n=>!n.is_external).length} members`}
                           </div>
                         </div>
                       </div>
@@ -6247,7 +6284,7 @@ export default function App(){
                   {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead||isAcct},
                   {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead||isAcct},
                   {id:"tracker",  label:"📊 Tracker",    show:isAdmin||isLead||isAcct},
-                  {id:"settings", label:"⚙ Settings",   show:isAdmin},
+                  {id:"settings", label:"ℹ Info",        show:isAdmin},
                 ].filter(t=>t.show).map(t=>(
                   <button key={t.id} className={`atab ${adminTab===t.id?"a":""}`} onClick={()=>setAdminTab(t.id)}>{t.label}</button>
                 ))}
@@ -6327,6 +6364,8 @@ export default function App(){
                   setSubProjModal={setSubProjModal}
                   deleteProject={deleteProject}
                   deleteSubProject={deleteSubProject}
+                  isAdmin={isAdmin}
+                  isLead={isLead}
                 />
               )}
 
@@ -6485,6 +6524,44 @@ export default function App(){
               {/* SETTINGS */}
               {adminTab==="settings"&&isAdmin&&(
                 <div style={{maxWidth:600,display:"grid",gap:14}}>
+                  {/* Weekend settings card — was previously in sidebar Info tab */}
+                  <div className="card">
+                    <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:4}}>🗓 My Weekend Days</h3>
+                    <p style={{fontSize:11,color:"#2e4a66",marginBottom:16,lineHeight:1.6}}>
+                      Select your weekend days. Affects timesheet display and utilization target.
+                    </p>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,marginBottom:14}}>
+                      {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((name,i)=>{
+                        const isWe=myWeekend.includes(i);
+                        return(
+                          <button key={i} onClick={()=>{const next=isWe?myWeekend.filter(d=>d!==i):[...myWeekend,i];saveMyWeekend(next);}}
+                            style={{padding:"10px 4px",borderRadius:7,border:`2px solid ${isWe?"#f47218":"#192d47"}`,
+                              background:isWe?"#1a0a00":"#060e1c",color:isWe?"#f47218":"#4e6479",
+                              cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                            {name}{isWe&&<div style={{fontSize:9,marginTop:3,color:"#f47218"}}>OFF</div>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{display:"grid",gap:6,marginBottom:14}}>
+                      {[
+                        {label:"🇪🇬 Egypt / Middle East",days:[5,6],desc:"Fri + Sat"},
+                        {label:"🇷🇴 Romania / Europe",  days:[0,6],desc:"Sat + Sun"},
+                        {label:"No Weekend",             days:[],  desc:"All 7 days"},
+                      ].map(p=>(
+                        <button key={p.label} onClick={()=>saveMyWeekend(p.days)}
+                          style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",
+                            border:"1px solid #192d47",borderRadius:6,padding:"8px 12px",cursor:"pointer",
+                            fontFamily:"'IBM Plex Sans',sans-serif",color:"#dde3ef"}}>
+                          <span style={{fontSize:12,fontWeight:600}}>{p.label}</span>
+                          <span style={{fontSize:10,color:"#4e6479",fontFamily:"'IBM Plex Mono',monospace"}}>{p.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{padding:"9px 12px",background:"#022c22",border:"1px solid #34d399",borderRadius:6,fontSize:11,color:"#34d399"}}>
+                      ✓ Your weekend: {myWeekend.length===0?"None (all days)":myWeekend.map(d=>["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d]).join(" + ")}
+                    </div>
+                  </div>
                   {/* ── RLS Fix SQL ── */}
                   {/* Schema migrations card */}
                   <div className="card" style={{border:"1px solid #38bdf840",background:"#040c18"}}>
@@ -6596,7 +6673,7 @@ END $$;`;
           )}
 
           {/* ════ MY SETTINGS (engineer only) ════ */}
-          {view==="mysettings"&&(
+          {view==="mysettings"&&false&&( /* removed — settings now in Admin › Info */
             <div>
               <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff",marginBottom:20}}>My Settings</h1>
               <div className="card" style={{maxWidth:480}}>
