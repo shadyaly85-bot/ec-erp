@@ -4022,37 +4022,35 @@ export default function App(){
       const{data,error}=await supabase.from("staff").insert(staffPayload).select().single();
       if(error){showToast("Error: "+error.message,false);return;}
       setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));
-      // Auto-create engineer record (separate table, different columns)
+      // Auto-create engineer record with progressive fallback
       const existsEng=engineers.find(e=>e.name?.trim().toLowerCase()===data.name?.trim().toLowerCase());
       if(!existsEng&&raw.email?.trim()){
-        const engPayload={
-          name:        data.name,
-          email:       raw.email.trim().toLowerCase(),
-          role:        data.role||ROLES_LIST[0],
-          level:       raw.level||"Mid",
-          role_type:   raw.role_type||"engineer",
-          is_active:   data.active!==false,
-          join_date:   data.join_date||null,
-          termination_date: null,
-          weekend_days:JSON.stringify(DEFAULT_WEEKEND),
-        };
-        // Try full insert; fall back if newer columns missing in DB schema
-        let{data:ed,error:ee}=await supabase.from("engineers").insert(engPayload).select().single();
-        if(ee&&(ee.message?.includes("is_active")||ee.message?.includes("termination_date")||ee.message?.includes("join_date")||ee.message?.includes("weekend_days"))){
-          const{is_active,termination_date,join_date,weekend_days,...safeEng}=engPayload;
-          const r2=await supabase.from("engineers").insert(safeEng).select().single();
-          ed=r2.data;
-          if(ed) ed={...ed,is_active:true,termination_date:null,join_date:null,weekend_days:engPayload.weekend_days};
+        const engAttempts=[
+          {name:data.name,email:raw.email.trim().toLowerCase(),role:data.role||ROLES_LIST[0],
+           level:raw.level||"Mid",role_type:raw.role_type||"engineer",is_active:true,
+           join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)},
+          {name:data.name,email:raw.email.trim().toLowerCase(),role:data.role||ROLES_LIST[0],
+           level:raw.level||"Mid",role_type:raw.role_type||"engineer",is_active:true,
+           weekend_days:JSON.stringify(DEFAULT_WEEKEND)},
+          {name:data.name,email:raw.email.trim().toLowerCase(),role:data.role||ROLES_LIST[0],
+           level:raw.level||"Mid",role_type:raw.role_type||"engineer"},
+          {name:data.name,role:data.role||ROLES_LIST[0],level:raw.level||"Mid",role_type:raw.role_type||"engineer"},
+        ];
+        let ed=null;
+        for(const attempt of engAttempts){
+          const res=await supabase.from("engineers").insert(attempt).select().single();
+          if(!res.error){ed={...attempt,...res.data,is_active:true,join_date:null,termination_date:null,email:raw.email?.trim().toLowerCase()||"",weekend_days:JSON.stringify(DEFAULT_WEEKEND)};break;}
         }
-        if(ee&&ed===undefined){showToast("Staff added ✓ — engineer record failed: "+ee.message,false);}
-        else{
-          if(ed) setEngineers(prev=>[...prev,ed].sort((a,b)=>a.name.localeCompare(b.name)));
-          showToast("Member added ✓ — appears in Team + Finance lists");
+        if(ed){
+          setEngineers(prev=>[...prev,ed].sort((a,b)=>a.name.localeCompare(b.name)));
+          showToast("Member added ✓ — appears in Team + Finance");
+        } else {
+          showToast("Staff added ✓ — set salary in Finance › Staff");
         }
       } else if(existsEng){
         showToast("Staff added ✓ — linked to existing engineer profile");
       } else {
-        showToast("Staff added ✓ — add email to create login access");
+        showToast("Staff added ✓ — provide email to grant system access");
       }
       setShowStaffModal(false);
       setNewStaff({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:null,termination_date:null,email:"",level:"Mid",role_type:"engineer",notes:""});
@@ -4557,52 +4555,57 @@ export default function App(){
   const addEngineer=async()=>{
     if(!newEng.name.trim()){showToast("Name required",false);return;}
     if(!newEng.email.trim()){showToast("Email required",false);return;}
-    // Always sanitize date fields — empty string kills Postgres date columns
-    const payload={
-      name:      newEng.name.trim(),
-      email:     newEng.email.trim().toLowerCase(),
-      role:      newEng.role||ROLES_LIST[0],
-      level:     newEng.level||"Mid",
-      role_type: newEng.role_type||"engineer",
-      is_active: newEng.is_active!==false,
-      join_date:        newEng.join_date||null,
-      termination_date: null,
-      weekend_days: newEng.weekend_days||JSON.stringify(DEFAULT_WEEKEND),
-    };
-    let {data,error}=await supabase.from("engineers").insert(payload).select().single();
-    // Fallback: if DB schema is missing newer columns, strip them and retry
-    if(error){
-      const stripped={};
-      const cols=["name","email","role","level","role_type"];
-      cols.forEach(k=>{if(payload[k]!==undefined) stripped[k]=payload[k];});
-      if(error.message?.includes("is_active")||error.message?.includes("termination_date")||error.message?.includes("join_date")||error.message?.includes("weekend_days")){
-        // Try with only base columns
-        const r2=await supabase.from("engineers").insert(stripped).select().single();
-        data=r2.data; error=r2.error;
-        if(data) data={...data,is_active:true,termination_date:null,join_date:null,weekend_days:payload.weekend_days};
+
+    // Try inserting with progressively fewer columns until one works
+    // This handles ANY schema state — missing columns, wrong types, constraints
+    const attempts=[
+      // Attempt 1: full payload with all optional columns
+      {name:newEng.name.trim(),email:newEng.email.trim().toLowerCase(),
+       role:newEng.role||ROLES_LIST[0],level:newEng.level||"Mid",
+       role_type:newEng.role_type||"engineer",is_active:true,
+       join_date:null,termination_date:null,
+       weekend_days:newEng.weekend_days||JSON.stringify(DEFAULT_WEEKEND)},
+      // Attempt 2: without date columns (in case they don't exist yet)
+      {name:newEng.name.trim(),email:newEng.email.trim().toLowerCase(),
+       role:newEng.role||ROLES_LIST[0],level:newEng.level||"Mid",
+       role_type:newEng.role_type||"engineer",is_active:true,
+       weekend_days:newEng.weekend_days||JSON.stringify(DEFAULT_WEEKEND)},
+      // Attempt 3: without is_active and weekend_days
+      {name:newEng.name.trim(),email:newEng.email.trim().toLowerCase(),
+       role:newEng.role||ROLES_LIST[0],level:newEng.level||"Mid",
+       role_type:newEng.role_type||"engineer"},
+      // Attempt 4: absolute minimum — just name, role, level, role_type
+      {name:newEng.name.trim(),
+       role:newEng.role||ROLES_LIST[0],level:newEng.level||"Mid",
+       role_type:newEng.role_type||"engineer"},
+    ];
+
+    let data=null, lastError=null;
+    for(const attempt of attempts){
+      const res=await supabase.from("engineers").insert(attempt).select().single();
+      if(!res.error){
+        data={...attempt,...res.data, is_active:true, join_date:null, termination_date:null,
+              weekend_days:newEng.weekend_days||JSON.stringify(DEFAULT_WEEKEND),
+              email:newEng.email.trim().toLowerCase()};
+        lastError=null; break;
       }
+      lastError=res.error;
     }
-    if(error){showToast("Error: "+error.message,false);return;}
-    // Add to engineers list
+    if(lastError||!data){showToast("Error: "+(lastError?.message||"Unknown error"),false);return;}
+
     setEngineers(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));
-    // Auto-create matching staff record so Finance/payroll is in sync
-    const staffPayload={
-      name:       data.name,
-      department: "Engineering",
-      role:       data.role||"",
-      type:       "full_time",
-      active:     true,
-      salary_usd: 0,
-      salary_egp: 0,
-      join_date:  data.join_date||null,
-      termination_date: null,
-      notes:      "",
-    };
-    const {data:sd,error:se}=await supabase.from("staff").insert(staffPayload).select().single();
-    if(!se&&sd) setStaff(prev=>[...prev,sd].sort((a,b)=>a.name.localeCompare(b.name)));
+
+    // Auto-create staff record — only safe columns, no date columns (they may not exist)
+    const safeStaff={name:data.name,department:"Engineering",role:data.role||"",
+                     type:"full_time",active:true,salary_usd:0,salary_egp:0,notes:""};
+    // Try with date columns first, fall back without
+    let staffRes=await supabase.from("staff").insert({...safeStaff,join_date:null,termination_date:null}).select().single();
+    if(staffRes.error) staffRes=await supabase.from("staff").insert(safeStaff).select().single();
+    if(!staffRes.error&&staffRes.data) setStaff(prev=>[...prev,staffRes.data].sort((a,b)=>a.name.localeCompare(b.name)));
+
     setShowEngModal(false);
     setNewEng({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
-    showToast("Member added ✓ — update salary in Finance > Staff");
+    showToast("Member added ✓ — set salary in Finance › Staff");
   };
   const saveEditEngineer=async()=>{
     if(!editEngModal) return;
