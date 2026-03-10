@@ -2863,8 +2863,6 @@ const netColor=netPL>=0?"#34d399":"#f87171";
     monthRevUSD,netPL,ytdData,ytdRev,ytdCost,ytdNet,
     projProfit,deptList,netColor} = derived;
 
-  const MONTHS_ = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
   return(
 <div>
   {/* Finance RLS diagnostic — shows if staff/expenses tables are inaccessible */}
