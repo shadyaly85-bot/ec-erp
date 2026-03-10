@@ -3608,67 +3608,67 @@ export default function App(){
   // ── Design tokens — every semantic color in one place ──
   const T={
     // Backgrounds (layered depth)
-    bg0:   dk?T.bg0:"#f0f4f9",   // page base
-    bg1:   dk?T.bg1:"#ffffff",   // card / panel
-    bg2:   dk?T.bg2:"#f5f8fc",   // inner panel / input area
-    bg3:   dk?T.bg3:"#e8eef6",   // hover row / subtle fill
-    bg4:   dk?T.bg4:"#edf2f8",   // deepest inset
+    bg0:   dk?"#07101e":"#f0f4f9",
+    bg1:   dk?"#0c1829":"#ffffff",
+    bg2:   dk?"#060e1c":"#f5f8fc",
+    bg3:   dk?"#0d1e33":"#e8eef6",
+    bg4:   dk?"#040c18":"#edf2f8",
 
     // Borders
-    border:  dk?T.border:"#d0dae8",
-    border2: dk?T.bg3:"#e4ecf5",
-    borderA: dk?"#0ea5e930":"#bfdbfe",   // accent-tinted border
+    border:  dk?"#1a3050":"#d0dae8",
+    border2: dk?"#0d1e33":"#e4ecf5",
+    borderA: dk?"#0ea5e930":"#bfdbfe",
 
     // Text hierarchy
-    text0: dk?T.text0:T.text0,   // headings
-    text1: dk?T.text1:"#1e293b",   // body
-    text2: dk?T.text2:"#475569",   // secondary
-    text3: dk?T.text3:"#94a3b8",   // dim labels
-    text4: dk?T.text4:"#b0bec5",   // very dim
+    text0: dk?"#f0f6ff":"#0f172a",
+    text1: dk?"#dde3ef":"#1e293b",
+    text2: dk?"#7a8faa":"#475569",
+    text3: dk?"#4e6479":"#94a3b8",
+    text4: dk?"#2e4a66":"#b0bec5",
 
     // Sidebar
-    sidebar:    dk?T.sidebar:"#1e293b",
-    sideText:   dk?T.text2:"#94a3b8",
-    sideAct:    dk?T.bg3:T.sideAct,
+    sidebar:    dk?"#060c18":"#1e293b",
+    sideText:   dk?"#7a8faa":"#94a3b8",
+    sideAct:    dk?"#0d1a2d":"#0f2744",
     navActTxt:  "#38bdf8",
 
     // Inputs
-    inputBg:  dk?T.bg2:"#f8fafc",
-    inputBrd: dk?T.border:"#cbd5e1",
+    inputBg:  dk?"#060e1c":"#f8fafc",
+    inputBrd: dk?"#1a3050":"#cbd5e1",
 
     // Modals
-    modalBg: dk?T.bg1:"#ffffff",
+    modalBg: dk?"#0c1829":"#ffffff",
 
     // Tables
-    thBrd: dk?T.border:"#d0dae6",
-    thBg:  dk?T.bg2:"#f1f6fb",
+    thBrd: dk?"#1a3050":"#d0dae6",
+    thBg:  dk?"#060e1c":"#f1f6fb",
 
     // Scrollbar
-    scrollTrk: dk?T.bg0:"#e8eef5",
-    scrollThm: dk?T.scrollThm:"#b0c4d8",
+    scrollTrk: dk?"#07101e":"#e8eef5",
+    scrollThm: dk?"#1a3354":"#b0c4d8",
 
     // Components
     metricBg: dk?"linear-gradient(135deg,#0c1829,#0d1e34)":"linear-gradient(135deg,#f0f6ff,#e8f2fc)",
-    atab:    dk?T.text3:"#475569",
-    atabAct: dk?T.bg3:"#dbeafe",
-    rptCard: dk?T.bg1:"#f8fafc",
-    rptSel:  dk?T.bg3:"#dbeafe",
-    cardBrd: dk?T.border:"#d0dae8",
+    atab:    dk?"#4e6479":"#475569",
+    atabAct: dk?"#0d1a2d":"#dbeafe",
+    rptCard: dk?"#0c1829":"#f8fafc",
+    rptSel:  dk?"#0d1e34":"#dbeafe",
+    cardBrd: dk?"#1a3050":"#d0dae8",
 
     // Accent
     accent:    "#0ea5e9",
-    accentBg:  dk?T.accentBg:"#e0f2fe",
+    accentBg:  dk?"#071e36":"#e0f2fe",
 
-    // Status (same in both — only saturation differs)
+    // Status
     statusActive:   dk?{bg:"#022c22",color:"#34d399"}:{bg:"#dcfce7",color:"#15803d"},
     statusHold:     dk?{bg:"#2d1a00",color:"#fb923c"}:{bg:"#fef3c7",color:"#b45309"},
-    statusComplete: dk?{bg:T.bg3,color:"#60a5fa"}:{bg:"#dbeafe",color:"#1d4ed8"},
-    billableBg: dk?T.accentBg:"#dbeafe",
+    statusComplete: dk?{bg:"#0d1e33",color:"#60a5fa"}:{bg:"#dbeafe",color:"#1d4ed8"},
+    billableBg: dk?"#071e36":"#dbeafe",
     billableColor: dk?"#38bdf8":"#1d4ed8",
 
     // Progress bars / tracks
-    track: dk?T.bg2:"#e2e8f0",
-    inset: dk?T.bg2:T.text0,
+    track: dk?"#0a1628":"#e2e8f0",
+    inset: dk?"#060e1c":"#f1f5f9",
   };
   const [authEmail,setAuthEmail]     = useState("");
   const [authPwd,setAuthPwd]         = useState("");
