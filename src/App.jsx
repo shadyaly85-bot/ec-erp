@@ -36,7 +36,19 @@ const FUNC_COLORS = {
 const MONTHS       = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const PHASES       = ["Design","Basic Engineering","Detailed Engineering","Software","FAT","Commissioning","Closed"];
 const LEVELS       = ["Junior","Mid","Senior"];
-const ROLES_LIST   = ["Electrical Engineer","Automation Engineer","PLC Programmer","SCADA Engineer","Commissioning Engineer","Renewable Energy Specialist","Instrumentation Engineer","Control Systems Engineer","Project Engineer","Engineering Manager"];
+const ROLES_LIST = [
+  // Engineering
+  "Engineering Manager","Technical Lead","Senior Automation Engineer","Senior SCADA Engineer","Senior RTU Engineer","Senior Protection Engineer",
+  "Automation Engineer","SCADA Engineer","RTU Engineer","Protection Engineer","PLC Programmer",
+  "Junior Automation Engineer","Junior SCADA Engineer","Junior RTU Engineer","Junior Protection Engineer",
+  "Commissioning Engineer","Control Systems Engineer","Electrical Engineer","Instrumentation Engineer","Project Engineer",
+  "Renewable Energy Specialist",
+  // Management & Operations
+  "CTO","CEO","General Manager","Operations Manager","Project Manager",
+  // Support
+  "Accountant","Financial Manager","HR Manager","Administrative Manager",
+  "IT Manager","Document Controller","Other",
+];
 // role_type hierarchy: engineer < lead < accountant < admin
 // engineer: post own hours only, no reports
 // lead: post own hours, edit any engineer hours, export individual timesheet PDF
@@ -414,7 +426,11 @@ function SignupScreen({onBack}){
         <div><Lbl>Full Name</Lbl><input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="Ahmed Hassan"/></div>
         <div><Lbl>Level</Lbl><select value={form.level} onChange={e=>setForm(p=>({...p,level:e.target.value}))}>{LEVELS.map(l=><option key={l}>{l}</option>)}</select></div>
       </div>
-      <div><Lbl>Job Role</Lbl><select value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))}>{ROLES_LIST.map(r=><option key={r}>{r}</option>)}</select></div>
+      <div><Lbl>Job Title</Lbl>
+        <select value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))}>
+          {ROLES_LIST.map(r=><option key={r}>{r}</option>)}
+        </select>
+      </div>
       <div><Lbl>Email</Lbl><input type="email" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="you@company.com"/></div>
       <div><Lbl>Password</Lbl><input type="password" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} placeholder="Min 6 characters"/></div>
       <div style={{background:"#0c2b4e",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:11,color:"#38bdf8"}}>
@@ -3571,7 +3587,7 @@ export default function App(){
   const [editStaff,setEditStaff]           = useState(null);
   const [showExpModal,setShowExpModal]     = useState(false);
   const [editExp,setEditExp]               = useState(null);
-  const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"Engineering Manager",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:"",termination_date:"",notes:""});
+  const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:"",termination_date:"",notes:""});
   const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:null,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
   const [newEntry,setNewEntry]   = useState({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
@@ -7075,7 +7091,11 @@ END $$;`;
                 <div><Lbl>Full Name</Lbl><input value={newEng.name} onChange={e=>setNewEng(p=>({...p,name:e.target.value}))}/></div>
                 <div><Lbl>Level</Lbl><select value={newEng.level} onChange={e=>setNewEng(p=>({...p,level:e.target.value}))}>{LEVELS.map(l=><option key={l}>{l}</option>)}</select></div>
               </div>
-              <div><Lbl>Job Title</Lbl><input value={newEng.role} onChange={e=>setNewEng(p=>({...p,role:e.target.value}))} placeholder="e.g. Accountant, CTO, HR Manager, Automation Engineer"/></div>
+              <div><Lbl>Job Title</Lbl>
+                <select value={newEng.role||ROLES_LIST[0]} onChange={e=>setNewEng(p=>({...p,role:e.target.value}))}>
+                  {ROLES_LIST.map(r=><option key={r}>{r}</option>)}
+                </select>
+              </div>
               <div><Lbl>Email (must match their signup email)</Lbl><input type="email" value={newEng.email} onChange={e=>setNewEng(p=>({...p,email:e.target.value}))}/></div>
               <div>
                 <Lbl>Access Role</Lbl>
@@ -7119,7 +7139,12 @@ END $$;`;
                 <div><Lbl>Full Name</Lbl><input value={editEngModal.name||""} onChange={e=>setEditEngModal(p=>({...p,name:e.target.value}))}/></div>
                 <div><Lbl>Level</Lbl><select value={editEngModal.level||"Mid"} onChange={e=>setEditEngModal(p=>({...p,level:e.target.value}))}>{LEVELS.map(l=><option key={l}>{l}</option>)}</select></div>
               </div>
-              <div><Lbl>Job Role</Lbl><select value={editEngModal.role||""} onChange={e=>setEditEngModal(p=>({...p,role:e.target.value}))}>{ROLES_LIST.map(r=><option key={r}>{r}</option>)}</select></div>
+              <div><Lbl>Job Title</Lbl>
+                <select value={editEngModal.role||""} onChange={e=>setEditEngModal(p=>({...p,role:e.target.value}))}>
+                  <option value="">— Select —</option>
+                  {ROLES_LIST.map(r=><option key={r}>{r}</option>)}
+                </select>
+              </div>
               <div><Lbl>Email</Lbl><input type="email" value={editEngModal.email||""} onChange={e=>setEditEngModal(p=>({...p,email:e.target.value}))}/></div>
               <div><Lbl>Access Role</Lbl><select value={editEngModal.role_type||"engineer"} onChange={e=>setEditEngModal(p=>({...p,role_type:e.target.value}))}>{ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -7167,7 +7192,12 @@ END $$;`;
                     {["Engineering","Management","Finance","Operations","IT","Administration","Other"].map(d=><option key={d}>{d}</option>)}
                   </select>
                 </div>
-                <div><Lbl>Role / Title</Lbl><input value={(editStaff||newStaff).role} onChange={e=>editStaff?setEditStaff(p=>({...p,role:e.target.value})):setNewStaff(p=>({...p,role:e.target.value}))} placeholder="e.g. CTO, Accountant"/></div>
+                <div><Lbl>Job Title</Lbl>
+                  <select value={(editStaff||newStaff).role||""} onChange={e=>editStaff?setEditStaff(p=>({...p,role:e.target.value})):setNewStaff(p=>({...p,role:e.target.value}))}>
+                    <option value="">— Select —</option>
+                    {ROLES_LIST.map(r=><option key={r}>{r}</option>)}
+                  </select>
+                </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Monthly Salary (USD)</Lbl><input type="number" value={(editStaff||newStaff).salary_usd||""} onChange={e=>editStaff?setEditStaff(p=>({...p,salary_usd:+e.target.value})):setNewStaff(p=>({...p,salary_usd:+e.target.value}))} placeholder="0"/></div>
