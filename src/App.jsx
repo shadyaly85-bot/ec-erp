@@ -2620,7 +2620,7 @@ function SubProjectModal({projectId, sub, engineers, onSave, onClose}){
    ════════════════════════════════════════════════════════ */
 function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, setExpandedProj,
   setShowProjModal, setEditProjModal, setSubProjModal, deleteProject, deleteSubProject,
-  activities, setActivities, supabase, showToast, isAdmin, isLead}){
+  activities, setActivities, supabase, showToast, isAdmin, isLead, isAcct}){
   const [actModal,setActModal] = React.useState(null); // {projId, act:null|object}
   const [actDraft,setActDraft] = React.useState({});
   const canEdit = isAdmin||isLead;       // guards add/edit/delete buttons
@@ -2752,7 +2752,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
 function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, setEgpRate,
   finTab, setFinTab, finMonth, setFinMonth, finYear, setFinYear,
   setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
-  deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior}){
+  deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior, isLead, isAcct}){
 
   const derived = useMemo(()=>{
     const activeStaff=staff.filter(s=>s.active!==false);
@@ -2849,7 +2849,6 @@ activeStaff.forEach(s=>{
 const deptList=Object.values(deptMap).sort((a,b)=>b.usd-a.usd);
 
 const netColor=netPL>=0?"#34d399":"#f87171";
-const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     return {activeStaff,totalPayrollUSD,totalPayrollEGP,toUSD,companyStart,wasEmployed,
       monthExp,monthExpNonSalary,totalExpUSD,totalExpEGP,salaryCatUSD,
       staffThisMonth,totalPayrollUSDeff,totalCostUSD,
@@ -2857,6 +2856,7 @@ const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov"
       projProfit,deptList,netColor};
   },[staff,entries,expenses,projects,egpRate,finMonth,finYear]);
 
+  const MONTHS_ = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const {activeStaff,totalPayrollUSD,totalPayrollEGP,toUSD,
     monthExp,monthExpNonSalary,totalExpUSD,totalExpEGP,salaryCatUSD,
     staffThisMonth,totalPayrollUSDeff,totalCostUSD,
@@ -3134,7 +3134,7 @@ const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov"
 /* ════════════════════════════════════════════════════════
    FUNCTIONS TAB — standalone component
    ════════════════════════════════════════════════════════ */
-function FunctionsTab({entries, engineers, funcYear, setFuncYear, funcEngId, setFuncEngId, deleteEntry, isAdmin, year, setShowFuncModal}){
+function FunctionsTab({entries, engineers, funcYear, setFuncYear, funcEngId, setFuncEngId, deleteEntry, isAdmin, isLead, isAcct, year, setShowFuncModal}){
 
   const {funcEntries, yearFuncs, totalFuncHrs, catTotals, maxCat, engFuncMap} = useMemo(()=>{
     const funcEntries=entries.filter(e=>
@@ -3241,7 +3241,7 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"#38bdf8":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#1a0808":s<=75?"#1c0f00":s<=95?"#0a1628":"#022c22";
 
-function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, year, notifications, alertDay, setAlertDay}){
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, alertDay, setAlertDay}){
   const yearEntries = useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
   const engKPIs = useMemo(()=>{
 /* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
@@ -5719,7 +5719,7 @@ export default function App(){
                     return `<div class="level">${ns.map(n=>`<div class="branch">${buildCard2(n)}${ch2(n.id).length?`<div class="vl"></div><div class="sub">${buildLevel2(ch2(n.id))}</div>`:""}</div>`).join("")}</div>`;
                   };
                   const rts=orgNodes.filter(n=>!n.parent_id).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-                  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>*{margin:0;padding:0;box-sizing:border-box;}body{background:#04080f;font-family:'Segoe UI',Arial,sans-serif;padding:32px 28px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}.hdr{display:flex;align-items:center;gap:18px;margin-bottom:44px;padding-bottom:20px;border-bottom:1px solid #1a2e44;}.hdr img{width:52px;height:52px;border-radius:10px;object-fit:contain;}.hdr h1{font-size:20px;font-weight:700;color:#c8d8e8;letter-spacing:-.02em;}.hdr p{font-size:10px;color:#2e4a66;margin-top:3px;letter-spacing:.06em;text-transform:uppercase;}.chart{display:flex;flex-direction:column;align-items:center;}.level{display:flex;gap:18px;align-items:flex-start;justify-content:center;position:relative;}.branch{display:flex;flex-direction:column;align-items:center;}.vl{width:1px;height:18px;background:#1a2e44;}.sub{display:flex;flex-direction:column;align-items:center;}.card{width:142px;background:#080f1c;border-radius:11px;padding:14px 11px 12px;text-align:center;}.avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 9px;font-size:13px;font-weight:700;}.name{font-size:11.5px;font-weight:700;line-height:1.3;margin-bottom:2px;letter-spacing:-.01em;}.jtitle{font-size:9px;color:#2e4a66;line-height:1.4;letter-spacing:.02em;}.jrole{font-size:7.5px;color:#1e3a5f;letter-spacing:.05em;text-transform:uppercase;font-weight:600;margin-top:2px;}@media print{@page{margin:10mm;size:A4 landscape;}}</style></head><body><div class="hdr"><img src="${LOGO_SRC}"/><div><h1>Organization Chart</h1><p>ENEVO Group · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div><div class="chart">${buildLevel2(rts)}</div><script>window.onload=()=>setTimeout(()=>{window.print();},400);</script></body></html>`;
+                  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>*{margin:0;padding:0;box-sizing:border-box;}body{background:#04080f;font-family:'Segoe UI',Arial,sans-serif;padding:32px 28px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}.hdr{display:flex;align-items:center;gap:18px;margin-bottom:44px;padding-bottom:20px;border-bottom:1px solid #1a2e44;}.hdr img{width:52px;height:52px;border-radius:10px;object-fit:contain;}.hdr h1{font-size:20px;font-weight:700;color:#c8d8e8;letter-spacing:-.02em;}.hdr p{font-size:10px;color:#2e4a66;margin-top:3px;letter-spacing:.06em;text-transform:uppercase;}.chart{display:flex;flex-direction:column;align-items:center;}.level{display:flex;gap:18px;align-items:flex-start;justify-content:center;position:relative;}.branch{display:flex;flex-direction:column;align-items:center;}.vl{width:1px;height:18px;background:#1a2e44;}.sub{display:flex;flex-direction:column;align-items:center;}.card{width:142px;background:#080f1c;border-radius:11px;padding:14px 11px 12px;text-align:center;}.avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 9px;font-size:13px;font-weight:700;}.name{font-size:11.5px;font-weight:700;line-height:1.3;margin-bottom:2px;letter-spacing:-.01em;}.jtitle{font-size:9px;color:#2e4a66;line-height:1.4;letter-spacing:.02em;}.jrole{font-size:7.5px;color:#1e3a5f;letter-spacing:.05em;text-transform:uppercase;font-weight:600;margin-top:2px;}@media print{@page{margin:8mm;size:A4 landscape;}body{zoom:0.75;}.card{page-break-inside:avoid;break-inside:avoid;}.branch{page-break-inside:avoid;break-inside:avoid;}.level{page-break-inside:avoid;break-inside:avoid;}}</style></head><body><div class="hdr"><img src="${LOGO_SRC}"/><div><h1>Organization Chart</h1><p>ENEVO Group · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div><div class="chart">${buildLevel2(rts)}</div><script>window.onload=()=>setTimeout(()=>{window.print();},400);</script></body></html>`;
                   const w=window.open("","_blank");
                   if(w){w.document.write(html);w.document.close();}
                   else showToast("Allow popups to export PDF",false);
@@ -6369,6 +6369,7 @@ export default function App(){
                   deleteSubProject={deleteSubProject}
                   isAdmin={isAdmin}
                   isLead={isLead}
+                  isAcct={isAcct}
                 />
               )}
 
@@ -6478,7 +6479,7 @@ export default function App(){
                   setEditExp={setEditExp} setNewExp={setNewExp} setShowExpModal={setShowExpModal}
                   deleteStaff={deleteStaff} deleteExpense={deleteExpense}
                   fmtCurrency={fmtCurrency} buildFinancePDF={buildFinancePDF}
-                  isAdmin={isAdmin}
+                  isAdmin={isAdmin} isSenior={isSenior} isLead={isLead} isAcct={isAcct}
                 />
               )}
 
@@ -6488,7 +6489,7 @@ export default function App(){
                   entries={entries} engineers={engineers}
                   funcYear={funcYear} setFuncYear={setFuncYear}
                   funcEngId={funcEngId} setFuncEngId={setFuncEngId}
-                  deleteEntry={deleteEntry} isAdmin={isAdmin} year={year}
+                  deleteEntry={deleteEntry} isAdmin={isAdmin} isLead={isLead} isAcct={isAcct} year={year}
                   setShowFuncModal={setShowFuncModal}
                 />
               )}
@@ -6500,7 +6501,7 @@ export default function App(){
                   kpiYear={kpiYear} setKpiYear={setKpiYear}
                   kpiEngId={kpiEngId} setKpiEngId={setKpiEngId}
                   kpiNotes={kpiNotes} setKpiNotes={setKpiNotes}
-                  isAdmin={isAdmin} year={year}
+                  isAdmin={isAdmin} isLead={isLead} isAcct={isAcct} year={year}
                   notifications={notifications}
                   alertDay={alertDay} setAlertDay={setAlertDay}
                 />
