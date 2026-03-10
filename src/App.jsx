@@ -679,7 +679,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
                 <div>
                   <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</div>
-                  <div style={{fontSize:13,fontWeight:600,marginTop:2,lineHeight:1.3,color:"#f0f6ff"}}>{p.name}</div>
+                  <div style={{fontSize:13,fontWeight:600,marginTop:2,lineHeight:1.3,color:"#f0f6ff"}}>{p.name||p.id}</div>
                 </div>
                 <div style={{display:"flex",gap:5,alignItems:"flex-start"}}>
                   <span style={{fontSize:9,padding:"2px 7px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,
@@ -1206,7 +1206,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
       <div style="background:linear-gradient(135deg,#0a1628,#0f2a50);border-radius:10px;padding:18px 22px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start">
         <div>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.18em;color:#38bdf8;margin-bottom:5px;font-weight:700">${idx+1} of ${projList.length}  ·  ${p.id}</div>
-          <div style="font-size:20px;font-weight:700;color:#ffffff;margin-bottom:4px;letter-spacing:-.01em">${p.name}</div>
+          <div style="font-size:20px;font-weight:700;color:#ffffff;margin-bottom:4px;letter-spacing:-.01em">${p.name||p.id}</div>
           <div style="font-size:10px;color:#94a3b8;margin-top:2px;font-weight:500">${p.client?"Client: "+p.client+"  ·  ":""} Phase: ${p.phase||"—"}${p.type?"  ·  "+p.type:""}</div>
         </div>
         <div style="text-align:right">
@@ -1266,7 +1266,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
     const rowBg=i%2===0?"rgba(255,255,255,0.04)":"rgba(255,255,255,0.00)";
     return`<tr style="background:${rowBg}">
       <td style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#38bdf8;font-weight:700;padding:7px 10px">${pm.proj.id}</td>
-      <td style="font-weight:600;color:#f0f6ff;font-size:10px;padding:7px 10px">${pm.proj.name}</td>
+      <td style="font-weight:600;color:#f0f6ff;font-size:10px;padding:7px 10px">${pm.proj.name||pm.proj.id}</td>
       <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#38bdf8;padding:7px 10px">${pm.totalHrs}h</td>
       <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8;padding:7px 10px">${pct}%</td>
       <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#10b981;font-weight:700;padding:7px 10px">${billPct}%</td>
@@ -2155,7 +2155,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete}){
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component
    ════════════════════════════════════════════════════════ */
-function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, activitiesLoaded, setActivities, showToast}){
+function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, showToast}){
   const canEdit = isAdmin || isLead;
   const [trackerProj,  setTrackerProj]  = useState(null);
   const [trackerSub,   setTrackerSub]   = useState(null);
@@ -2242,7 +2242,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
 
   // ── OVERVIEW ──
   if(!trackerProj){
-    const allTrackerProjects=canEdit
+    const allTrackerProjects=(canEdit||isAcct)
       ? projects.filter(p=>p.status!=="Completed")
       : projects.filter(p=>(actsByProj[p.id]||[]).length>0);
     return(<>
@@ -2601,7 +2601,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
     <div className="card" style={{padding:"12px 16px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
         <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Projects ({projects.length})</h3>
-        <button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>
+        {canEdit&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
       </div>
       <table>
         <thead><tr>
@@ -6229,7 +6229,7 @@ export default function App(){
                 <div className="card">
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                     <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Engineers & Access Control ({engineers.length})</h3>
-                    <button className="bp" onClick={()=>setShowEngModal(true)}>+ Add Member</button>
+                    {isAdmin&&<button className="bp" onClick={()=>setShowEngModal(true)}>+ Add Member</button>}
                   </div>
                   <div style={{background:"#060e1c",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:11,color:"#38bdf8",marginBottom:12}}>
                     ℹ New registrations default to <strong>Engineer</strong> role. Update their role here after they sign up.
@@ -6446,6 +6446,7 @@ export default function App(){
                   engineers={engineers}
                   isAdmin={isAdmin}
                   isLead={isLead}
+                  isAcct={isAcct}
                   activitiesLoaded={activitiesLoaded}
                   setActivities={setActivities}
                   showToast={showToast}
