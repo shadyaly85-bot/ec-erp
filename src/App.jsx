@@ -3991,59 +3991,68 @@ export default function App(){
   const saveStaff=useCallback(async()=>{
     const raw=editStaff?{...editStaff}:{...newStaff};
     if(!raw.name.trim()){showToast("Name required",false);return;}
-    const payload={...raw,
-      join_date:        raw.join_date||null,
-      termination_date: raw.termination_date||null,
+    // ONLY columns that exist in the staff table — strip engineer-only fields
+    const staffPayload={
+      name:            raw.name.trim(),
+      department:      raw.department||"Engineering",
+      role:            raw.role||"",
+      type:            raw.type||"full_time",
+      active:          raw.active!==false,
+      salary_usd:      raw.salary_usd||0,
+      salary_egp:      raw.salary_egp||0,
+      join_date:       raw.join_date||null,
+      termination_date:raw.termination_date||null,
+      notes:           raw.notes||"",
     };
     if(editStaff){
-      // ── EDIT: update staff record ──
-      const{data,error}=await supabase.from("staff").update(payload).eq("id",editStaff.id).select().single();
-      if(error){showToast(error.message||"Error",false);return;}
+      // ── EDIT staff ──
+      const{data,error}=await supabase.from("staff").update(staffPayload).eq("id",editStaff.id).select().single();
+      if(error){showToast("Error: "+error.message,false);return;}
       setStaff(prev=>prev.map(s=>s.id===data.id?data:s));
-      // Sync ALL common fields to matching engineer record
+      // Sync role + active + dates to matching engineer
       const matchEng=engineers.find(e=>e.name?.trim().toLowerCase()===data.name?.trim().toLowerCase());
       if(matchEng){
-        const engSync={
-          role:            data.role||matchEng.role,
-          is_active:       data.active!==false,
-          join_date:       data.join_date||null,
-          termination_date:data.termination_date||null,
-        };
-        const{data:ed}=await supabase.from("engineers").update(engSync).eq("id",matchEng.id).select().single();
-        if(ed) setEngineers(prev=>prev.map(e=>e.id===matchEng.id?{...e,...engSync}:e));
+        const engSync={role:data.role||matchEng.role,is_active:data.active!==false,join_date:data.join_date||null,termination_date:data.termination_date||null};
+        await supabase.from("engineers").update(engSync).eq("id",matchEng.id);
+        setEngineers(prev=>prev.map(e=>e.id===matchEng.id?{...e,...engSync}:e));
       }
-      showToast("Staff updated");setEditStaff(null);setShowStaffModal(false);
+      showToast("Staff updated ✓");setEditStaff(null);setShowStaffModal(false);
     } else {
-      // ── ADD: insert staff record ──
-      const{data,error}=await supabase.from("staff").insert(payload).select().single();
-      if(error){showToast(error.message||"Error",false);return;}
+      // ── ADD staff ──
+      const{data,error}=await supabase.from("staff").insert(staffPayload).select().single();
+      if(error){showToast("Error: "+error.message,false);return;}
       setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));
-      // Auto-create engineer record so they appear in team lists
-      // Only if email provided and no existing engineer with same name
+      // Auto-create engineer record (separate table, different columns)
       const existsEng=engineers.find(e=>e.name?.trim().toLowerCase()===data.name?.trim().toLowerCase());
       if(!existsEng&&raw.email?.trim()){
         const engPayload={
-          name:      data.name,
-          email:     raw.email.trim().toLowerCase(),
-          role:      data.role||ROLES_LIST[0],
-          level:     raw.level||"Mid",
-          role_type: raw.role_type||"engineer",
-          is_active: data.active!==false,
-          join_date: data.join_date||null,
-          termination_date: data.termination_date||null,
-          weekend_days: JSON.stringify(DEFAULT_WEEKEND),
+          name:        data.name,
+          email:       raw.email.trim().toLowerCase(),
+          role:        data.role||ROLES_LIST[0],
+          level:       raw.level||"Mid",
+          role_type:   raw.role_type||"engineer",
+          is_active:   data.active!==false,
+          join_date:   data.join_date||null,
+          termination_date: null,
+          weekend_days:JSON.stringify(DEFAULT_WEEKEND),
         };
+        // Try full insert; fall back if newer columns missing in DB schema
         let{data:ed,error:ee}=await supabase.from("engineers").insert(engPayload).select().single();
-        if(ee&&(ee.message?.includes("is_active")||ee.message?.includes("termination_date")||ee.message?.includes("join_date"))){
-          const{is_active,termination_date,join_date,...safeEng}=engPayload;
+        if(ee&&(ee.message?.includes("is_active")||ee.message?.includes("termination_date")||ee.message?.includes("join_date")||ee.message?.includes("weekend_days"))){
+          const{is_active,termination_date,join_date,weekend_days,...safeEng}=engPayload;
           const r2=await supabase.from("engineers").insert(safeEng).select().single();
           ed=r2.data;
-          if(ed) ed={...ed,is_active:true,termination_date:null,join_date:null};
+          if(ed) ed={...ed,is_active:true,termination_date:null,join_date:null,weekend_days:engPayload.weekend_days};
         }
-        if(ed) setEngineers(prev=>[...prev,ed].sort((a,b)=>a.name.localeCompare(b.name)));
-        showToast("Staff + engineer record created ✓");
+        if(ee&&ed===undefined){showToast("Staff added ✓ — engineer record failed: "+ee.message,false);}
+        else{
+          if(ed) setEngineers(prev=>[...prev,ed].sort((a,b)=>a.name.localeCompare(b.name)));
+          showToast("Member added ✓ — appears in Team + Finance lists");
+        }
+      } else if(existsEng){
+        showToast("Staff added ✓ — linked to existing engineer profile");
       } else {
-        showToast("Staff added ✓"+(existsEng?" (linked to existing engineer)":""));
+        showToast("Staff added ✓ — add email to create login access");
       }
       setShowStaffModal(false);
       setNewStaff({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:null,termination_date:null,email:"",level:"Mid",role_type:"engineer",notes:""});
@@ -4561,14 +4570,19 @@ export default function App(){
       weekend_days: newEng.weekend_days||JSON.stringify(DEFAULT_WEEKEND),
     };
     let {data,error}=await supabase.from("engineers").insert(payload).select().single();
-    // Fallback: if DB schema is missing newer columns, retry without them
-    if(error&&(error.message?.includes("is_active")||error.message?.includes("termination_date")||error.message?.includes("join_date"))){
-      const {is_active,termination_date,join_date,...safe}=payload;
-      const r2=await supabase.from("engineers").insert(safe).select().single();
-      data=r2.data; error=r2.error;
-      if(data) data={...data,is_active:true,termination_date:null,join_date:null};
+    // Fallback: if DB schema is missing newer columns, strip them and retry
+    if(error){
+      const stripped={};
+      const cols=["name","email","role","level","role_type"];
+      cols.forEach(k=>{if(payload[k]!==undefined) stripped[k]=payload[k];});
+      if(error.message?.includes("is_active")||error.message?.includes("termination_date")||error.message?.includes("join_date")||error.message?.includes("weekend_days")){
+        // Try with only base columns
+        const r2=await supabase.from("engineers").insert(stripped).select().single();
+        data=r2.data; error=r2.error;
+        if(data) data={...data,is_active:true,termination_date:null,join_date:null,weekend_days:payload.weekend_days};
+      }
     }
-    if(error){showToast("Error adding member: "+error.message,false);return;}
+    if(error){showToast("Error: "+error.message,false);return;}
     // Add to engineers list
     setEngineers(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));
     // Auto-create matching staff record so Finance/payroll is in sync
@@ -6395,6 +6409,44 @@ export default function App(){
               {adminTab==="settings"&&isAdmin&&(
                 <div style={{maxWidth:600,display:"grid",gap:14}}>
                   {/* ── RLS Fix SQL ── */}
+                  {/* Schema migrations card */}
+                  <div className="card" style={{border:"1px solid #38bdf840",background:"#040c18"}}>
+                    <h3 style={{fontSize:13,fontWeight:700,color:"#38bdf8",marginBottom:4}}>🛠 Run Schema Migrations (One Time)</h3>
+                    <p style={{fontSize:11,color:"#7a8faa",marginBottom:10,lineHeight:1.6}}>
+                      If adding members fails with a date or column error, run this in <strong style={{color:"#38bdf8"}}>Supabase SQL Editor</strong> once to ensure all required columns exist.
+                    </p>
+                    <pre style={{fontSize:10.5,color:"#34d399",background:"#060e1c",border:"1px solid #34d39930",borderRadius:6,padding:"12px 14px",margin:0,fontFamily:"'IBM Plex Mono',monospace",whiteSpace:"pre-wrap",userSelect:"all",lineHeight:1.7}}>
+{`-- Engineers table: add all optional columns
+ALTER TABLE engineers ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+ALTER TABLE engineers ADD COLUMN IF NOT EXISTS join_date date DEFAULT NULL;
+ALTER TABLE engineers ADD COLUMN IF NOT EXISTS termination_date date DEFAULT NULL;
+ALTER TABLE engineers ADD COLUMN IF NOT EXISTS weekend_days text DEFAULT NULL;
+ALTER TABLE engineers ADD COLUMN IF NOT EXISTS email text DEFAULT NULL;
+
+-- Staff table: add date columns
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS join_date date DEFAULT NULL;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS termination_date date DEFAULT NULL;
+
+-- Role constraint: allow senior_management
+ALTER TABLE engineers DROP CONSTRAINT IF EXISTS engineers_role_type_check;
+ALTER TABLE engineers ADD CONSTRAINT engineers_role_type_check
+  CHECK (role_type IN ('engineer','lead','accountant','senior_management','admin'));`}
+                    </pre>
+                    <button className="bp" style={{marginTop:10,fontSize:11}} onClick={()=>{
+                      const sql=`ALTER TABLE engineers ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+ALTER TABLE engineers ADD COLUMN IF NOT EXISTS join_date date DEFAULT NULL;
+ALTER TABLE engineers ADD COLUMN IF NOT EXISTS termination_date date DEFAULT NULL;
+ALTER TABLE engineers ADD COLUMN IF NOT EXISTS weekend_days text DEFAULT NULL;
+ALTER TABLE engineers ADD COLUMN IF NOT EXISTS email text DEFAULT NULL;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS join_date date DEFAULT NULL;
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS termination_date date DEFAULT NULL;
+ALTER TABLE engineers DROP CONSTRAINT IF EXISTS engineers_role_type_check;
+ALTER TABLE engineers ADD CONSTRAINT engineers_role_type_check CHECK (role_type IN ('engineer','lead','accountant','senior_management','admin'));`;
+                      navigator.clipboard.writeText(sql).then(()=>showToast("SQL copied ✓")).catch(()=>showToast("Copy failed",false));
+                    }}>📋 Copy Migrations SQL</button>
+                    <p style={{fontSize:10,color:"#4e6479",marginTop:8}}>Run this once → then adding members will work correctly</p>
+                  </div>
+
                   <div className="card" style={{border:"1px solid #f8717140",background:"#0d0806"}}>
                     <h3 style={{fontSize:13,fontWeight:700,color:"#f87171",marginBottom:4}}>⚠ Database Fix Required (Run Once)</h3>
                     <p style={{fontSize:11,color:"#7a8faa",marginBottom:10,lineHeight:1.6}}>
