@@ -1275,45 +1275,73 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
     </tr>`;
   }).join("");
 
+  // Build summary rows with fully explicit inline colors — no inheritance from PDF_STYLE body
+  const coverSummaryRows = projList.map((pm,i)=>{
+    const pct   = grandTotal ? Math.round(pm.totalHrs/grandTotal*100) : 0;
+    const bPct  = pm.totalHrs ? Math.round(pm.billableHrs/pm.totalHrs*100) : 0;
+    const rowBg = i%2===0 ? "rgba(255,255,255,0.05)" : "transparent";
+    const stBg  = pm.proj.status==="Active" ? "#064e3b" : pm.proj.status==="Completed" ? "#1e3a5f" : "#431407";
+    const stCol = pm.proj.status==="Active" ? "#6ee7b7" : pm.proj.status==="Completed" ? "#93c5fd" : "#fdba74";
+    return `<tr style="background:${rowBg};border-bottom:1px solid rgba(255,255,255,0.06)">
+      <td style="padding:9px 12px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#38bdf8;font-weight:700;white-space:nowrap">${pm.proj.id}</td>
+      <td style="padding:9px 12px;font-size:10px;font-weight:600;color:#f1f5f9">${pm.proj.name||pm.proj.id}</td>
+      <td style="padding:9px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:#7dd3fc">${pm.totalHrs}h</td>
+      <td style="padding:9px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#94a3b8">${pct}%</td>
+      <td style="padding:9px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:#6ee7b7">${bPct}%</td>
+      <td style="padding:9px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#c4b5fd">${Object.keys(pm.engineers).length}</td>
+      <td style="padding:9px 12px"><span style="display:inline-block;padding:3px 8px;border-radius:4px;font-size:8px;font-weight:700;letter-spacing:.04em;background:${stBg};color:${stCol}">${pm.proj.status||"Active"}</span></td>
+    </tr>`;
+  }).join("");
+
   const coverHTML=`
-  <div style="background:linear-gradient(135deg,#0a1628,#0f2a50 60%,#153d6e);color:#fff;padding:44px;min-height:100vh;position:relative;overflow:hidden;box-sizing:border-box">
-    <div style="position:absolute;right:-60px;top:-60px;width:280px;height:280px;border:2px solid rgba(56,189,248,0.15);border-radius:50%"></div>
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:28px">
-      <img src="${LOGO_SRC}" alt="ENEVO Group" style="width:56px;height:56px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
-      <div>
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.2em;color:#38bdf8;margin-bottom:4px;font-weight:700">ENEVO GROUP · PROJECT TASKS ANALYSIS</div>
-        <div style="font-size:11px;color:#cbd5e1;font-weight:500">Industrial & Renewable Energy Automation</div>
+  <div style="background:#0a1628;color:#f1f5f9;padding:0;min-height:100vh;box-sizing:border-box;font-family:'IBM Plex Sans',sans-serif">
+    <!-- Header band -->
+    <div style="background:linear-gradient(135deg,#0f2a50,#1a4a7a);padding:40px 48px 32px;position:relative;overflow:hidden">
+      <div style="position:absolute;right:-40px;top:-40px;width:220px;height:220px;border:1.5px solid rgba(56,189,248,0.12);border-radius:50%"></div>
+      <div style="position:absolute;right:60px;top:30px;width:120px;height:120px;border:1px solid rgba(56,189,248,0.07);border-radius:50%"></div>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px">
+        <img src="${LOGO_SRC}" alt="ENEVO" style="width:52px;height:52px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.22em;color:#38bdf8;font-weight:700;margin-bottom:3px">ENEVO GROUP · PROJECT TASKS ANALYSIS</div>
+          <div style="font-size:11px;color:#94a3b8;font-weight:500">Industrial & Renewable Energy Automation</div>
+        </div>
+      </div>
+      <div style="font-size:32px;font-weight:700;color:#f1f5f9;letter-spacing:-.02em;margin-bottom:4px">All Projects Report</div>
+      <div style="font-size:12px;color:#64748b;font-weight:500;margin-bottom:28px">Period: ${periodLabel||"All Time"}  ·  Generated ${now}</div>
+      <!-- KPI row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        ${[
+          {l:"Total Hours",   v:grandTotal+"h",  c:"#38bdf8", bg:"rgba(56,189,248,0.08)",  br:"rgba(56,189,248,0.2)"},
+          {l:"Projects",      v:projList.length,  c:"#c4b5fd", bg:"rgba(167,139,250,0.08)", br:"rgba(167,139,250,0.2)"},
+          {l:"Billable Hours",v:totalBillable+"h",c:"#6ee7b7", bg:"rgba(52,211,153,0.08)",  br:"rgba(52,211,153,0.2)"},
+          {l:"Engineers",     v:allEngs.size,     c:"#fbbf24", bg:"rgba(251,191,36,0.08)",  br:"rgba(251,191,36,0.2)"},
+        ].map(k=>`<div style="background:${k.bg};border:1px solid ${k.br};border-radius:10px;padding:14px 16px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
+          <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.1em;margin-top:6px;font-weight:600">${k.l}</div>
+        </div>`).join("")}
       </div>
     </div>
-    <div style="font-size:30px;font-weight:700;margin-bottom:6px;color:#f0f6ff;letter-spacing:-.02em">All Projects Report</div>
-    <div style="font-size:13px;color:#94a3b8;margin-bottom:24px;font-weight:500">Period: ${periodLabel||"All Time"}</div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px">
-      ${[
-        {l:"Total Hours",   v:grandTotal+"h",           c:"#38bdf8"},
-        {l:"Projects",      v:projList.length,           c:"#a78bfa"},
-        {l:"Billable Hours",v:totalBillable+"h",         c:"#34d399"},
-        {l:"Engineers",     v:allEngs.size,              c:"#fb923c"},
-      ].map(k=>`<div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:16px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
-        <div style="font-size:10px;color:#cbd5e1;text-transform:uppercase;letter-spacing:.1em;margin-top:6px;font-weight:600">${k.l}</div>
-      </div>`).join("")}
-    </div>
-    <div style="font-size:10px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Project Summary</div>
-    <table style="font-size:10px">
-      <thead><tr style="border-bottom:2px solid rgba(56,189,248,0.4)">
-        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;background:rgba(14,165,233,0.08)">ID</th>
-        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;background:rgba(14,165,233,0.08)">Project Name</th>
-        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;text-align:right;background:rgba(14,165,233,0.08)">Hours</th>
-        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;text-align:right;background:rgba(14,165,233,0.08)">Share</th>
-        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;text-align:right;background:rgba(14,165,233,0.08)">Billable%</th>
-        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;text-align:right;background:rgba(14,165,233,0.08)">Engs</th>
-        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;background:rgba(14,165,233,0.08)">Status</th>
-      </tr></thead>
-      <tbody>${summaryRows}</tbody>
-    </table>
-    <div style="position:absolute;bottom:24px;left:44px;right:44px;display:flex;justify-content:space-between;font-size:9px;color:#475569">
-      <span>ENEVO Group · Industrial & Renewable Energy Automation</span>
-      <span>CONFIDENTIAL — ${now}</span>
+    <!-- Summary table section — solid dark background, all colors explicit -->
+    <div style="padding:28px 48px 40px;background:#0d1d35">
+      <div style="font-size:9px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:.15em;margin-bottom:12px">Project Summary</div>
+      <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Sans',sans-serif">
+        <thead>
+          <tr style="background:#0f2845;border-bottom:2px solid #1e4976">
+            <th style="padding:10px 12px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">ID</th>
+            <th style="padding:10px 12px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Project Name</th>
+            <th style="padding:10px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Hours</th>
+            <th style="padding:10px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Share</th>
+            <th style="padding:10px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Billable%</th>
+            <th style="padding:10px 12px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Engs</th>
+            <th style="padding:10px 12px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;color:#38bdf8;text-transform:uppercase">Status</th>
+          </tr>
+        </thead>
+        <tbody>${coverSummaryRows}</tbody>
+      </table>
+      <div style="margin-top:24px;padding-top:16px;border-top:1px solid #1a3050;display:flex;justify-content:space-between;font-size:8px;color:#334155;font-family:'IBM Plex Mono',monospace">
+        <span>ENEVO Group · Industrial & Renewable Energy Automation</span>
+        <span>CONFIDENTIAL</span>
+      </div>
     </div>
   </div>`;
 
@@ -2562,6 +2590,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
   activities, setActivities, supabase, showToast, isAdmin, isLead}){
   const [actModal,setActModal] = React.useState(null); // {projId, act:null|object}
   const [actDraft,setActDraft] = React.useState({});
+  const canEdit = isAdmin||isLead;       // guards add/edit/delete buttons
   const canManageActs = isAdmin||isLead;
 
   const openActModal=(projId,act=null)=>{
