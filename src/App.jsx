@@ -2803,6 +2803,16 @@ const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov"
 
   return(
 <div>
+  {/* Finance RLS diagnostic — shows if staff/expenses tables are inaccessible */}
+  {staff.length===0&&expenses.length===0&&(
+    <div style={{background:"#1a0800",border:"1px solid #fb923c40",borderRadius:8,padding:"12px 16px",marginBottom:16}}>
+      <div style={{fontSize:12,color:"#fb923c",fontWeight:600,marginBottom:6}}>⚠ Finance data not loading — likely a database permissions issue</div>
+      <div style={{fontSize:11,color:"#7a8faa",marginBottom:8}}>Run this SQL in Supabase → SQL Editor to fix RLS for all tables:</div>
+      <code style={{fontSize:10,color:"#38bdf8",fontFamily:"monospace",display:"block",background:"#060e1c",padding:8,borderRadius:4,lineHeight:1.6}}>
+        {"DO $$ DECLARE t text; BEGIN FOR t IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t); EXECUTE format('DROP POLICY IF EXISTS auth_all ON %I', t); EXECUTE format('CREATE POLICY auth_all ON %I FOR ALL USING (auth.role()=''authenticated'')', t); END LOOP; END $$;"}
+      </code>
+    </div>
+  )}
   {/* Finance sub-tabs */}
   <div style={{display:"flex",gap:4,marginBottom:16,background:"#060e1c",borderRadius:8,padding:4,width:"fit-content"}}>
     {[{id:"pl",label:"📊 P&L"},{id:"salaries",label:"👤 Salaries"},{id:"expenses",label:"🧾 Expenses"}].map(t=>(
@@ -3658,7 +3668,7 @@ export default function App(){
   const loadAll=useCallback(async()=>{
     setLoading(true);
     try{
-      const [engsR,projR,entrR,profR,notifR]=await Promise.all([
+      const [engsR,projR,entrR,profR,notifR,staffR,expR]=await Promise.all([
         supabase.from("engineers").select("*").order("name"),
         supabase.from("projects").select("*").order("id"),
         supabase.from("time_entries").select("*").order("date",{ascending:false}),
@@ -3670,26 +3680,21 @@ export default function App(){
       if(engsR.data) setEngineers(engsR.data);
       if(projR.data) setProjects(projR.data);
       if(entrR.data) setEntries(entrR.data);
-      // Load finance tables
-      const [staffRes,expRes]=await Promise.all([
-        supabase.from("staff").select("*").order("name"),
-        supabase.from("expenses").select("*").order("year",{ascending:false}),
-      ]);
-      if(staffRes.data){
-        const sData=staffRes.data;
-        setStaff(sData);
-        // Always sync termination_date from staff → engineers by name match
-        // This makes status work without any DB migration on engineers table
-        setEngineers(prev=>prev.map(eng=>{
-          const match=sData.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
-          if(!match) return eng;
-          // Staff termination_date wins if set; clearing it restores active
-          return {...eng, termination_date: match.termination_date||eng.termination_date||null};
-        }));
-      }
-      if(expRes.data)   setExpenses(expRes.data);
       if(profR.data){ setMyProfile(profR.data); setBrowseEngId(profR.data.id); }
       if(notifR.data) setNotifications(notifR.data);
+      if(staffR.data){
+        const sData=staffR.data;
+        setStaff(sData);
+        // Sync termination_date from staff → engineers by name match
+        if(engsR.data){
+          setEngineers(prev=>prev.map(eng=>{
+            const match=sData.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
+            if(!match) return eng;
+            return {...eng, termination_date: match.termination_date||eng.termination_date||null};
+          }));
+        }
+      }
+      if(expR.data) setExpenses(expR.data);
       // Trigger timesheet delay alerts after data loads
       if(engsR.data&&entrR.data) setTimeout(()=>checkTimesheetAlerts(engsR.data,entrR.data),1500);
     }catch(e){showToast("Error loading data",false);}
@@ -4030,8 +4035,12 @@ export default function App(){
       const{data,error}=await supabase.from("staff").insert(staffPayload).select().single();
       if(error){showToast("Error: "+error.message,false);return;}
       setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));
-      // Auto-create engineer record with progressive fallback
-      const existsEng=engineers.find(e=>e.name?.trim().toLowerCase()===data.name?.trim().toLowerCase());
+      // Auto-create engineer record — check by name OR email to prevent duplication
+      const existsEngByName=engineers.find(e=>e.name?.trim().toLowerCase()===data.name?.trim().toLowerCase());
+      const existsEngByEmail=raw.email?.trim()?engineers.find(e=>e.email?.trim().toLowerCase()===raw.email.trim().toLowerCase()):null;
+      const existsEng=existsEngByName||existsEngByEmail;
+      // Also check: if staff record already existed before this insert (was added via Add Member previously)
+      // In that case the engineer record already exists — just show the linked message
       if(!existsEng&&raw.email?.trim()){
         const engAttempts=[
           {name:data.name,email:raw.email.trim().toLowerCase(),role:data.role||ROLES_LIST[0],
@@ -4599,17 +4608,27 @@ export default function App(){
       }
       lastError=res.error;
     }
-    if(lastError||!data){showToast("Error: "+(lastError?.message||"Unknown error"),false);return;}
+    if(lastError||!data){
+      const msg=lastError?.message||"Unknown error";
+      if(msg.includes("duplicate")||msg.includes("unique")){
+        showToast("A member with this name or email already exists",false);
+      } else {
+        showToast("Error: "+msg,false);
+      }
+      return;
+    }
 
     setEngineers(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));
 
-    // Auto-create staff record — only safe columns, no date columns (they may not exist)
-    const safeStaff={name:data.name,department:"Engineering",role:data.role||"",
-                     type:"full_time",active:true,salary_usd:0,salary_egp:0,notes:""};
-    // Try with date columns first, fall back without
-    let staffRes=await supabase.from("staff").insert({...safeStaff,join_date:null,termination_date:null}).select().single();
-    if(staffRes.error) staffRes=await supabase.from("staff").insert(safeStaff).select().single();
-    if(!staffRes.error&&staffRes.data) setStaff(prev=>[...prev,staffRes.data].sort((a,b)=>a.name.localeCompare(b.name)));
+    // Auto-create staff record if not already present (check by name to avoid duplication)
+    const existingStaff=staff.find(s=>s.name?.trim().toLowerCase()===data.name?.trim().toLowerCase());
+    if(!existingStaff){
+      const safeStaff={name:data.name,department:"Engineering",role:data.role||"",
+                       type:"full_time",active:true,salary_usd:0,salary_egp:0,notes:""};
+      let staffRes=await supabase.from("staff").insert({...safeStaff,join_date:null,termination_date:null}).select().single();
+      if(staffRes.error) staffRes=await supabase.from("staff").insert(safeStaff).select().single();
+      if(!staffRes.error&&staffRes.data) setStaff(prev=>[...prev,staffRes.data].sort((a,b)=>a.name.localeCompare(b.name)));
+    }
 
     setShowEngModal(false);
     setNewEng({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
@@ -4684,7 +4703,7 @@ export default function App(){
   const billabilityPct= totalWorkHrs?Math.round(totalBillable/totalWorkHrs*100):0;
   const overallUtil   = engineers.length?Math.min(100,Math.round(totalWorkHrs/(engineers.length*targetHrs)*100)):0;
 
-  const engStats=useMemo(()=>engineers.map(eng=>{
+  const engStats=useMemo(()=>engineers.filter(eng=>eng.role_type!=="accountant"&&eng.role_type!=="senior_management").map(eng=>{
     const we=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id));
     const wh=we.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
     // Billable hours derived from CURRENT project billable flag
