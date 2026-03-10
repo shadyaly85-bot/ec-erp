@@ -1808,7 +1808,6 @@ engineers,leaveEntries,allEntries,month,year,MONTHS,onExport}){
         ))}
       </div>}
     </div>
-  </ThemeContext.Provider>
   );
 }
 
@@ -7787,5 +7786,6 @@ END $$;`;
         </div>
       )}
     </div>
+    </ThemeContext.Provider>
   );
 }
