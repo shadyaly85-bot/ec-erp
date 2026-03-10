@@ -1159,32 +1159,33 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
     const taskBars=tasksSorted.map(([task,data])=>{
       const tpct=pm.totalHrs?Math.round(data.hrs/pm.totalHrs*100):0;
       const col=tcm[task]||"#0ea5e9";
-      return`<div style="margin-bottom:8px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:2px;font-size:10px">
-          <div style="display:flex;align-items:center;gap:5px">
-            <div style="width:7px;height:7px;border-radius:2px;background:${col};flex-shrink:0"></div>
-            <span style="font-weight:600;color:#1e293b">${task}</span>
+      return`<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:10px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:8px;height:8px;border-radius:2px;background:${col};flex-shrink:0"></div>
+            <span style="font-weight:700;color:#0f172a;font-size:10px">${task}</span>
           </div>
-          <div style="display:flex;gap:12px;font-family:'IBM Plex Mono',monospace">
-            <span style="color:${col};font-weight:700">${data.hrs}h</span>
-            <span style="color:#64748b">${tpct}%</span>
-            <span style="color:#94a3b8">${data.engs} eng</span>
+          <div style="display:flex;gap:14px;font-family:'IBM Plex Mono',monospace">
+            <span style="color:${col};font-weight:700;font-size:10px">${data.hrs}h</span>
+            <span style="color:#334155;font-weight:600;font-size:10px">${tpct}%</span>
+            <span style="color:#64748b;font-size:9px">${data.engs} eng</span>
           </div>
         </div>
-        <div style="background:#e2e8f0;height:5px;border-radius:3px;overflow:hidden">
+        <div style="background:#cbd5e1;height:6px;border-radius:3px;overflow:hidden">
           <div style="height:100%;width:${tpct}%;background:${col};border-radius:3px"></div>
         </div>
       </div>`;
     }).join("");
 
-    const engRows=engList.map(eng=>{
+    const engRows=engList.map((eng,ri)=>{
       const epct=pm.totalHrs?Math.round(eng.hrs/pm.totalHrs*100):0;
       const top=Object.entries(eng.tasks).sort((a,b)=>b[1]-a[1])[0];
-      return`<tr>
-        <td style="font-weight:500">${eng.name}</td>
-        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700">${eng.hrs}h</td>
-        <td style="text-align:right;font-family:'IBM Plex Mono',monospace">${epct}%</td>
-        <td style="color:#64748b;font-size:9px">${top?top[0]+" ("+top[1]+"h)":"—"}</td>
+      const rowBg=ri%2===0?"#f8fafc":"#fff";
+      return`<tr style="background:${rowBg}">
+        <td style="font-weight:600;color:#0f172a;padding:5px 8px">${eng.name}</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700;padding:5px 8px">${eng.hrs}h</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#334155;font-weight:600;padding:5px 8px">${epct}%</td>
+        <td style="color:#475569;font-size:9px;padding:5px 8px">${top?top[0]+" ("+top[1]+"h)":"—"}</td>
       </tr>`;
     }).join("");
 
@@ -1225,9 +1226,9 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
           {l:"Engineers",  v:Object.keys(pm.engineers).length,c:"#a78bfa"},
           {l:"Work Days",  v:pm.days,c:"#34d399"},
           {l:"Avg/Day",    v:avgDay+"h",c:"#fb923c"},
-        ].map(k=>`<div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:6px;padding:9px">
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
-          <div style="font-size:8px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-top:3px">${k.l}</div>
+        ].map(k=>`<div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
+          <div style="font-size:9px;color:#334155;text-transform:uppercase;letter-spacing:.08em;margin-top:5px;font-weight:600">${k.l}</div>
         </div>`).join("")}
       </div>
 
@@ -1262,14 +1263,15 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
   const summaryRows=projList.map((pm,i)=>{
     const pct=grandTotal?Math.round(pm.totalHrs/grandTotal*100):0;
     const billPct=pm.totalHrs?Math.round(pm.billableHrs/pm.totalHrs*100):0;
-    return`<tr>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#0ea5e9;font-weight:700">${pm.proj.id}</td>
-      <td style="font-weight:500">${pm.proj.name}</td>
-      <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#0ea5e9">${pm.totalHrs}h</td>
-      <td style="text-align:right;font-family:'IBM Plex Mono',monospace">${pct}%</td>
-      <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#10b981">${billPct}%</td>
-      <td style="text-align:right">${Object.keys(pm.engineers).length}</td>
-      <td><span style="font-size:8px;padding:2px 5px;border-radius:3px;background:${pm.proj.status==="Active"?"#024b36":"#1e3a5f"};color:${pm.proj.status==="Active"?"#34d399":"#60a5fa"}">${pm.proj.status||"Active"}</span></td>
+    const rowBg=i%2===0?"rgba(255,255,255,0.04)":"rgba(255,255,255,0.00)";
+    return`<tr style="background:${rowBg}">
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#38bdf8;font-weight:700;padding:7px 10px">${pm.proj.id}</td>
+      <td style="font-weight:600;color:#f0f6ff;font-size:10px;padding:7px 10px">${pm.proj.name}</td>
+      <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#38bdf8;padding:7px 10px">${pm.totalHrs}h</td>
+      <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8;padding:7px 10px">${pct}%</td>
+      <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#10b981;font-weight:700;padding:7px 10px">${billPct}%</td>
+      <td style="text-align:right;color:#e2e8f0;padding:7px 10px">${Object.keys(pm.engineers).length}</td>
+      <td style="padding:7px 10px"><span style="font-size:8px;padding:3px 7px;border-radius:3px;font-weight:700;background:${pm.proj.status==="Active"?"#024b36":pm.proj.status==="Completed"?"#0f2a50":"#2d1a00"};color:${pm.proj.status==="Active"?"#34d399":pm.proj.status==="Completed"?"#60a5fa":"#fb923c"}">${pm.proj.status||"Active"}</span></td>
     </tr>`;
   }).join("");
 
@@ -1291,23 +1293,23 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
         {l:"Projects",      v:projList.length,           c:"#a78bfa"},
         {l:"Billable Hours",v:totalBillable+"h",         c:"#34d399"},
         {l:"Engineers",     v:allEngs.size,              c:"#fb923c"},
-      ].map(k=>`<div style="background:rgba(255,255,255,0.07);border:1px solid rgba(56,189,248,0.15);border-radius:8px;padding:14px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-top:5px">${k.l}</div>
+      ].map(k=>`<div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:16px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
+        <div style="font-size:10px;color:#cbd5e1;text-transform:uppercase;letter-spacing:.1em;margin-top:6px;font-weight:600">${k.l}</div>
       </div>`).join("")}
     </div>
     <div style="font-size:10px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Project Summary</div>
     <table style="font-size:10px">
-      <thead><tr>
-        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1)">ID</th>
-        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1)">Project Name</th>
-        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1);text-align:right">Hours</th>
-        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1);text-align:right">Share</th>
-        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1);text-align:right">Billable%</th>
-        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1);text-align:right">Engs</th>
-        <th style="color:#94a3b8;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.1)">Status</th>
+      <thead><tr style="border-bottom:2px solid rgba(56,189,248,0.4)">
+        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;background:rgba(14,165,233,0.08)">ID</th>
+        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;background:rgba(14,165,233,0.08)">Project Name</th>
+        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;text-align:right;background:rgba(14,165,233,0.08)">Hours</th>
+        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;text-align:right;background:rgba(14,165,233,0.08)">Share</th>
+        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;text-align:right;background:rgba(14,165,233,0.08)">Billable%</th>
+        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;text-align:right;background:rgba(14,165,233,0.08)">Engs</th>
+        <th style="color:#38bdf8;padding:8px 10px;font-size:9px;letter-spacing:.12em;font-weight:700;text-transform:uppercase;background:rgba(14,165,233,0.08)">Status</th>
       </tr></thead>
-      <tbody style="color:#e2e8f0">${summaryRows}</tbody>
+      <tbody>${summaryRows}</tbody>
     </table>
     <div style="position:absolute;bottom:24px;left:44px;right:44px;display:flex;justify-content:space-between;font-size:9px;color:#475569">
       <span>ENEVO Group · Industrial & Renewable Energy Automation</span>
@@ -3639,10 +3641,14 @@ export default function App(){
   const canPostHours = !isAcct; // accountant views timesheets read-only, cannot post or edit
   // Redirect senior_management away from data-entry pages
   useEffect(()=>{
-    if(isSenior&&(view==="timesheet")){
-      setView("dashboard");
-    }
+    if(isSenior&&(view==="timesheet")) setView("dashboard");
   },[isSenior,view]);
+  // When accountant first opens Finance Panel, default to Finance tab
+  useEffect(()=>{
+    if(isAcct&&!isAdmin&&view==="admin"){
+      setAdminTab(prev=>prev==="engineers"?"finance":prev);
+    }
+  },[isAcct,isAdmin,view]);
   const canInvoice= isAcct; // admin + accountant can see invoices
 
   const viewEngId = canEditAny ? (browseEngId||myProfile?.id) : myProfile?.id;
@@ -6204,21 +6210,21 @@ export default function App(){
               {/* Tabs */}
               <div style={{display:"flex",gap:4,marginBottom:18,background:"#060e1c",borderRadius:8,padding:4,width:"fit-content"}}>
                 {[
-                  {id:"engineers",label:"👥 Engineers",show:isAdmin},
-                  {id:"projects", label:"◈ Projects",  show:isAdmin||isLead},
-                  {id:"entries",  label:"⏱ Hours Review",show:isAdmin||isLead||isAcct},
-                  {id:"settings", label:"⚙ Info",      show:isAdmin},
+                  {id:"engineers",label:"👥 Engineers",show:isAdmin||isAcct},
+                  {id:"projects", label:"◈ Projects",  show:isAdmin||isLead||isAcct},
+                  {id:"entries",  label:"⏱ All Entries",show:isAdmin||isLead||isAcct},
                   {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct},
-                  {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead},
-                  {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead},
-                  {id:"tracker",  label:"📊 Tracker",    show:isAdmin||isLead},
+                  {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead||isAcct},
+                  {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead||isAcct},
+                  {id:"tracker",  label:"📊 Tracker",    show:isAdmin||isLead||isAcct},
+                  {id:"settings", label:"⚙ Settings",   show:isAdmin},
                 ].filter(t=>t.show).map(t=>(
                   <button key={t.id} className={`atab ${adminTab===t.id?"a":""}`} onClick={()=>setAdminTab(t.id)}>{t.label}</button>
                 ))}
               </div>
 
               {/* ENGINEERS */}
-              {adminTab==="engineers"&&isAdmin&&(
+              {adminTab==="engineers"&&(isAdmin||isAcct)&&(
                 <div className="card">
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                     <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Engineers & Access Control ({engineers.length})</h3>
@@ -6278,7 +6284,7 @@ export default function App(){
               )}
 
               {/* PROJECTS */}
-              {adminTab==="projects"&&(isAdmin||isLead)&&(
+              {adminTab==="projects"&&(isAdmin||isLead||isAcct)&&(
                 <ProjectsTab
                   projects={projects}
                   subprojects={subprojects}
@@ -6405,7 +6411,7 @@ export default function App(){
               )}
 
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
-              {adminTab==="functions"&&(isAdmin||isLead)&&(
+              {adminTab==="functions"&&(isAdmin||isLead||isAcct)&&(
                 <FunctionsTab
                   entries={entries} engineers={engineers}
                   funcYear={funcYear} setFuncYear={setFuncYear}
@@ -6416,7 +6422,7 @@ export default function App(){
               )}
 
               {/* ══ KPI DASHBOARD ══ */}
-              {adminTab==="kpis"&&(isAdmin||isLead)&&(
+              {adminTab==="kpis"&&(isAdmin||isLead||isAcct)&&(
                 <KPIsTab
                   entries={entries} engineers={engineers} projects={projects}
                   kpiYear={kpiYear} setKpiYear={setKpiYear}
@@ -6430,7 +6436,7 @@ export default function App(){
 
 
               {/* ══ PROJECT TRACKER ══ */}
-              {adminTab==="tracker"&&(isAdmin||isLead)&&(
+              {adminTab==="tracker"&&(isAdmin||isLead||isAcct)&&(
                 <ProjectTracker
                   projects={projects}
                   activities={activities}
