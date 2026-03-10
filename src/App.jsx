@@ -3584,6 +3584,25 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
 export default function App(){
   const [session,setSession]         = useState(null);
   const [authLoading,setAuthLoading] = useState(true);
+  const [theme,setTheme]=useState(()=>{try{return localStorage.getItem("erp_theme")||"dark";}catch{return "dark";}});
+  const toggleTheme=()=>setTheme(t=>{const n=t==="dark"?"light":"dark";try{localStorage.setItem("erp_theme",n);}catch{}return n;});
+  const dk=theme==="dark";
+  const T={
+    bg0:dk?"#080d1a":"#eef2f7",bg1:dk?"#0b1526":"#ffffff",bg2:dk?"#060e1c":"#f4f7fb",
+    bg3:dk?"#0d1a2d":"#e8eef6",border:dk?"#192d47":"#d0dae8",border2:dk?"#0d1a2d":"#e4ecf4",
+    text0:dk?"#f0f6ff":"#0f172a",text1:dk?"#dde3ef":"#1e293b",text2:dk?"#7a8faa":"#475569",
+    text3:dk?"#4e6479":"#94a3b8",text4:dk?"#2e4a66":"#cbd5e1",
+    accent:"#0ea5e9",accentBg:dk?"#0d1e34":"#e0f2fe",
+    sidebar:dk?"#060e1c":"#1e293b",sideText:dk?"#7a8faa":"#94a3b8",
+    sideAct:dk?"#0d1a2d":"#0f2744",navActTxt:"#38bdf8",
+    inputBg:dk?"#060e1c":"#f8fafc",inputBrd:dk?"#192d47":"#cbd5e1",
+    modalBg:dk?"#0b1526":"#ffffff",thBrd:dk?"#192d47":"#d0dae6",
+    scrollTrk:dk?"#080d1a":"#e8eef5",scrollThm:dk?"#1a3354":"#b0c4d8",
+    metricBg:dk?"linear-gradient(135deg,#0b1526,#0d1e34)":"linear-gradient(135deg,#f0f6ff,#e8f2fc)",
+    atab:dk?"#4e6479":"#475569",atabAct:dk?"#0d1a2d":"#dbeafe",
+    rptCard:dk?"#0b1526":"#f8fafc",rptSel:dk?"#0d1e34":"#dbeafe",
+    cardBrd:dk?"#192d47":"#d0dae8",
+  };
   const [authEmail,setAuthEmail]     = useState("");
   const [authPwd,setAuthPwd]         = useState("");
   const [authErr,setAuthErr]         = useState("");
@@ -3699,7 +3718,7 @@ export default function App(){
   const canEditAny= isLead; // admin + lead can edit any engineer's entries
   const canBrowseAll = isLead||isAcct; // accountant can browse all engineers for review
   const canEdit   = true;   // everyone can edit/delete their own entries
-  const canReport = isLead||isAcct; // admin + lead + accountant can see reports
+  const canReport = isAcct; // only admin + accountant see Reports & PDF
   const canPostHours = !isAcct; // accountant views timesheets read-only, cannot post or edit
   // Redirect senior_management away from data-entry pages
   useEffect(()=>{
@@ -4924,54 +4943,54 @@ export default function App(){
   ];
 
   return(
-    <div style={{fontFamily:"'IBM Plex Sans',sans-serif",background:"#080d1a",minHeight:"100vh",color:"#dde3ef"}}>
+    <div style={{fontFamily:"'IBM Plex Sans',sans-serif",background:T.bg0,minHeight:"100vh",color:T.text1,transition:"background .3s,color .3s"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:#080d1a}::-webkit-scrollbar-thumb{background:#1a3354;border-radius:3px}
-        .nb{background:none;border:none;cursor:pointer;padding:9px 14px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:500;color:#7a8faa;display:flex;align-items:center;gap:8px;transition:all .2s;width:100%;text-align:left}
-        .nb:hover{background:#0d1a2d;color:#38bdf8}.nb.a{background:#0d1a2d;color:#38bdf8;border-left:2px solid #38bdf8}
-        .card{background:#0b1526;border:1px solid #192d47;border-radius:10px;padding:18px}
+        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:${T.scrollTrk}}::-webkit-scrollbar-thumb{background:${T.scrollThm};border-radius:3px}
+        .nb{background:none;border:none;cursor:pointer;padding:9px 14px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:500;color:${T.sideText};display:flex;align-items:center;gap:8px;transition:all .2s;width:100%;text-align:left}
+        .nb:hover{background:${T.sideAct};color:${T.navActTxt}}.nb.a{background:${T.sideAct};color:${T.navActTxt};border-left:2px solid ${T.navActTxt}}
+        .card{background:${T.bg1};border:1px solid ${T.cardBrd};border-radius:10px;padding:18px}
         .bp{background:linear-gradient(135deg,#0ea5e9,#0369a1);border:none;color:#fff;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;transition:opacity .2s;display:inline-flex;align-items:center;gap:6px}
         .bp:hover{opacity:.85}
-        .bg{background:transparent;border:1px solid #192d47;color:#7a8faa;padding:6px 12px;border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:12px;transition:all .2s}
+        .bg{background:transparent;border:1px solid ${T.border};color:${T.text2};padding:6px 12px;border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:12px;transition:all .2s}
         .bg:hover{border-color:#38bdf8;color:#38bdf8}
         .be{background:transparent;border:1px solid #0ea5e930;color:#38bdf8;padding:4px 9px;border-radius:4px;cursor:pointer;font-size:11px;font-family:'IBM Plex Sans',sans-serif}
         .be:hover{background:#0ea5e920}
         .bd{background:transparent;border:1px solid #7f1d1d;color:#f87171;padding:4px 9px;border-radius:4px;cursor:pointer;font-size:11px;font-family:'IBM Plex Sans',sans-serif}
         .bd:hover{background:#7f1d1d30}
-        input,select,textarea{background:#060e1c;border:1px solid #192d47;color:#dde3ef;padding:8px 12px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;outline:none;width:100%;transition:border-color .2s}
-        input:focus,select:focus,textarea:focus{border-color:#38bdf8}select option{background:#060e1c}
+        input,select,textarea{background:${T.inputBg};border:1px solid ${T.inputBrd};color:${T.text1};padding:8px 12px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;outline:none;width:100%;transition:border-color .2s}
+        input:focus,select:focus,textarea:focus{border-color:#38bdf8}select option{background:${T.inputBg};color:${T.text1}}
         table{width:100%;border-collapse:collapse}
-        th{color:#4e6479;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:9px 12px;border-bottom:1px solid #192d47;text-align:left}
-        td{padding:8px 12px;border-bottom:1px solid #0d1a2d;font-size:12px}tr:hover td{background:#0d1a2d}
+        th{color:${T.text3};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:9px 12px;border-bottom:1px solid ${T.thBrd};text-align:left}
+        td{padding:8px 12px;border-bottom:1px solid ${T.border2};font-size:12px;color:${T.text1}}tr:hover td{background:${T.bg3}}
         .av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#0ea5e9,#0369a1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
         .bar{height:5px;border-radius:3px;background:linear-gradient(90deg,#0ea5e9,#38bdf8)}
         .modal-ov{position:fixed;inset:0;background:#00000099;backdrop-filter:blur(6px);z-index:100;display:flex;align-items:center;justify-content:center}
-        .modal{background:#0b1526;border:1px solid #192d47;border-radius:12px;padding:24px;width:530px;max-width:95vw;max-height:90vh;overflow-y:auto}
+        .modal{background:${T.modalBg};border:1px solid ${T.border};border-radius:12px;padding:24px;width:530px;max-width:95vw;max-height:90vh;overflow-y:auto;color:${T.text1}}
         .toast{position:fixed;bottom:28px;right:28px;padding:11px 18px;border-radius:8px;font-size:12px;font-weight:700;z-index:200;animation:su .3s ease}
         @keyframes su{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
-        .metric{background:linear-gradient(135deg,#0b1526,#0d1e34);border:1px solid #192d47;border-radius:10px;padding:16px}
-        .wc{background:#060e1c;border:1px solid #152639;border-radius:8px;min-height:110px;padding:8px}
-        .atab{background:none;border:none;cursor:pointer;padding:7px 13px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:600;color:#4e6479;transition:all .2s}
-        .atab:hover{color:#38bdf8}.atab.a{background:#0d1a2d;color:#38bdf8}
-        .rpt-card{background:#0b1526;border:1px solid #192d47;border-radius:8px;padding:14px;cursor:pointer;transition:all .2s}
-        .rpt-card:hover,.rpt-card.sel{border-color:#38bdf8;background:#0d1e34}
+        .metric{background:${T.metricBg};border:1px solid ${T.cardBrd};border-radius:10px;padding:16px}
+        .wc{background:${T.bg2};border:1px solid ${T.border};border-radius:8px;min-height:110px;padding:8px}
+        .atab{background:none;border:none;cursor:pointer;padding:7px 13px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:600;color:${T.atab};transition:all .2s}
+        .atab:hover{color:#38bdf8}.atab.a{background:${T.atabAct};color:#38bdf8}
+        .rpt-card{background:${T.rptCard};border:1px solid ${T.cardBrd};border-radius:8px;padding:14px;cursor:pointer;transition:all .2s}
+        .rpt-card:hover,.rpt-card.sel{border-color:#38bdf8;background:${T.rptSel}}
         .role-badge{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700;font-family:'IBM Plex Mono',monospace}
       `}</style>
 
       <div style={{display:"flex"}}>
         {/* ── Sidebar ── */}
-        <div style={{width:215,background:"#060c18",borderRight:"1px solid #192d47",minHeight:"100vh",padding:"20px 10px",position:"fixed",top:0,left:0,bottom:0,overflowY:"auto",zIndex:50}}>
+        <div style={{width:215,background:T.sidebar,borderRight:`1px solid ${T.border2}`,minHeight:"100vh",padding:"20px 10px",position:"fixed",top:0,left:0,bottom:0,overflowY:"auto",zIndex:50,transition:"background .3s"}}>
           <div style={{marginBottom:20,paddingLeft:6}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
               <LogoImg/>
               <div>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#38bdf8",letterSpacing:".15em",fontWeight:600}}>ENEVO-ERP</div>
-                <div style={{fontSize:13,fontWeight:700,color:"#f0f6ff",lineHeight:1.1}}>ENEVO GROUP</div>
+                <div style={{fontSize:13,fontWeight:700,color:T.text0,lineHeight:1.1}}>ENEVO GROUP</div>
               </div>
             </div>
-            <div style={{fontSize:10,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>ENEVO Group</div>
+            <div style={{fontSize:10,color:T.text4,fontFamily:"'IBM Plex Mono',monospace"}}>ENEVO Group</div>
           </div>
           {navItems.map(n=>(
             <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>setView(n.id)}>
@@ -4979,8 +4998,8 @@ export default function App(){
               {n.id==="admin"&&unreadCount>0&&<span style={{marginLeft:"auto",background:"#ef4444",color:"#fff",fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:10}}>{unreadCount}</span>}
             </button>
           ))}
-          <div style={{marginTop:14,borderTop:"1px solid #192d47",paddingTop:12,paddingLeft:6,paddingRight:6}}>
-            <div style={{fontSize:9,color:"#253a52",fontWeight:700,letterSpacing:".1em",marginBottom:8}}>PERIOD</div>
+          <div style={{marginTop:14,borderTop:`1px solid ${T.border}`,paddingTop:12,paddingLeft:6,paddingRight:6}}>
+            <div style={{fontSize:9,color:T.text3,fontWeight:700,letterSpacing:".1em",marginBottom:8}}>PERIOD</div>
             <div style={{marginBottom:8}}><Lbl>Month</Lbl>
               <select value={month} onChange={e=>setMonth(+e.target.value)} style={{fontSize:11,padding:"5px 8px"}}>
                 {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
@@ -4993,21 +5012,31 @@ export default function App(){
             </div>
           </div>
           <div style={{position:"absolute",bottom:16,left:10,right:10}}>
-            <div style={{background:"#0b1526",border:"1px solid #192d47",borderRadius:8,padding:"9px 10px"}}>
+            <div style={{background:T.bg1,border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 10px"}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                 <div className="av" style={{width:26,height:26,fontSize:8}}>{myProfile?.name?.slice(0,2).toUpperCase()||"?"}</div>
                 <div style={{minWidth:0}}>
-                  <div style={{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{myProfile?.name||session.user.email}</div>
+                  <div style={{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:T.text0}}>{myProfile?.name||session.user.email}</div>
                   <div style={{fontSize:9,color:ROLE_COLORS[role]||"#2e4a66",fontWeight:600}}>{ROLE_LABELS[role]||role}</div>
                 </div>
               </div>
-              <button onClick={handleLogout} style={{width:"100%",background:"transparent",border:"1px solid #192d47",color:"#4e6479",padding:"5px",borderRadius:5,cursor:"pointer",fontSize:11,fontFamily:"'IBM Plex Sans',sans-serif"}}>Sign Out</button>
+              <button onClick={toggleTheme}
+                style={{width:"100%",background:"transparent",border:`1px solid ${T.border}`,color:T.text2,
+                  padding:"5px",borderRadius:5,cursor:"pointer",fontSize:11,
+                  fontFamily:"'IBM Plex Sans',sans-serif",marginBottom:5,
+                  display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span>{dk?"☀ Light":"🌙 Dark"}</span>
+                <div style={{width:26,height:14,borderRadius:7,background:dk?"#1a3354":"#0ea5e9",position:"relative",flexShrink:0}}>
+                  <div style={{position:"absolute",top:2,left:dk?2:12,width:10,height:10,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+                </div>
+              </button>
+              <button onClick={handleLogout} style={{width:"100%",background:"transparent",border:`1px solid ${T.border}`,color:T.text2,padding:"5px",borderRadius:5,cursor:"pointer",fontSize:11,fontFamily:"'IBM Plex Sans',sans-serif"}}>Sign Out</button>
             </div>
           </div>
         </div>
 
         {/* ── Main Content ── */}
-        <div style={{marginLeft:215,flex:1,padding:"24px 28px",maxWidth:"calc(100vw - 215px)"}}>
+        <div style={{marginLeft:215,flex:1,padding:"24px 28px",maxWidth:"calc(100vw - 215px)",background:T.bg2,color:T.text1,minHeight:"100vh",transition:"background .3s"}}>
           {loading&&<div style={{textAlign:"center",padding:60,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>Loading…</div>}
           {!loading&&<>
 
@@ -5553,7 +5582,8 @@ export default function App(){
 
                 // Card component — clean, elegant, no stats
                 const OrgCard = ({node}) => {
-                  const eng = node.engineer_id ? engStats.find(e=>e.id===node.engineer_id) : null;
+                  // Use raw engineers (not engStats) so accountants/senior_mgmt are included
+                  const eng = node.engineer_id ? engineers.find(e=>e.id===node.engineer_id) : null;
                   const active = eng ? isEngActive(eng) : true;
                   const isDragging = orgDragId===node.id;
                   const rc = eng ? (ROLE_COLORS[eng.role_type]||"#4e6479") : "#2e4a66";
@@ -5911,7 +5941,7 @@ export default function App(){
                   {id:"utilization",icon:"◉",label:"Team Utilization",desc:"All engineers utilization & billability",show:isAdmin||isAcct},
                   {id:"individual",icon:"👤",label:"Individual Timesheet",desc:"One engineer — full monthly timesheet PDF",show:true},
                   {id:"task",icon:"⊟",label:"Task Analysis",desc:"Task categories & activity log",show:true},
-                  {id:"projtasks",icon:"◈",label:"Project Analysis",desc:"Per-project hours, tasks & engineer breakdown",show:isAdmin||isAcct||isLead},
+                  {id:"projtasks",icon:"◈",label:"Project Analysis",desc:"Per-project hours, tasks & engineer breakdown",show:isAdmin||isAcct},
                   {id:"vacation",icon:"✈",label:"Vacation Report",desc:"Leave & absence summary per engineer",show:true},
                   {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct},
                   {id:"invoice",icon:"🧾",label:"Invoice Export",desc:"Billable invoice per month",show:canInvoice},
