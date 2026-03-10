@@ -5415,14 +5415,28 @@ export default function App(){
                         )}
                       </div>
 
-                      {/* Title */}
-                      {node.title&&(
-                        <div style={{
-                          fontSize:9.5, color: node.is_external?"#1e3a5f":"#2e4a66",
-                          lineHeight:1.4, letterSpacing:".02em",
-                          fontStyle: node.is_external?"italic":"normal",
-                        }}>
-                          {node.title}
+                      {/* Title (manual) or engineer role (auto from linked engineer) */}
+                      {(node.title||eng)&&(
+                        <div style={{marginTop:2}}>
+                          {node.title&&(
+                            <div style={{
+                              fontSize:9.5, color: node.is_external?"#1e3a5f":"#2e4a66",
+                              lineHeight:1.4, letterSpacing:".02em",
+                              fontStyle: node.is_external?"italic":"normal",
+                            }}>
+                              {node.title}
+                            </div>
+                          )}
+                          {eng&&!node.is_external&&(
+                            <div style={{
+                              fontSize:8.5, color:"#1e3a5f",
+                              marginTop: node.title?2:0,
+                              letterSpacing:".04em", textTransform:"uppercase",
+                              fontWeight:600,
+                            }}>
+                              {eng.role}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -5475,44 +5489,56 @@ export default function App(){
                   );
                 };
 
+                // PDF export function
+                const exportOrgPDF = () => {
+                  const buildCard2 = (node) => {
+                    const eng2 = node.engineer_id ? engStats.find(e=>e.id===node.engineer_id) : null;
+                    const rc2 = eng2 ? (ROLE_COLORS[eng2.role_type]||"#4e6479") : "#2e4a66";
+                    const ini2 = (node.name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+                    return `<div class="card" style="border:${node.is_external?"1px dashed #2a4a6a":`1px solid ${rc2}40`};opacity:${node.is_external?0.6:1}"><div class="avatar" style="background:linear-gradient(135deg,${rc2}22,${rc2}0a);border:1.5px solid ${rc2}50;color:${rc2}">${ini2}</div><div class="name" style="color:${node.is_external?"#4a6a8a":"#c8d8e8"}">${node.name}</div>${node.title?`<div class="jtitle">${node.title}</div>`:""}${eng2&&!node.is_external?`<div class="jrole">${eng2.role||""}</div>`:""}</div>`;
+                  };
+                  const buildLevel2 = (ns) => {
+                    if(!ns.length) return "";
+                    const ch2=(pid)=>orgNodes.filter(n=>n.parent_id===pid).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+                    return `<div class="level">${ns.map(n=>`<div class="branch">${buildCard2(n)}${ch2(n.id).length?`<div class="vl"></div><div class="sub">${buildLevel2(ch2(n.id))}</div>`:""}</div>`).join("")}</div>`;
+                  };
+                  const rts=orgNodes.filter(n=>!n.parent_id).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+                  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>*{margin:0;padding:0;box-sizing:border-box;}body{background:#04080f;font-family:'Segoe UI',Arial,sans-serif;padding:32px 28px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}.hdr{display:flex;align-items:center;gap:18px;margin-bottom:44px;padding-bottom:20px;border-bottom:1px solid #1a2e44;}.hdr img{width:52px;height:52px;border-radius:10px;object-fit:contain;}.hdr h1{font-size:20px;font-weight:700;color:#c8d8e8;letter-spacing:-.02em;}.hdr p{font-size:10px;color:#2e4a66;margin-top:3px;letter-spacing:.06em;text-transform:uppercase;}.chart{display:flex;flex-direction:column;align-items:center;}.level{display:flex;gap:18px;align-items:flex-start;justify-content:center;position:relative;}.branch{display:flex;flex-direction:column;align-items:center;}.vl{width:1px;height:18px;background:#1a2e44;}.sub{display:flex;flex-direction:column;align-items:center;}.card{width:142px;background:#080f1c;border-radius:11px;padding:14px 11px 12px;text-align:center;}.avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 9px;font-size:13px;font-weight:700;}.name{font-size:11.5px;font-weight:700;line-height:1.3;margin-bottom:2px;letter-spacing:-.01em;}.jtitle{font-size:9px;color:#2e4a66;line-height:1.4;letter-spacing:.02em;}.jrole{font-size:7.5px;color:#1e3a5f;letter-spacing:.05em;text-transform:uppercase;font-weight:600;margin-top:2px;}@media print{@page{margin:10mm;size:A4 landscape;}}</style></head><body><div class="hdr"><img src="${LOGO_SRC}"/><div><h1>Organisation Chart</h1><p>ENEVO Group · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div><div class="chart">${buildLevel2(rts)}</div><script>window.onload=()=>setTimeout(()=>{window.print();},400);</script></body></html>`;
+                  const w=window.open("","_blank");
+                  if(w){w.document.write(html);w.document.close();}
+                  else showToast("Allow popups to export PDF",false);
+                };
+
                 return(
-                  <div>
-                    {/* Toolbar */}
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                      <div style={{fontSize:11,color:"#2e4a66"}}>
-                        {orgEditing
-                          ? <span style={{color:"#fb923c"}}>✎ Edit mode — drag cards to reparent · click ✎ to edit · click + to add child</span>
-                          : <span>Click any card to filter · {orgNodes.length} people</span>}
+                  <div style={{background:"#04080f",borderRadius:12,padding:"20px 0 0",margin:"-4px 0"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:28,padding:"0 24px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:14}}>
+                        <img src={LOGO_SRC} alt="ENEVO" style={{width:40,height:40,borderRadius:9,objectFit:"contain",opacity:0.85}}/>
+                        <div>
+                          <div style={{fontSize:17,fontWeight:700,color:"#c8d8e8",letterSpacing:"-.02em"}}>Organisation</div>
+                          <div style={{fontSize:10,color:"#1e3a5f",marginTop:1,letterSpacing:".05em",textTransform:"uppercase"}}>
+                            {orgEditing?<span style={{color:"#fb923c60"}}>edit mode</span>:`ENEVO Group · ${orgNodes.filter(n=>!n.is_external).length} members`}
+                          </div>
+                        </div>
                       </div>
-                      <div style={{display:"flex",gap:8}}>
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        {!orgEditing&&orgNodes.length>0&&(
+                          <button onClick={exportOrgPDF} style={{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:"#38bdf810",border:"1px solid #38bdf830",color:"#38bdf8",letterSpacing:".03em"}}>⬇ Export PDF</button>
+                        )}
                         {isAdmin&&(
                           <>
-                            <button onClick={()=>setOrgEditing(e=>!e)}
-                              style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",
-                                background:orgEditing?"#fb923c20":"#192d47",
-                                border:`1px solid ${orgEditing?"#fb923c":"#2e4a66"}`,
-                                color:orgEditing?"#fb923c":"#7a8faa"}}>
-                              {orgEditing?"✓ Done Editing":"✎ Edit Chart"}
-                            </button>
                             {orgEditing&&(
-                              <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:null,is_external:false,sort_order:roots.length})}
-                                style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",
-                                  background:"#34d39915",border:"1px solid #34d39940",color:"#34d399"}}>
-                                + Root Node
-                              </button>
+                              <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:null,is_external:false,sort_order:roots.length})} style={{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:"transparent",border:"1px solid #1a3050",color:"#2e4a66",letterSpacing:".03em"}}>+ Root Node</button>
                             )}
+                            <button onClick={()=>setOrgEditing(e=>!e)} style={{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:orgEditing?"#fb923c12":"transparent",border:`1px solid ${orgEditing?"#fb923c40":"#1a3050"}`,color:orgEditing?"#fb923c":"#2e4a66",letterSpacing:".03em"}}>{orgEditing?"done":"edit"}</button>
                           </>
                         )}
                       </div>
                     </div>
-
-                    {/* Empty state */}
-                    {orgNodes.length===0&&!orgEditing&&(
-                      <div style={{textAlign:"center",padding:"60px 20px",color:"#2e4a66"}}>
-                        <div style={{fontSize:32,marginBottom:12}}>🏢</div>
-                        <div style={{fontSize:14,fontWeight:600,color:"#4e6479",marginBottom:8}}>No org chart yet</div>
-                        <div style={{fontSize:11,marginBottom:16}}>Click "Edit Chart" to build your org chart</div>
-                        {isAdmin&&<button onClick={()=>setOrgEditing(true)} style={{padding:"8px 20px",borderRadius:6,background:"#38bdf820",border:"1px solid #38bdf840",color:"#38bdf8",fontSize:12,cursor:"pointer"}}>✎ Edit Chart</button>}
+                    {orgNodes.length===0&&(
+                      <div style={{textAlign:"center",padding:"80px 20px"}}>
+                        <div style={{fontSize:11,marginBottom:16,letterSpacing:".08em",textTransform:"uppercase",color:"#1e3a5f"}}>No chart configured</div>
+                        {isAdmin&&<button onClick={()=>setOrgEditing(true)} style={{padding:"8px 20px",borderRadius:8,background:"transparent",border:"1px solid #1a3050",color:"#2e4a66",fontSize:11,cursor:"pointer",letterSpacing:".05em"}}>edit chart</button>}
                       </div>
                     )}
 
