@@ -6180,13 +6180,13 @@ export default function App(){
           )}
 
           {/* ════ ADMIN / LEAD PANEL ════ */}
-          {view==="admin"&&(isAdmin||role==="lead")&&(
+          {view==="admin"&&(isAdmin||role==="lead"||isAcct)&&(
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
                 <div>
-                  <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>{isAdmin?"Admin Panel":"Lead Panel"}</h1>
+                  <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>{isAdmin?"Admin Panel":isAcct?"Finance Panel":"Lead Panel"}</h1>
                   <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>
-                    {isAdmin?"Full control: engineers, projects, entries, settings":"Edit engineer entries · Export individual timesheets"}
+                    {isAdmin?"Full control: engineers, projects, entries, settings":isAcct?"Full access to Finance · Read-only on all other tabs":"Edit engineer entries · Export individual timesheets"}
                   </p>
                 </div>
                 {unreadCount>0&&isAdmin&&<button className="bg" onClick={markAllRead}>Mark {unreadCount} notifications read</button>}
