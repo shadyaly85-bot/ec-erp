@@ -5706,10 +5706,12 @@ export default function App(){
                 // PDF export function
                 const exportOrgPDF = () => {
                   const buildCard2 = (node) => {
-                    const eng2 = node.engineer_id ? engStats.find(e=>e.id===node.engineer_id) : null;
-                    const rc2 = eng2 ? (ROLE_COLORS[eng2.role_type]||"#4e6479") : "#2e4a66";
+                    const eng2 = node.engineer_id ? engineers.find(e=>e.id===node.engineer_id) : null;
+                    const rc2 = eng2 ? (ROLE_COLORS[eng2.role_type]||"#1a3a5c") : "#1a3a5c";
                     const ini2 = (node.name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
-                    return `<div class="card" style="border:${node.is_external?"1px dashed #2a4a6a":`1px solid ${rc2}40`};opacity:${node.is_external?0.6:1}"><div class="avatar" style="background:linear-gradient(135deg,${rc2}22,${rc2}0a);border:1.5px solid ${rc2}50;color:${rc2}">${ini2}</div><div class="name" style="color:${node.is_external?"#4a6a8a":"#dde3ef"}">${node.name}</div>${node.title?`<div class="jtitle">${node.title}</div>`:""}${eng2&&!node.is_external?`<div class="jrole">${eng2.role||""}</div>`:""}</div>`;
+                    const cardClass = node.is_external ? "card ext" : "card";
+                    const avatarBg = `background:linear-gradient(135deg,${rc2}30,${rc2}15);border-color:${rc2};color:${rc2}`;
+                    return `<div class="${cardClass}"><div class="avatar" style="${avatarBg}">${ini2}</div><div class="name">${node.name}</div>${node.title?`<div class="jtitle">${node.title}</div>`:""}${eng2&&!node.is_external?`<div class="jrole">${ROLE_LABELS[eng2.role_type]||eng2.role||""}</div>`:""}</div>`;
                   };
                   const buildLevel2 = (ns) => {
                     if(!ns.length) return "";
@@ -5717,7 +5719,38 @@ export default function App(){
                     return `<div class="level">${ns.map(n=>`<div class="branch">${buildCard2(n)}${ch2(n.id).length?`<div class="vl"></div><div class="sub">${buildLevel2(ch2(n.id))}</div>`:""}</div>`).join("")}</div>`;
                   };
                   const rts=orgNodes.filter(n=>!n.parent_id).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-                  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>*{margin:0;padding:0;box-sizing:border-box;}body{background:#04080f;font-family:'Segoe UI',Arial,sans-serif;padding:32px 28px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}.hdr{display:flex;align-items:center;gap:18px;margin-bottom:44px;padding-bottom:20px;border-bottom:1px solid #1a2e44;}.hdr img{width:52px;height:52px;border-radius:10px;object-fit:contain;}.hdr h1{font-size:20px;font-weight:700;color:#c8d8e8;letter-spacing:-.02em;}.hdr p{font-size:10px;color:#2e4a66;margin-top:3px;letter-spacing:.06em;text-transform:uppercase;}.chart{display:flex;flex-direction:column;align-items:center;}.level{display:flex;gap:18px;align-items:flex-start;justify-content:center;position:relative;}.branch{display:flex;flex-direction:column;align-items:center;}.vl{width:1px;height:18px;background:#1a2e44;}.sub{display:flex;flex-direction:column;align-items:center;}.card{width:142px;background:#080f1c;border-radius:11px;padding:14px 11px 12px;text-align:center;}.avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 9px;font-size:13px;font-weight:700;}.name{font-size:11.5px;font-weight:700;line-height:1.3;margin-bottom:2px;letter-spacing:-.01em;}.jtitle{font-size:9px;color:#2e4a66;line-height:1.4;letter-spacing:.02em;}.jrole{font-size:7.5px;color:#1e3a5f;letter-spacing:.05em;text-transform:uppercase;font-weight:600;margin-top:2px;}@media print{@page{margin:8mm;size:A4 landscape;}body{zoom:0.75;}.card{page-break-inside:avoid;break-inside:avoid;}.branch{page-break-inside:avoid;break-inside:avoid;}.level{page-break-inside:avoid;break-inside:avoid;}}</style></head><body><div class="hdr"><img src="${LOGO_SRC}"/><div><h1>Organization Chart</h1><p>ENEVO Group · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div><div class="chart">${buildLevel2(rts)}</div><script>window.onload=()=>setTimeout(()=>{window.print();},400);</script></body></html>`;
+                  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.hdr{display:flex;align-items:center;gap:16px;margin-bottom:36px;padding-bottom:16px;border-bottom:2px solid #0e2a4a;}
+.hdr img{width:48px;height:48px;border-radius:9px;object-fit:contain;}
+.hdr h1{font-size:19px;font-weight:800;color:#0b1f38;letter-spacing:-.02em;}
+.hdr p{font-size:10px;color:#4a6a8a;margin-top:3px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;}
+.chart{display:flex;flex-direction:column;align-items:center;}
+.level{display:flex;gap:16px;align-items:flex-start;justify-content:center;position:relative;}
+.branch{display:flex;flex-direction:column;align-items:center;}
+.vl{width:2px;height:16px;background:#1a3a5c;margin:0 auto;}
+.sub{display:flex;flex-direction:column;align-items:center;}
+.sub-row{display:flex;gap:16px;align-items:flex-start;justify-content:center;position:relative;}
+.sub-row::before{content:'';position:absolute;top:0;left:calc(50% - 50%);right:calc(50% - 50%);height:2px;background:#1a3a5c;}
+.card{width:148px;background:#f0f6ff;border-radius:10px;padding:13px 10px 11px;text-align:center;border:2px solid #1a3a5c;box-shadow:0 2px 8px rgba(10,30,60,0.12);}
+.card.ext{background:#f8f8f8;border:2px dashed #8aaac0;opacity:0.85;}
+.avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:14px;font-weight:800;border:2.5px solid;}
+.name{font-size:12px;font-weight:800;line-height:1.3;margin-bottom:3px;color:#0b1f38;letter-spacing:-.01em;}
+.jtitle{font-size:9.5px;color:#2a4a6a;line-height:1.4;letter-spacing:.01em;font-weight:600;}
+.jrole{font-size:8px;color:#4a6a8a;letter-spacing:.05em;text-transform:uppercase;font-weight:700;margin-top:2px;}
+.connector{width:2px;background:#1a3a5c;}
+@media print{
+  @page{margin:8mm;size:A4 landscape;}
+  body{zoom:0.72;}
+  .card{page-break-inside:avoid;break-inside:avoid;}
+  .branch{page-break-inside:avoid;break-inside:avoid;}
+  .level{page-break-inside:avoid;break-inside:avoid;}
+}
+</style></head><body>
+<div class="hdr"><img src="${LOGO_SRC}"/><div><h1>Organization Chart</h1><p>ENEVO Group · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div>
+<div class="chart">${buildLevel2(rts)}</div>
+<script>window.onload=()=>setTimeout(()=>{window.print();},400);</script></body></html>`;
                   const w=window.open("","_blank");
                   if(w){w.document.write(html);w.document.close();}
                   else showToast("Allow popups to export PDF",false);
