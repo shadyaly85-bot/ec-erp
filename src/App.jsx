@@ -60,7 +60,7 @@ const ROLES_LIST = [
 // admin: full access
 const ROLE_TYPES   = ["engineer","lead","accountant","senior_management","admin"];
 const ROLE_LABELS  = {engineer:"Engineer",lead:"Lead Engineer",accountant:"Accountant",senior_management:"Senior Management",admin:"Admin"};
-const ROLE_COLORS  = {engineer:T.text3,lead:"#38bdf8",accountant:"#a78bfa",admin:"#34d399"};
+const ROLE_COLORS  = {engineer:"#4e6479",lead:"#38bdf8",accountant:"#a78bfa",senior_management:"#94a3b8",admin:"#34d399"};
 
 const fmt          = d => d.toISOString().slice(0,10);
 const today        = new Date();
