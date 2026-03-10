@@ -608,7 +608,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
   activities,setActivities,engineers,supabase,showToast}){
   const [pvActModal,setPvActModal] = React.useState(null);
   const [pvActDraft,setPvActDraft] = React.useState({});
-  const canManage = isAdmin||isLead;
+  const canManage = isAdmin||isLead; // accountant is read-only // accountant = read-only, no add/edit/delete // accountant: read-only (no add/edit/delete)
 
   const openPvAct=(projId,act=null)=>{
     setPvActDraft(act?{...act}:{project_id:projId,group_name:"SCADA",category:"Templates",activity_name:"",status:"Not Started",progress:0,assigned_to:"",remarks:""});
@@ -3562,7 +3562,7 @@ export default function App(){
   const [expandedProj,setExpandedProj]     = useState({});    // {projId: bool} — show sub-projects in table
   const [showEngModal,setShowEngModal]     = useState(false);
   const [editEngModal,setEditEngModal]     = useState(null);
-  const [adminTab,setAdminTab]             = useState("engineers");
+  const [adminTab,setAdminTab]             = useState("engineers"); // will be overridden by role redirect
   const [kpiYear,setKpiYear]               = useState(new Date().getFullYear());
   const [alertDay,setAlertDay]             = useState(5); // 1=Mon,2=Tue,3=Wed,4=Thu,5=Fri
   const [funcYear,setFuncYear]             = useState(new Date().getFullYear());
@@ -3623,8 +3623,16 @@ export default function App(){
   const isLead    = role==="lead"||role==="admin";
   const isAcct    = role==="accountant"||role==="admin"||role==="senior_management";
   const canEditAny= isLead; // admin + lead can edit any engineer's entries
+  const canBrowseAll = isLead||isAcct; // accountant can browse all engineers for review
   const canEdit   = true;   // everyone can edit/delete their own entries
   const canReport = isLead||isAcct; // admin + lead + accountant can see reports
+  const canPostHours = !isAcct; // accountant views timesheets read-only, cannot post or edit
+  // Redirect senior_management away from data-entry pages
+  useEffect(()=>{
+    if(isSenior&&(view==="timesheet")){
+      setView("dashboard");
+    }
+  },[isSenior,view]);
   const canInvoice= isAcct; // admin + accountant can see invoices
 
   const viewEngId = canEditAny ? (browseEngId||myProfile?.id) : myProfile?.id;
@@ -4814,12 +4822,15 @@ export default function App(){
      MAIN LAYOUT
   ════════════════════════ */
   const navItems = [
-    {id:"dashboard",icon:"▦",label:"Dashboard"},
-    {id:"timesheet",icon:"⏱",label:"Post Hours"},
-    {id:"projects", icon:"◈",label:"Projects"},
-    {id:"team",     icon:"◉",label:"Team"},
+    {id:"dashboard", icon:"▦", label:"Dashboard"},
+    // Post Hours: engineers/leads post; accountant sees read-only review
+    ...(!isSenior?[{id:"timesheet",icon:"⏱",label:isAcct?"Hours Review":"Post Hours"}]:[]),
+    // Projects: visible to all except senior_management — accountant sees it read-only
+    ...(!isSenior?[{id:"projects",icon:"◈",label:"Projects"}]:[]),
+    // Team: visible to all except senior_management
+    ...(!isSenior?[{id:"team",icon:"◉",label:"Team"}]:[]),
     ...(canReport?[{id:"reports",icon:"⊞",label:"Reports & PDF"}]:[]),
-    ...(isAdmin||role==="lead"?[{id:"admin",icon:"⚙",label:isAdmin?"Admin Panel":"Lead Panel"}]:[]),
+    ...(isAdmin||isAcct||role==="lead"?[{id:"admin",icon:"⚙",label:isAdmin?"Admin Panel":isAcct?"Finance Panel":"Lead Panel"}]:[]),
     {id:"mysettings",icon:"ℹ",label:"Info"},
     ...(isAdmin&&!isSenior?[{id:"import",icon:"⬆",label:"Import Excel"}]:[]),
   ];
@@ -5060,16 +5071,22 @@ export default function App(){
           {/* ════ TIMESHEET ════ */}
           {view==="timesheet"&&(
             <div>
+              {isAcct&&(
+                <div style={{background:"#0a1a10",border:"1px solid #34d39930",borderRadius:8,padding:"8px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:18}}>👁</span>
+                  <span style={{fontSize:12,color:"#34d399",fontWeight:500}}>Read-only review mode — you can see all posted hours but cannot add, edit or delete entries</span>
+                </div>
+              )}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
                 <div>
-                  <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Post Hours</h1>
+                  <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>{isAcct?"Hours Review":"Post Hours"}</h1>
                   <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>
                     Allowed: {minPostDate()} → {maxPostDate()}
                     {canEdit&&" · Lead/Admin can browse all engineers"}
                   </p>
                 </div>
                 <div style={{display:"flex",gap:12,alignItems:"flex-end"}}>
-                  {canEditAny&&(
+                  {canBrowseAll&&(
                     <div><Lbl>Browse Engineer</Lbl>
                       <select style={{width:190}} value={viewEngId||""} onChange={e=>setBrowseEngId(+e.target.value)}>
                         {engineers.filter(e=>isEngActive(e)&&e.role_type!=="admin"&&e.role_type!=="senior_management"&&e.role_type!=="accountant").map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
@@ -5147,10 +5164,10 @@ export default function App(){
                           {dh>0&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#38bdf8",marginTop:1}}>{dh}h</div>}
                         </div>
                         <div style={{display:"flex",flexDirection:"column",gap:2,alignItems:"flex-end"}}>
-                          {allowed&&<button className="bp" style={{padding:"2px 5px",fontSize:10,
+                          {allowed&&canPostHours&&<button className="bp" style={{padding:"2px 5px",fontSize:10,
                             background:isWE?"linear-gradient(135deg,#b45309,#92400e)":isFuture?"linear-gradient(135deg,#7c3aed,#6d28d9)":undefined
                           }} onClick={()=>setModalDate(day)}>+</button>}
-                          {de.length>0&&allowed&&(
+                          {de.length>0&&allowed&&canPostHours&&(
                             <button title="Copy this day" onClick={()=>copyDay(day)}
                               style={{padding:"2px 5px",fontSize:9,borderRadius:4,border:"1px solid #192d47",
                                 background:clipboard?.date===day?"#38bdf818":"#060e1c",
@@ -5158,7 +5175,7 @@ export default function App(){
                               {clipboard?.date===day?"✓ Copied":"⎘ Copy"}
                             </button>
                           )}
-                          {clipboard&&allowed&&clipboard.date!==day&&(
+                          {clipboard&&allowed&&canPostHours&&clipboard.date!==day&&(
                             <button title={`Paste ${clipboard.entries.length} entr${clipboard.entries.length===1?"y":"ies"} from ${clipboard.date}`}
                               onClick={()=>pasteDay(day)}
                               style={{padding:"2px 5px",fontSize:9,borderRadius:4,border:"1px solid #a78bfa60",
@@ -5182,7 +5199,7 @@ export default function App(){
                                     {e.activity&&<div style={{color:"#4e6479",fontSize:8,marginTop:1,fontStyle:"italic",lineHeight:1.3}}>{e.activity.substring(0,35)}{e.activity.length>35?"…":""}</div>}
                                   </>}
                               </div>
-                              {canEdit&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
+                              {canEdit&&canPostHours&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
                                 <button className="be" style={{padding:"1px 4px",fontSize:9}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
                                 <button className="bd" style={{padding:"1px 4px",fontSize:9}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
                               </div>}
@@ -5244,8 +5261,9 @@ export default function App(){
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{e.hours}h</td>
                             <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
                             <td><div style={{display:"flex",gap:5}}>
-                              <button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
-                              <button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
+                              {canPostHours&&<button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>}
+                              {canPostHours&&<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}
+                              {!canPostHours&&<span style={{fontSize:9,color:"#253a52"}}>—</span>}
                             </div></td>
                           </tr>
                         );
@@ -6169,8 +6187,8 @@ export default function App(){
                 {[
                   {id:"engineers",label:"👥 Engineers",show:isAdmin},
                   {id:"projects", label:"◈ Projects",  show:isAdmin||isLead},
-                  {id:"entries",  label:"⏱ All Entries",show:true},
-                  {id:"settings", label:"⚙ Info",   show:isAdmin},
+                  {id:"entries",  label:"⏱ Hours Review",show:isAdmin||isLead||isAcct},
+                  {id:"settings", label:"⚙ Info",      show:isAdmin},
                   {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct},
                   {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead},
                   {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead},
@@ -6337,7 +6355,7 @@ export default function App(){
                                 <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
                                 {canEditAny&&<td><div style={{display:"flex",gap:4}}>
                                   <button className="be" style={{fontSize:10}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
-                                  <button className="bd" style={{fontSize:10}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
+                                  {isAdmin&&<button className="bd" style={{fontSize:10}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}
                                 </div></td>}
                               </tr>
                             );
