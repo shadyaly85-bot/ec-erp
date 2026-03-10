@@ -608,7 +608,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
   activities,setActivities,engineers,supabase,showToast}){
   const [pvActModal,setPvActModal] = React.useState(null);
   const [pvActDraft,setPvActDraft] = React.useState({});
-  const canManage = isAdmin||isLead; // accountant is read-only // accountant = read-only, no add/edit/delete // accountant: read-only (no add/edit/delete)
+  const canManage = isAdmin||isLead; // accountant: read-only, cannot add/edit/delete projects
 
   const openPvAct=(projId,act=null)=>{
     setPvActDraft(act?{...act}:{project_id:projId,group_name:"SCADA",category:"Templates",activity_name:"",status:"Not Started",progress:0,assigned_to:"",remarks:""});
@@ -1205,13 +1205,13 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
       <!-- Project header banner -->
       <div style="background:linear-gradient(135deg,#0a1628,#0f2a50);border-radius:10px;padding:18px 22px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start">
         <div>
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.2em;color:#38bdf8;margin-bottom:4px">${idx+1} OF ${projList.length} · ${p.id}</div>
-          <div style="font-size:18px;font-weight:700;color:#f0f6ff;margin-bottom:3px">${p.name}</div>
-          <div style="font-size:10px;color:#64748b">${p.client?"Client: "+p.client+" · ":""} Phase: ${p.phase||"—"} · ${p.type||"—"}</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.18em;color:#38bdf8;margin-bottom:5px;font-weight:700">${idx+1} of ${projList.length}  ·  ${p.id}</div>
+          <div style="font-size:20px;font-weight:700;color:#ffffff;margin-bottom:4px;letter-spacing:-.01em">${p.name}</div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:2px;font-weight:500">${p.client?"Client: "+p.client+"  ·  ":""} Phase: ${p.phase||"—"}${p.type?"  ·  "+p.type:""}</div>
         </div>
         <div style="text-align:right">
           <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:#38bdf8;line-height:1">${pm.totalHrs}h</div>
-          <div style="font-size:9px;color:#64748b;margin-top:2px">${pct}% of total · ${pm.days} days</div>
+          <div style="font-size:9px;color:#94a3b8;margin-top:3px;font-weight:500">${pct}% of total  ·  ${pm.days} days active</div>
           <div style="display:flex;gap:5px;margin-top:5px;justify-content:flex-end">
             <span style="font-size:8px;padding:2px 6px;border-radius:3px;background:${p.status==="Active"?"#024b36":"#1e3a5f"};color:${p.status==="Active"?"#34d399":"#60a5fa"}">${p.status||"Active"}</span>
             ${p.billable?`<span style="font-size:8px;padding:2px 6px;border-radius:3px;background:#0c2b4e;color:#38bdf8">BILLABLE</span>`:""}
@@ -1235,11 +1235,11 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
       <!-- Two columns: task breakdown + engineer contribution -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px">
         <div>
-          <div style="font-size:9px;font-weight:700;color:#0f2a50;text-transform:uppercase;letter-spacing:.08em;padding-bottom:5px;border-bottom:2px solid #0ea5e9;margin-bottom:8px">Task Breakdown (${tasksSorted.length} types)</div>
+          <div style="font-size:9px;font-weight:700;color:#0e4880;text-transform:uppercase;letter-spacing:.1em;padding-bottom:6px;border-bottom:2px solid #0ea5e9;margin-bottom:10px">Task Breakdown · ${tasksSorted.length} types</div>
           ${taskBars||"<div style='color:#94a3b8;font-size:10px'>No task data</div>"}
         </div>
         <div>
-          <div style="font-size:9px;font-weight:700;color:#0f2a50;text-transform:uppercase;letter-spacing:.08em;padding-bottom:5px;border-bottom:2px solid #a78bfa;margin-bottom:8px">Engineer Contributions</div>
+          <div style="font-size:9px;font-weight:700;color:#4c1d95;text-transform:uppercase;letter-spacing:.1em;padding-bottom:6px;border-bottom:2px solid #a78bfa;margin-bottom:10px">Engineer Contributions</div>
           <table style="font-size:9px">
             <thead><tr>
               <th style="background:#0f2a50;color:#fff;padding:4px 6px">Engineer</th>
@@ -1252,9 +1252,9 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
         </div>
       </div>
       ${billBar}
-      <div style="border-top:1px solid #e2e8f0;margin-top:14px;padding-top:6px;font-size:8px;color:#94a3b8;display:flex;justify-content:space-between">
-        <span>ENEVO Group · Project Tasks Analysis · ${periodLabel||"All Time"}</span>
-        <span>Page ${idx+1} of ${projList.length}</span>
+      <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:7px;font-size:8px;color:#64748b;display:flex;justify-content:space-between;font-weight:500">
+        <span>ENEVO Group  ·  Project Tasks Analysis  ·  ${periodLabel||"All Time"}</span>
+        <span>Project ${idx+1} of ${projList.length}</span>
       </div>
     </div>`;
   }
@@ -1281,12 +1281,12 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:28px">
       <img src="${LOGO_SRC}" alt="ENEVO Group" style="width:56px;height:56px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
       <div>
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.2em;color:#38bdf8;margin-bottom:4px">ENEVO GROUP · PROJECT TASKS ANALYSIS</div>
-        <div style="font-size:11px;color:#94a3b8">Industrial & Renewable Energy Automation</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.2em;color:#38bdf8;margin-bottom:4px;font-weight:700">ENEVO GROUP · PROJECT TASKS ANALYSIS</div>
+        <div style="font-size:11px;color:#cbd5e1;font-weight:500">Industrial & Renewable Energy Automation</div>
       </div>
     </div>
-    <div style="font-size:28px;font-weight:700;margin-bottom:6px">All Projects Report</div>
-    <div style="font-size:13px;color:#94a3b8;margin-bottom:24px">Period: ${periodLabel||"All Time"}</div>
+    <div style="font-size:30px;font-weight:700;margin-bottom:6px;color:#f0f6ff;letter-spacing:-.02em">All Projects Report</div>
+    <div style="font-size:13px;color:#94a3b8;margin-bottom:24px;font-weight:500">Period: ${periodLabel||"All Time"}</div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px">
       ${[
         {l:"Total Hours",   v:grandTotal+"h",           c:"#38bdf8"},
@@ -5504,22 +5504,22 @@ export default function App(){
                       onDragOver={orgEditing?e=>e.preventDefault():undefined}
                       onDrop={orgEditing?e=>{e.preventDefault();e.stopPropagation();if(orgDragId&&orgDragId!==node.id) moveNode(orgDragId,node.id);}:undefined}
                       style={{
-                        background: node.is_external?"transparent":"#080f1c",
+                        background: node.is_external?"transparent":"#0c1829",
                         border: node.is_external
-                          ? "1px dashed #1e3a5f"
+                          ? "1px dashed #2a4a6a"
                           : orgEditing
-                            ? `1px solid ${rc}50`
-                            : `1px solid ${rc}25`,
+                            ? `1px solid ${rc}60`
+                            : `1px solid ${rc}35`,
                         borderRadius:12,
                         padding:"16px 14px 14px",
                         textAlign:"center",
-                        width:148,
+                        width:152,
                         cursor: orgEditing?"grab":"default",
-                        opacity: isDragging?0.3:!active?0.4:1,
-                        filter: !active?"grayscale(1)":"none",
+                        opacity: isDragging?0.3:!active?0.5:1,
+                        filter: !active?"grayscale(0.7)":"none",
                         transition:"border-color .2s, box-shadow .2s",
                         position:"relative",
-                        boxShadow: orgEditing?`0 0 0 1px ${rc}20`:`0 2px 12px #00000040`,
+                        boxShadow: orgEditing?`0 0 0 1px ${rc}25, 0 4px 16px #00000060`:`0 4px 16px #00000050, 0 0 0 1px ${rc}20`,
                       }}
                     >
                       {/* Edit/delete buttons — only in edit mode */}
@@ -5536,14 +5536,14 @@ export default function App(){
 
                       {/* Avatar circle with role color ring */}
                       <div style={{
-                        width:48, height:48, borderRadius:"50%",
-                        background:`linear-gradient(135deg, ${rc}18, ${rc}08)`,
-                        border:`1.5px solid ${rc}35`,
+                        width:50, height:50, borderRadius:"50%",
+                        background:`linear-gradient(135deg, ${rc}28, ${rc}12)`,
+                        border:`2px solid ${rc}55`,
                         display:"flex", alignItems:"center", justifyContent:"center",
-                        margin:"0 auto 10px",
-                        fontSize:14, fontWeight:700, color:rc,
-                        letterSpacing:".02em",
-                        boxShadow:`0 0 0 4px ${rc}0a`,
+                        margin:"0 auto 11px",
+                        fontSize:15, fontWeight:800, color:rc,
+                        letterSpacing:".03em",
+                        boxShadow:`0 0 0 4px ${rc}15, 0 2px 8px #00000040`,
                       }}>
                         {initials}
                       </div>
@@ -5551,13 +5551,13 @@ export default function App(){
                       {/* Name */}
                       <div style={{
                         fontSize:12, fontWeight:700,
-                        color: node.is_external?"#3a5269":"#c8d8e8",
+                        color: node.is_external?"#4e6a82":"#e8f2fb",
                         lineHeight:1.3, marginBottom:4,
                         letterSpacing:"-.01em",
                       }}>
                         {node.name}
                         {!active&&eng&&(
-                          <div style={{fontSize:8,color:"#f87171",marginTop:2,letterSpacing:".05em",fontWeight:500}}>INACTIVE</div>
+                          <div style={{fontSize:8,color:"#f87171",marginTop:2,letterSpacing:".06em",fontWeight:700}}>INACTIVE</div>
                         )}
                       </div>
 
@@ -5566,19 +5566,20 @@ export default function App(){
                         <div style={{marginTop:2}}>
                           {node.title&&(
                             <div style={{
-                              fontSize:9.5, color: node.is_external?"#1e3a5f":"#2e4a66",
-                              lineHeight:1.4, letterSpacing:".02em",
+                              fontSize:10, color: node.is_external?"#3d5c75":"#7aa0be",
+                              lineHeight:1.4, letterSpacing:".01em",
                               fontStyle: node.is_external?"italic":"normal",
+                              fontWeight:500,
                             }}>
                               {node.title}
                             </div>
                           )}
                           {eng&&!node.is_external&&(
                             <div style={{
-                              fontSize:8.5, color:"#1e3a5f",
-                              marginTop: node.title?2:0,
-                              letterSpacing:".04em", textTransform:"uppercase",
-                              fontWeight:600,
+                              fontSize:8.5, color:rc,
+                              marginTop: node.title?3:0,
+                              letterSpacing:".05em", textTransform:"uppercase",
+                              fontWeight:700, opacity:0.8,
                             }}>
                               {eng.role}
                             </div>
@@ -5590,7 +5591,7 @@ export default function App(){
                 };
 
                 // Recursive tree renderer
-                const CONN = "#1a2e44";  // connector line color
+                const CONN = "#1e3d5c";  // connector line color
                 const RenderLevel = ({nodes, depth=0}) => {
                   if(!nodes.length) return null;
                   const gap = 24;
@@ -5616,8 +5617,8 @@ export default function App(){
                               {/* Add child button */}
                               {orgEditing&&isAdmin&&(
                                 <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:node.id,is_external:false,sort_order:kids.length})}
-                                  style={{marginTop:5,background:"transparent",border:"1px dashed #1a3050",color:"#1e3a5f",
-                                    borderRadius:6,padding:"1px 8px",fontSize:8,cursor:"pointer",width:"100%",letterSpacing:".05em"}}>
+                                  style={{marginTop:5,background:"transparent",border:"1px dashed #2a4d6e",color:"#4a7a9a",
+                                    borderRadius:6,padding:"3px 8px",fontSize:9,cursor:"pointer",width:"100%",letterSpacing:".05em",fontWeight:600}}>
                                   + add
                                 </button>
                               )}
