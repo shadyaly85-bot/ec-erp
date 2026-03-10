@@ -6565,7 +6565,6 @@ export default function App(){
                       ✓ Your weekend: {myWeekend.length===0?"None (all days)":myWeekend.map(d=>["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d]).join(" + ")}
                     </div>
                   </div>
-                  </div>
 
                   <div className="card">
                     <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:4}}>Access Role Descriptions</h3>
