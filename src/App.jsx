@@ -70,12 +70,20 @@ const getWeekDays7 = date => {
   const sun=new Date(d); sun.setDate(d.getDate()-day);
   return Array.from({length:7},(_,i)=>{const x=new Date(sun);x.setDate(sun.getDate()+i);return fmt(x);});
 };
-const getWorkDaysInMonth = (y,m,wd=[5,6]) => {
+const getWorkDaysInMonth = (y,m,wd=[5,6],fromDay=1) => {
   const days=[]; const total=new Date(y,m+1,0).getDate();
-  for(let d=1;d<=total;d++){const dt=new Date(y,m,d);if(!wd.includes(dt.getDay()))days.push(fmt(dt));}
+  // fromDay lets us start counting from the engineer's join date within the month
+  for(let d=Math.max(1,fromDay);d<=total;d++){const dt=new Date(y,m,d);if(!wd.includes(dt.getDay()))days.push(fmt(dt));}
   return days;
 };
-const getTargetHrs = (y,m,wd=[5,6]) => getWorkDaysInMonth(y,m,wd).length*8;
+// upToDay: for terminated engineers, stop counting after termination day
+const getTargetHrs = (y,m,wd=[5,6],fromDay=1,upToDay=null) => {
+  const total=new Date(y,m+1,0).getDate();
+  const end = upToDay ? Math.min(upToDay,total) : total;
+  let count=0;
+  for(let d=Math.max(1,fromDay);d<=end;d++){const dt=new Date(y,m,d);if(!wd.includes(dt.getDay()))count++;}
+  return count*8;
+};
 
 // Posting limit: 1 month past to 1 month future
 const minPostDate = () => { const d=new Date(today); d.setMonth(d.getMonth()-1); d.setDate(1); return fmt(d); };
@@ -2767,13 +2775,19 @@ const allJoinDates=activeStaff.map(s=>s.join_date).filter(Boolean).map(d=>new Da
 const companyStart=allJoinDates.length>0?new Date(Math.min(...allJoinDates)):null;
 
 // Was this staff member employed during year/month?
-// If no join_date on the individual, use companyStart as their implied join date
+// Use T12:00:00 to avoid UTC midnight timezone shifts on all date comparisons.
 const wasEmployed=(s,y,m)=>{
   const monthStart=new Date(y,m,1);
-  const monthEnd=new Date(y,m+1,0);
-  const effectiveJoin=s.join_date?new Date(s.join_date):companyStart;
+  const monthEnd=new Date(y,m+1,0); // last day of month
+  const effectiveJoin=s.join_date?new Date(s.join_date+"T12:00:00"):companyStart;
+  // Joined after this month ended → not employed yet
   if(effectiveJoin&&effectiveJoin>monthEnd) return false;
-  if(s.termination_date&&new Date(s.termination_date)<monthStart) return false;
+  // Terminated strictly before this month started → no longer employed
+  // Last day of employment (termination_date itself) counts as employed
+  if(s.termination_date){
+    const term=new Date(s.termination_date+"T12:00:00");
+    if(term<monthStart) return false;
+  }
   return true;
 };
 
@@ -2788,9 +2802,21 @@ const totalExpUSD=monthExpNonSalary.reduce((s,e)=>{
 },0);
 const totalExpEGP=monthExpNonSalary.reduce((s,e)=>s+(e.amount_egp||0),0);
 const salaryCatUSD=monthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
-// Only count staff employed this specific month
+// Only count staff employed this specific month, prorated for partial months
+const workDaysInMonth=new Date(finYear,finMonth+1,0).getDate(); // calendar days for proration
+const prorateStaff=(s,y,m)=>{
+  const totalDays=new Date(y,m+1,0).getDate();
+  const monthStart=new Date(y,m,1);
+  const monthEnd=new Date(y,m+1,0);
+  const joinDate=s.join_date?new Date(s.join_date+"T12:00:00"):null;
+  const termDate=s.termination_date?new Date(s.termination_date+"T12:00:00"):null;
+  const effectiveStart=joinDate&&joinDate>monthStart?joinDate:monthStart;
+  const effectiveEnd=termDate&&termDate<monthEnd?termDate:monthEnd;
+  const activeDays=Math.max(0,Math.round((effectiveEnd-effectiveStart)/(1000*60*60*24))+1);
+  return activeDays/totalDays;
+};
 const staffThisMonth=activeStaff.filter(s=>wasEmployed(s,finYear,finMonth));
-const totalPayrollUSDeff=staffThisMonth.reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp),0);
+const totalPayrollUSDeff=staffThisMonth.reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp)*prorateStaff(x,finYear,finMonth),0);
 const totalCostUSD=totalPayrollUSDeff+salaryCatUSD+totalExpUSD;
 
 // Revenue from billing (all entries this month)
@@ -2817,7 +2843,7 @@ const mExpUSD=mMonthExp.filter(e=>e.category!=="Salaries").reduce((s,e)=>{
   return s; // EGP with no rate: excluded (needs explicit rate)
 },0);
   const mSalaryCat=mMonthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
-  const mPayroll=activeStaff.filter(s=>wasEmployed(s,finYear,m)).reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp),0);
+  const mPayroll=activeStaff.filter(s=>wasEmployed(s,finYear,m)).reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp)*prorateStaff(x,finYear,m),0);
   const cost=mPayroll+mSalaryCat+mExpUSD;
   return{m,rev,cost,net:rev-cost};
 });
@@ -2837,14 +2863,15 @@ const projProfit=projects.filter(p=>p.billable).map(p=>{
   return{id:p.id,name:p.name,rev,hrs,engs:engsOnProj.length,allocatedCost,net:rev-allocatedCost};
 }).filter(p=>p.hrs>0).sort((a,b)=>b.net-a.net);
 
-// Dept salary breakdown
+// Dept salary breakdown — only staff employed this month, prorated
 const deptMap={};
-activeStaff.forEach(s=>{
+staffThisMonth.forEach(s=>{
   const d=s.department||"Other";
   if(!deptMap[d]) deptMap[d]={dept:d,count:0,usd:0,egp:0};
   deptMap[d].count++;
-  deptMap[d].usd+=toUSD(s.salary_usd,s.salary_egp);
-  deptMap[d].egp+=s.salary_egp||0;
+  const prorate=prorateStaff(s,finYear,finMonth);
+  deptMap[d].usd+=toUSD(s.salary_usd,s.salary_egp)*prorate;
+  deptMap[d].egp+=(s.salary_egp||0)*prorate;
 });
 const deptList=Object.values(deptMap).sort((a,b)=>b.usd-a.usd);
 
@@ -3294,8 +3321,14 @@ const computeKPI=eng=>{
     const mon=new Date(d);mon.setDate(d.getDate()-(dow===0?6:dow-1));
     return mon.toISOString().slice(0,10);
   }));
-  const now2=new Date();const yearStart=new Date(kpiYear,0,1);
-  const weeksElapsed=Math.max(1,Math.ceil((Math.min(now2,new Date(kpiYear,11,31))-yearStart)/(7*24*3600*1000)));
+  const now2=new Date();
+  // KPI week counting starts from the later of: year start OR engineer's join date
+  // This prevents penalising new joiners for weeks before they were employed
+  const yearStart=new Date(kpiYear,0,1);
+  const engJoinDate=eng.join_date?new Date(eng.join_date+"T12:00:00"):null;
+  const kpiStart=engJoinDate&&engJoinDate>yearStart?engJoinDate:yearStart;
+  const kpiEnd=Math.min(now2,new Date(kpiYear,11,31));
+  const weeksElapsed=Math.max(1,Math.ceil((kpiEnd-kpiStart)/(7*24*3600*1000)));
   const submissionRate=Math.min(100,Math.round(weeks.size/weeksElapsed*100));
   const complianceScore=submissionRate;
   const totalScore=Math.round(utilScore*0.30+projScore*0.30+devScore*0.20+complianceScore*0.20);
@@ -3695,9 +3728,9 @@ export default function App(){
   const TODAY_STR = new Date().toISOString().slice(0,10);
   const isEngActive = (e) => {
     if(!e) return false;
-    // termination_date set and in the past → inactive
-    if(e.termination_date && String(e.termination_date).slice(0,10) <= TODAY_STR) return false;
-    // explicit is_active false (if column exists)
+    // termination_date strictly in the past (before today) → inactive; last day counts as active
+    if(e.termination_date && String(e.termination_date).slice(0,10) < TODAY_STR) return false;
+    // explicit is_active false
     if(e.is_active===false) return false;
     return true;
   };
@@ -4776,24 +4809,61 @@ export default function App(){
   const totalRevenue  = workEntries.filter(e=>isEntryBillable(e)).reduce((s,e)=>{
     const p=projects.find(x=>x.id===e.project_id);return s+(p?p.rate_per_hour*e.hours:0);},0);
   const billabilityPct= totalWorkHrs?Math.round(totalBillable/totalWorkHrs*100):0;
-  const overallUtil   = engineers.length?Math.min(100,Math.round(totalWorkHrs/(engineers.length*targetHrs)*100)):0;
 
-  const engStats=useMemo(()=>engineers.filter(eng=>eng.role_type!=="accountant"&&eng.role_type!=="senior_management").map(eng=>{
-    const we=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id));
-    const wh=we.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
-    // Billable hours derived from CURRENT project billable flag
-    const bh=we.filter(e=>e.entry_type==="work").reduce((s,e)=>{
-      const p=projects.find(x=>x.id===e.project_id);
-      return s+(p&&p.billable?e.hours:0);},0);
-    const ld=we.filter(e=>e.entry_type==="leave").length;
-    const rev=we.filter(e=>e.entry_type==="work").reduce((s,e)=>{
-      const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
-    const engWd=()=>{try{return eng.weekend_days?JSON.parse(eng.weekend_days):DEFAULT_WEEKEND;}catch{return DEFAULT_WEEKEND;}};
-    const engTarget=getTargetHrs(year,month,engWd());
-    return{...eng,workHrs:wh,billableHrs:bh,leaveDays:ld,revenue:rev,
-      utilization:Math.min(100,Math.round(wh/engTarget*100)),
-      billability:wh?Math.round(bh/wh*100):0};
-  }),[engineers,monthEntries,projects,year,month]);
+  const engStats=useMemo(()=>engineers
+    .filter(eng=>eng.role_type!=="accountant"&&eng.role_type!=="senior_management")
+    .filter(eng=>{
+      // Exclude terminated engineers whose termination date was before this month started
+      if(eng.termination_date){
+        const term=new Date(eng.termination_date+"T12:00:00");
+        if(term.getFullYear()<year||(term.getFullYear()===year&&term.getMonth()<month)) return false;
+      }
+      // Exclude inactive engineers with no termination date (manually deactivated)
+      if(eng.is_active===false&&!eng.termination_date) return false;
+      // Exclude engineers who hadn't joined yet in the selected month
+      if(eng.join_date){
+        const join=new Date(eng.join_date+"T12:00:00");
+        if(join.getFullYear()>year||(join.getFullYear()===year&&join.getMonth()>month)) return false;
+      }
+      // Engineers with NO join_date are treated as always active (legacy records)
+      return true;
+    })
+    .map(eng=>{
+      const we=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id));
+      const wh=we.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
+      const bh=we.filter(e=>e.entry_type==="work").reduce((s,e)=>{
+        const p=projects.find(x=>x.id===e.project_id);
+        return s+(p&&p.billable?e.hours:0);},0);
+      const ld=we.filter(e=>e.entry_type==="leave").length;
+      const rev=we.filter(e=>e.entry_type==="work").reduce((s,e)=>{
+        const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
+      const engWd=()=>{try{return eng.weekend_days?JSON.parse(eng.weekend_days):DEFAULT_WEEKEND;}catch{return DEFAULT_WEEKEND;}};
+      // Calculate effective target: start from join date if they joined mid-month
+      const joinFromDay = (()=>{
+        if(!eng.join_date) return 1;
+        const join=new Date(eng.join_date+"T12:00:00");
+        if(join.getFullYear()===year&&join.getMonth()===month) return join.getDate();
+        return 1;
+      })();
+      // Stop counting at termination date if terminated mid-month
+      const termUpToDay = (()=>{
+        if(!eng.termination_date) return null;
+        const term=new Date(eng.termination_date+"T12:00:00");
+        if(term.getFullYear()===year&&term.getMonth()===month) return term.getDate();
+        return null;
+      })();
+      const engTarget=getTargetHrs(year,month,engWd(),joinFromDay,termUpToDay);
+      return{...eng,workHrs:wh,billableHrs:bh,leaveDays:ld,revenue:rev,
+        utilization:engTarget>0?Math.min(100,Math.round(wh/engTarget*100)):0,
+        billability:wh?Math.round(bh/wh*100):0,
+        targetHrs:engTarget};
+    }),[engineers,monthEntries,projects,year,month]);
+
+  // overallUtil: sum of individual adjusted targets (respects join/termination dates)
+  const overallUtil = (()=>{
+    const totalTarget=engStats.reduce((s,e)=>s+(e.targetHrs||0),0);
+    return totalTarget?Math.min(100,Math.round(totalWorkHrs/totalTarget*100)):0;
+  })();
 
   const projStats=useMemo(()=>projects.map(p=>{
     const pe=monthEntries.filter(e=>e.project_id===p.id&&e.entry_type==="work");
@@ -4837,12 +4907,14 @@ export default function App(){
         <div class="kp"><div class="kv">${fmtCurrency(totalRevenue)}</div><div class="kl">Revenue</div></div>
       </div></div>`,
       `<div class="section"><div class="st">Individual Breakdown</div>
-      <table><thead><tr><th>Engineer</th><th>Level</th><th>Work Hrs</th><th>Billable Hrs</th><th>Leave</th><th>Utilization</th><th>Billability</th><th>Revenue</th></tr></thead>
-      <tbody>${engStats.map(e=>`<tr>
+      <table><thead><tr><th>Engineer</th><th>Level</th><th>Target Hrs</th><th>Work Hrs</th><th>Billable Hrs</th><th>Leave</th><th>Utilization</th><th>Billability</th><th>Revenue</th></tr></thead>
+      <tbody>${engStats.map(e=>{
+        const joinNote=(()=>{if(!e.join_date)return"";const j=new Date(e.join_date+"T12:00:00");if(j.getFullYear()===year&&j.getMonth()===month)return` <span style="color:#34d399;font-size:10px">(joined ${j.getDate()})</span>`;return"";})();
+        return`<tr>
         <td><strong>${e.name}</strong><br><span style="color:#64748b;font-size:11px">${e.role||""}</span></td>
-        <td>${e.level||""}</td><td>${e.workHrs}h</td><td style="color:#0ea5e9">${e.billableHrs}h</td>
+        <td>${e.level||""}</td><td style="color:#64748b">${e.targetHrs}h${joinNote}</td><td>${e.workHrs}h</td><td style="color:#0ea5e9">${e.billableHrs}h</td>
         <td>${e.leaveDays}d</td><td>${fmtPct(e.utilization)}</td><td>${fmtPct(e.billability)}</td>
-        <td style="color:#0ea5e9;font-weight:700">${fmtCurrency(e.revenue)}</td></tr>`).join("")}
+        <td style="color:#0ea5e9;font-weight:700">${fmtCurrency(e.revenue)}</td></tr>`;}).join("")}
       </tbody></table></div>`]);
   };
   const buildTaskPDF=()=>{
@@ -5243,7 +5315,7 @@ export default function App(){
                   {[
                     {l:"Week Hrs",v:weekDays.reduce((s,d)=>s+entries.filter(e=>e.date===d&&e.engineer_id===viewEngId).reduce((ss,e)=>ss+e.hours,0),0)+"h",c:"var(--info)"},
                     {l:"Month Hrs",v:monthEntries.filter(e=>e.engineer_id===viewEngId&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0)+"h",c:"#34d399"},
-                    {l:"Utilization",v:fmtPct(Math.min(100,Math.round(monthEntries.filter(e=>e.engineer_id===viewEngId&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0)/targetHrs*100))),c:"#a78bfa"},
+                    {l:"Utilization",v:(()=>{const vEng=engStats.find(e=>e.id===viewEngId);const vTarget=vEng?.targetHrs||targetHrs;const vWork=monthEntries.filter(e=>e.engineer_id===viewEngId&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0);return fmtPct(vTarget>0?Math.min(100,Math.round(vWork/vTarget*100)):0);})(),c:"#a78bfa"},
                   ].map((s,i)=><div key={i} style={{textAlign:"center"}}>
                     <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c}}>{s.v}</div>
                     <div style={{fontSize:12,color:"var(--text4)"}}>{s.l}</div>
@@ -5461,11 +5533,9 @@ export default function App(){
                 const totalB=fWork.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?e.hours:0);},0);
                 const totalNB=totalW-totalB;
                 const totalL=fLeave.length;
-                // Target hours based on filtered engineers
-                const filtEngs=filterEngineer==="ALL"?engineers:engineers.filter(e=>e.id===+filterEngineer);
-                const targetW=filtEngs.reduce((s,eng)=>{
-                  try{const wd=eng.weekend_days?JSON.parse(eng.weekend_days):DEFAULT_WEEKEND;return s+getTargetHrs(year,month,wd);}catch{return s+getTargetHrs(year,month,DEFAULT_WEEKEND);}
-                },0);
+                // Target hours based on filtered engineers — respects join/termination dates
+                const filtEngs=filterEngineer==="ALL"?engStats:engStats.filter(e=>e.id===+filterEngineer);
+                const targetW=filtEngs.reduce((s,eng)=>s+(eng.targetHrs||0),0);
                 const util=targetW?Math.round(totalW/targetW*100):0;
                 const selProjName=filterProject!=="ALL"?projects.find(p=>p.id===filterProject)?.name:"";
                 const selEngName=filterEngineer!=="ALL"?engineers.find(e=>e.id===+filterEngineer)?.name:"";
@@ -6106,11 +6176,12 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     <button className="bp" onClick={buildUtilizationPDF}>⬇ Export PDF</button>
                   </div>
                   <table>
-                    <thead><tr><th>Engineer</th><th>Level</th><th>Work Hrs</th><th>Billable</th><th>Leave</th><th>Utilization</th><th>Billability</th><th>Revenue</th></tr></thead>
+                    <thead><tr><th>Engineer</th><th>Level</th><th>Target Hrs</th><th>Work Hrs</th><th>Billable</th><th>Leave</th><th>Utilization</th><th>Billability</th><th>Revenue</th></tr></thead>
                     <tbody>{engStats.map(e=>(
                       <tr key={e.id}>
                         <td><div style={{display:"flex",alignItems:"center",gap:7}}><div className="av" style={{fontSize:11,width:24,height:24}}>{e.name?.slice(0,2).toUpperCase()}</div><div><div style={{fontWeight:500,fontSize:14}}>{e.name}</div><div style={{fontSize:11,color:"var(--text4)"}}>{e.role}</div></div></div></td>
                         <td><span style={{fontSize:11,padding:"1px 5px",borderRadius:3,background:"var(--border)",color:"var(--text3)"}}>{e.level}</span></td>
+                        <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--text4)"}}>{e.targetHrs}h{e.join_date&&(()=>{const j=new Date(e.join_date+"T12:00:00");if(j.getFullYear()===year&&j.getMonth()===month)return <span style={{fontSize:10,color:"#34d399",marginLeft:4}}>joined {j.getDate()}</span>;return null;})()}</td>
                         <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.workHrs}h</td>
                         <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{e.billableHrs}h</td>
                         <td style={{color:e.leaveDays>0?"#fb923c":"var(--text4)"}}>{e.leaveDays}</td>
