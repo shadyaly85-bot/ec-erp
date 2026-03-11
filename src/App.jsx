@@ -3654,6 +3654,7 @@ export default function App(){
   const [modalDate,setModalDate]     = useState(null);
   const [editEntry,setEditEntry]     = useState(null);
   const [clipboard,setClipboard]     = useState(null); // {date, entries:[]} for copy/paste
+  const [showWeekendPicker,setShowWeekendPicker] = useState(false);
   const [activeRpt,setActiveRpt]     = useState("utilization");
   const [rptEngId,setRptEngId]       = useState(null); // for individual timesheet export
   const [invoiceProjId,setInvoiceProjId] = useState("ALL"); // ALL or specific project id
@@ -3865,12 +3866,16 @@ export default function App(){
     setNotifications(prev=>prev.map(n=>({...n,read:true})));
   };
 
-  /* ── WEEKEND SAVE (per user) ── */
-  const saveMyWeekend=async days=>{
-    await supabase.from("engineers").update({weekend_days:JSON.stringify(days)}).eq("id",myProfile.id);
-    setMyProfile(p=>({...p,weekend_days:JSON.stringify(days)}));
+  /* ── WEEKEND SAVE ── */
+  // saveWeekendFor: saves weekend for any engineer by id (admin can set for others)
+  const saveWeekendFor=async(engId,days)=>{
+    await supabase.from("engineers").update({weekend_days:JSON.stringify(days)}).eq("id",engId);
+    setEngineers(prev=>prev.map(e=>e.id===engId?{...e,weekend_days:JSON.stringify(days)}:e));
+    if(engId===myProfile?.id) setMyProfile(p=>({...p,weekend_days:JSON.stringify(days)}));
     showToast("Weekend preference saved ✓");
   };
+  // saveMyWeekend: shortcut for current user
+  const saveMyWeekend=async days=>saveWeekendFor(myProfile.id,days);
 
   /* ── ADD ENTRY ── */
   /* ── Project eligibility: which projects can a given engineer post work hours to? ──
@@ -5325,6 +5330,62 @@ export default function App(){
                 </div>
               </div>}
 
+              {/* ── Weekend Picker — visible to all roles, edits viewed engineer's weekend ── */}
+              {viewEng&&(()=>{
+                const pickerEngId = viewEngId||myProfile?.id;
+                const pickerEng = engineers.find(e=>e.id===pickerEngId)||viewEng;
+                const pickerWd = (()=>{try{return pickerEng.weekend_days?JSON.parse(pickerEng.weekend_days):DEFAULT_WEEKEND;}catch{return DEFAULT_WEEKEND;}})();
+                const isOwnProfile = pickerEngId===myProfile?.id;
+                const label = isOwnProfile?"My Weekend":pickerEng.name+"'s Weekend";
+                const wdStr = pickerWd.length===0?"All days":["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].filter((_,i)=>pickerWd.includes(i)).join(" + ");
+                return(
+                  <div style={{marginBottom:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:8,padding:"8px 14px",cursor:"pointer"}}
+                      onClick={()=>setShowWeekendPicker(p=>!p)}>
+                      <span style={{fontSize:14,fontWeight:600,color:"var(--text1)"}}>🗓 {label}</span>
+                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#fb923c",background:"#fb923c15",padding:"2px 8px",borderRadius:4}}>{wdStr}</span>
+                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text4)",marginLeft:"auto"}}>
+                        {getWorkDaysInMonth(year,month,pickerWd).length} working days · {getTargetHrs(year,month,pickerWd)}h target
+                      </span>
+                      <span style={{color:"var(--text3)",fontSize:12}}>{showWeekendPicker?"▲":"▼"}</span>
+                    </div>
+                    {showWeekendPicker&&(
+                      <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:8,padding:"14px 16px",marginTop:4}}>
+                        {!isOwnProfile&&<div style={{fontSize:12,color:"#fb923c",marginBottom:10}}>⚠ Editing weekend for <strong>{pickerEng.name}</strong> — this affects their utilization target</div>}
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:12}}>
+                          {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((name,i)=>{
+                            const isOff=pickerWd.includes(i);
+                            return(
+                              <button key={i} onClick={()=>{const next=isOff?pickerWd.filter(d=>d!==i):[...pickerWd,i].sort((a,b)=>a-b);saveWeekendFor(pickerEngId,next);}}
+                                style={{padding:"9px 4px",borderRadius:7,border:`2px solid ${isOff?"#f47218":"var(--border)"}`,
+                                  background:isOff?"#1a0a0040":"var(--bg2)",color:isOff?"#f47218":"var(--text3)",
+                                  cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                                {name}{isOff&&<div style={{fontSize:10,marginTop:2,color:"#f47218"}}>OFF</div>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                          {[
+                            {label:"🇪🇬 Egypt",days:[5,6],desc:"Fri+Sat"},
+                            {label:"🇷🇴 Europe",days:[0,6],desc:"Sat+Sun"},
+                            {label:"🌍 No Weekend",days:[],desc:"All 7 days"},
+                          ].map(p=>(
+                            <button key={p.label} onClick={()=>saveWeekendFor(pickerEngId,p.days)}
+                              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,
+                                padding:"6px 12px",cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
+                                color:"var(--text1)",fontSize:13,display:"flex",gap:6,alignItems:"center"}}>
+                              <span style={{fontWeight:600}}>{p.label}</span>
+                              <span style={{color:"var(--text4)",fontSize:11,fontFamily:"'IBM Plex Mono',monospace"}}>{p.desc}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Clipboard banner */}
               {clipboard&&(
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
@@ -5344,7 +5405,9 @@ export default function App(){
               <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:7}}>
                 {weekDays.map(day=>{
                   const dow=new Date(day).getDay();
-                  const isWE=myWeekend.includes(dow);
+                  // Use viewed engineer's weekend days for calendar highlighting
+                  const viewEngWd=(()=>{const ve=engineers.find(e=>e.id===viewEngId);try{return ve?.weekend_days?JSON.parse(ve.weekend_days):myWeekend;}catch{return myWeekend;}})();
+                  const isWE=viewEngWd.includes(dow);
                   const allowed=isDateAllowed(day);
                   const de=entries.filter(e=>e.date===day&&e.engineer_id===viewEngId);
                   const dh=de.reduce((s,e)=>s+e.hours,0);
@@ -6685,45 +6748,6 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               {/* SETTINGS */}
               {adminTab==="settings"&&isAdmin&&(
                 <div style={{maxWidth:600,display:"grid",gap:14}}>
-                  {/* Weekend settings card — was previously in sidebar Info tab */}
-                  <div className="card">
-                    <h3 style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>🗓 My Weekend Days</h3>
-                    <p style={{fontSize:13,color:"var(--text4)",marginBottom:16,lineHeight:1.6}}>
-                      Select your weekend days. Affects timesheet display and utilization target.
-                    </p>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,marginBottom:14}}>
-                      {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((name,i)=>{
-                        const isWe=myWeekend.includes(i);
-                        return(
-                          <button key={i} onClick={()=>{const next=isWe?myWeekend.filter(d=>d!==i):[...myWeekend,i];saveMyWeekend(next);}}
-                            style={{padding:"10px 4px",borderRadius:7,border:`2px solid ${isWe?"#f47218":"var(--border)"}`,
-                              background:isWe?"#1a0a00":"var(--bg2)",color:isWe?"#f47218":"var(--text3)",
-                              cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                            {name}{isWe&&<div style={{fontSize:11,marginTop:3,color:"#f47218"}}>OFF</div>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div style={{display:"grid",gap:6,marginBottom:14}}>
-                      {[
-                        {label:"🇪🇬 Egypt / Middle East",days:[5,6],desc:"Fri + Sat"},
-                        {label:"🇷🇴 Romania / Europe",  days:[0,6],desc:"Sat + Sun"},
-                        {label:"No Weekend",             days:[],  desc:"All 7 days"},
-                      ].map(p=>(
-                        <button key={p.label} onClick={()=>saveMyWeekend(p.days)}
-                          style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",
-                            border:"1px solid var(--border3)",borderRadius:6,padding:"8px 12px",cursor:"pointer",
-                            fontFamily:"'IBM Plex Sans',sans-serif",color:"var(--text1)"}}>
-                          <span style={{fontSize:14,fontWeight:600}}>{p.label}</span>
-                          <span style={{fontSize:12,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{p.desc}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{padding:"9px 12px",background:"var(--bg3)",border:"1px solid #34d399",borderRadius:6,fontSize:13,color:"#34d399"}}>
-                      ✓ Your weekend: {myWeekend.length===0?"None (all days)":myWeekend.map(d=>["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d]).join(" + ")}
-                    </div>
-                  </div>
-
                   <div className="card">
                     <h3 style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>Access Role Descriptions</h3>
                     <p style={{fontSize:13,color:"var(--text4)",marginBottom:14,lineHeight:1.6}}>Each role controls what features are visible and accessible.</p>
@@ -6749,54 +6773,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
             </div>
           )}
 
-          {/* ════ MY SETTINGS (engineer only) ════ */}
-          {view==="mysettings"&&false&&( /* removed — settings now in Admin › Info */
-            <div>
-              <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)",marginBottom:20}}>My Settings</h1>
-              <div className="card" style={{maxWidth:480}}>
-                <h3 style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>My Weekend Days</h3>
-                <p style={{fontSize:13,color:"var(--text4)",marginBottom:16,lineHeight:1.6}}>
-                  Select your personal weekend days. This affects how your timesheet looks and your utilization target calculation. Engineers on site in Romania can set Sat+Sun, those in Egypt set Fri+Sat.
-                </p>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,marginBottom:16}}>
-                  {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((name,i)=>{
-                    const isWe=myWeekend.includes(i);
-                    return(
-                      <button key={i} onClick={()=>{
-                        const next=isWe?myWeekend.filter(d=>d!==i):[...myWeekend,i];
-                        saveMyWeekend(next);
-                      }} style={{
-                        padding:"10px 4px",borderRadius:7,border:`2px solid ${isWe?"#f47218":"var(--border)"}`,
-                        background:isWe?"#1a0a00":"var(--bg2)",color:isWe?"#f47218":"var(--text3)",
-                        cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif",transition:"all .2s"
-                      }}>
-                        {name}
-                        {isWe&&<div style={{fontSize:11,marginTop:3,color:"#f47218"}}>OFF</div>}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div style={{display:"grid",gap:6,marginBottom:14}}>
-                  {[
-                    {label:"🇪🇬 Egypt / Middle East",days:[5,6],desc:"Fri + Sat"},
-                    {label:"🇷🇴 Romania / Europe",days:[0,6],desc:"Sat + Sun"},
-                    {label:"No Weekend",days:[],desc:"All 7 days"},
-                  ].map(p=>(
-                    <button key={p.label} onClick={()=>saveMyWeekend(p.days)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 12px",cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",color:"var(--text1)",transition:"border-color .2s"}}
-                    onMouseEnter={e=>e.currentTarget.style.borderColor="var(--info)"}
-                    onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
-                      <span style={{fontSize:14,fontWeight:600}}>{p.label}</span>
-                      <span style={{fontSize:12,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{p.desc}</span>
-                    </button>
-                  ))}
-                </div>
-                <div style={{padding:"9px 12px",background:"var(--bg3)",border:"1px solid #34d399",borderRadius:6,fontSize:13,color:"#34d399"}}>
-                  ✓ Your weekend: {myWeekend.length===0?"None (all days)":myWeekend.map(d=>["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d]).join(" + ")}
-                  {" "}· Working days this month: {getWorkDaysInMonth(year,month,myWeekend).length} · Target: {getTargetHrs(year,month,myWeekend)}h
-                </div>
-              </div>
-            </div>
-          )}
+
 
 
           {/* ════ IMPORT EXCEL ════ */}
