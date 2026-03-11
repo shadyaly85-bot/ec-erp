@@ -24,7 +24,7 @@ const FUNCTION_CATS = [
 const FUNC_COLORS = {
   "Internal Training — Given":        "#a78bfa",
   "Internal Training — Received":     "#818cf8",
-  "Tendering Support — Local":        "#38bdf8",
+  "Tendering Support — Local":        "var(--info)",
   "Tendering Support — International":"#0ea5e9",
   "Mentoring & Coaching":             "#34d399",
   "R&D & Innovation":                 "#10b981",
@@ -56,7 +56,7 @@ const ROLES_LIST = [
 // admin: full access
 const ROLE_TYPES   = ["engineer","lead","accountant","senior_management","admin"];
 const ROLE_LABELS  = {engineer:"Engineer",lead:"Lead Engineer",accountant:"Accountant",senior_management:"Senior Management",admin:"Admin"};
-const ROLE_COLORS  = {engineer:"#4e6479",lead:"#38bdf8",accountant:"#a78bfa",senior_management:"#94a3b8",admin:"#34d399"};
+const ROLE_COLORS  = {engineer:"var(--text3)",lead:"var(--info)",accountant:"#a78bfa",senior_management:"#94a3b8",admin:"#34d399"};
 
 const fmt          = d => d.toISOString().slice(0,10);
 const today        = new Date();
@@ -437,17 +437,17 @@ function SignupScreen({onBack}){
       </div>
       <div><Lbl>Email</Lbl><input type="email" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="you@company.com"/></div>
       <div><Lbl>Password</Lbl><input type="password" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} placeholder="Min 6 characters"/></div>
-      <div style={{background:"#071e36",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:11,color:"#38bdf8"}}>
+      <div style={{background:"#071e36",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:11,color:"var(--info)"}}>
         ℹ Account role is set to <strong>Engineer</strong> by default. Your admin can upgrade your access level after registration.
       </div>
       {err&&<div style={{padding:"8px 12px",borderRadius:6,fontSize:12,background:err.startsWith("✓")?"#022c22":"#450a0a",color:err.startsWith("✓")?"#34d399":"#f87171",border:`1px solid ${err.startsWith("✓")?"#34d399":"#f87171"}`}}>{err}</div>}
       <button className="bp" onClick={handle} disabled={loading} style={{width:"100%",justifyContent:"center",padding:11}}>{loading?"Creating…":"Create Account"}</button>
-      <div style={{textAlign:"center",fontSize:12,color:"#2e4a66",cursor:"pointer"}} onClick={onBack}>← Back to Sign In</div>
+      <div style={{textAlign:"center",fontSize:12,color:"var(--text4)",cursor:"pointer"}} onClick={onBack}>← Back to Sign In</div>
     </div>
   );
 }
 
-const Lbl=({children})=><div style={{fontSize:11,color:"#4e6479",marginBottom:4}}>{children}</div>;
+const Lbl=({children})=><div style={{fontSize:11,color:"var(--text3)",marginBottom:4}}>{children}</div>;
 
 /* ════════════════════════════════════════════
    MAIN APP
@@ -482,27 +482,27 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
     if(showToast)showToast("Activity deleted");
   };
 
-  const GROUP_COLORS={"SCADA":"#38bdf8","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+  const GROUP_COLORS={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
   const STATUS_STYLE={
     "Completed":{bg:"#022c22",color:"#34d399"},
-    "In Progress":{bg:"#0a1628",color:"#38bdf8"},
+    "In Progress":{bg:"#0a1628",color:"var(--info)"},
     "On Hold":{bg:"#1a0f00",color:"#fb923c"},
-    "Not Started":{bg:"#0a1628",color:"#4e6479"},
+    "Not Started":{bg:"#0a1628",color:"var(--text3)"},
   };
 
   if(aDraft) return(
     <div style={{display:"grid",gap:10}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-        <span style={{fontSize:13,fontWeight:700,color:"#38bdf8"}}>{aDraft.id?"Edit Activity":"New Activity"}</span>
+        <span style={{fontSize:13,fontWeight:700,color:"var(--info)"}}>{aDraft.id?"Edit Activity":"New Activity"}</span>
         <button className="bg" style={{fontSize:10,padding:"3px 10px"}} onClick={()=>setADraft(null)}>← Back</button>
       </div>
       <div>
-        <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>ACTIVITY NAME *</label>
+        <label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>ACTIVITY NAME *</label>
         <input value={aDraft.activity_name||""} onChange={e=>setADraft(p=>({...p,activity_name:e.target.value}))} placeholder="e.g. Configure RTU communication" style={{width:"100%",boxSizing:"border-box"}}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         <div>
-          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>GROUP</label>
+          <label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>GROUP</label>
           <select value={aDraft.group_name||"SCADA"} onChange={e=>{
             const g=e.target.value;
             const cats={"SCADA":["Templates","Database","Displays","Reports","Dashboard","GIS","Symbols"],"RTU-PLC":["RTU Configuration","PLC Programming","PPC","Commissioning"],"Protection":["Protection Relays","Protection Testing"],"General":["Documentation","Project Management"]};
@@ -512,7 +512,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
           </select>
         </div>
         <div>
-          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>CATEGORY</label>
+          <label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>CATEGORY</label>
           {(()=>{
             const cats={"SCADA":["Templates","Database","Displays","Reports","Dashboard","GIS","Symbols"],"RTU-PLC":["RTU Configuration","PLC Programming","PPC","Commissioning"],"Protection":["Protection Relays","Protection Testing"],"General":["Documentation","Project Management"]};
             const opts=cats[aDraft.group_name||"SCADA"]||[];
@@ -524,18 +524,18 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         <div>
-          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>STATUS</label>
+          <label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>STATUS</label>
           <select value={aDraft.status||"Not Started"} onChange={e=>setADraft(p=>({...p,status:e.target.value}))}>
             {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
           </select>
         </div>
         <div>
-          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>PROGRESS %</label>
+          <label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>PROGRESS %</label>
           <input type="number" min="0" max="100" step="5" value={Math.round((aDraft.progress||0)*100)} onChange={e=>setADraft(p=>({...p,progress:+e.target.value/100}))}/>
         </div>
       </div>
       <div>
-        <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>ASSIGNED TO</label>
+        <label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>ASSIGNED TO</label>
         <select value={aDraft.assigned_to||""} onChange={e=>setADraft(p=>({...p,assigned_to:e.target.value}))}>
           <option value="">— Unassigned —</option>
           {(engineers||[]).filter(e=>isEngActive(e)&&e.role_type!=="accountant"&&e.role_type!=="senior_management").map(e=>(
@@ -545,16 +545,16 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         <div>
-          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>START DATE</label>
+          <label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>START DATE</label>
           <input type="date" value={aDraft.start_date||""} onChange={e=>setADraft(p=>({...p,start_date:e.target.value||null}))}/>
         </div>
         <div>
-          <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>END DATE</label>
+          <label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>END DATE</label>
           <input type="date" value={aDraft.end_date||""} onChange={e=>setADraft(p=>({...p,end_date:e.target.value||null}))}/>
         </div>
       </div>
       <div>
-        <label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>REMARKS</label>
+        <label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>REMARKS</label>
         <input value={aDraft.remarks||""} onChange={e=>setADraft(p=>({...p,remarks:e.target.value}))} placeholder="Optional notes"/>
       </div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
@@ -567,32 +567,32 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
   return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <span style={{fontSize:11,color:"#4e6479"}}>{projActs.length} activit{projActs.length===1?"y":"ies"} for {projId}</span>
+        <span style={{fontSize:11,color:"var(--text3)"}}>{projActs.length} activit{projActs.length===1?"y":"ies"} for {projId}</span>
         <button className="bp" style={{fontSize:10,padding:"4px 12px"}} onClick={()=>setADraft({...blank})}>+ Add Activity</button>
       </div>
       {projActs.length===0&&(
-        <div style={{textAlign:"center",padding:"28px 0",color:"#1a3050",fontSize:11,border:"1px dashed #0f1e2e",borderRadius:6}}>
+        <div style={{textAlign:"center",padding:"28px 0",color:"var(--border)",fontSize:11,border:"1px dashed #0f1e2e",borderRadius:6}}>
           No activities yet — add the first one above.
         </div>
       )}
       <div style={{display:"grid",gap:5,maxHeight:280,overflowY:"auto"}}>
         {projActs.map(a=>{
           const ss=STATUS_STYLE[a.status]||STATUS_STYLE["Not Started"];
-          const gc=GROUP_COLORS[a.group_name]||"#4e6479";
+          const gc=GROUP_COLORS[a.group_name]||"var(--text3)";
           const pct=Math.round((a.progress||0)*100);
           return(
-          <div key={a.id} style={{background:"#060e1c",border:"1px solid #0f1e2e",borderRadius:6,padding:"8px 12px"}}>
+          <div key={a.id} style={{background:"var(--bg2)",border:"1px solid #0f1e2e",borderRadius:6,padding:"8px 12px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:600,color:"#f0f6ff",marginBottom:4}}>{a.activity_name}</div>
+                <div style={{fontSize:12,fontWeight:600,color:"var(--text0)",marginBottom:4}}>{a.activity_name}</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center"}}>
                   <span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:gc+"20",color:gc}}>{a.group_name}</span>
-                  {a.category&&<span style={{fontSize:9,color:"#4e6479"}}>{a.category}</span>}
+                  {a.category&&<span style={{fontSize:9,color:"var(--text3)"}}>{a.category}</span>}
                   <span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:ss.bg,color:ss.color}}>{a.status}</span>
-                  {a.assigned_to&&<span style={{fontSize:9,color:"#7a8faa"}}>👤 {a.assigned_to}</span>}
+                  {a.assigned_to&&<span style={{fontSize:9,color:"var(--text2)"}}>👤 {a.assigned_to}</span>}
                 </div>
                 {pct>0&&<div style={{marginTop:6,background:"#0a1628",borderRadius:3,height:4,overflow:"hidden"}}>
-                  <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"#38bdf8",borderRadius:3}}/>
+                  <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:3}}/>
                 </div>}
               </div>
               <div style={{display:"flex",gap:4,flexShrink:0}}>
@@ -650,19 +650,19 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:18}}>
         <div>
-          <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Projects</h1>
-          <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{filteredProjects.length} of {projects.length} projects</p>
+          <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>Projects</h1>
+          <p style={{color:"var(--text4)",fontSize:12,marginTop:3}}>{filteredProjects.length} of {projects.length} projects</p>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
           <div>
-            <div style={{fontSize:10,color:"#2e4a66",fontWeight:600,marginBottom:4}}>SEARCH</div>
+            <div style={{fontSize:10,color:"var(--text4)",fontWeight:600,marginBottom:4}}>SEARCH</div>
             <input value={projSearch} onChange={e=>setProjSearch(e.target.value)}
-              placeholder="Name, ID, client…" style={{width:180,background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"7px 10px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}/>
+              placeholder="Name, ID, client…" style={{width:180,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"7px 10px",color:"var(--text0)",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}/>
           </div>
           <div>
-            <div style={{fontSize:10,color:"#2e4a66",fontWeight:600,marginBottom:4}}>STATUS</div>
+            <div style={{fontSize:10,color:"var(--text4)",fontWeight:600,marginBottom:4}}>STATUS</div>
             <select value={projStatusFilter} onChange={e=>setProjStatusFilter(e.target.value)}
-              style={{width:130,background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"7px 10px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+              style={{width:130,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"7px 10px",color:"var(--text0)",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
               <option value="ALL">All Statuses</option>
               {["Active","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
             </select>
@@ -670,7 +670,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
           {isAdmin&&<button style={{background:"#0ea5e9",border:"none",borderRadius:6,padding:"8px 14px",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={()=>setShowProjModal(true)}>+ New Project</button>}
         </div>
       </div>
-      {filteredProjects.length===0&&<div style={{textAlign:"center",padding:60,color:"#2e4a66",fontSize:13}}>No projects match your filter.</div>}
+      {filteredProjects.length===0&&<div style={{textAlign:"center",padding:60,color:"var(--text4)",fontSize:13}}>No projects match your filter.</div>}
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
         {filteredProjects.map(p=>{
           const ps=projStats.find(x=>x.id===p.id);
@@ -679,42 +679,42 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
               .reduce((acc,e)=>{acc[e.task_type||"Other"]=(acc[e.task_type||"Other"]||0)+e.hours;return acc;},{})
           ).sort((a,b)=>b[1]-a[1]).slice(0,3);
           return(
-            <div key={p.id} style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:10,padding:16,borderLeft:`3px solid ${p.type==="Renewable Energy"?"#34d399":"#818cf8"}`}}>
+            <div key={p.id} style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:10,padding:16,borderLeft:`3px solid ${p.type==="Renewable Energy"?"#34d399":"#818cf8"}`}}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
                 <div>
-                  <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</div>
-                  <div style={{fontSize:13,fontWeight:600,marginTop:2,lineHeight:1.3,color:"#f0f6ff"}}>{p.name||p.id}</div>
+                  <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</div>
+                  <div style={{fontSize:13,fontWeight:600,marginTop:2,lineHeight:1.3,color:"var(--text0)"}}>{p.name||p.id}</div>
                 </div>
                 <div style={{display:"flex",gap:5,alignItems:"flex-start"}}>
                   <span style={{fontSize:9,padding:"2px 7px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,
-                    background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"#1a3050",
+                    background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"var(--border)",
                     color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span>
                   {canManage&&<button style={{background:"#0ea5e9",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:10,cursor:"pointer"}} onClick={()=>setEditProjModal({...p})}>✎</button>}
                   {isAdmin&&<button style={{background:"#ef4444",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:10,cursor:"pointer"}} onClick={()=>deleteProject(p.id)}>✕</button>}
                 </div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,fontSize:11,marginBottom:10,color:"#dde3ef"}}>
-                {p.client&&<div><span style={{color:"#2e4a66"}}>Client: </span>{p.client}</div>}
-                {p.origin&&<div><span style={{color:"#2e4a66"}}>Origin: </span>{p.origin}</div>}
-                <div><span style={{color:"#2e4a66"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase||"—"}</span></div>
-                {(isAdmin||isAcct)&&<div><span style={{color:"#2e4a66"}}>Rate: </span>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",color:p.billable?"#a78bfa":"#2e4a66"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,fontSize:11,marginBottom:10,color:"var(--text1)"}}>
+                {p.client&&<div><span style={{color:"var(--text4)"}}>Client: </span>{p.client}</div>}
+                {p.origin&&<div><span style={{color:"var(--text4)"}}>Origin: </span>{p.origin}</div>}
+                <div><span style={{color:"var(--text4)"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase||"—"}</span></div>
+                {(isAdmin||isAcct)&&<div><span style={{color:"var(--text4)"}}>Rate: </span>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",color:p.billable?"#a78bfa":"var(--text4)"}}>
                     {p.billable?`$${p.rate_per_hour}/h`:"Non-Billable"}
                   </span>
                 </div>}
               </div>
-              {topTasks.length>0&&<div style={{background:"#060e1c",borderRadius:5,padding:"6px 9px",marginBottom:10}}>
+              {topTasks.length>0&&<div style={{background:"var(--bg2)",borderRadius:5,padding:"6px 9px",marginBottom:10}}>
                 {topTasks.map(([task,hrs])=>(
                   <div key={task} style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:2}}>
-                    <span style={{color:"#7a8faa"}}>{task}</span>
-                    <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{hrs}h</span>
+                    <span style={{color:"var(--text2)"}}>{task}</span>
+                    <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{hrs}h</span>
                   </div>
                 ))}
               </div>}
-              <div style={{paddingTop:9,borderTop:"1px solid #192d47"}}>
+              <div style={{paddingTop:9,borderTop:"1px solid var(--border3)"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
-                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:"#38bdf8"}}>{ps?.hours||0}h</div>
+                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:"var(--info)"}}>{ps?.hours||0}h</div>
                     {(isAdmin||isAcct)&&p.billable&&<div style={{fontSize:10,color:"#a78bfa"}}>{fmtCurrency(ps?.revenue||0)}</div>}
                   </div>
                   {canManage&&<button className="bp" style={{fontSize:9,padding:"2px 8px"}} onClick={()=>openPvAct(p.id)}>+ Activity</button>}
@@ -727,16 +727,16 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                     <div style={{marginTop:8,display:"grid",gap:2}}>
                       {pActs.slice(0,5).map(a=>(
                         <div key={a.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                          background:"#060e1c",borderRadius:4,padding:"3px 7px",fontSize:9}}>
-                          <span style={{color:"#7a8faa",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</span>
+                          background:"var(--bg2)",borderRadius:4,padding:"3px 7px",fontSize:9}}>
+                          <span style={{color:"var(--text2)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</span>
                           <span style={{fontFamily:"'IBM Plex Mono',monospace",color:
-                            a.status==="Completed"?"#34d399":a.status==="In Progress"?"#38bdf8":"#4e6479",
+                            a.status==="Completed"?"#34d399":a.status==="In Progress"?"var(--info)":"var(--text3)",
                             marginLeft:6,whiteSpace:"nowrap"}}>{Math.round((a.progress||0)*100)}%</span>
-                          <button onClick={()=>openPvAct(p.id,a)} style={{background:"none",border:"none",color:"#2e4a66",cursor:"pointer",fontSize:10,padding:"0 3px"}}>✎</button>
-                          <button onClick={()=>delPvAct(a.id)} style={{background:"none",border:"none",color:"#2e4a66",cursor:"pointer",fontSize:10,padding:"0 3px"}}>✕</button>
+                          <button onClick={()=>openPvAct(p.id,a)} style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:10,padding:"0 3px"}}>✎</button>
+                          <button onClick={()=>delPvAct(a.id)} style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:10,padding:"0 3px"}}>✕</button>
                         </div>
                       ))}
-                      {pActs.length>5&&<div style={{fontSize:9,color:"#2e4a66",textAlign:"center"}}>+{pActs.length-5} more</div>}
+                      {pActs.length>5&&<div style={{fontSize:9,color:"var(--text4)",textAlign:"center"}}>+{pActs.length-5} more</div>}
                     </div>
                   );
                 })()}
@@ -752,36 +752,36 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
           <div className="modal" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
             <h3 style={{fontSize:14,fontWeight:700,marginBottom:16}}>{pvActModal.act?"Edit":"Add"} Activity — {pvActModal.projId}</h3>
             <div style={{display:"grid",gap:10}}>
-              <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Activity Name</label>
+              <div><label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>Activity Name</label>
                 <input value={pvActDraft.activity_name||""} onChange={e=>setPvActDraft(p=>({...p,activity_name:e.target.value}))} placeholder="e.g. Configure RTU communication"/></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Group</label>
+                <div><label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>Group</label>
                   <select value={pvActDraft.group_name||"SCADA"} onChange={e=>setPvActDraft(p=>({...p,group_name:e.target.value}))}>
                     {["SCADA","RTU-PLC","Protection","General"].map(g=><option key={g}>{g}</option>)}
                   </select></div>
-                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Category</label>
+                <div><label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>Category</label>
                   <input value={pvActDraft.category||""} onChange={e=>setPvActDraft(p=>({...p,category:e.target.value}))} placeholder="e.g. Templates"/></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Status</label>
+                <div><label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>Status</label>
                   <select value={pvActDraft.status||"Not Started"} onChange={e=>setPvActDraft(p=>({...p,status:e.target.value}))}>
                     {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
                   </select></div>
-                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Progress %</label>
+                <div><label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>Progress %</label>
                   <input type="number" min="0" max="100" step="5" value={Math.round((pvActDraft.progress||0)*100)} onChange={e=>setPvActDraft(p=>({...p,progress:+e.target.value/100}))}/></div>
               </div>
-              <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Assigned To</label>
+              <div><label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>Assigned To</label>
                 <select value={pvActDraft.assigned_to||""} onChange={e=>setPvActDraft(p=>({...p,assigned_to:e.target.value}))}>
                   <option value="">— Unassigned —</option>
                   {(engineers||[]).filter(e=>(e.is_active!==false)).map(e=><option key={e.id} value={e.name}>{e.name} · {e.role}</option>)}
                 </select></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Start Date</label>
+                <div><label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>Start Date</label>
                   <input type="date" value={pvActDraft.start_date||""} onChange={e=>setPvActDraft(p=>({...p,start_date:e.target.value||null}))}/></div>
-                <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>End Date</label>
+                <div><label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>End Date</label>
                   <input type="date" value={pvActDraft.end_date||""} onChange={e=>setPvActDraft(p=>({...p,end_date:e.target.value||null}))}/></div>
               </div>
-              <div><label style={{fontSize:10,fontWeight:700,color:"#4e6479",display:"block",marginBottom:4}}>Remarks</label>
+              <div><label style={{fontSize:10,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>Remarks</label>
                 <input value={pvActDraft.remarks||""} onChange={e=>setPvActDraft(p=>({...p,remarks:e.target.value}))} placeholder="Optional"/></div>
             </div>
             <div style={{display:"flex",gap:8,marginTop:16,justifyContent:"flex-end"}}>
@@ -1333,7 +1333,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
       <!-- KPI CARDS — 4 columns -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
         ${[
-          {l:"Total Hours",   v:grandTotal+"h",   c:"#38bdf8", border:"#1d4e6a"},
+          {l:"Total Hours",   v:grandTotal+"h",   c:"var(--info)", border:"#1d4e6a"},
           {l:"Projects",      v:projList.length,   c:"#a78bfa", border:"#3d2d6a"},
           {l:"Billable Hours",v:totalBillable+"h", c:"#34d399", border:"#0d4a34"},
           {l:"Engineers",     v:allEngs.size,      c:"#fbbf24", border:"#5a3e00"},
@@ -1402,8 +1402,8 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
   // "ALL" means all-time, otherwise "YYYY-MM"
   const [filterMonth,setFilterMonth]=useState("ALL");
 
-  const TASK_COLORS=["#38bdf8","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#4ade80","#f472b6","#60a5fa"];
-  const PROJ_COLORS=["#0ea5e9","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#38bdf8"];
+  const TASK_COLORS=["var(--info)","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#4ade80","#f472b6","#60a5fa"];
+  const PROJ_COLORS=["#0ea5e9","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","var(--info)"];
 
   // Derive available months from allEntries
   const availableMonths=useMemo(()=>{
@@ -1458,15 +1458,15 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
         <div>
-          <h2 style={{fontSize:18,fontWeight:700,color:"#f0f6ff",margin:0}}>◈ Project Tasks Analysis</h2>
-          <p style={{fontSize:12,color:"#2e4a66",marginTop:4}}>
+          <h2 style={{fontSize:18,fontWeight:700,color:"var(--text0)",margin:0}}>◈ Project Tasks Analysis</h2>
+          <p style={{fontSize:12,color:"var(--text4)",marginTop:4}}>
             {filterMonth==="ALL"?"All Time":filterMonth} · {projList.length} projects · {grandTotal}h total
           </p>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
           {/* Month filter */}
           <select value={filterMonth} onChange={e=>{setFilterMonth(e.target.value);setSelProj("ALL");}}
-            style={{background:"#0c1829",border:"1px solid #38bdf840",borderRadius:6,padding:"6px 10px",color:"#38bdf8",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600}}>
+            style={{background:"var(--bg1)",border:"1px solid #38bdf840",borderRadius:6,padding:"6px 10px",color:"var(--info)",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600}}>
             <option value="ALL">📅 All Time</option>
             {availableMonths.map(m=>{
               const [y,mo]=m.split("-");
@@ -1475,7 +1475,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
           </select>
           {/* Project filter */}
           <select value={selProj} onChange={e=>setSelProj(e.target.value)}
-            style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+            style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
             <option value="ALL">All Projects</option>
             {projList.map(x=><option key={x.proj.id} value={x.proj.id}>{x.proj.id} — {x.proj.name} ({x.totalHrs}h)</option>)}
           </select>
@@ -1499,19 +1499,19 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
         </div>
       </div>
 
-      {projList.length===0&&<div className="card" style={{textAlign:"center",padding:40,color:"#2e4a66"}}>No hours logged for {MONTHS[month]} {year}. Import timesheets first.</div>}
+      {projList.length===0&&<div className="card" style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No hours logged for {MONTHS[month]} {year}. Import timesheets first.</div>}
 
       {/* KPI strip */}
       {projList.length>0&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:18}}>
           {[
-            {l:"Total Hours",     v:grandTotal+"h",                                          c:"#f0f6ff"},
-            {l:"Active Projects", v:projList.length,                                         c:"#38bdf8"},
+            {l:"Total Hours",     v:grandTotal+"h",                                          c:"var(--text0)"},
+            {l:"Active Projects", v:projList.length,                                         c:"var(--info)"},
             {l:"Billable Hours",  v:projList.reduce((s,p)=>s+p.billableHrs,0)+"h",          c:"#34d399"},
             {l:"Unique Tasks",    v:Object.keys(taskColorMap).length,                        c:"#a78bfa"},
           ].map((m,i)=>(
             <div key={i} className="metric">
-              <div style={{fontSize:9,color:"#2e4a66",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{m.l}</div>
+              <div style={{fontSize:9,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{m.l}</div>
               <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:m.c,marginTop:8,lineHeight:1}}>{m.v}</div>
             </div>
           ))}
@@ -1521,7 +1521,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
       {/* Stacked hours bar */}
       {projList.length>1&&selProj==="ALL"&&(
         <div className="card" style={{marginBottom:14}}>
-          <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>Hours Distribution Across Projects</h3>
+          <h3 style={{fontSize:12,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Hours Distribution Across Projects</h3>
           <div style={{display:"flex",height:28,borderRadius:6,overflow:"hidden",marginBottom:10}}>
             {projList.map((pm,i)=>{
               const pct=grandTotal?pm.totalHrs/grandTotal*100:0;
@@ -1536,9 +1536,9 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
               const pct=grandTotal?Math.round(pm.totalHrs/grandTotal*100):0;
               return<div key={pm.proj.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:10}}>
                 <div style={{width:8,height:8,borderRadius:2,background:PROJ_COLORS[i%PROJ_COLORS.length],flexShrink:0}}/>
-                <span style={{color:"#7a8faa"}}>{pm.proj.id}</span>
-                <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#f0f6ff",fontWeight:600}}>{pm.totalHrs}h</span>
-                <span style={{color:"#2e4a66"}}>({pct}%)</span>
+                <span style={{color:"var(--text2)"}}>{pm.proj.id}</span>
+                <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--text0)",fontWeight:600}}>{pm.totalHrs}h</span>
+                <span style={{color:"var(--text4)"}}>({pct}%)</span>
               </div>;
             })}
           </div>
@@ -1557,20 +1557,20 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8",fontWeight:700}}>{pm.proj.id}</span>
-                  <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:pm.proj.status==="Active"?"#024b36":"#1a3050",color:pm.proj.status==="Active"?"#34d399":"#7a8faa"}}>{pm.proj.status}</span>
-                  {pm.proj.billable&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#071e36",color:"#38bdf8"}}>BILLABLE</span>}
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)",fontWeight:700}}>{pm.proj.id}</span>
+                  <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:pm.proj.status==="Active"?"#024b36":"var(--border)",color:pm.proj.status==="Active"?"#34d399":"var(--text2)"}}>{pm.proj.status}</span>
+                  {pm.proj.billable&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#071e36",color:"var(--info)"}}>BILLABLE</span>}
                 </div>
-                <div style={{fontSize:15,fontWeight:700,color:"#f0f6ff"}}>{pm.proj.name}</div>
-                {pm.proj.client&&<div style={{fontSize:11,color:"#2e4a66",marginTop:2}}>Client: {pm.proj.client} · Phase: {pm.proj.phase||"—"}</div>}
+                <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>{pm.proj.name}</div>
+                {pm.proj.client&&<div style={{fontSize:11,color:"var(--text4)",marginTop:2}}>Client: {pm.proj.client} · Phase: {pm.proj.phase||"—"}</div>}
               </div>
               <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
                 <button className="bp" style={{fontSize:10,padding:"5px 10px"}}
                   onClick={()=>{const label=filterMonth==="ALL"?"All Time":filterMonth;const [fy,fm]=filterMonth!=="ALL"?filterMonth.split("-").map(Number):[null,null];buildProjectTasksPDF(pm,grandTotal,fm?fm-1:null,fy,MONTHS,fmtCurrency,isAdmin,isAcct,label);}}>
                   ⬇ PDF
                 </button>
-                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:26,fontWeight:700,color:"#38bdf8",lineHeight:1}}>{pm.totalHrs}h</div>
-                <div style={{fontSize:10,color:"#2e4a66"}}>{pct}% of month total</div>
+                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:26,fontWeight:700,color:"var(--info)",lineHeight:1}}>{pm.totalHrs}h</div>
+                <div style={{fontSize:10,color:"var(--text4)"}}>{pct}% of month total</div>
                 {(isAdmin||isAcct)&&pm.proj.billable&&pm.proj.rate_per_hour>0&&<div style={{fontSize:11,color:"#a78bfa",fontFamily:"'IBM Plex Mono',monospace"}}>{fmtCurrency(pm.totalHrs*pm.proj.rate_per_hour)}</div>}
               </div>
             </div>
@@ -1578,13 +1578,13 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
             {/* Stats row */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
               {[
-                {l:"Engineers", v:Object.keys(pm.engineers).length, c:"#38bdf8"},
+                {l:"Engineers", v:Object.keys(pm.engineers).length, c:"var(--info)"},
                 {l:"Task Types",v:tasksSorted.length,               c:"#a78bfa"},
                 {l:"Work Days", v:pm.days,                     c:"#34d399"},
                 {l:"Avg/Day",   v:pm.days?Math.round(pm.totalHrs/pm.days*10)/10+"h":"—", c:"#fb923c"},
               ].map((s,i)=>(
-                <div key={i} style={{background:"#060e1c",borderRadius:6,padding:"8px 10px"}}>
-                  <div style={{fontSize:9,color:"#2e4a66",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div>
+                <div key={i} style={{background:"var(--bg2)",borderRadius:6,padding:"8px 10px"}}>
+                  <div style={{fontSize:9,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div>
                   <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:s.c,marginTop:4}}>{s.v}</div>
                 </div>
               ))}
@@ -1593,21 +1593,21 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               {/* Task breakdown */}
               <div>
-                <div style={{fontSize:10,fontWeight:700,color:"#4e6479",textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Task Breakdown</div>
+                <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Task Breakdown</div>
                 {tasksSorted.map(([task,data])=>{
                   const tpct=pm.totalHrs?Math.round(data.hrs/pm.totalHrs*100):0;
-                  const col=taskColorMap[task]||"#38bdf8";
+                  const col=taskColorMap[task]||"var(--info)";
                   return(
                     <div key={task} style={{marginBottom:7}}>
                       <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
                         <div style={{display:"flex",alignItems:"center",gap:5}}>
                           <div style={{width:6,height:6,borderRadius:1,background:col,flexShrink:0}}/>
-                          <span style={{fontSize:11,color:"#dde3ef"}}>{task}</span>
+                          <span style={{fontSize:11,color:"var(--text1)"}}>{task}</span>
                         </div>
                         <div style={{display:"flex",gap:10,fontSize:10}}>
                           <span style={{fontFamily:"'IBM Plex Mono',monospace",color:col,fontWeight:700}}>{data.hrs}h</span>
-                          <span style={{color:"#2e4a66"}}>{tpct}%</span>
-                          <span style={{color:"#4e6479"}}>{data.engs.size} eng</span>
+                          <span style={{color:"var(--text4)"}}>{tpct}%</span>
+                          <span style={{color:"var(--text3)"}}>{data.engs.size} eng</span>
                         </div>
                       </div>
                       <div style={{background:"#0a1628",height:5,borderRadius:3,overflow:"hidden"}}>
@@ -1620,7 +1620,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
 
               {/* Engineer contribution */}
               <div>
-                <div style={{fontSize:10,fontWeight:700,color:"#4e6479",textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Engineer Contribution</div>
+                <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Engineer Contribution</div>
                 {engList.map(eng=>{
                   const epct=pm.totalHrs?Math.round(eng.hrs/pm.totalHrs*100):0;
                   const topEngTask=Object.entries(eng.tasks).sort((a,b)=>b[1]-a[1])[0];
@@ -1629,17 +1629,17 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                       <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
                           <div className="av" style={{width:20,height:20,fontSize:8,flexShrink:0}}>{eng.name.slice(0,2).toUpperCase()}</div>
-                          <span style={{fontSize:11,color:"#dde3ef"}}>{eng.name}</span>
+                          <span style={{fontSize:11,color:"var(--text1)"}}>{eng.name}</span>
                         </div>
                         <div style={{display:"flex",gap:10,fontSize:10}}>
-                          <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{eng.hrs}h</span>
-                          <span style={{color:"#2e4a66"}}>{epct}%</span>
+                          <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{eng.hrs}h</span>
+                          <span style={{color:"var(--text4)"}}>{epct}%</span>
                         </div>
                       </div>
                       <div style={{background:"#0a1628",height:5,borderRadius:3,overflow:"hidden"}}>
                         <div style={{height:"100%",width:`${epct}%`,background:"linear-gradient(90deg,#0ea5e9,#38bdf8)",borderRadius:3}}/>
                       </div>
-                      {topEngTask&&<div style={{fontSize:9,color:"#2e4a66",marginTop:1}}>Top: {topEngTask[0]} ({topEngTask[1]}h)</div>}
+                      {topEngTask&&<div style={{fontSize:9,color:"var(--text4)",marginTop:1}}>Top: {topEngTask[0]} ({topEngTask[1]}h)</div>}
                     </div>
                   );
                 })}
@@ -1650,7 +1650,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
             {pm.proj.billable&&(
               <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #0d1a2d"}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:10}}>
-                  <span style={{color:"#4e6479"}}>Billable coverage</span>
+                  <span style={{color:"var(--text3)"}}>Billable coverage</span>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontWeight:700}}>{billPct}%</span>
                 </div>
                 <div style={{background:"#0a1628",height:6,borderRadius:3,overflow:"hidden"}}>
@@ -1668,7 +1668,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
 /* ── VacationReport Component ── */
 function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onExport}){
   const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
-  const typeColors={"Annual Leave":"#38bdf8","Sick Leave":"#f87171","Public Holiday":"#fb923c","Business Travel":"#a78bfa","Training External":"#34d399","Unpaid Leave":"#6b7280"};
+  const typeColors={"Annual Leave":"var(--info)","Sick Leave":"#f87171","Public Holiday":"#fb923c","Business Travel":"#a78bfa","Training External":"#34d399","Unpaid Leave":"#6b7280"};
 
   // Monthly breakdown
   const monthly=engineers.map(eng=>{
@@ -1691,8 +1691,8 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
         <div>
-          <h2 style={{fontSize:18,fontWeight:700,color:"#f0f6ff",margin:0}}>✈ Vacation & Leave Report</h2>
-          <p style={{fontSize:12,color:"#2e4a66",marginTop:4}}>{MONTHS[month]} {year} · {monthly.length} engineers with leave recorded</p>
+          <h2 style={{fontSize:18,fontWeight:700,color:"var(--text0)",margin:0}}>✈ Vacation & Leave Report</h2>
+          <p style={{fontSize:12,color:"var(--text4)",marginTop:4}}>{MONTHS[month]} {year} · {monthly.length} engineers with leave recorded</p>
         </div>
         <button style={{background:"#0ea5e9",border:"none",borderRadius:6,padding:"8px 16px",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={onExport}>⬇ Export PDF</button>
       </div>
@@ -1706,9 +1706,9 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
       {/* Monthly summary */}
       <div className="card" style={{marginBottom:14,overflowX:"auto"}}>
-        <h4 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>📅 {MONTHS[month]} {year} — Monthly Summary</h4>
+        <h4 style={{fontSize:12,fontWeight:600,color:"var(--text2)",marginBottom:12}}>📅 {MONTHS[month]} {year} — Monthly Summary</h4>
         {monthly.length===0
-          ? <p style={{color:"#2e4a66",fontSize:12,textAlign:"center",padding:20}}>No leave recorded for {MONTHS[month]} {year}. Import timesheets first.</p>
+          ? <p style={{color:"var(--text4)",fontSize:12,textAlign:"center",padding:20}}>No leave recorded for {MONTHS[month]} {year}. Import timesheets first.</p>
           : <table style={{minWidth:600}}>
               <thead><tr>
                 <th style={{textAlign:"left"}}>Engineer</th>
@@ -1719,19 +1719,19 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
                 <tr key={eng.id}>
                   <td>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{width:28,height:28,borderRadius:"50%",background:"#0d1e33",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#38bdf8",flexShrink:0}}>{(eng.name||"?").slice(0,2).toUpperCase()}</div>
+                      <div style={{width:28,height:28,borderRadius:"50%",background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"var(--info)",flexShrink:0}}>{(eng.name||"?").slice(0,2).toUpperCase()}</div>
                       <div>
                         <div style={{fontSize:12,fontWeight:600}}>{eng.name}</div>
-                        <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role}</div>
+                        <div style={{fontSize:10,color:"var(--text4)"}}>{eng.role}</div>
                       </div>
                     </div>
                   </td>
                   {leaveTypes.map(lt=>(
-                    <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"#2e4a66",fontWeight:eng.byType[lt]?700:400}}>
+                    <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"var(--text4)",fontWeight:eng.byType[lt]?700:400}}>
                       {eng.byType[lt]||"—"}
                     </td>
                   ))}
-                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#f0f6ff"}}>{eng.total}d</td>
+                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--text0)"}}>{eng.total}d</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -1740,9 +1740,9 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
       {/* YTD summary */}
       <div className="card" style={{marginBottom:14,overflowX:"auto"}}>
-        <h4 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>📊 Year-to-Date {year} — All Leave</h4>
+        <h4 style={{fontSize:12,fontWeight:600,color:"var(--text2)",marginBottom:12}}>📊 Year-to-Date {year} — All Leave</h4>
         {ytd.length===0
-          ? <p style={{color:"#2e4a66",fontSize:12,textAlign:"center",padding:20}}>No leave recorded for {year}.</p>
+          ? <p style={{color:"var(--text4)",fontSize:12,textAlign:"center",padding:20}}>No leave recorded for {year}.</p>
           : <table style={{minWidth:600}}>
               <thead><tr>
                 <th style={{textAlign:"left"}}>Engineer</th>
@@ -1753,11 +1753,11 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
                 <tr key={eng.id}>
                   <td style={{fontSize:12,fontWeight:600}}>{eng.name}</td>
                   {leaveTypes.map(lt=>(
-                    <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"#2e4a66",fontWeight:eng.byType[lt]?700:400}}>
+                    <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"var(--text4)",fontWeight:eng.byType[lt]?700:400}}>
                       {eng.byType[lt]||"—"}
                     </td>
                   ))}
-                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#f0f6ff"}}>{eng.total}d</td>
+                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--text0)"}}>{eng.total}d</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -1766,15 +1766,15 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
       {/* Per-engineer day detail */}
       {monthly.length>0&&<div>
-        <h4 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:10}}>📋 Detail — Leave Days {MONTHS[month]} {year}</h4>
+        <h4 style={{fontSize:12,fontWeight:600,color:"var(--text2)",marginBottom:10}}>📋 Detail — Leave Days {MONTHS[month]} {year}</h4>
         {monthly.map(eng=>(
           <div key={eng.id} className="card" style={{marginBottom:8}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:32,height:32,borderRadius:"50%",background:"#0d1e33",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#38bdf8"}}>{(eng.name||"?").slice(0,2).toUpperCase()}</div>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"var(--info)"}}>{(eng.name||"?").slice(0,2).toUpperCase()}</div>
                 <div>
                   <div style={{fontSize:13,fontWeight:600}}>{eng.name}</div>
-                  <div style={{fontSize:10,color:"#2e4a66"}}>{eng.total} day{eng.total!==1?"s":""} of leave</div>
+                  <div style={{fontSize:10,color:"var(--text4)"}}>{eng.total} day{eng.total!==1?"s":""} of leave</div>
                 </div>
               </div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
@@ -1785,7 +1785,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
             </div>
             <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
               {eng.days.map(e=>(
-                <span key={e.id} style={{fontSize:10,padding:"3px 9px",borderRadius:4,background:"#060e1c",border:`1px solid ${typeColors[e.leave_type||"Annual Leave"]}40`,color:typeColors[e.leave_type||"Annual Leave"],fontFamily:"'IBM Plex Mono',monospace"}}>
+                <span key={e.id} style={{fontSize:10,padding:"3px 9px",borderRadius:4,background:"var(--bg2)",border:`1px solid ${typeColors[e.leave_type||"Annual Leave"]}40`,color:typeColors[e.leave_type||"Annual Leave"],fontFamily:"'IBM Plex Mono',monospace"}}>
                   {e.date}
                 </span>
               ))}
@@ -1929,7 +1929,7 @@ Object.entries(TAXONOMY_GROUPS).forEach(([g,cats])=>cats.forEach(c=>{CAT_TO_GROU
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component (no IIFE, no re-render loops)
    ════════════════════════════════════════════════════════ */
-const STATUS_COLOR={"Completed":"#34d399","In Progress":"#38bdf8","Not Started":"#4e6479","On Hold":"#fb923c"};
+const STATUS_COLOR={"Completed":"#34d399","In Progress":"var(--info)","Not Started":"var(--text3)","On Hold":"#fb923c"};
 const STATUS_BG={"Completed":"#022c22","In Progress":"#0a1628","Not Started":"#0a1628","On Hold":"#1c0f00"};
 
 /* ── Inline category/activity editor modal ── */
@@ -1938,9 +1938,9 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
   const [draft, setDraft] = useState({...act});
   const [group, setGroup] = useState(initGroup);
   const catActs = ACTIVITY_TAXONOMY[draft.category]||[];
-  const INP = {width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"};
-  const LBL = {fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4};
-  const GROUP_COLORS = {"SCADA":"#38bdf8","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+  const INP = {width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:11,boxSizing:"border-box"};
+  const LBL = {fontSize:10,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4};
+  const GROUP_COLORS = {"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
 
   const handleGroupChange = g => {
     setGroup(g);
@@ -1951,7 +1951,7 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
   return(
   <div className="modal-ov" onClick={onClose}>
     <div className="modal" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
-      <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:14}}>Edit Activity</h3>
+      <h3 style={{fontSize:13,fontWeight:700,color:"var(--text0)",marginBottom:14}}>Edit Activity</h3>
       <div style={{display:"grid",gap:10}}>
 
         {/* Group */}
@@ -1960,9 +1960,9 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
           <div style={{display:"flex",gap:6}}>
             {TAXONOMY_GROUP_NAMES.map(g=>(
               <button key={g} onClick={()=>handleGroupChange(g)}
-                style={{flex:1,padding:"6px 8px",borderRadius:6,border:`1px solid ${group===g?(GROUP_COLORS[g]||"#38bdf8")+"60":"#1a3050"}`,
-                  background:group===g?(GROUP_COLORS[g]||"#38bdf8")+"15":"#060e1c",
-                  color:group===g?(GROUP_COLORS[g]||"#38bdf8"):"#4e6479",
+                style={{flex:1,padding:"6px 8px",borderRadius:6,border:`1px solid ${group===g?(GROUP_COLORS[g]||"var(--info)")+"60":"var(--border)"}`,
+                  background:group===g?(GROUP_COLORS[g]||"var(--info)")+"15":"var(--bg2)",
+                  color:group===g?(GROUP_COLORS[g]||"var(--info)"):"var(--text3)",
                   fontSize:11,fontWeight:700,cursor:"pointer",transition:"all .15s"}}>
                 {g}
               </button>
@@ -2008,7 +2008,7 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
             <label style={LBL}>PROGRESS %</label>
             <input type="number" min="0" max="100" step="5" value={Math.round((draft.progress||0)*100)}
               onChange={e=>setDraft(p=>({...p,progress:Math.min(1,Math.max(0,+e.target.value/100))}))}
-              style={{...INP,color:"#38bdf8",fontFamily:"'IBM Plex Mono',monospace"}}/>
+              style={{...INP,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}/>
           </div>
         </div>
 
@@ -2020,9 +2020,9 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
               style={{...INP,colorScheme:"dark"}}/>
           </div>
           <div>
-            <label style={LBL}>END DATE <span style={{color:"#4e6479",fontWeight:400}}>(deadline)</span></label>
+            <label style={LBL}>END DATE <span style={{color:"var(--text3)",fontWeight:400}}>(deadline)</span></label>
             <input type="date" value={draft.end_date||""} onChange={e=>setDraft(p=>({...p,end_date:e.target.value||null}))}
-              style={{...INP,colorScheme:"dark",color:draft.end_date&&new Date(draft.end_date)<new Date()&&draft.status!=="Completed"?"#f87171":"#f0f6ff"}}/>
+              style={{...INP,colorScheme:"dark",color:draft.end_date&&new Date(draft.end_date)<new Date()&&draft.status!=="Completed"?"#f87171":"var(--text0)"}}/>
           </div>
         </div>
 
@@ -2045,7 +2045,7 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
           <label style={LBL}>REMARKS / BLOCKERS</label>
           <textarea value={draft.remarks||""} onChange={e=>setDraft(p=>({...p,remarks:e.target.value}))} rows={2}
             placeholder="e.g. Waiting for IOA addresses…"
-            style={{...INP,color:"#7a8faa",resize:"vertical"}}/>
+            style={{...INP,color:"var(--text2)",resize:"vertical"}}/>
         </div>
       </div>
       <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
@@ -2085,14 +2085,14 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
     setActName(ACTIVITY_TAXONOMY[c]?.[0]||"");
   };
 
-  const INP = {width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"};
-  const LBL = {fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4};
-  const GROUP_COLORS = {"SCADA":"#38bdf8","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+  const INP = {width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:11,boxSizing:"border-box"};
+  const LBL = {fontSize:10,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4};
+  const GROUP_COLORS = {"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
 
   return(
   <div className="modal-ov" onClick={onClose}>
     <div className="modal" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
-      <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:14}}>Add Activity</h3>
+      <h3 style={{fontSize:13,fontWeight:700,color:"var(--text0)",marginBottom:14}}>Add Activity</h3>
       <div style={{display:"grid",gap:10}}>
 
         {/* Group selector (SCADA / Field / General) */}
@@ -2101,9 +2101,9 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
           <div style={{display:"flex",gap:6}}>
             {TAXONOMY_GROUP_NAMES.map(g=>(
               <button key={g} onClick={()=>handleGroupChange(g)}
-                style={{flex:1,padding:"6px 8px",borderRadius:6,border:`1px solid ${group===g?(GROUP_COLORS[g]||"#38bdf8")+"60":"#1a3050"}`,
-                  background:group===g?(GROUP_COLORS[g]||"#38bdf8")+"15":"#060e1c",
-                  color:group===g?(GROUP_COLORS[g]||"#38bdf8"):"#4e6479",
+                style={{flex:1,padding:"6px 8px",borderRadius:6,border:`1px solid ${group===g?(GROUP_COLORS[g]||"var(--info)")+"60":"var(--border)"}`,
+                  background:group===g?(GROUP_COLORS[g]||"var(--info)")+"15":"var(--bg2)",
+                  color:group===g?(GROUP_COLORS[g]||"var(--info)"):"var(--text3)",
                   fontSize:11,fontWeight:700,cursor:"pointer",transition:"all .15s"}}>
                 {g}
               </button>
@@ -2144,7 +2144,7 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
               style={{...INP,colorScheme:"dark"}}/>
           </div>
           <div>
-            <label style={LBL}>END DATE <span style={{color:"#4e6479",fontWeight:400}}>(deadline)</span></label>
+            <label style={LBL}>END DATE <span style={{color:"var(--text3)",fontWeight:400}}>(deadline)</span></label>
             <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}
               style={{...INP,colorScheme:"dark"}}/>
           </div>
@@ -2153,7 +2153,7 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
         {/* Assigned to */}
         {engineers&&engineers.length>0&&(
         <div>
-          <label style={LBL}>ASSIGNED TO <span style={{color:"#4e6479",fontWeight:400}}>(optional)</span></label>
+          <label style={LBL}>ASSIGNED TO <span style={{color:"var(--text3)",fontWeight:400}}>(optional)</span></label>
           <select value={assignedTo} onChange={e=>setAssignedTo(e.target.value)} style={INP}>
             <option value="">— Unassigned —</option>
             {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} — {e.role}</option>)}
@@ -2177,7 +2177,7 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
 /* ── Single activity row ── */
 function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete}){
   const pct      = Math.round(a.progress*100);
-  const sc       = STATUS_COLOR[a.status]||"#4e6479";
+  const sc       = STATUS_COLOR[a.status]||"var(--text3)";
   const today    = new Date(); today.setHours(0,0,0,0);
   const endDt    = a.end_date ? new Date(a.end_date) : null;
   const isOverdue= endDt && endDt < today && a.status!=="Completed";
@@ -2191,24 +2191,24 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete}){
     <td><span style={{fontSize:9,padding:"2px 7px",borderRadius:3,background:STATUS_BG[a.status]||"#0a1628",color:sc,fontWeight:700,whiteSpace:"nowrap"}}>{a.status}</span></td>
     <td>
       <div style={{display:"flex",alignItems:"center",gap:7}}>
-        <div style={{width:52,height:5,background:"#0c1829",borderRadius:3,overflow:"hidden",flexShrink:0}}>
+        <div style={{width:52,height:5,background:"var(--bg1)",borderRadius:3,overflow:"hidden",flexShrink:0}}>
           <div style={{height:"100%",width:`${pct}%`,background:sc,borderRadius:3}}/>
         </div>
         <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,fontWeight:700,color:sc}}>{pct}%</span>
       </div>
     </td>
-    <td style={{fontSize:10,color:"#7a8faa",whiteSpace:"nowrap"}}>{a.assigned_to||"—"}</td>
+    <td style={{fontSize:10,color:"var(--text2)",whiteSpace:"nowrap"}}>{a.assigned_to||"—"}</td>
     <td style={{fontSize:9,whiteSpace:"nowrap"}}>
       {(a.start_date||a.end_date)?(
         <div style={{display:"flex",flexDirection:"column",gap:1}}>
-          {a.start_date&&<span style={{color:"#4e6479"}}>▶ {fmtDate(a.start_date)}</span>}
+          {a.start_date&&<span style={{color:"var(--text3)"}}>▶ {fmtDate(a.start_date)}</span>}
           {a.end_date&&<span style={{color:isOverdue?"#f87171":"#fb923c",fontWeight:isOverdue?700:400}}>
             {isOverdue?"⚠ ":"■ "}{fmtDate(a.end_date)}
           </span>}
         </div>
-      ):<span style={{color:"#2e4a66"}}>—</span>}
+      ):<span style={{color:"var(--text4)"}}>—</span>}
     </td>
-    <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:actHrs>0?"#38bdf8":"#2e4a66"}}>{actHrs>0?actHrs+"h":"—"}</td>
+    <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:actHrs>0?"var(--info)":"var(--text4)"}}>{actHrs>0?actHrs+"h":"—"}</td>
     {isAdmin&&<td onClick={e=>e.stopPropagation()}><button className="bd" style={{fontSize:10,padding:"1px 5px"}} onClick={()=>onDelete(a.id)}>✕</button></td>}
   </tr>);
 }
@@ -2298,7 +2298,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
 
   // ── Loading ──
   if(!activitiesLoaded) return(
-    <div style={{padding:32,textAlign:"center",color:"#2e4a66",fontSize:13}}>Loading project tracker…</div>
+    <div style={{padding:32,textAlign:"center",color:"var(--text4)",fontSize:13}}>Loading project tracker…</div>
   );
 
   // ── OVERVIEW ──
@@ -2309,8 +2309,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     return(<>
     <div style={{display:"grid",gap:14}}>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        <span style={{fontSize:13,fontWeight:700,color:"#f0f6ff"}}>Project Tracker</span>
-        <span style={{fontSize:11,color:"#2e4a66"}}>{activities.length} activities · {Object.keys(actsByProj).length} projects</span>
+        <span style={{fontSize:13,fontWeight:700,color:"var(--text0)"}}>Project Tracker</span>
+        <span style={{fontSize:11,color:"var(--text4)"}}>{activities.length} activities · {Object.keys(actsByProj).length} projects</span>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
         {allTrackerProjects.map(p=>{
@@ -2318,40 +2318,40 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           const hasSubs=subprojects.some(s=>s.project_id===p.id);
           const totalHrs=getProjHrs(p.id);
           const overallPct=projActs.length>0?Math.round(projActs.reduce((s,a)=>s+a.progress,0)/projActs.length*100):0;
-          const barColor=overallPct>=90?"#34d399":overallPct>=60?"#38bdf8":overallPct>=30?"#fb923c":"#f87171";
+          const barColor=overallPct>=90?"#34d399":overallPct>=60?"var(--info)":overallPct>=30?"#fb923c":"#f87171";
           const done=projActs.filter(a=>a.status==="Completed").length;
           const active=projActs.filter(a=>a.status==="In Progress").length;
           const pending=projActs.filter(a=>a.status==="Not Started").length;
           return(
           <div key={p.id} onClick={()=>setTrackerProj(p.id)}
-            style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:10,padding:"14px 16px",cursor:"pointer"}}
-            onMouseEnter={e=>e.currentTarget.style.borderColor="#38bdf8"}
-            onMouseLeave={e=>e.currentTarget.style.borderColor="#1a3050"}>
+            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:10,padding:"14px 16px",cursor:"pointer"}}
+            onMouseEnter={e=>e.currentTarget.style.borderColor="var(--info)"}
+            onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
               <div>
-                <div style={{fontSize:12,fontWeight:700,color:"#f0f6ff"}}>{p.name||p.id}</div>
-                <div style={{fontSize:10,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>{p.id}</div>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--text0)"}}>{p.name||p.id}</div>
+                <div style={{fontSize:10,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{p.id}</div>
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:barColor}}>{overallPct}%</div>
-                <div style={{fontSize:9,color:"#2e4a66"}}>{totalHrs}h logged</div>
+                <div style={{fontSize:9,color:"var(--text4)"}}>{totalHrs}h logged</div>
               </div>
             </div>
-            <div style={{background:"#0c1829",borderRadius:4,height:6,overflow:"hidden",marginBottom:8}}>
+            <div style={{background:"var(--bg1)",borderRadius:4,height:6,overflow:"hidden",marginBottom:8}}>
               <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4}}/>
             </div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {done>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#022c22",color:"#34d399",fontWeight:700}}>{done} Done</span>}
-              {active>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0a1628",color:"#38bdf8",fontWeight:700}}>{active} Active</span>}
-              {pending>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0a1628",color:"#4e6479",fontWeight:700}}>{pending} Pending</span>}
+              {active>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0a1628",color:"var(--info)",fontWeight:700}}>{active} Active</span>}
+              {pending>0&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#0a1628",color:"var(--text3)",fontWeight:700}}>{pending} Pending</span>}
               {hasSubs&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",fontWeight:700}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-sites</span>}
               {projActs.length===0&&canEdit&&(
-                <span style={{fontSize:9,padding:"2px 8px",borderRadius:3,background:"#0a1628",color:"#38bdf8",border:"1px dashed #192d47",cursor:"pointer"}}
+                <span style={{fontSize:9,padding:"2px 8px",borderRadius:3,background:"#0a1628",color:"var(--info)",border:"1px dashed #192d47",cursor:"pointer"}}
                   onClick={e=>{e.stopPropagation();setTrackerProj(p.id);}}>
                   + Add activities
                 </span>
               )}
-              {projActs.length===0&&!canEdit&&<span style={{fontSize:9,color:"#2e4a66",fontStyle:"italic"}}>No activities yet</span>}
+              {projActs.length===0&&!canEdit&&<span style={{fontSize:9,color:"var(--text4)",fontStyle:"italic"}}>No activities yet</span>}
             </div>
           </div>);
         })}
@@ -2376,7 +2376,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   const uncategorised=visActs.filter(a=>!a.group_name&&!a.category);
 
   const overallPct=projActs.length>0?Math.round(projActs.reduce((s,a)=>s+a.progress,0)/projActs.length*100):0;
-  const barColor=overallPct>=90?"#34d399":overallPct>=60?"#38bdf8":overallPct>=30?"#fb923c":"#f87171";
+  const barColor=overallPct>=90?"#34d399":overallPct>=60?"var(--info)":overallPct>=30?"#fb923c":"#f87171";
   const totalHrs=getProjHrs(trackerProj);
 
   return(<>
@@ -2384,23 +2384,23 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     {/* Breadcrumb */}
     <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
       <button className="bg" style={{fontSize:11}} onClick={()=>{setTrackerProj(null);setTrackerSub(null);setExpandedCats({});}}>← All Projects</button>
-      <span style={{color:"#2e4a66"}}>/</span>
-      <span style={{fontSize:13,fontWeight:700,color:"#f0f6ff"}}>{selProj.name||trackerProj}</span>
-      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{trackerProj}</span>
+      <span style={{color:"var(--text4)"}}>/</span>
+      <span style={{fontSize:13,fontWeight:700,color:"var(--text0)"}}>{selProj.name||trackerProj}</span>
+      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"var(--info)"}}>{trackerProj}</span>
       {hasSubs&&trackerSub&&(
-        <><span style={{color:"#2e4a66"}}>/</span>
+        <><span style={{color:"var(--text4)"}}>/</span>
         <span style={{fontSize:12,color:"#a78bfa"}}>{projSubs.find(s=>String(s.id)===String(trackerSub))?.name}</span>
         <button className="bg" style={{fontSize:10}} onClick={()=>setTrackerSub(null)}>All Sites</button></>
       )}
       <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
         <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:barColor}}>{overallPct}%</div>
-        <div style={{fontSize:10,color:"#2e4a66"}}>{totalHrs}h logged</div>
+        <div style={{fontSize:10,color:"var(--text4)"}}>{totalHrs}h logged</div>
         {canEdit&&<button className="bp" style={{fontSize:10}} onClick={()=>setAddModal({projId:trackerProj,subId:trackerSub||null})}>+ Add Activity</button>}
       </div>
     </div>
 
     {/* Progress bar */}
-    <div style={{background:"#060e1c",borderRadius:4,height:8,overflow:"hidden"}}>
+    <div style={{background:"var(--bg2)",borderRadius:4,height:8,overflow:"hidden"}}>
       <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4,transition:"width .5s"}}/>
     </div>
 
@@ -2408,17 +2408,17 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     {hasSubs&&(
     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
       <button onClick={()=>{setTrackerSub(null);setExpandedCats({});}}
-        style={{fontSize:10,padding:"4px 12px",borderRadius:5,border:`1px solid ${!trackerSub?"#38bdf8":"#1a3050"}`,background:!trackerSub?"#0a1628":"transparent",color:!trackerSub?"#38bdf8":"#4e6479",cursor:"pointer"}}>
+        style={{fontSize:10,padding:"4px 12px",borderRadius:5,border:`1px solid ${!trackerSub?"var(--info)":"var(--border)"}`,background:!trackerSub?"#0a1628":"transparent",color:!trackerSub?"var(--info)":"var(--text3)",cursor:"pointer"}}>
         All Sites
       </button>
       {projSubs.map(sp=>{
         const spActs=projActs.filter(a=>String(a.subproject_id)===String(sp.id));
         const spPct=spActs.length>0?Math.round(spActs.reduce((s,a)=>s+a.progress,0)/spActs.length*100):0;
         const isSel=String(trackerSub)===String(sp.id);
-        const sc=spPct>=90?"#34d399":spPct>=60?"#38bdf8":spPct>=30?"#fb923c":"#f87171";
+        const sc=spPct>=90?"#34d399":spPct>=60?"var(--info)":spPct>=30?"#fb923c":"#f87171";
         return(
         <button key={sp.id} onClick={()=>{setTrackerSub(sp.id);setExpandedCats({});}}
-          style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:`1px solid ${isSel?sc:"#1a3050"}`,background:isSel?sc+"20":"transparent",color:isSel?sc:"#4e6479",cursor:"pointer"}}>
+          style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:`1px solid ${isSel?sc:"var(--border)"}`,background:isSel?sc+"20":"transparent",color:isSel?sc:"var(--text3)",cursor:"pointer"}}>
           {sp.name} <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{spPct}%</span>
         </button>);
       })}
@@ -2431,22 +2431,22 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         const catPct=Math.round(catActs.reduce((s,a)=>s+a.progress,0)/catActs.length*100);
         const catDone=catActs.filter(a=>a.status==="Completed").length;
         const isOpen=expandedCats[cat]!==false; // default open
-        const catColor=catPct>=90?"#34d399":catPct>=60?"#38bdf8":catPct>=30?"#fb923c":"#f87171";
+        const catColor=catPct>=90?"#34d399":catPct>=60?"var(--info)":catPct>=30?"#fb923c":"#f87171";
         return(
-        <div key={cat} style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:8,overflow:"hidden"}}>
+        <div key={cat} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,overflow:"hidden"}}>
           {/* Category header — clickable to collapse */}
           <div onClick={()=>toggleCat(cat)}
-            style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",background:"#07101e"}}
-            onMouseEnter={e=>e.currentTarget.style.background="#0d1e33"}
-            onMouseLeave={e=>e.currentTarget.style.background="#07101e"}>
-            <span style={{fontSize:11,color:"#2e4a66",transition:"transform .2s",display:"inline-block",transform:isOpen?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
+            style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",background:"var(--bg0)"}}
+            onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
+            onMouseLeave={e=>e.currentTarget.style.background="var(--bg0)"}>
+            <span style={{fontSize:11,color:"var(--text4)",transition:"transform .2s",display:"inline-block",transform:isOpen?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
             <span style={{fontSize:11,fontWeight:700,color:"#a78bfa",flex:1}}>{cat}</span>
             {/* Mini progress bar */}
-            <div style={{width:80,height:5,background:"#0c1829",borderRadius:3,overflow:"hidden"}}>
+            <div style={{width:80,height:5,background:"var(--bg1)",borderRadius:3,overflow:"hidden"}}>
               <div style={{height:"100%",width:`${catPct}%`,background:catColor,borderRadius:3}}/>
             </div>
             <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,fontWeight:700,color:catColor,width:32,textAlign:"right"}}>{catPct}%</span>
-            <span style={{fontSize:9,color:"#2e4a66",width:60,textAlign:"right"}}>{catDone}/{catActs.length} done</span>
+            <span style={{fontSize:9,color:"var(--text4)",width:60,textAlign:"right"}}>{catDone}/{catActs.length} done</span>
             {canEdit&&<button className="bp" style={{fontSize:9,padding:"1px 7px",marginLeft:4}}
               onClick={e=>{e.stopPropagation();setAddModal({projId:trackerProj,subId:trackerSub||null,defaultCat:cat});}}>+</button>}
           </div>
@@ -2470,8 +2470,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
 
       {/* Uncategorised activities */}
       {uncategorised.length>0&&(
-      <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:8,overflow:"hidden"}}>
-        <div style={{padding:"8px 14px",background:"#07101e",fontSize:10,color:"#4e6479",fontWeight:700}}>UNCATEGORISED</div>
+      <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,overflow:"hidden"}}>
+        <div style={{padding:"8px 14px",background:"var(--bg0)",fontSize:10,color:"var(--text3)",fontWeight:700}}>UNCATEGORISED</div>
         <table style={{margin:0}}>
           <thead><tr>
             <th>Activity</th><th>Status</th><th>Progress</th>
@@ -2488,10 +2488,10 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       </div>)}
 
       {visActs.length===0&&(
-        <div style={{textAlign:"center",padding:"40px 24px",background:"#060e1c",borderRadius:8,border:"1px dashed #192d47"}}>
+        <div style={{textAlign:"center",padding:"40px 24px",background:"var(--bg2)",borderRadius:8,border:"1px dashed #192d47"}}>
           <div style={{fontSize:28,marginBottom:10}}>📋</div>
-          <div style={{fontSize:13,fontWeight:600,color:"#f0f6ff",marginBottom:6}}>No activities yet</div>
-          <div style={{fontSize:11,color:"#2e4a66",marginBottom:canEdit?18:0}}>
+          <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:6}}>No activities yet</div>
+          <div style={{fontSize:11,color:"var(--text4)",marginBottom:canEdit?18:0}}>
             {trackerSub
               ? "No activities have been added to this sub-site yet."
               : "This project has no tracker activities."}
@@ -2510,16 +2510,16 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
       {[
         {label:"Completed",  count:visActs.filter(a=>a.status==="Completed").length,  color:"#34d399",bg:"#022c22"},
-        {label:"In Progress",count:visActs.filter(a=>a.status==="In Progress").length, color:"#38bdf8",bg:"#0a1628"},
-        {label:"Not Started",count:visActs.filter(a=>a.status==="Not Started").length, color:"#4e6479",bg:"#0a1628"},
+        {label:"In Progress",count:visActs.filter(a=>a.status==="In Progress").length, color:"var(--info)",bg:"#0a1628"},
+        {label:"Not Started",count:visActs.filter(a=>a.status==="Not Started").length, color:"var(--text3)",bg:"#0a1628"},
         {label:"On Hold",    count:visActs.filter(a=>a.status==="On Hold").length,     color:"#fb923c",bg:"#1c0f00"},
       ].filter(s=>s.count>0).map(s=>(
         <div key={s.label} style={{display:"flex",gap:6,alignItems:"center",background:s.bg,border:`1px solid ${s.color}25`,borderRadius:6,padding:"5px 10px"}}>
           <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:s.color}}>{s.count}</span>
-          <span style={{fontSize:10,color:"#4e6479"}}>{s.label}</span>
+          <span style={{fontSize:10,color:"var(--text3)"}}>{s.label}</span>
         </div>
       ))}
-      <div style={{marginLeft:"auto",fontSize:10,color:"#2e4a66"}}>Click row to edit · Click category header to collapse</div>
+      <div style={{marginLeft:"auto",fontSize:10,color:"var(--text4)"}}>Click row to edit · Click category header to collapse</div>
     </div>
   </div>
 
@@ -2558,26 +2558,26 @@ function SubProjectModal({projectId, sub, engineers, onSave, onClose}){
   return(
   <div className="modal-ov" onClick={onClose}>
     <div className="modal" style={{maxWidth:440}} onClick={e=>e.stopPropagation()}>
-      <h3 style={{fontSize:14,fontWeight:700,color:"#f0f6ff",marginBottom:16}}>
+      <h3 style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:16}}>
         {isEdit?"Edit Sub-site":"Add Sub-site"}
         <span style={{fontSize:10,color:"#a78bfa",marginLeft:8,fontWeight:400}}>Project: {projectId}</span>
       </h3>
       <div style={{display:"grid",gap:10}}>
         <div>
-          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>SUB-SITE NAME <span style={{color:"#f87171"}}>*</span></label>
+          <label style={{fontSize:10,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>SUB-SITE NAME <span style={{color:"#f87171"}}>*</span></label>
           <input value={draft.name} onChange={e=>setDraft(p=>({...p,name:e.target.value}))}
             placeholder="e.g. Ipotesti, Craiova, Bradu…"
-            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"}}/>
+            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:11,boxSizing:"border-box"}}/>
         </div>
         <div>
-          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>BU ROMANIA PM</label>
+          <label style={{fontSize:10,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>BU ROMANIA PM</label>
           <input value={draft.pm_name||""} onChange={e=>setDraft(p=>({...p,pm_name:e.target.value}))}
             placeholder="e.g. Cosmin, Irena, Alexanda…"
-            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f0f6ff",padding:"6px 8px",fontSize:11,boxSizing:"border-box"}}/>
+            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:11,boxSizing:"border-box"}}/>
         </div>
         <div>
-          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>ASSIGNED ENGINEERS</label>
-          <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,maxHeight:140,overflowY:"auto"}}>
+          <label style={{fontSize:10,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>ASSIGNED ENGINEERS</label>
+          <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,maxHeight:140,overflowY:"auto"}}>
             {engList.map(e=>{
               const assignedArr = (draft.assigned_engineers||[]).map(String);
               const sel = assignedArr.includes(String(e.id));
@@ -2586,23 +2586,23 @@ function SubProjectModal({projectId, sub, engineers, onSave, onClose}){
                 <input type="checkbox" checked={sel} onChange={()=>setDraft(p=>{
                   const cur=(p.assigned_engineers||[]).map(String);
                   return {...p, assigned_engineers: sel ? cur.filter(x=>x!==String(e.id)) : [...cur,String(e.id)]};
-                })} style={{accentColor:"#38bdf8"}}/>
-                <span style={{fontSize:10,color:sel?"#38bdf8":"#7a8faa"}}>{e.name}</span>
+                })} style={{accentColor:"var(--info)"}}/>
+                <span style={{fontSize:10,color:sel?"var(--info)":"var(--text2)"}}>{e.name}</span>
               </label>);
             })}
           </div>
         </div>
         <div>
-          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>PM COMMENTS</label>
+          <label style={{fontSize:10,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>PM COMMENTS</label>
           <textarea value={draft.pm_comments||""} onChange={e=>setDraft(p=>({...p,pm_comments:e.target.value}))} rows={2}
             placeholder="Comments from BU Romania PM…"
-            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#7a8faa",padding:"6px 8px",fontSize:10,resize:"vertical",boxSizing:"border-box"}}/>
+            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text2)",padding:"6px 8px",fontSize:10,resize:"vertical",boxSizing:"border-box"}}/>
         </div>
         <div>
-          <label style={{fontSize:10,color:"#7a8faa",fontWeight:600,display:"block",marginBottom:4}}>PENDING ITEMS</label>
+          <label style={{fontSize:10,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>PENDING ITEMS</label>
           <textarea value={draft.pendings||""} onChange={e=>setDraft(p=>({...p,pendings:e.target.value}))} rows={2}
             placeholder="e.g. Waiting for IP list, IOA addresses…"
-            style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#f87171",padding:"6px 8px",fontSize:10,resize:"vertical",boxSizing:"border-box"}}/>
+            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"#f87171",padding:"6px 8px",fontSize:10,resize:"vertical",boxSizing:"border-box"}}/>
         </div>
       </div>
       <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
@@ -2662,7 +2662,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
   <div style={{display:"grid",gap:12}}>
     <div className="card" style={{padding:"12px 16px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-        <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Projects ({projects.length})</h3>
+        <h3 style={{fontSize:13,fontWeight:600,color:"var(--text2)"}}>Projects ({projects.length})</h3>
         {canEdit&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
       </div>
       <table>
@@ -2686,17 +2686,17 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
                       transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>▶</button>
                 )}
               </td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</td>
               <td style={{fontSize:11,fontWeight:500}}>{p.name}</td>
-              <td style={{color:"#7a8faa",fontSize:11}}>{p.client}</td>
+              <td style={{color:"var(--text2)",fontSize:11}}>{p.client}</td>
               <td style={{color:"#60a5fa",fontSize:11}}>{p.phase}</td>
               <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,
-                background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"#1a3050",
+                background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"var(--border)",
                 color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span></td>
               <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700,
-                background:p.billable?"#071e36":"#1a0a00",color:p.billable?"#38bdf8":"#fb923c"}}>
+                background:p.billable?"#071e36":"#1a0a00",color:p.billable?"var(--info)":"#fb923c"}}>
                 {p.billable?"Billable":"Non-Bill"}</span></td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{hrs}h</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{hrs}h</td>
               <td>
                 {pSubs.length>0
                   ? <span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",
@@ -2704,7 +2704,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
                       onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}>
                       {pSubs.length} sub-site{pSubs.length>1?"s":""}
                     </span>
-                  : <span style={{fontSize:9,color:"#2e4a66"}}>—</span>
+                  : <span style={{fontSize:9,color:"var(--text4)"}}>—</span>
                 }
               </td>
               <td><div style={{display:"flex",gap:4}}>
@@ -2717,19 +2717,19 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
             </tr>
             {/* Sub-project rows */}
             {isExp&&pSubs.map(sp=>(
-              <tr key={sp.id} style={{background:"#060e1c"}}>
+              <tr key={sp.id} style={{background:"var(--bg2)"}}>
                 <td></td>
                 <td colSpan={2} style={{paddingLeft:24}}>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{color:"#2e4a66",fontSize:10}}>└</span>
+                    <span style={{color:"var(--text4)",fontSize:10}}>└</span>
                     <span style={{fontSize:11,color:"#a78bfa",fontWeight:600}}>{sp.name}</span>
                   </div>
                 </td>
-                <td style={{fontSize:10,color:"#7a8faa"}}>{sp.pm_name||"—"}</td>
-                <td colSpan={2} style={{fontSize:10,color:"#38bdf8"}}>
+                <td style={{fontSize:10,color:"var(--text2)"}}>{sp.pm_name||"—"}</td>
+                <td colSpan={2} style={{fontSize:10,color:"var(--info)"}}>
                   {(sp.assigned_engineers||[]).map(eid=>engineers.find(e=>String(e.id)===String(eid))?.name).filter(Boolean).join(", ")||"—"}
                 </td>
-                <td colSpan={2} style={{fontSize:10,color:"#4e6479",fontStyle:"italic",
+                <td colSpan={2} style={{fontSize:10,color:"var(--text3)",fontStyle:"italic",
                   maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sp.pendings||""}</td>
                 <td></td>
                 <td><div style={{display:"flex",gap:4}}>
@@ -2869,14 +2869,14 @@ const netColor=netPL>=0?"#34d399":"#f87171";
   {staff.length===0&&expenses.length===0&&(
     <div style={{background:"#1a0800",border:"1px solid #fb923c40",borderRadius:8,padding:"12px 16px",marginBottom:16}}>
       <div style={{fontSize:12,color:"#fb923c",fontWeight:600,marginBottom:6}}>⚠ Finance data not loading — likely a database permissions issue</div>
-      <div style={{fontSize:11,color:"#7a8faa",marginBottom:8}}>Run this SQL in Supabase → SQL Editor to fix RLS for all tables:</div>
-      <code style={{fontSize:10,color:"#38bdf8",fontFamily:"monospace",display:"block",background:"#060e1c",padding:8,borderRadius:4,lineHeight:1.6}}>
+      <div style={{fontSize:11,color:"var(--text2)",marginBottom:8}}>Run this SQL in Supabase → SQL Editor to fix RLS for all tables:</div>
+      <code style={{fontSize:10,color:"var(--info)",fontFamily:"monospace",display:"block",background:"var(--bg2)",padding:8,borderRadius:4,lineHeight:1.6}}>
         {"DO $$ DECLARE t text; BEGIN FOR t IN SELECT tablename FROM pg_tables WHERE schemaname='public' LOOP EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t); EXECUTE format('DROP POLICY IF EXISTS auth_all ON %I', t); EXECUTE format('CREATE POLICY auth_all ON %I FOR ALL USING (auth.role()=''authenticated'')', t); END LOOP; END $$;"}
       </code>
     </div>
   )}
   {/* Finance sub-tabs */}
-  <div style={{display:"flex",gap:4,marginBottom:16,background:"#060e1c",borderRadius:8,padding:4,width:"fit-content"}}>
+  <div style={{display:"flex",gap:4,marginBottom:16,background:"var(--bg2)",borderRadius:8,padding:4,width:"fit-content"}}>
     {[{id:"pl",label:"📊 P&L"},{id:"salaries",label:"👤 Salaries"},{id:"expenses",label:"🧾 Expenses"}].map(t=>(
       <button key={t.id} className={`atab ${finTab===t.id?"a":""}`} onClick={()=>setFinTab(t.id)}>{t.label}</button>
     ))}
@@ -2885,22 +2885,22 @@ const netColor=netPL>=0?"#34d399":"#f87171";
   {/* Month/Year picker */}
   <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16}}>
     <select value={finMonth} onChange={e=>setFinMonth(+e.target.value)}
-      style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:12}}>
       {MONTHS_.map((m,i)=><option key={i} value={i}>{m}</option>)}
     </select>
     <select value={finYear} onChange={e=>setFinYear(+e.target.value)}
-      style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:12}}>
       {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
     </select>
     {/* EGP/USD Rate box */}
-    <div style={{display:"flex",alignItems:"center",gap:6,background:"#060e1c",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
-      <div><span style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".05em"}}>EGP/USD</span><div style={{fontSize:8,color:"#1a3050",marginTop:1}}>salaries only</div></div>
+    <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg2)",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
+      <div><span style={{fontSize:9,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".05em"}}>EGP/USD</span><div style={{fontSize:8,color:"var(--border)",marginTop:1}}>salaries only</div></div>
       <input title="Used for EGP salary → USD conversion only. Expenses use their own per-entry rate." type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value))}
-        style={{width:55,background:"transparent",border:"none",color:"#38bdf8",fontSize:13,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"center",outline:"none"}}
+        style={{width:55,background:"transparent",border:"none",color:"var(--info)",fontSize:13,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"center",outline:"none"}}
         min="1" step="0.5"/>
-      <span style={{fontSize:9,color:"#2e4a66"}}>per $1</span>
+      <span style={{fontSize:9,color:"var(--text4)"}}>per $1</span>
     </div>
-    <span style={{fontSize:11,color:"#2e4a66"}}>Viewing: {MONTHS_[finMonth]} {finYear}</span>
+    <span style={{fontSize:11,color:"var(--text4)"}}>Viewing: {MONTHS_[finMonth]} {finYear}</span>
     <button className="bp" style={{marginLeft:"auto"}} onClick={()=>{
       const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
       buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
@@ -2921,14 +2921,14 @@ const netColor=netPL>=0?"#34d399":"#f87171";
         ].map((k,i)=>(
           <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:k.c}}>{k.v}</div>
-            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+            <div style={{fontSize:9,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
           </div>
         ))}
       </div>
 
       {/* Visual P&L bar */}
       <div className="card">
-        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>MONTHLY BREAKDOWN — {MONTHS_[finMonth]} {finYear}</div>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",marginBottom:10}}>MONTHLY BREAKDOWN — {MONTHS_[finMonth]} {finYear}</div>
         {monthRevUSD>0||totalCostUSD>0?(()=>{
           const max=Math.max(monthRevUSD,totalCostUSD)||1;
           return(
@@ -2940,33 +2940,33 @@ const netColor=netPL>=0?"#34d399":"#f87171";
               {l:"Total Cost", v:totalCostUSD,   c:"#ef4444"},
             ].map((r,i)=>(
               <div key={i} style={{display:"grid",gridTemplateColumns:"120px 1fr 80px",alignItems:"center",gap:10}}>
-                <div style={{fontSize:10,color:"#7a8faa"}}>{r.l}</div>
-                <div style={{background:"#060e1c",borderRadius:4,height:18,overflow:"hidden"}}>
+                <div style={{fontSize:10,color:"var(--text2)"}}>{r.l}</div>
+                <div style={{background:"var(--bg2)",borderRadius:4,height:18,overflow:"hidden"}}>
                   <div style={{height:"100%",width:`${Math.round(r.v/max*100)}%`,background:r.c,borderRadius:4,minWidth:r.v>0?4:0}}/>
                 </div>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:r.c,fontWeight:700,textAlign:"right"}}>{fmtCurrency(r.v)}</div>
               </div>
             ))}
             <div style={{borderTop:"1px solid #0ea5e930",paddingTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{fontSize:11,color:"#7a8faa"}}>Net Profit / Loss</span>
+              <span style={{fontSize:11,color:"var(--text2)"}}>Net Profit / Loss</span>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:netColor}}>{netPL>=0?"▲":"▼"} {fmtCurrency(Math.abs(netPL))}</span>
             </div>
           </div>);
-        })():<div style={{color:"#2e4a66",fontSize:11,textAlign:"center",padding:20}}>No data for {MONTHS_[finMonth]} {finYear}</div>}
+        })():<div style={{color:"var(--text4)",fontSize:11,textAlign:"center",padding:20}}>No data for {MONTHS_[finMonth]} {finYear}</div>}
       </div>
 
       {/* YTD Summary */}
       <div className="card">
-        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>YEAR-TO-DATE {finYear} SUMMARY (Jan–{MONTHS_[finMonth]})</div>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",marginBottom:10}}>YEAR-TO-DATE {finYear} SUMMARY (Jan–{MONTHS_[finMonth]})</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
           {[
             {l:"YTD Revenue",v:fmtCurrency(ytdRev),c:"#34d399"},
             {l:"YTD Costs",  v:fmtCurrency(ytdCost),c:"#f87171"},
             {l:"YTD Net",    v:fmtCurrency(ytdNet), c:ytdNet>=0?"#34d399":"#f87171"},
           ].map((k,i)=>(
-            <div key={i} style={{background:"#060e1c",borderRadius:6,padding:"10px 12px"}}>
+            <div key={i} style={{background:"var(--bg2)",borderRadius:6,padding:"10px 12px"}}>
               <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
-              <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".07em",marginTop:3}}>{k.l}</div>
+              <div style={{fontSize:9,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginTop:3}}>{k.l}</div>
             </div>
           ))}
         </div>
@@ -2989,20 +2989,20 @@ const netColor=netPL>=0?"#34d399":"#f87171";
       {/* Per-project profitability */}
       {projProfit.length>0&&(
       <div className="card">
-        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>PER-PROJECT PROFITABILITY — {MONTHS_[finMonth]} {finYear}</div>
-        <div style={{fontSize:10,color:"#2e4a66",marginBottom:10}}>Cost allocated proportionally by hours worked on each billable project</div>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",marginBottom:10}}>PER-PROJECT PROFITABILITY — {MONTHS_[finMonth]} {finYear}</div>
+        <div style={{fontSize:10,color:"var(--text4)",marginBottom:10}}>Cost allocated proportionally by hours worked on each billable project</div>
         <table>
           <thead><tr><th>Project</th><th style={{textAlign:"right"}}>Revenue</th><th style={{textAlign:"right"}}>Alloc. Cost</th><th style={{textAlign:"right"}}>Net</th><th style={{textAlign:"right"}}>Margin</th><th style={{textAlign:"right"}}>Hours</th></tr></thead>
           <tbody>{projProfit.map(p=>{
             const margin=p.rev>0?Math.round(p.net/p.rev*100):0;
             const c=p.net>=0?"#34d399":"#f87171";
             return(<tr key={p.id}>
-              <td><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{p.id}</span> <span style={{fontSize:10}}>{p.name}</span></td>
+              <td><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"var(--info)"}}>{p.id}</span> <span style={{fontSize:10}}>{p.name}</span></td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399"}}>{fmtCurrency(p.rev)}</td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>{fmtCurrency(Math.round(p.allocatedCost))}</td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:c}}>{p.net>=0?"+":""}{fmtCurrency(Math.round(p.net))}</td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:c}}>{margin}%</td>
-              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#7a8faa"}}>{p.hrs}h</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--text2)"}}>{p.hrs}h</td>
             </tr>);
           })}</tbody>
         </table>
@@ -3016,21 +3016,21 @@ const netColor=netPL>=0?"#34d399":"#f87171";
       {/* Payroll KPIs */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
         {[
-          {l:"Total Staff",      v:activeStaff.length,                c:"#38bdf8"},
+          {l:"Total Staff",      v:activeStaff.length,                c:"var(--info)"},
           {l:"Monthly USD",      v:fmtCurrency(totalPayrollUSD),       c:"#f87171"},
           {l:"Monthly EGP",      v:`EGP ${totalPayrollEGP.toLocaleString()}`, c:"#fb923c"},
           {l:"Departments",      v:deptList.length,                   c:"#a78bfa"},
         ].map((k,i)=>(
           <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
-            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+            <div style={{fontSize:9,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
           </div>
         ))}
       </div>
 
       {/* Dept breakdown */}
       <div className="card">
-        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>SALARY BY DEPARTMENT</div>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",marginBottom:10}}>SALARY BY DEPARTMENT</div>
         <table>
           <thead><tr><th>Department</th><th style={{textAlign:"right"}}>Headcount</th><th style={{textAlign:"right"}}>Monthly USD</th><th style={{textAlign:"right"}}>Monthly EGP</th><th style={{textAlign:"right"}}>% of Payroll</th></tr></thead>
           <tbody>{deptList.map((d,i)=>(
@@ -3039,7 +3039,7 @@ const netColor=netPL>=0?"#34d399":"#f87171";
               <td style={{textAlign:"right"}}>{d.count}</td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171",fontWeight:700}}>{fmtCurrency(d.usd)}</td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>EGP {d.egp.toLocaleString()}</td>
-              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#7a8faa"}}>{totalPayrollUSD?Math.round(d.usd/totalPayrollUSD*100):0}%</td>
+              <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--text2)"}}>{totalPayrollUSD?Math.round(d.usd/totalPayrollUSD*100):0}%</td>
             </tr>
           ))}</tbody>
         </table>
@@ -3048,7 +3048,7 @@ const netColor=netPL>=0?"#34d399":"#f87171";
       {/* Staff table */}
       <div className="card">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#7a8faa"}}>ALL STAFF ({staff.length})</div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text2)"}}>ALL STAFF ({staff.length})</div>
           <button className="bp" onClick={()=>{setEditStaff(null);setShowStaffModal(true)}}>+ Add Staff</button>
         </div>
         <table>
@@ -3056,13 +3056,13 @@ const netColor=netPL>=0?"#34d399":"#f87171";
           <tbody>{staff.map(s=>(
             <tr key={s.id}>
               <td style={{fontWeight:600}}>{s.name}</td>
-              <td style={{fontSize:10,color:"#38bdf8"}}>{s.department}</td>
-              <td style={{fontSize:10,color:"#7a8faa"}}>{s.role}</td>
-              <td style={{fontSize:9}}><span style={{padding:"2px 6px",borderRadius:3,background:"#071e36",color:"#38bdf8",fontWeight:700}}>{s.type?.replace("_"," ")}</span></td>
+              <td style={{fontSize:10,color:"var(--info)"}}>{s.department}</td>
+              <td style={{fontSize:10,color:"var(--text2)"}}>{s.role}</td>
+              <td style={{fontSize:9}}><span style={{padding:"2px 6px",borderRadius:3,background:"#071e36",color:"var(--info)",fontWeight:700}}>{s.type?.replace("_"," ")}</span></td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171",fontWeight:700}}>{fmtCurrency(s.salary_usd||0)}</td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>EGP {(s.salary_egp||0).toLocaleString()}</td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{s.join_date||"—"}</td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:s.termination_date?"#f87171":"#2e4a66"}}>{s.termination_date||"—"}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"var(--info)"}}>{s.join_date||"—"}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:s.termination_date?"#f87171":"var(--text4)"}}>{s.termination_date||"—"}</td>
               <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:s.active!==false?"#024b36":"#1a0a00",color:s.active!==false?"#34d399":"#f87171"}}>{s.active!==false?"Active":"Inactive"}</span></td>
               <td><div style={{display:"flex",gap:4}}>
                 <button className="be" onClick={()=>{setEditStaff({...s});setShowStaffModal(true)}}>✎</button>
@@ -3081,14 +3081,14 @@ const netColor=netPL>=0?"#34d399":"#f87171";
       {/* Expense KPIs */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
         {[
-          {l:"Entries",     v:monthExp.length,              c:"#38bdf8"},
+          {l:"Entries",     v:monthExp.length,              c:"var(--info)"},
           {l:"Total USD",   v:fmtCurrency(totalExpUSD),      c:"#fb923c"},
           {l:"Total EGP",   v:`EGP ${totalExpEGP.toLocaleString()}`,c:"#a78bfa"},
           {l:"Categories",  v:[...new Set(monthExp.map(e=>e.category))].length, c:"#34d399"},
         ].map((k,i)=>(
           <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
-            <div style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+            <div style={{fontSize:9,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
           </div>
         ))}
       </div>
@@ -3096,25 +3096,25 @@ const netColor=netPL>=0?"#34d399":"#f87171";
       {/* Expenses table */}
       <div className="card">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#7a8faa"}}>EXPENSES — {MONTHS_[finMonth]} {finYear} ({monthExp.length})</div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text2)"}}>EXPENSES — {MONTHS_[finMonth]} {finYear} ({monthExp.length})</div>
           {!isSenior&&<button className="bp" onClick={()=>{setEditExp(null);setNewExp(p=>({...p,month:finMonth,year:finYear}));setShowExpModal(true)}}>+ Add Expense</button>}
         </div>
-        {monthExp.length===0?<div style={{color:"#2e4a66",fontSize:11,textAlign:"center",padding:20}}>No expenses posted for {MONTHS_[finMonth]} {finYear}</div>:(
+        {monthExp.length===0?<div style={{color:"var(--text4)",fontSize:11,textAlign:"center",padding:20}}>No expenses posted for {MONTHS_[finMonth]} {finYear}</div>:(
         <table>
           <thead><tr><th>Category</th><th>Description</th><th style={{textAlign:"right"}}>USD</th><th style={{textAlign:"right"}}>EGP</th><th>Notes</th><th>Actions</th></tr></thead>
           <tbody>{monthExp.map(e=>(
             <tr key={e.id}>
-              <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#071e36",color:"#38bdf8",fontWeight:700}}>{e.category}</span></td>
+              <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#071e36",color:"var(--info)",fontWeight:700}}>{e.category}</span></td>
               <td style={{fontWeight:500}}>{e.description}</td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c",fontWeight:700}}>
                 {e.amount_usd>0
                   ? fmtCurrency(e.amount_usd)
                   : e.amount_egp>0&&e.entry_rate>0
-                    ? <span style={{color:"#38bdf8",fontSize:10}}>≈{fmtCurrency(Math.round(e.amount_egp/e.entry_rate*100)/100)}</span>
-                    : <span style={{color:"#1a3050",fontSize:10}}>—</span>}
+                    ? <span style={{color:"var(--info)",fontSize:10}}>≈{fmtCurrency(Math.round(e.amount_egp/e.entry_rate*100)/100)}</span>
+                    : <span style={{color:"var(--border)",fontSize:10}}>—</span>}
               </td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{e.amount_egp?`EGP ${e.amount_egp.toLocaleString()}`:"-"}</td>
-              <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic"}}>{e.notes||""}</td>
+              <td style={{fontSize:10,color:"var(--text3)",fontStyle:"italic"}}>{e.notes||""}</td>
               <td><div style={{display:"flex",gap:4}}>
                 {!isSenior&&<><button className="be" onClick={()=>{setEditExp({...e});setShowExpModal(true)}}>✎</button>
                 <button className="bd" onClick={()=>deleteExpense(e.id)}>✕</button></>}
@@ -3160,35 +3160,35 @@ engineers.forEach(eng=>{
 <div style={{display:"grid",gap:14}}>
   <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
     <select value={funcYear} onChange={e=>setFuncYear(+e.target.value)}
-      style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:12}}>
       {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
     </select>
     <select value={funcEngId} onChange={e=>setFuncEngId(e.target.value)}
-      style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:12}}>
       <option value="all">All Engineers</option>
       {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
     </select>
-    <span style={{fontSize:11,color:"#2e4a66"}}>{yearFuncs.length} entries · {totalFuncHrs}h total</span>
+    <span style={{fontSize:11,color:"var(--text4)"}}>{yearFuncs.length} entries · {totalFuncHrs}h total</span>
     <button className="bp" style={{marginLeft:"auto"}} onClick={()=>setShowFuncModal(true)}>+ Log Function Hours</button>
   </div>
   <div className="card">
-    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>FUNCTION HOURS BY CATEGORY — {funcYear}{funcEngId!=="all"?" · "+engineers.find(e=>String(e.id)===String(funcEngId))?.name:""}</div>
+    <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",marginBottom:12}}>FUNCTION HOURS BY CATEGORY — {funcYear}{funcEngId!=="all"?" · "+engineers.find(e=>String(e.id)===String(funcEngId))?.name:""}</div>
     <div style={{display:"grid",gap:7}}>
       {FUNCTION_CATS.map(cat=>{
         const hrs=catTotals[cat]||0;
         return(
         <div key={cat} style={{display:"grid",gridTemplateColumns:"240px 1fr 50px",alignItems:"center",gap:10}}>
-          <div style={{fontSize:10,color:FUNC_COLORS[cat]||"#7a8faa",fontWeight:600}}>{cat}</div>
-          <div style={{background:"#060e1c",borderRadius:4,height:16,overflow:"hidden"}}>
-            <div style={{height:"100%",width:`${Math.round(hrs/maxCat*100)}%`,background:FUNC_COLORS[cat]||"#38bdf8",borderRadius:4,minWidth:hrs>0?4:0}}/>
+          <div style={{fontSize:10,color:FUNC_COLORS[cat]||"var(--text2)",fontWeight:600}}>{cat}</div>
+          <div style={{background:"var(--bg2)",borderRadius:4,height:16,overflow:"hidden"}}>
+            <div style={{height:"100%",width:`${Math.round(hrs/maxCat*100)}%`,background:FUNC_COLORS[cat]||"var(--info)",borderRadius:4,minWidth:hrs>0?4:0}}/>
           </div>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:hrs>0?(FUNC_COLORS[cat]||"#38bdf8"):"#2e4a66",fontWeight:700,textAlign:"right"}}>{hrs}h</div>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:hrs>0?(FUNC_COLORS[cat]||"var(--info)"):"var(--text4)",fontWeight:700,textAlign:"right"}}>{hrs}h</div>
         </div>);
       })}
     </div>
   </div>
   <div className="card">
-    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>ENGINEER FUNCTION MATRIX — {funcYear}</div>
+    <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",marginBottom:12}}>ENGINEER FUNCTION MATRIX — {funcYear}</div>
     <div style={{overflowX:"auto"}}>
     <table style={{minWidth:700}}>
       <thead><tr>
@@ -3199,10 +3199,10 @@ engineers.forEach(eng=>{
       <tbody>{engineers.map(eng=>{
         const em=engFuncMap[eng.id]||{total:0,cats:{}};
         return(<tr key={eng.id}>
-          <td style={{fontWeight:600,minWidth:120}}>{eng.name}<br/><span style={{fontSize:9,color:"#2e4a66"}}>{eng.role}</span></td>
+          <td style={{fontWeight:600,minWidth:120}}>{eng.name}<br/><span style={{fontSize:9,color:"var(--text4)"}}>{eng.role}</span></td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{em.total||"—"}</td>
           {FUNCTION_CATS.map(c=>(
-            <td key={c} style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:em.cats[c]>0?(FUNC_COLORS[c]||"#38bdf8"):"#2e4a66"}}>{em.cats[c]||"—"}</td>
+            <td key={c} style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:em.cats[c]>0?(FUNC_COLORS[c]||"var(--info)"):"var(--text4)"}}>{em.cats[c]||"—"}</td>
           ))}
         </tr>);
       })}</tbody>
@@ -3210,7 +3210,7 @@ engineers.forEach(eng=>{
     </div>
   </div>
   <div className="card">
-    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:10}}>ALL FUNCTION ENTRIES — {funcYear}</div>
+    <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",marginBottom:10}}>ALL FUNCTION ENTRIES — {funcYear}</div>
     <table>
       <thead><tr><th>Date</th><th>Engineer</th><th>Category</th><th>Hours</th><th>Description</th><th>Actions</th></tr></thead>
       <tbody>{yearFuncs.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>{
@@ -3221,7 +3221,7 @@ engineers.forEach(eng=>{
           <td style={{fontWeight:600,fontSize:10}}>{eng?.name||"?"}</td>
           <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:(FUNC_COLORS[cat]||"#6b7280")+"20",color:FUNC_COLORS[cat]||"#6b7280",fontWeight:700}}>{cat}</span></td>
           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{e.hours}h</td>
-          <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic",maxWidth:220}}>{e.activity||"—"}</td>
+          <td style={{fontSize:10,color:"var(--text3)",fontStyle:"italic",maxWidth:220}}>{e.activity||"—"}</td>
           <td>{isAdmin&&<button className="bd" style={{fontSize:10}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}</td>
         </tr>);
       })}</tbody>
@@ -3236,7 +3236,7 @@ engineers.forEach(eng=>{
    ════════════════════════════════════════════════════════ */
 /* ── KPI rating helpers — module-level so JSX render can access them ── */
 const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Performer":"High Performer";
-const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"#38bdf8":"#34d399";
+const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#1a0808":s<=75?"#1c0f00":s<=95?"#0a1628":"#022c22";
 
 function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, alertDay, setAlertDay}){
@@ -3323,18 +3323,18 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
   {/* Controls */}
   <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
     <select value={kpiYear} onChange={e=>setKpiYear(+e.target.value)}
-      style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:12}}>
       {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
     </select>
     <select value={kpiEngId||""} onChange={e=>setKpiEngId(e.target.value||null)}
-      style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:6,padding:"6px 10px",color:"#f0f6ff",fontSize:12}}>
+      style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:12}}>
       <option value="">All Engineers (overview)</option>
       {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
     </select>
-    <div style={{display:"flex",alignItems:"center",gap:6,background:"#060e1c",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
-      <span style={{fontSize:9,color:"#2e4a66",textTransform:"uppercase"}}>Alert from</span>
+    <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg2)",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
+      <span style={{fontSize:9,color:"var(--text4)",textTransform:"uppercase"}}>Alert from</span>
       <select value={alertDay} onChange={e=>setAlertDay(+e.target.value)}
-        style={{background:"transparent",border:"none",color:"#38bdf8",fontSize:12,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,outline:"none",cursor:"pointer"}}>
+        style={{background:"transparent",border:"none",color:"var(--info)",fontSize:12,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,outline:"none",cursor:"pointer"}}>
         {[["1","Monday"],["2","Tuesday"],["3","Wednesday"],["4","Thursday"],["5","Friday"]].map(([v,l])=><option key={v} value={+v}>{l}</option>)}
       </select>
     </div>
@@ -3343,14 +3343,14 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
 
   {/* Rating legend */}
   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-    {[["0–40","Under Performer","#f87171","#1a0808"],["41–75","Competent","#fb923c","#1c0f00"],["76–95","Performer","#38bdf8","#0a1628"],["96–120","High Performer","#34d399","#022c22"]].map(([r,l,c,bg])=>(
+    {[["0–40","Under Performer","#f87171","#1a0808"],["41–75","Competent","#fb923c","#1c0f00"],["76–95","Performer","var(--info)","#0a1628"],["96–120","High Performer","#34d399","#022c22"]].map(([r,l,c,bg])=>(
       <div key={r} style={{display:"flex",alignItems:"center",gap:5,background:bg,border:`1px solid ${c}25`,borderRadius:6,padding:"4px 9px"}}>
         <div style={{width:7,height:7,borderRadius:2,background:c}}/>
         <span style={{fontSize:10,color:c,fontWeight:700}}>{r}</span>
-        <span style={{fontSize:10,color:"#4e6479"}}>{l}</span>
+        <span style={{fontSize:10,color:"var(--text3)"}}>{l}</span>
       </div>
     ))}
-    <span style={{fontSize:9,color:"#2e4a66"}}>Weights: Utilization 30% · Project Perf 30% · Development 20% · Compliance 20%</span>
+    <span style={{fontSize:9,color:"var(--text4)"}}>Weights: Utilization 30% · Project Perf 30% · Development 20% · Compliance 20%</span>
   </div>
 
   {/* Delay alerts */}
@@ -3361,7 +3361,7 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
       {alertNotifs.map(n=>(
         <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"#1a0808",borderRadius:6,padding:"8px 12px"}}>
           <span style={{fontSize:10,color:"#f87171",flex:1}}>{n.message}</span>
-          <span style={{fontSize:9,color:"#4e6479"}}>{new Date(n.created_at).toLocaleDateString("en-GB")}</span>
+          <span style={{fontSize:9,color:"var(--text3)"}}>{new Date(n.created_at).toLocaleDateString("en-GB")}</span>
           <button className="bg" style={{fontSize:9,padding:"2px 6px"}} onClick={async()=>{
             await supabase.from("notifications").update({read:true}).eq("id",n.id);
             setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
@@ -3374,37 +3374,37 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
   {/* ── Overview table (shown when no engineer selected) ── */}
   {!kpiEngId&&(
   <div className="card">
-    <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:12}}>ENGINEER KPI SCORECARD — {kpiYear}</div>
+    <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",marginBottom:12}}>ENGINEER KPI SCORECARD — {kpiYear}</div>
     <div style={{overflowX:"auto"}}>
     <table style={{minWidth:820}}>
       <thead>
-        <tr style={{background:"#060e1c"}}>
+        <tr style={{background:"var(--bg2)"}}>
           <th rowSpan={2}>Engineer</th>
-          <th colSpan={3} style={{textAlign:"center",color:"#38bdf8",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>A. Utilization 30%</th>
+          <th colSpan={3} style={{textAlign:"center",color:"var(--info)",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>A. Utilization 30%</th>
           <th colSpan={2} style={{textAlign:"center",color:"#a78bfa",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>B. Project 30%</th>
           <th colSpan={2} style={{textAlign:"center",color:"#34d399",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>C. Development 20%</th>
           <th style={{textAlign:"center",color:"#fb923c",fontSize:9,borderBottom:"1px solid #0ea5e920"}}>D. Compliance 20%</th>
           <th rowSpan={2} style={{textAlign:"center"}}>Score</th>
           <th rowSpan={2} style={{textAlign:"center"}}>Rating</th>
         </tr>
-        <tr style={{background:"#060e1c"}}>
-          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Bill%</th>
-          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Know%</th>
-          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
-          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Desc%</th>
-          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
-          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Train↑</th>
-          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Score</th>
-          <th style={{textAlign:"right",fontSize:8,color:"#2e4a66"}}>Submit%</th>
+        <tr style={{background:"var(--bg2)"}}>
+          <th style={{textAlign:"right",fontSize:8,color:"var(--text4)"}}>Bill%</th>
+          <th style={{textAlign:"right",fontSize:8,color:"var(--text4)"}}>Know%</th>
+          <th style={{textAlign:"right",fontSize:8,color:"var(--text4)"}}>Score</th>
+          <th style={{textAlign:"right",fontSize:8,color:"var(--text4)"}}>Desc%</th>
+          <th style={{textAlign:"right",fontSize:8,color:"var(--text4)"}}>Score</th>
+          <th style={{textAlign:"right",fontSize:8,color:"var(--text4)"}}>Train↑</th>
+          <th style={{textAlign:"right",fontSize:8,color:"var(--text4)"}}>Score</th>
+          <th style={{textAlign:"right",fontSize:8,color:"var(--text4)"}}>Submit%</th>
         </tr>
       </thead>
       <tbody>{engKPIs.map((k,i)=>(
         <tr key={k.eng.id} onClick={()=>setKpiEngId(String(k.eng.id))} style={{cursor:"pointer"}}>
           <td><div style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:10,fontWeight:700,color:"#2e4a66",minWidth:16}}>{i+1}</span>
-            <div><div style={{fontWeight:700,fontSize:11}}>{k.eng.name}</div><div style={{fontSize:9,color:"#2e4a66"}}>{k.eng.role}</div></div>
+            <span style={{fontSize:10,fontWeight:700,color:"var(--text4)",minWidth:16}}>{i+1}</span>
+            <div><div style={{fontWeight:700,fontSize:11}}>{k.eng.name}</div><div style={{fontSize:9,color:"var(--text4)"}}>{k.eng.role}</div></div>
           </div></td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontSize:10}}>{k.billPct}%</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontSize:10}}>{k.billPct}%</td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c",fontSize:10}}>{k.knowledgePct}%</td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:kpiRatingColor(k.utilScore)}}>{k.utilScore}</td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontSize:10}}>{k.descRate}%</td>
@@ -3414,7 +3414,7 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"}}>{k.submissionRate}%</td>
           <td style={{textAlign:"center"}}>
             <div style={{display:"inline-flex",alignItems:"center",gap:5}}>
-              <div style={{width:34,height:5,background:"#060e1c",borderRadius:3,overflow:"hidden"}}>
+              <div style={{width:34,height:5,background:"var(--bg2)",borderRadius:3,overflow:"hidden"}}>
                 <div style={{height:"100%",width:`${Math.min(100,k.totalScore)}%`,background:kpiRatingColor(k.totalScore),borderRadius:3}}/>
               </div>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:kpiRatingColor(k.totalScore),fontSize:12}}>{k.totalScore}</span>
@@ -3425,7 +3425,7 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
       ))}</tbody>
     </table>
     </div>
-    <div style={{fontSize:9,color:"#2e4a66",marginTop:8}}>Click any row for full detail · Know% target is 8–12% (green)</div>
+    <div style={{fontSize:9,color:"var(--text4)",marginTop:8}}>Click any row for full detail · Know% target is 8–12% (green)</div>
   </div>)}
 
   {/* ── Individual detail view ── */}
@@ -3447,10 +3447,10 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
     });
 
     const criteria=[
-      {id:"A",label:"Utilization / Efficiency",weight:"30%",score:k.utilScore,color:"#38bdf8",
+      {id:"A",label:"Utilization / Efficiency",weight:"30%",score:k.utilScore,color:"var(--info)",
        howCalc:"Score = Billable%×70% + (Knowledge%÷10×100)×20% + min(BD%×3,100)×10%",
        items:[
-         {l:"Billable Utilization %",v:`${k.billPct}%`,calc:`${k.billWork}h billable ÷ ${k.totalHrs}h total`,target:"Maximize — hours on invoiced/contractual projects",color:"#38bdf8"},
+         {l:"Billable Utilization %",v:`${k.billPct}%`,calc:`${k.billWork}h billable ÷ ${k.totalHrs}h total`,target:"Maximize — hours on invoiced/contractual projects",color:"var(--info)"},
          {l:"Sales Support / BD hours",v:`${k.salesBD}h`,calc:"Tender+Proposal+BD function entries",target:"Tracked only — proposals, BD & leadership meetings",color:"#0ea5e9"},
          {l:"Knowledge Capture %",v:`${k.knowledgePct}%`,calc:`${Math.round(k.knowledgePct/100*k.totalHrs)}h training+R&D ÷ ${k.totalHrs}h total`,target:"~10% — pre-planned, manager pre-approved",color:k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c"},
        ]},
@@ -3473,7 +3473,7 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
        howCalc:"Score = Weeks with entries ÷ Weeks elapsed in year × 100",
        items:[
          {l:"Weekly timesheet submission",v:`${k.submissionRate}%`,calc:`${k.weeks} weeks posted out of ${k.weeksElapsed} elapsed`,target:"100% — weekly entry is a core compliance KPI",color:k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"},
-         {l:"Total work hours logged",v:`${k.totalWork}h`,calc:"All work-type entries this year",target:"Reflects activity & availability",color:"#7a8faa"},
+         {l:"Total work hours logged",v:`${k.totalWork}h`,calc:"All work-type entries this year",target:"Reflects activity & availability",color:"var(--text2)"},
          {l:"Leave days",v:`${k.totalLeave}d`,calc:"All leave-type entries this year",target:"Tracked — advance submission & approval expected",color:"#fb923c"},
        ]},
     ];
@@ -3483,8 +3483,8 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
       {/* Header row */}
       <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{flex:1}}>
-          <div style={{fontSize:14,fontWeight:700,color:"#f0f6ff"}}>{eng.name}</div>
-          <div style={{fontSize:10,color:"#2e4a66"}}>{eng.role} · KPI Year {kpiYear}</div>
+          <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>{eng.name}</div>
+          <div style={{fontSize:10,color:"var(--text4)"}}>{eng.role} · KPI Year {kpiYear}</div>
         </div>
         <div style={{display:"flex",gap:10,alignItems:"center"}}>
           <div style={{textAlign:"center",background:kpiRatingBg(k.totalScore),border:`1px solid ${kpiRatingColor(k.totalScore)}30`,borderRadius:8,padding:"10px 18px"}}>
@@ -3498,14 +3498,14 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
       {/* 4 criteria cards */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
         {criteria.map(c=>(
-          <div key={c.id} style={{background:"#060e1c",borderRadius:8,padding:"12px 14px",border:`1px solid ${c.color}20`}}>
+          <div key={c.id} style={{background:"var(--bg2)",borderRadius:8,padding:"12px 14px",border:`1px solid ${c.color}20`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-              <div><span style={{fontSize:9,fontWeight:700,color:c.color,background:c.color+"20",padding:"1px 6px",borderRadius:3,marginRight:5}}>{c.id} · {c.weight}</span><span style={{fontSize:10,fontWeight:700,color:"#f0f6ff"}}>{c.label}</span></div>
+              <div><span style={{fontSize:9,fontWeight:700,color:c.color,background:c.color+"20",padding:"1px 6px",borderRadius:3,marginRight:5}}>{c.id} · {c.weight}</span><span style={{fontSize:10,fontWeight:700,color:"var(--text0)"}}>{c.label}</span></div>
               <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:kpiRatingColor(c.score)}}>{c.score}</div>
             </div>
             {/* How calculated */}
-            <div style={{fontSize:9,color:"#2e4a66",fontStyle:"italic",marginBottom:6,padding:"3px 6px",background:"#060e1c",borderRadius:3}}>{c.howCalc}</div>
-            <div style={{background:"#0c1829",borderRadius:3,height:5,overflow:"hidden",marginBottom:10}}>
+            <div style={{fontSize:9,color:"var(--text4)",fontStyle:"italic",marginBottom:6,padding:"3px 6px",background:"var(--bg2)",borderRadius:3}}>{c.howCalc}</div>
+            <div style={{background:"var(--bg1)",borderRadius:3,height:5,overflow:"hidden",marginBottom:10}}>
               <div style={{height:"100%",width:`${Math.min(100,c.score)}%`,background:c.color,borderRadius:3}}/>
             </div>
             <div style={{display:"grid",gap:7}}>
@@ -3513,8 +3513,8 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
                 <div key={ii} style={{borderTop:ii>0?"1px solid #0d1a2d":"none",paddingTop:ii>0?6:0}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:10,color:"#7a8faa",fontWeight:600}}>{item.l}</div>
-                      <div style={{fontSize:9,color:"#2e4a66",marginTop:1}}>{item.calc}</div>
+                      <div style={{fontSize:10,color:"var(--text2)",fontWeight:600}}>{item.l}</div>
+                      <div style={{fontSize:9,color:"var(--text4)",marginTop:1}}>{item.calc}</div>
                     </div>
                     <div style={{textAlign:"right",flexShrink:0}}>
                       <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:700,color:item.color}}>{item.v}</div>
@@ -3526,17 +3526,17 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
             </div>
             {/* Manager note per criterion */}
             <div style={{marginTop:10,borderTop:"1px solid #0d1a2d",paddingTop:8}}>
-              <div style={{fontSize:9,color:"#2e4a66",marginBottom:3}}>Manager note for {c.id}:</div>
+              <div style={{fontSize:9,color:"var(--text4)",marginBottom:3}}>Manager note for {c.id}:</div>
               <textarea value={engNotes[c.id]||""} onChange={e=>setNote(c.id,e.target.value)}
                 rows={2} placeholder={`Add note for ${c.label}…`}
-                style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:4,color:"#7a8faa",fontSize:10,padding:"4px 6px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+                style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text2)",fontSize:10,padding:"4px 6px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
             </div>
           </div>
         ))}
       </div>
 
       {/* Monthly table */}
-      <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:8}}>MONTHLY ACTIVITY — {kpiYear}</div>
+      <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",marginBottom:8}}>MONTHLY ACTIVITY — {kpiYear}</div>
       <table style={{marginBottom:14}}>
         <thead><tr><th>Month</th><th style={{textAlign:"right"}}>Work Hrs</th><th style={{textAlign:"right"}}>Billable</th><th style={{textAlign:"right"}}>Util%</th><th style={{textAlign:"right"}}>Func Hrs</th><th style={{textAlign:"right"}}>Leave</th></tr></thead>
         <tbody>{monthlyData.map(row=>(
@@ -3544,8 +3544,8 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
             <td style={{fontWeight:600}}>{row.mn} {kpiYear}</td>
             <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace"}}>{row.wh||"—"}</td>
             <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{row.bh||"—"}</td>
-            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:row.util>=70?"#34d399":row.util>=50?"#fb923c":"#7a8faa"}}>{row.wh?row.util+"%":"—"}</td>
-            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{row.fh||"—"}</td>
+            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:row.util>=70?"#34d399":row.util>=50?"#fb923c":"var(--text2)"}}>{row.wh?row.util+"%":"—"}</td>
+            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{row.fh||"—"}</td>
             <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>{row.leave||"—"}</td>
           </tr>
         ))}</tbody>
@@ -3553,25 +3553,25 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
 
       {/* General manager note */}
       <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#7a8faa",marginBottom:6}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--text2)",marginBottom:6}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
         <textarea value={engNotes.general||""} onChange={e=>setNote("general",e.target.value)}
           rows={4} placeholder="Overall performance summary, key achievements, areas for improvement, next year goals…"
-          style={{width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:6,color:"#a0b4c8",fontSize:11,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
-        <div style={{fontSize:9,color:"#2e4a66",marginTop:4}}>Notes saved in-session — to persist, copy to the head office review form.</div>
+          style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,color:"#a0b4c8",fontSize:11,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+        <div style={{fontSize:9,color:"var(--text4)",marginTop:4}}>Notes saved in-session — to persist, copy to the head office review form.</div>
       </div>
 
       {/* Improvement actions checklist */}
-      <div style={{padding:"10px 12px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
-        <div style={{fontSize:10,fontWeight:700,color:"#7a8faa",marginBottom:8}}>HEAD OFFICE IMPROVEMENT ACTIONS (Annual Form)</div>
+      <div style={{padding:"10px 12px",background:"var(--bg2)",borderRadius:6,border:"1px solid var(--border3)"}}>
+        <div style={{fontSize:10,fontWeight:700,color:"var(--text2)",marginBottom:8}}>HEAD OFFICE IMPROVEMENT ACTIONS (Annual Form)</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
           {["Process optimization","Training recommendation","Daily project monitoring","Regular one-to-one discussions","Other corrective measures"].map((a,i)=>(
-            <div key={i} style={{display:"flex",gap:6,alignItems:"center",fontSize:10,color:"#4e6479"}}>
-              <div style={{width:6,height:6,borderRadius:1,background:"#1a3050",flexShrink:0}}/>
+            <div key={i} style={{display:"flex",gap:6,alignItems:"center",fontSize:10,color:"var(--text3)"}}>
+              <div style={{width:6,height:6,borderRadius:1,background:"var(--border)",flexShrink:0}}/>
               {a}
             </div>
           ))}
         </div>
-        <div style={{fontSize:9,color:"#2e4a66",marginTop:8,fontStyle:"italic"}}>📋 Use this data to fill the annual head office review form — scores, hours, and notes above feed directly into the 4 criteria.</div>
+        <div style={{fontSize:9,color:"var(--text4)",marginTop:8,fontStyle:"italic"}}>📋 Use this data to fill the annual head office review form — scores, hours, and notes above feed directly into the 4 criteria.</div>
       </div>
     </div>);
   })()}
@@ -3582,6 +3582,14 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
 export default function App(){
   const [session,setSession]         = useState(null);
   const [authLoading,setAuthLoading] = useState(true);
+
+  // ── Theme ──
+  const [isDark,setIsDark] = useState(()=>localStorage.getItem("erp_theme")!=="light");
+  useEffect(()=>{
+    if(isDark){ document.body.classList.remove("light"); localStorage.setItem("erp_theme","dark"); }
+    else{ document.body.classList.add("light"); localStorage.setItem("erp_theme","light"); }
+  },[isDark]);
+  const toggleTheme = ()=>setIsDark(d=>!d);
 
   const [authEmail,setAuthEmail]     = useState("");
   const [authPwd,setAuthPwd]         = useState("");
@@ -4873,24 +4881,24 @@ export default function App(){
 
   /* ── LOADING ── */
   if(authLoading) return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#07101e",gap:16}}>
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"var(--bg0)",gap:16}}>
       <img src={LOGO_SRC} alt="ENEVO Group" style={{width:110,height:110,borderRadius:18,opacity:0.9}}/>
-      <div style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontSize:13,letterSpacing:".1em"}}>Loading ENEVO GROUP…</div>
+      <div style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontSize:13,letterSpacing:".1em"}}>Loading ENEVO GROUP…</div>
     </div>
   );
 
   /* ── AUTH SCREEN ── */
   if(!session) return(
-    <div style={{minHeight:"100vh",background:"#07101e",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Sans',sans-serif"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');*{box-sizing:border-box;margin:0;padding:0}input,select{background:#060e1c;border:1px solid #192d47;color:#dde3ef;padding:10px 14px;border-radius:7px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;outline:none;width:100%;transition:border-color .2s}input:focus,select:focus{border-color:#38bdf8}select option{background:#060e1c}.bp{background:linear-gradient(135deg,#0ea5e9,#0369a1);border:none;color:#fff;padding:11px;border-radius:7px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center}.bp:hover{opacity:.85}`}</style>
-      <div style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:14,padding:"36px",width:430,maxWidth:"95vw",boxShadow:"0 24px 60px #00000080"}}>
+    <div style={{minHeight:"100vh",background:"var(--bg0)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Sans',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');*{box-sizing:border-box;margin:0;padding:0}input,select{background:var(--input-bg);border:1px solid var(--border3);color:var(--text1);padding:10px 14px;border-radius:7px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;outline:none;width:100%;transition:border-color .2s}input:focus,select:focus{border-color:var(--info)}select option{background:var(--input-bg)}.bp{background:linear-gradient(135deg,#0ea5e9,#0369a1);border:none;color:#fff;padding:11px;border-radius:7px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center}.bp:hover{opacity:.85}`}</style>
+      <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:14,padding:"36px",width:430,maxWidth:"95vw",boxShadow:"0 24px 60px #00000080"}}>
         <div style={{textAlign:"center",marginBottom:24}}>
           <div style={{display:"flex",justifyContent:"center",marginBottom:12}}>
             <img src={LOGO_SRC} alt="ENEVO Group" style={{width:130,height:130,borderRadius:22,objectFit:"contain"}}/>
           </div>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8",letterSpacing:".18em",marginBottom:6}}>ENEVO GROUP</div>
-          <div style={{fontSize:22,fontWeight:700,color:"#f0f6ff"}}>ENEVO GROUP</div>
-          <div style={{fontSize:12,color:"#2e4a66",marginTop:4}}>Industrial & Renewable Energy Automation</div>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"var(--info)",letterSpacing:".18em",marginBottom:6}}>ENEVO GROUP</div>
+          <div style={{fontSize:22,fontWeight:700,color:"var(--text0)"}}>ENEVO GROUP</div>
+          <div style={{fontSize:12,color:"var(--text4)",marginTop:4}}>Industrial & Renewable Energy Automation</div>
         </div>
         {authMode==="login"?(
           <div style={{display:"grid",gap:12}}>
@@ -4898,7 +4906,7 @@ export default function App(){
             <div><Lbl>Email</Lbl><input type="email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="you@company.com"/></div>
             <div><Lbl>Password</Lbl><input type="password" value={authPwd} onChange={e=>setAuthPwd(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin(e)}/></div>
             <button className="bp" onClick={handleLogin}>Sign In</button>
-            <div style={{textAlign:"center",fontSize:12,color:"#2e4a66"}}>New engineer? <span style={{color:"#38bdf8",cursor:"pointer"}} onClick={()=>setAuthMode("signup")}>Create Account</span></div>
+            <div style={{textAlign:"center",fontSize:12,color:"var(--text4)"}}>New engineer? <span style={{color:"var(--info)",cursor:"pointer"}} onClick={()=>setAuthMode("signup")}>Create Account</span></div>
           </div>
         ):<SignupScreen onBack={()=>setAuthMode("login")}/>}
       </div>
@@ -4923,54 +4931,90 @@ export default function App(){
   ];
 
   return(
-    <div style={{fontFamily:"'IBM Plex Sans',sans-serif",background:"#07101e",minHeight:"100vh",color:"#dde3ef",transition:"background .3s,color .3s"}}>
+    <div style={{fontFamily:"'IBM Plex Sans',sans-serif",background:"var(--bg0)",minHeight:"100vh",color:"var(--text1)",transition:"background .3s,color .3s"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:#07101e}::-webkit-scrollbar-thumb{background:#1a3354;border-radius:3px}
-        .nb{background:none;border:none;cursor:pointer;padding:9px 14px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:500;color:#7a8faa;display:flex;align-items:center;gap:8px;transition:all .2s;width:100%;text-align:left}
-        .nb:hover{background:#0d1a2d;color:#38bdf8}.nb.a{background:#0d1a2d;color:#38bdf8;border-left:2px solid #38bdf8}
-        .card{background:#0c1829;border:1px solid #1a3050;border-radius:10px;padding:18px}
+        /* ── DARK THEME (default) ── */
+        :root{
+          --bg0:#07101e;--bg1:#0c1829;--bg2:#060e1c;--bg3:#0d1e33;
+          --bg1g:linear-gradient(135deg,#0c1829,#0d1e34);
+          --border:#1a3050;--border2:#0d1e33;--border3:#192d47;
+          --sidebar:#060c18;--sidebar-border:#0d1e33;
+          --nb-hover:#0d1a2d;--atab-active:#0d1a2d;
+          --text0:#f0f6ff;--text1:#dde3ef;--text2:#7a8faa;--text3:#4e6479;--text4:#2e4a66;
+          --accent:#0ea5e9;--info:#38bdf8;--scrollbar-thumb:#1a3354;
+          --input-bg:#060e1c;--input-border:#1a3050;
+          --modal-bg:#0c1829;--card-hover:#0d1e34;
+          --th-bg:#060e1c;--tr-hover:#0d1e33;
+        }
+        /* ── LIGHT THEME ── */
+        body.light{
+          --bg0:#eef2f7;--bg1:#ffffff;--bg2:#f5f8fc;--bg3:#e8eef6;
+          --bg1g:linear-gradient(135deg,#ffffff,#f0f5fb);
+          --border:#c8d6e8;--border2:#dce6f0;--border3:#c0d0e0;
+          --sidebar:#1e293b;--sidebar-border:#2d3f55;
+          --nb-hover:#2d3f55;--atab-active:#1e3a5a;
+          --text0:#0f172a;--text1:#1e293b;--text2:#475569;--text3:#64748b;--text4:#94a3b8;
+          --accent:#0ea5e9;--info:#0284c7;--scrollbar-thumb:#94a3b8;
+          --input-bg:#f8fafc;--input-border:#c8d6e8;
+          --modal-bg:#ffffff;--card-hover:#edf3fa;
+          --th-bg:#f0f5fb;--tr-hover:#edf3fa;
+        }
+        /* scrollbar */
+        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg0)}::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:3px}
+        /* nav buttons */
+        .nb{background:none;border:none;cursor:pointer;padding:9px 14px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:500;color:var(--text2);display:flex;align-items:center;gap:8px;transition:all .2s;width:100%;text-align:left}
+        .nb:hover{background:var(--nb-hover);color:var(--info)}.nb.a{background:var(--nb-hover);color:var(--info);border-left:2px solid var(--info)}
+        /* cards */
+        .card{background:var(--bg1);border:1px solid var(--border);border-radius:10px;padding:18px}
+        /* buttons */
         .bp{background:linear-gradient(135deg,#0ea5e9,#0369a1);border:none;color:#fff;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;transition:opacity .2s;display:inline-flex;align-items:center;gap:6px}
         .bp:hover{opacity:.85}
-        .bg{background:transparent;border:1px solid #1a3050;color:#7a8faa;padding:6px 12px;border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:12px;transition:all .2s}
-        .bg:hover{border-color:#38bdf8;color:#38bdf8}
-        .be{background:transparent;border:1px solid #0ea5e930;color:#38bdf8;padding:4px 9px;border-radius:4px;cursor:pointer;font-size:11px;font-family:'IBM Plex Sans',sans-serif}
+        .bg{background:transparent;border:1px solid var(--border);color:var(--text2);padding:6px 12px;border-radius:6px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:12px;transition:all .2s}
+        .bg:hover{border-color:var(--info);color:var(--info)}
+        .be{background:transparent;border:1px solid #0ea5e930;color:var(--info);padding:4px 9px;border-radius:4px;cursor:pointer;font-size:11px;font-family:'IBM Plex Sans',sans-serif}
         .be:hover{background:#0ea5e920}
         .bd{background:transparent;border:1px solid #7f1d1d;color:#f87171;padding:4px 9px;border-radius:4px;cursor:pointer;font-size:11px;font-family:'IBM Plex Sans',sans-serif}
         .bd:hover{background:#7f1d1d30}
-        input,select,textarea{background:#060e1c;border:1px solid #1a3050;color:#dde3ef;padding:8px 12px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;outline:none;width:100%;transition:border-color .2s}
-        input:focus,select:focus,textarea:focus{border-color:#38bdf8}select option{background:#060e1c;color:#dde3ef}
+        /* inputs */
+        input,select,textarea{background:var(--input-bg);border:1px solid var(--input-border);color:var(--text1);padding:8px 12px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;outline:none;width:100%;transition:border-color .2s}
+        input:focus,select:focus,textarea:focus{border-color:var(--info)}select option{background:var(--input-bg);color:var(--text1)}
+        /* tables */
         table{width:100%;border-collapse:collapse}
-        th{color:#4e6479;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:9px 12px;border-bottom:1px solid #1a3050;text-align:left}
-        td{padding:8px 12px;border-bottom:1px solid #0d1e33;font-size:12px;color:#dde3ef}tr:hover td{background:#0d1e33}th{background:#060e1c}
+        th{color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:9px 12px;border-bottom:1px solid var(--border);text-align:left}
+        td{padding:8px 12px;border-bottom:1px solid var(--border2);font-size:12px;color:var(--text1)}tr:hover td{background:var(--tr-hover)}th{background:var(--th-bg)}
+        /* misc */
         .av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#0ea5e9,#0369a1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
         .bar{height:5px;border-radius:3px;background:linear-gradient(90deg,#0ea5e9,#38bdf8)}
         .modal-ov{position:fixed;inset:0;background:#00000099;backdrop-filter:blur(6px);z-index:100;display:flex;align-items:center;justify-content:center}
-        .modal{background:#0c1829;border:1px solid #1a3050;border-radius:12px;padding:24px;width:530px;max-width:95vw;max-height:90vh;overflow-y:auto;color:#dde3ef}
+        .modal{background:var(--modal-bg);border:1px solid var(--border);border-radius:12px;padding:24px;width:530px;max-width:95vw;max-height:90vh;overflow-y:auto;color:var(--text1)}
         .toast{position:fixed;bottom:28px;right:28px;padding:11px 18px;border-radius:8px;font-size:12px;font-weight:700;z-index:200;animation:su .3s ease}
         @keyframes su{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
-        .metric{background:${"linear-gradient(135deg,#0c1829,#0d1e34)"};border:1px solid #1a3050;border-radius:10px;padding:16px}
-        .wc{background:#060e1c;border:1px solid #1a3050;border-radius:8px;min-height:110px;padding:8px}
-        .atab{background:none;border:none;cursor:pointer;padding:7px 13px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:600;color:#4e6479;transition:all .2s}
-        .atab:hover{color:#38bdf8}.atab.a{background:#0d1a2d;color:#38bdf8}
-        .rpt-card{background:#0c1829;border:1px solid #1a3050;border-radius:8px;padding:14px;cursor:pointer;transition:all .2s}
-        .rpt-card:hover,.rpt-card.sel{border-color:#38bdf8;background:#0d1e34}
+        .metric{background:var(--bg1g);border:1px solid var(--border);border-radius:10px;padding:16px}
+        .wc{background:var(--input-bg);border:1px solid var(--border);border-radius:8px;min-height:110px;padding:8px}
+        .atab{background:none;border:none;cursor:pointer;padding:7px 13px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:600;color:var(--text3);transition:all .2s}
+        .atab:hover{color:var(--info)}.atab.a{background:var(--atab-active);color:var(--info)}
+        .rpt-card{background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:14px;cursor:pointer;transition:all .2s}
+        .rpt-card:hover,.rpt-card.sel{border-color:var(--info);background:var(--card-hover)}
         .role-badge{display:inline-block;padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700;font-family:'IBM Plex Mono',monospace}
+        /* light mode sidebar text override */
+        body.light .nb{color:#94a3b8}
+        body.light .nb:hover,body.light .nb.a{color:#38bdf8;background:#2d3f55}
       `}</style>
 
       <div style={{display:"flex"}}>
         {/* ── Sidebar ── */}
-        <div style={{width:215,background:"#060c18",borderRight:`1px solid #0d1e33`,minHeight:"100vh",padding:"20px 10px",position:"fixed",top:0,left:0,bottom:0,overflowY:"auto",zIndex:50,transition:"background .3s"}}>
+        <div style={{width:215,background:"var(--sidebar)",borderRight:`1px solid var(--sidebar-border)`,minHeight:"100vh",padding:"20px 10px",position:"fixed",top:0,left:0,bottom:0,overflowY:"auto",zIndex:50,transition:"background .3s"}}>
           <div style={{marginBottom:20,paddingLeft:6}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
               <LogoImg/>
               <div>
-                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#38bdf8",letterSpacing:".15em",fontWeight:600}}>ENEVO-ERP</div>
-                <div style={{fontSize:13,fontWeight:700,color:"#f0f6ff",lineHeight:1.1}}>ENEVO GROUP</div>
+                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"var(--info)",letterSpacing:".15em",fontWeight:600}}>ENEVO-ERP</div>
+                <div style={{fontSize:13,fontWeight:700,color:"var(--text0)",lineHeight:1.1}}>ENEVO GROUP</div>
               </div>
             </div>
-            <div style={{fontSize:10,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>ENEVO Group</div>
+            <div style={{fontSize:10,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>ENEVO Group</div>
           </div>
           {navItems.map(n=>(
             <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>setView(n.id)}>
@@ -4978,8 +5022,8 @@ export default function App(){
               {n.id==="admin"&&unreadCount>0&&<span style={{marginLeft:"auto",background:"#ef4444",color:"#fff",fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:10}}>{unreadCount}</span>}
             </button>
           ))}
-          <div style={{marginTop:14,borderTop:`1px solid #1a3050`,paddingTop:12,paddingLeft:6,paddingRight:6}}>
-            <div style={{fontSize:9,color:"#4e6479",fontWeight:700,letterSpacing:".1em",marginBottom:8}}>PERIOD</div>
+          <div style={{marginTop:14,borderTop:`1px solid var(--border)`,paddingTop:12,paddingLeft:6,paddingRight:6}}>
+            <div style={{fontSize:9,color:"var(--text3)",fontWeight:700,letterSpacing:".1em",marginBottom:8}}>PERIOD</div>
             <div style={{marginBottom:8}}><Lbl>Month</Lbl>
               <select value={month} onChange={e=>setMonth(+e.target.value)} style={{fontSize:11,padding:"5px 8px"}}>
                 {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
@@ -4992,31 +5036,37 @@ export default function App(){
             </div>
           </div>
           <div style={{position:"absolute",bottom:16,left:10,right:10}}>
-            <div style={{background:"#0c1829",border:`1px solid #1a3050`,borderRadius:8,padding:"9px 10px"}}>
+            <div style={{background:"var(--bg1)",border:`1px solid var(--border)`,borderRadius:8,padding:"9px 10px"}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                 <div className="av" style={{width:26,height:26,fontSize:8}}>{myProfile?.name?.slice(0,2).toUpperCase()||"?"}</div>
                 <div style={{minWidth:0}}>
-                  <div style={{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"#f0f6ff"}}>{myProfile?.name||session.user.email}</div>
-                  <div style={{fontSize:9,color:ROLE_COLORS[role]||"#2e4a66",fontWeight:600}}>{ROLE_LABELS[role]||role}</div>
+                  <div style={{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text0)"}}>{myProfile?.name||session.user.email}</div>
+                  <div style={{fontSize:9,color:ROLE_COLORS[role]||"var(--text4)",fontWeight:600}}>{ROLE_LABELS[role]||role}</div>
                 </div>
               </div>
-              
-              <button onClick={handleLogout} style={{width:"100%",background:"transparent",border:`1px solid #1a3050`,color:"#7a8faa",padding:"5px",borderRadius:5,cursor:"pointer",fontSize:11,fontFamily:"'IBM Plex Sans',sans-serif"}}>Sign Out</button>
+              <div style={{display:"flex",gap:6,marginBottom:6}}>
+                <button onClick={toggleTheme} title={isDark?"Switch to Light Mode":"Switch to Dark Mode"} style={{flex:1,background:"transparent",border:`1px solid var(--border)`,color:"var(--text2)",padding:"5px",borderRadius:5,cursor:"pointer",fontSize:13,fontFamily:"'IBM Plex Sans',sans-serif",transition:"all .2s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--info)";e.currentTarget.style.color="var(--info)"}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text2)"}}>
+                  {isDark?"☀️":"🌙"}
+                </button>
+              </div>
+              <button onClick={handleLogout} style={{width:"100%",background:"transparent",border:`1px solid var(--border)`,color:"var(--text2)",padding:"5px",borderRadius:5,cursor:"pointer",fontSize:11,fontFamily:"'IBM Plex Sans',sans-serif"}}>Sign Out</button>
             </div>
           </div>
         </div>
 
         {/* ── Main Content ── */}
-        <div style={{marginLeft:215,flex:1,padding:"24px 28px",maxWidth:"calc(100vw - 215px)",background:"#060e1c",color:"#dde3ef",minHeight:"100vh",transition:"background .3s"}}>
-          {loading&&<div style={{textAlign:"center",padding:60,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>Loading…</div>}
+        <div style={{marginLeft:215,flex:1,padding:"24px 28px",maxWidth:"calc(100vw - 215px)",background:"var(--bg2)",color:"var(--text1)",minHeight:"100vh",transition:"background .3s"}}>
+          {loading&&<div style={{textAlign:"center",padding:60,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>Loading…</div>}
           {!loading&&<>
 
           {/* ════ DASHBOARD ════ */}
           {view==="dashboard"&&(
             <div>
               <div style={{marginBottom:20}}>
-                <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>{isAdmin||isAcct||isLead?"Team Dashboard":"My Summary"}</h1>
-                <p style={{color:"#2e4a66",fontSize:12,marginTop:3,fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year} · {isAdmin||isAcct||isLead?"Live Overview":"Your personal stats"}</p>
+                <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>{isAdmin||isAcct||isLead?"Team Dashboard":"My Summary"}</h1>
+                <p style={{color:"var(--text4)",fontSize:12,marginTop:3,fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year} · {isAdmin||isAcct||isLead?"Live Overview":"Your personal stats"}</p>
               </div>
               {/* Engineers only see their own summary */}
               {!isAdmin&&!isAcct&&!isLead&&(()=>{
@@ -5028,16 +5078,16 @@ export default function App(){
                 const myUtil=myTarget>0?Math.round(myWork/myTarget*100):0;
                 return<>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11,marginBottom:18}}>
-                    {[{l:"My Work Hours",v:myWork+"h",c:"#38bdf8"},{l:"Utilization",v:fmtPct(myUtil),c:myUtil>=80?"#34d399":myUtil>=60?"#fb923c":"#f87171"},{l:"Leave Days",v:myLeave+"d",c:"#fb923c"},{l:"Projects",v:myProjs,c:"#a78bfa"}].map((s,i)=>(
-                      <div key={i} className="metric"><div style={{fontSize:9,color:"#2e4a66",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{s.l}</div><div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:s.c,marginTop:8,lineHeight:1}}>{s.v}</div></div>
+                    {[{l:"My Work Hours",v:myWork+"h",c:"var(--info)"},{l:"Utilization",v:fmtPct(myUtil),c:myUtil>=80?"#34d399":myUtil>=60?"#fb923c":"#f87171"},{l:"Leave Days",v:myLeave+"d",c:"#fb923c"},{l:"Projects",v:myProjs,c:"#a78bfa"}].map((s,i)=>(
+                      <div key={i} className="metric"><div style={{fontSize:9,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{s.l}</div><div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:s.c,marginTop:8,lineHeight:1}}>{s.v}</div></div>
                     ))}
                   </div>
-                  <div className="card"><h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:10}}>My {MONTHS[month]} Work Log</h3>
+                  <div className="card"><h3 style={{fontSize:12,fontWeight:600,color:"var(--text2)",marginBottom:10}}>My {MONTHS[month]} Work Log</h3>
                     <table><thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th></tr></thead>
                     <tbody>{myE.filter(e=>e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
                       const p=projects.find(x=>x.id===e.project_id);
-                      return<tr key={e.id}><td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>{e.date}</td><td style={{color:"#38bdf8",fontSize:11}}>{p?.id||"—"}</td><td style={{fontSize:11,color:"#7a8faa"}}>{e.task_type||"—"}</td><td style={{fontSize:11,color:"#4e6479",fontStyle:"italic",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td><td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#38bdf8"}}>{e.hours}h</td></tr>;
-                    })}{myE.length===0&&<tr><td colSpan={5} style={{textAlign:"center",color:"#2e4a66",padding:16}}>No entries for {MONTHS[month]} {year}. Go to Post Hours to log time.</td></tr>}
+                      return<tr key={e.id}><td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>{e.date}</td><td style={{color:"var(--info)",fontSize:11}}>{p?.id||"—"}</td><td style={{fontSize:11,color:"var(--text2)"}}>{e.task_type||"—"}</td><td style={{fontSize:11,color:"var(--text3)",fontStyle:"italic",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td><td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{e.hours}h</td></tr>;
+                    })}{myE.length===0&&<tr><td colSpan={5} style={{textAlign:"center",color:"var(--text4)",padding:16}}>No entries for {MONTHS[month]} {year}. Go to Post Hours to log time.</td></tr>}
                     </tbody></table>
                   </div>
                 </>;
@@ -5056,28 +5106,28 @@ export default function App(){
                 const dLeave=dEntries.filter(e=>e.entry_type==="leave").length;
                 return<>
               {/* Month + Project filter bar */}
-              <div style={{display:"flex",gap:10,alignItems:"flex-end",marginBottom:16,background:"#060e1c",borderRadius:8,padding:"10px 14px",border:"1px solid #192d47"}}>
+              <div style={{display:"flex",gap:10,alignItems:"flex-end",marginBottom:16,background:"var(--bg2)",borderRadius:8,padding:"10px 14px",border:"1px solid var(--border3)"}}>
                 <div style={{marginRight:"auto"}}>
-                  <div style={{fontSize:10,color:"#2e4a66",fontWeight:700,marginBottom:4}}>MONTH</div>
+                  <div style={{fontSize:10,color:"var(--text4)",fontWeight:700,marginBottom:4}}>MONTH</div>
                   <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                    <button style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#dde3ef",cursor:"pointer",fontSize:11}} onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}}>←</button>
-                    <select value={month} onChange={e=>setMonth(+e.target.value)} style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                    <button style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text1)",cursor:"pointer",fontSize:11}} onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}}>←</button>
+                    <select value={month} onChange={e=>setMonth(+e.target.value)} style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
                       {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
                     </select>
-                    <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                    <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}>
                       {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
                     </select>
-                    <button style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#dde3ef",cursor:"pointer",fontSize:11}} onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}>→</button>
+                    <button style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text1)",cursor:"pointer",fontSize:11}} onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}>→</button>
                   </div>
                 </div>
                 <div>
-                  <div style={{fontSize:10,color:"#2e4a66",fontWeight:700,marginBottom:4}}>PROJECT FILTER</div>
-                  <select value={dashProjFilter} onChange={e=>setDashProjFilter(e.target.value)} style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:5,padding:"4px 10px",color:"#f0f6ff",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif",width:220}}>
+                  <div style={{fontSize:10,color:"var(--text4)",fontWeight:700,marginBottom:4}}>PROJECT FILTER</div>
+                  <select value={dashProjFilter} onChange={e=>setDashProjFilter(e.target.value)} style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 10px",color:"var(--text0)",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif",width:220}}>
                     <option value="ALL">All Projects</option>
                     {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
                   </select>
                 </div>
-                {dashProjFilter!=="ALL"&&<button style={{background:"transparent",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#7a8faa",cursor:"pointer",fontSize:10}} onClick={()=>setDashProjFilter("ALL")}>✕ All</button>}
+                {dashProjFilter!=="ALL"&&<button style={{background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text2)",cursor:"pointer",fontSize:10}} onClick={()=>setDashProjFilter("ALL")}>✕ All</button>}
               </div>
               {/* Warn if all projects are non-billable — guide admin to fix */}
               {(isAdmin||isAcct)&&dWorkHrs>0&&dBillHrs===0&&(
@@ -5088,30 +5138,30 @@ export default function App(){
               )}
               <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:11,marginBottom:18}}>
                 {[
-                  {l:"Total Work Hrs",v:dWorkHrs+"h",c:"#f0f6ff",show:true},
+                  {l:"Total Work Hrs",v:dWorkHrs+"h",c:"var(--text0)",show:true},
                   {l:"Billable Hrs",v:dBillHrs+"h",c:"#34d399",show:isAdmin||isAcct||isLead},
                   {l:"Non-Billable",v:dNonHrs+"h",c:"#fb923c",show:isAdmin||isAcct},
-                  {l:"Billability",v:fmtPct(dBillPct),c:"#38bdf8",show:isAdmin||isAcct},
+                  {l:"Billability",v:fmtPct(dBillPct),c:"var(--info)",show:isAdmin||isAcct},
                   {l:"Revenue Billed",v:fmtCurrency(dRevenue),c:"#a78bfa",show:isAdmin||isAcct},
                   {l:"Absence Days",v:dLeave+"d",c:"#f472b6",show:true},
                 ].filter(m=>m.show).map((m,i)=>(
                   <div key={i} className="metric">
-                    <div style={{fontSize:9,color:"#2e4a66",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{m.l}</div>
+                    <div style={{fontSize:9,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{m.l}</div>
                     <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:m.c,marginTop:8,lineHeight:1}}>{m.v}</div>
                   </div>
                 ))}
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:14,marginBottom:14}}>
                 <div className="card">
-                  <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>Team Utilization — {MONTHS[month]}</h3>
-                  {engStats.length===0&&<p style={{color:"#2e4a66",fontSize:12}}>No hours logged yet.</p>}
+                  <h3 style={{fontSize:12,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Team Utilization — {MONTHS[month]}</h3>
+                  {engStats.length===0&&<p style={{color:"var(--text4)",fontSize:12}}>No hours logged yet.</p>}
                   {engStats.map(eng=>(
                     <div key={eng.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                       <div className="av" style={{fontSize:9,width:26,height:26}}>{eng.name?.slice(0,2).toUpperCase()}</div>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
                           <span style={{fontSize:11,fontWeight:500}}>{eng.name}</span>
-                          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{eng.workHrs}h · {fmtPct(eng.utilization)}</span>
+                          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"var(--info)"}}>{eng.workHrs}h · {fmtPct(eng.utilization)}</span>
                         </div>
                         <div style={{background:"#0a1628",height:4,borderRadius:3,overflow:"hidden"}}>
                           <div style={{height:"100%",width:`${eng.utilization}%`,borderRadius:3,background:eng.utilization>=80?"linear-gradient(90deg,#34d399,#10b981)":eng.utilization>=60?"linear-gradient(90deg,#fb923c,#f59e0b)":"linear-gradient(90deg,#f87171,#ef4444)"}}/>
@@ -5122,13 +5172,13 @@ export default function App(){
                   ))}
                 </div>
                 <div className="card">
-                  <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>Task Distribution</h3>
-                  {taskStats.length===0&&<p style={{color:"#2e4a66",fontSize:12}}>No tasks logged.</p>}
+                  <h3 style={{fontSize:12,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Task Distribution</h3>
+                  {taskStats.length===0&&<p style={{color:"var(--text4)",fontSize:12}}>No tasks logged.</p>}
                   {taskStats.map(cat=>{const pct=totalWorkHrs?Math.round(cat.hours/totalWorkHrs*100):0;return(
                     <div key={cat.category} style={{marginBottom:9}}>
                       <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
                         <span style={{fontSize:11}}>{cat.category}</span>
-                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#38bdf8"}}>{cat.hours}h · {pct}%</span>
+                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"var(--info)"}}>{cat.hours}h · {pct}%</span>
                       </div>
                       <div style={{background:"#0a1628",height:4,borderRadius:3,overflow:"hidden"}}>
                         <div className="bar" style={{width:`${pct}%`}}/>
@@ -5137,16 +5187,16 @@ export default function App(){
                 </div>
               </div>
               <div className="card">
-                <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:12}}>Projects — {MONTHS[month]} {year}{dashProjFilter!=="ALL"&&` · Filtered`}</h3>
+                <h3 style={{fontSize:12,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Projects — {MONTHS[month]} {year}{dashProjFilter!=="ALL"&&` · Filtered`}</h3>
                 <table>
                   <thead><tr><th>No.</th><th>Name</th><th>Phase</th><th>Hours</th>{(isAdmin||isAcct)&&<><th>Billing</th><th>Revenue</th></>}</tr></thead>
                   <tbody>{projStats.filter(p=>p.hours>0&&(dashProjFilter==="ALL"||p.id===dashProjFilter)).map(p=>(
                     <tr key={p.id}>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{p.id}</td>
+                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</td>
                       <td style={{fontSize:11}}>{p.name}</td>
-                      <td style={{color:"#7a8faa",fontSize:11}}>{p.phase}</td>
+                      <td style={{color:"var(--text2)",fontSize:11}}>{p.phase}</td>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.hours}h</td>
-                      {(isAdmin||isAcct)&&<><td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"#071e36":"#1a0a00",color:p.billable?"#38bdf8":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
+                      {(isAdmin||isAcct)&&<><td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"#071e36":"#1a0a00",color:p.billable?"var(--info)":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{p.billable?fmtCurrency(p.revenue):"—"}</td></>}
                     </tr>
                   ))}</tbody>
@@ -5160,15 +5210,15 @@ export default function App(){
           {view==="timesheet"&&(
             <div>
               {isAcct&&(
-                <div style={{background:"#060e1c",border:"1px solid #34d39930",borderRadius:8,padding:"8px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{background:"var(--bg2)",border:"1px solid #34d39930",borderRadius:8,padding:"8px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
                   <span style={{fontSize:18}}>👁</span>
                   <span style={{fontSize:12,color:"#34d399",fontWeight:500}}>Read-only review mode — you can see all posted hours but cannot add, edit or delete entries</span>
                 </div>
               )}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
                 <div>
-                  <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>{isAcct?"Hours Review":"Post Hours"}</h1>
-                  <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>
+                  <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>{isAcct?"Hours Review":"Post Hours"}</h1>
+                  <p style={{color:"var(--text4)",fontSize:12,marginTop:3}}>
                     Allowed: {minPostDate()} → {maxPostDate()}
                     {canEdit&&" · Lead/Admin can browse all engineers"}
                   </p>
@@ -5193,20 +5243,20 @@ export default function App(){
                 </div>
               </div>
 
-              {viewEng&&<div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14,background:"#0c1829",border:"1px solid #192d47",borderRadius:10,padding:"12px 16px"}}>
+              {viewEng&&<div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14,background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:10,padding:"12px 16px"}}>
                 <div className="av" style={{width:42,height:42,fontSize:13}}>{viewEng.name?.slice(0,2).toUpperCase()}</div>
                 <div>
                   <div style={{fontSize:14,fontWeight:600}}>{viewEng.name}</div>
-                  <div style={{fontSize:11,color:"#2e4a66"}}>{viewEng.role} · {viewEng.level}</div>
+                  <div style={{fontSize:11,color:"var(--text4)"}}>{viewEng.role} · {viewEng.level}</div>
                 </div>
                 <div style={{marginLeft:"auto",display:"flex",gap:20}}>
                   {[
-                    {l:"Week Hrs",v:weekDays.reduce((s,d)=>s+entries.filter(e=>e.date===d&&e.engineer_id===viewEngId).reduce((ss,e)=>ss+e.hours,0),0)+"h",c:"#38bdf8"},
+                    {l:"Week Hrs",v:weekDays.reduce((s,d)=>s+entries.filter(e=>e.date===d&&e.engineer_id===viewEngId).reduce((ss,e)=>ss+e.hours,0),0)+"h",c:"var(--info)"},
                     {l:"Month Hrs",v:monthEntries.filter(e=>e.engineer_id===viewEngId&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0)+"h",c:"#34d399"},
                     {l:"Utilization",v:fmtPct(Math.min(100,Math.round(monthEntries.filter(e=>e.engineer_id===viewEngId&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0)/targetHrs*100))),c:"#a78bfa"},
                   ].map((s,i)=><div key={i} style={{textAlign:"center"}}>
                     <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c}}>{s.v}</div>
-                    <div style={{fontSize:10,color:"#2e4a66"}}>{s.l}</div>
+                    <div style={{fontSize:10,color:"var(--text4)"}}>{s.l}</div>
                   </div>)}
                 </div>
               </div>}
@@ -5218,12 +5268,12 @@ export default function App(){
                   padding:"8px 14px",marginBottom:10,fontSize:11}}>
                   <span style={{color:"#a78bfa",fontWeight:700}}>
                     ⎘ Clipboard: {clipboard.entries.length} entr{clipboard.entries.length===1?"y":"ies"} from {clipboard.date}
-                    <span style={{color:"#7a8faa",fontWeight:400,marginLeft:6}}>
+                    <span style={{color:"var(--text2)",fontWeight:400,marginLeft:6}}>
                       — click ⎙ Paste on any allowed day to copy
                     </span>
                   </span>
                   <button onClick={()=>setClipboard(null)}
-                    style={{background:"none",border:"none",color:"#4e6479",cursor:"pointer",fontSize:13}}>✕</button>
+                    style={{background:"none",border:"none",color:"var(--text3)",cursor:"pointer",fontSize:13}}>✕</button>
                 </div>
               )}
               {/* 7-day week grid */}
@@ -5239,17 +5289,17 @@ export default function App(){
                   return(
                     <div key={day} className="wc" style={
                       isToday?{borderColor:"#0ea5e9"}:
-                      isWE?{borderColor:"#f4721830",background:"#07101e",opacity:0.8}:
-                      !allowed?{opacity:0.4,borderColor:"#0d1e33"}:
-                      isFuture?{borderColor:"#a78bfa40",background:"#060e1c"}:{}
+                      isWE?{borderColor:"#f4721830",background:"var(--bg0)",opacity:0.8}:
+                      !allowed?{opacity:0.4,borderColor:"var(--bg3)"}:
+                      isFuture?{borderColor:"#a78bfa40",background:"var(--bg2)"}:{}
                     }>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                         <div>
-                          <div style={{fontSize:10,fontWeight:700,color:isToday?"#38bdf8":isWE?"#f47218":isFuture?"#a78bfa":"#7a8faa"}}>
+                          <div style={{fontSize:10,fontWeight:700,color:isToday?"var(--info)":isWE?"#f47218":isFuture?"#a78bfa":"var(--text2)"}}>
                             {DAY_NAMES[dow]}{isWE&&<span style={{fontSize:7,marginLeft:2,color:"#f47218"}}> WE</span>}
                           </div>
-                          <div style={{fontSize:9,color:"#2e4a66"}}>{new Date(day).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
-                          {dh>0&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"#38bdf8",marginTop:1}}>{dh}h</div>}
+                          <div style={{fontSize:9,color:"var(--text4)"}}>{new Date(day).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                          {dh>0&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:"var(--info)",marginTop:1}}>{dh}h</div>}
                         </div>
                         <div style={{display:"flex",flexDirection:"column",gap:2,alignItems:"flex-end"}}>
                           {allowed&&canPostHours&&<button className="bp" style={{padding:"2px 5px",fontSize:10,
@@ -5257,9 +5307,9 @@ export default function App(){
                           }} onClick={()=>setModalDate(day)}>+</button>}
                           {de.length>0&&allowed&&canPostHours&&(
                             <button title="Copy this day" onClick={()=>copyDay(day)}
-                              style={{padding:"2px 5px",fontSize:9,borderRadius:4,border:"1px solid #192d47",
-                                background:clipboard?.date===day?"#38bdf818":"#060e1c",
-                                color:clipboard?.date===day?"#38bdf8":"#4e6479",cursor:"pointer",lineHeight:1}}>
+                              style={{padding:"2px 5px",fontSize:9,borderRadius:4,border:"1px solid var(--border3)",
+                                background:clipboard?.date===day?"#38bdf818":"var(--bg2)",
+                                color:clipboard?.date===day?"var(--info)":"var(--text3)",cursor:"pointer",lineHeight:1}}>
                               {clipboard?.date===day?"✓ Copied":"⎘ Copy"}
                             </button>
                           )}
@@ -5271,20 +5321,20 @@ export default function App(){
                               ⎙ Paste
                             </button>
                           )}
-                          {!allowed&&<span style={{fontSize:8,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>LOCKED</span>}
+                          {!allowed&&<span style={{fontSize:8,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>LOCKED</span>}
                         </div>
                       </div>
                       {de.map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
                         return(
-                          <div key={e.id} style={{background:"#07101e",border:`1px solid ${e.billable?"#071e36":"#152535"}`,borderRadius:4,padding:"5px 6px",marginBottom:3,fontSize:9}}>
+                          <div key={e.id} style={{background:"var(--bg0)",border:`1px solid ${e.billable?"#071e36":"#152535"}`,borderRadius:4,padding:"5px 6px",marginBottom:3,fontSize:9}}>
                             <div style={{display:"flex",justifyContent:"space-between",gap:2}}>
                               <div style={{flex:1,minWidth:0}}>
                                 {e.entry_type==="leave"
                                   ?<span style={{color:"#fb923c",fontWeight:600}}>✈ {e.leave_type}</span>
                                   :<><span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#0ea5e9",fontSize:8}}>{proj?.id}</span>
-                                    <div style={{color:"#7a8faa",fontSize:8,marginTop:1}}>{e.task_type}</div>
-                                    {e.activity&&<div style={{color:"#4e6479",fontSize:8,marginTop:1,fontStyle:"italic",lineHeight:1.3}}>{e.activity.substring(0,35)}{e.activity.length>35?"…":""}</div>}
+                                    <div style={{color:"var(--text2)",fontSize:8,marginTop:1}}>{e.task_type}</div>
+                                    {e.activity&&<div style={{color:"var(--text3)",fontSize:8,marginTop:1,fontStyle:"italic",lineHeight:1.3}}>{e.activity.substring(0,35)}{e.activity.length>35?"…":""}</div>}
                                   </>}
                               </div>
                               {canEdit&&canPostHours&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
@@ -5293,13 +5343,13 @@ export default function App(){
                               </div>}
                             </div>
                             <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
-                              <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700,fontSize:11}}>{e.hours}h</span>
+                              <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700,fontSize:11}}>{e.hours}h</span>
                               {e.billable&&<span style={{fontSize:7,color:"#34d399",fontWeight:700}}>BILL</span>}
                             </div>
                           </div>
                         );
                       })}
-                      {de.length===0&&<div style={{color:"#1a3050",fontSize:9,textAlign:"center",marginTop:16}}>{allowed?"No entries":"—"}</div>}
+                      {de.length===0&&<div style={{color:"var(--border)",fontSize:9,textAlign:"center",marginTop:16}}>{allowed?"No entries":"—"}</div>}
                     </div>
                   );
                 })}
@@ -5317,15 +5367,15 @@ export default function App(){
                   };
                   return<>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                  <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Full Month — {MONTHS[month]} {year}</h3>
+                  <h3 style={{fontSize:13,fontWeight:600,color:"var(--text2)"}}>Full Month — {MONTHS[month]} {year}</h3>
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
                     {selectedEntries.size>0&&<button style={{background:"#ef4444",border:"none",borderRadius:5,padding:"4px 10px",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}} onClick={bulkDeleteEntries}>🗑 Delete {selectedEntries.size} selected</button>}
-                    <select style={{fontSize:11,padding:"4px 8px",width:"auto",background:"#060e1c",border:"1px solid #192d47",borderRadius:5,color:"#f0f6ff",fontFamily:"'IBM Plex Sans',sans-serif"}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
+                    <select style={{fontSize:11,padding:"4px 8px",width:"auto",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",fontFamily:"'IBM Plex Sans',sans-serif"}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
                       <option value="ALL">All Projects</option>
                       {projects.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
                     </select>
-                    {filterProject!=="ALL"&&<button style={{background:"transparent",border:"1px solid #192d47",borderRadius:5,padding:"4px 8px",color:"#7a8faa",cursor:"pointer",fontSize:10}} onClick={()=>setFilterProject("ALL")}>✕</button>}
-                    <span style={{fontSize:10,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace"}}>{visEntries.reduce((s,e)=>s+e.hours,0)}h</span>
+                    {filterProject!=="ALL"&&<button style={{background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text2)",cursor:"pointer",fontSize:10}} onClick={()=>setFilterProject("ALL")}>✕</button>}
+                    <span style={{fontSize:10,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{visEntries.reduce((s,e)=>s+e.hours,0)}h</span>
                   </div>
                 </div>
                 <div className="card">
@@ -5335,7 +5385,7 @@ export default function App(){
                       <th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th><th>Type</th><th style={{width:80}}>Actions</th>
                     </tr></thead>
                     <tbody>
-                      {visEntries.length===0&&<tr><td colSpan={8} style={{textAlign:"center",color:"#2e4a66",padding:20}}>No entries for {MONTHS[month]} {year}</td></tr>}
+                      {visEntries.length===0&&<tr><td colSpan={8} style={{textAlign:"center",color:"var(--text4)",padding:20}}>No entries for {MONTHS[month]} {year}</td></tr>}
                       {visEntries.map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
                         const checked=selectedEntries.has(e.id);
@@ -5343,15 +5393,15 @@ export default function App(){
                           <tr key={e.id} style={{background:checked?"#0d1e3440":"transparent"}}>
                             <td><input type="checkbox" checked={checked} onChange={()=>setSelectedEntries(prev=>{const n=new Set(prev);checked?n.delete(e.id):n.add(e.id);return n;})} style={{cursor:"pointer"}}/></td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>{e.date}</td>
-                            <td style={{fontSize:11,color:"#38bdf8"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
-                            <td style={{fontSize:11,color:"#7a8faa"}}>{e.task_type||"—"}</td>
-                            <td style={{fontSize:11,color:"#4e6479",fontStyle:"italic",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{e.hours}h</td>
+                            <td style={{fontSize:11,color:"var(--info)"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
+                            <td style={{fontSize:11,color:"var(--text2)"}}>{e.task_type||"—"}</td>
+                            <td style={{fontSize:11,color:"var(--text3)",fontStyle:"italic",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
                             <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
                             <td><div style={{display:"flex",gap:5}}>
                               {canPostHours&&<button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>}
                               {canPostHours&&<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}
-                              {!canPostHours&&<span style={{fontSize:9,color:"#2e4a66"}}>—</span>}
+                              {!canPostHours&&<span style={{fontSize:9,color:"var(--text4)"}}>—</span>}
                             </div></td>
                           </tr>
                         );
@@ -5387,8 +5437,8 @@ export default function App(){
               {/* Filter bar */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:12}}>
                 <div>
-                  <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Team</h1>
-                  <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{engineers.filter(e=>isEngActive(e)).length} active · {engineers.length} total · {MONTHS[month]} {year}</p>
+                  <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>Team</h1>
+                  <p style={{color:"var(--text4)",fontSize:12,marginTop:3}}>{engineers.filter(e=>isEngActive(e)).length} active · {engineers.length} total · {MONTHS[month]} {year}</p>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
                   <div><Lbl>Engineer</Lbl>
@@ -5431,23 +5481,23 @@ export default function App(){
                 const selEngName=filterEngineer!=="ALL"?engineers.find(e=>e.id===+filterEngineer)?.name:"";
                 const label=[selEngName,selProjName].filter(Boolean).join(" · ")||"All";
                 return(
-                  <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:8,padding:"12px 16px",marginBottom:16,display:"flex",gap:0,alignItems:"center"}}>
+                  <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,padding:"12px 16px",marginBottom:16,display:"flex",gap:0,alignItems:"center"}}>
                     <div style={{marginRight:20,minWidth:120}}>
-                      <div style={{fontSize:10,color:"#2e4a66",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>Filter Summary</div>
-                      <div style={{fontSize:12,color:"#7a8faa",fontWeight:600}}>{label}</div>
-                      <div style={{fontSize:10,color:"#2e4a66"}}>{MONTHS[month]} {year}</div>
+                      <div style={{fontSize:10,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:2}}>Filter Summary</div>
+                      <div style={{fontSize:12,color:"var(--text2)",fontWeight:600}}>{label}</div>
+                      <div style={{fontSize:10,color:"var(--text4)"}}>{MONTHS[month]} {year}</div>
                     </div>
                     <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
                       {[
-                        {l:"Total Work",v:totalW+"h",c:"#f0f6ff"},
+                        {l:"Total Work",v:totalW+"h",c:"var(--text0)"},
                         {l:"Billable",v:totalB+"h",c:"#34d399",show:isAdmin||isAcct},
                         {l:"Non-Billable",v:totalNB+"h",c:"#fb923c",show:isAdmin||isAcct},
                         {l:"Leave Days",v:totalL+"d",c:"#f472b6"},
                         {l:"Utilization",v:util+"%",c:util>=80?"#34d399":util>=60?"#fb923c":"#f87171"},
                       ].filter(m=>m.show!==false).map((m,i)=>(
-                        <div key={i} style={{background:"#0c1829",borderRadius:6,padding:"8px 10px",textAlign:"center",border:"1px solid #192d47"}}>
+                        <div key={i} style={{background:"var(--bg1)",borderRadius:6,padding:"8px 10px",textAlign:"center",border:"1px solid var(--border3)"}}>
                           <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:m.c,lineHeight:1}}>{m.v}</div>
-                          <div style={{fontSize:9,color:"#2e4a66",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{m.l}</div>
+                          <div style={{fontSize:9,color:"var(--text4)",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{m.l}</div>
                         </div>
                       ))}
                     </div>
@@ -5462,19 +5512,19 @@ export default function App(){
                     <div className="av" style={{width:50,height:50,fontSize:15}}>{selectedEng.name?.slice(0,2).toUpperCase()}</div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:17,fontWeight:700}}>{selectedEng.name}</div>
-                      <div style={{fontSize:12,color:"#2e4a66"}}>{selectedEng.role} · {selectedEng.level}</div>
-                      <span className="role-badge" style={{background:ROLE_COLORS[selectedEng.role_type]+"20",color:ROLE_COLORS[selectedEng.role_type]||"#4e6479",marginTop:4,display:"inline-block"}}>{ROLE_LABELS[selectedEng.role_type]}</span>
+                      <div style={{fontSize:12,color:"var(--text4)"}}>{selectedEng.role} · {selectedEng.level}</div>
+                      <span className="role-badge" style={{background:ROLE_COLORS[selectedEng.role_type]+"20",color:ROLE_COLORS[selectedEng.role_type]||"var(--text3)",marginTop:4,display:"inline-block"}}>{ROLE_LABELS[selectedEng.role_type]}</span>
                     </div>
                     <div style={{display:"flex",gap:20,textAlign:"center"}}>
                       {[
-                        {l:"Work Hrs",v:selectedEng.workHrs+"h",c:"#38bdf8"},
+                        {l:"Work Hrs",v:selectedEng.workHrs+"h",c:"var(--info)"},
                         {l:"Utilization",v:fmtPct(selectedEng.utilization),c:selectedEng.utilization>=80?"#34d399":selectedEng.utilization>=60?"#fb923c":"#f87171"},
                         {l:"Leave Days",v:selectedEng.leaveDays+"d",c:"#fb923c"},
                         ...(isAdmin||isAcct?[{l:"Revenue",v:fmtCurrency(selectedEng.revenue),c:"#a78bfa"}]:[]),
                       ].map((s,i)=>(
-                        <div key={i} style={{background:"#060e1c",borderRadius:6,padding:"8px 16px"}}>
+                        <div key={i} style={{background:"var(--bg2)",borderRadius:6,padding:"8px 16px"}}>
                           <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:s.c}}>{s.v}</div>
-                          <div style={{fontSize:9,color:"#2e4a66"}}>{s.l}</div>
+                          <div style={{fontSize:9,color:"var(--text4)"}}>{s.l}</div>
                         </div>
                       ))}
                     </div>
@@ -5487,14 +5537,14 @@ export default function App(){
                         const p=projects.find(x=>x.id===e.project_id);
                         return<tr key={e.id}>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>{e.date}</td>
-                          <td style={{fontSize:11,color:"#38bdf8"}}>{p?.id||<span style={{color:"#7a8faa"}}>—</span>}</td>
-                          <td style={{fontSize:11,color:"#7a8faa"}}>{e.task_type||"—"}</td>
-                          <td style={{fontSize:11,color:"#4e6479",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
-                          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#38bdf8"}}>{e.hours}h</td>
+                          <td style={{fontSize:11,color:"var(--info)"}}>{p?.id||<span style={{color:"var(--text2)"}}>—</span>}</td>
+                          <td style={{fontSize:11,color:"var(--text2)"}}>{e.task_type||"—"}</td>
+                          <td style={{fontSize:11,color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{e.hours}h</td>
                         </tr>;
                       })}
                       {teamMonthEntries.filter(e=>e.engineer_id===selectedEng.id&&e.entry_type==="work").length===0&&
-                        <tr><td colSpan={5} style={{textAlign:"center",color:"#2e4a66",padding:16}}>No work entries</td></tr>}
+                        <tr><td colSpan={5} style={{textAlign:"center",color:"var(--text4)",padding:16}}>No work entries</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -5506,9 +5556,9 @@ export default function App(){
                   <button key={m} onClick={()=>setTeamViewMode(m)}
                     style={{padding:"4px 14px",borderRadius:20,fontSize:10,fontWeight:600,cursor:"pointer",
                       letterSpacing:".05em",textTransform:"uppercase",
-                      border:`1px solid ${teamViewMode===m?"#38bdf840":"#0d1e33"}`,
+                      border:`1px solid ${teamViewMode===m?"#38bdf840":"var(--bg3)"}`,
                       background:teamViewMode===m?"#38bdf810":"transparent",
-                      color:teamViewMode===m?"#38bdf8":"#1a3050"}}>
+                      color:teamViewMode===m?"var(--info)":"var(--border)"}}>
                     {l}
                   </button>
                 ))}
@@ -5557,7 +5607,7 @@ export default function App(){
                   const eng = node.engineer_id ? engineers.find(e=>e.id===node.engineer_id) : null;
                   const active = eng ? isEngActive(eng) : true;
                   const isDragging = orgDragId===node.id;
-                  const rc = eng ? (ROLE_COLORS[eng.role_type]||"#4e6479") : "#2e4a66";
+                  const rc = eng ? (ROLE_COLORS[eng.role_type]||"var(--text3)") : "var(--text4)";
                   const initials = (node.name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
 
                   return(
@@ -5568,7 +5618,7 @@ export default function App(){
                       onDragOver={orgEditing?e=>e.preventDefault():undefined}
                       onDrop={orgEditing?e=>{e.preventDefault();e.stopPropagation();if(orgDragId&&orgDragId!==node.id) moveNode(orgDragId,node.id);}:undefined}
                       style={{
-                        background: node.is_external?"transparent":"#0c1829",
+                        background: node.is_external?"transparent":"var(--bg1)",
                         border: node.is_external
                           ? "1px dashed #2a4a6a"
                           : orgEditing
@@ -5590,10 +5640,10 @@ export default function App(){
                       {orgEditing&&isAdmin&&(
                         <div style={{position:"absolute",top:6,right:6,display:"flex",gap:4,zIndex:20}}>
                           <button onClick={e=>{e.stopPropagation();e.preventDefault();setOrgEditNode({...node});}}
-                            style={{background:"#0c1829",border:"1px solid #38bdf830",color:"#38bdf8",width:20,height:20,
+                            style={{background:"var(--bg1)",border:"1px solid #38bdf830",color:"var(--info)",width:20,height:20,
                               borderRadius:4,fontSize:9,cursor:"pointer",padding:0,zIndex:20,lineHeight:"20px"}}>✎</button>
                           <button onClick={e=>{e.stopPropagation();e.preventDefault();deleteNode(node.id);}}
-                            style={{background:"#0c1829",border:"1px solid #f8717130",color:"#f87171",width:20,height:20,
+                            style={{background:"var(--bg1)",border:"1px solid #f8717130",color:"#f87171",width:20,height:20,
                               borderRadius:4,fontSize:9,cursor:"pointer",padding:0,zIndex:20,lineHeight:"20px"}}>✕</button>
                         </div>
                       )}
@@ -5615,7 +5665,7 @@ export default function App(){
                       {/* Name */}
                       <div style={{
                         fontSize:12, fontWeight:700,
-                        color: node.is_external?"#4e6a82":"#f0f6ff",
+                        color: node.is_external?"#4e6a82":"var(--text0)",
                         lineHeight:1.3, marginBottom:4,
                         letterSpacing:"-.01em",
                       }}>
@@ -5762,7 +5812,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       <div style={{display:"flex",alignItems:"center",gap:14}}>
                         <img src={LOGO_SRC} alt="ENEVO" style={{width:40,height:40,borderRadius:9,objectFit:"contain",opacity:0.85}}/>
                         <div>
-                          <div style={{fontSize:17,fontWeight:700,color:"#f0f6ff",letterSpacing:"-.02em"}}>Organization Chart</div>
+                          <div style={{fontSize:17,fontWeight:700,color:"var(--text0)",letterSpacing:"-.02em"}}>Organization Chart</div>
                           <div style={{fontSize:10,color:"#4e7a9a",marginTop:1,letterSpacing:".05em",textTransform:"uppercase"}}>
                             {orgEditing?<span style={{color:"#fb923c",fontWeight:700}}>EDIT MODE</span>:`ENEVO Group · ${orgNodes.filter(n=>!n.is_external).length} members`}
                           </div>
@@ -5770,22 +5820,22 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       </div>
                       <div style={{display:"flex",gap:8,alignItems:"center"}}>
                         {!orgEditing&&orgNodes.length>0&&(
-                          <button onClick={exportOrgPDF} style={{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:"#38bdf810",border:"1px solid #38bdf830",color:"#38bdf8",letterSpacing:".03em"}}>⬇ Export PDF</button>
+                          <button onClick={exportOrgPDF} style={{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:"#38bdf810",border:"1px solid #38bdf830",color:"var(--info)",letterSpacing:".03em"}}>⬇ Export PDF</button>
                         )}
                         {isAdmin&&(
                           <>
                             {orgEditing&&(
-                              <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:null,is_external:false,sort_order:roots.length})} style={{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:"transparent",border:"1px solid #1a3050",color:"#2e4a66",letterSpacing:".03em"}}>+ Root Node</button>
+                              <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:null,is_external:false,sort_order:roots.length})} style={{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:"transparent",border:"1px solid var(--border)",color:"var(--text4)",letterSpacing:".03em"}}>+ Root Node</button>
                             )}
-                            <button onClick={()=>setOrgEditing(e=>!e)} style={{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:orgEditing?"#fb923c12":"transparent",border:`1px solid ${orgEditing?"#fb923c40":"#1a3050"}`,color:orgEditing?"#fb923c":"#2e4a66",letterSpacing:".03em"}}>{orgEditing?"done":"edit"}</button>
+                            <button onClick={()=>setOrgEditing(e=>!e)} style={{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:orgEditing?"#fb923c12":"transparent",border:`1px solid ${orgEditing?"#fb923c40":"var(--border)"}`,color:orgEditing?"#fb923c":"var(--text4)",letterSpacing:".03em"}}>{orgEditing?"done":"edit"}</button>
                           </>
                         )}
                       </div>
                     </div>
                     {orgNodes.length===0&&(
                       <div style={{textAlign:"center",padding:"80px 20px"}}>
-                        <div style={{fontSize:11,marginBottom:16,letterSpacing:".08em",textTransform:"uppercase",color:"#1a3050"}}>No chart configured</div>
-                        {isAdmin&&<button onClick={()=>setOrgEditing(true)} style={{padding:"8px 20px",borderRadius:8,background:"transparent",border:"1px solid #1a3050",color:"#2e4a66",fontSize:11,cursor:"pointer",letterSpacing:".05em"}}>edit chart</button>}
+                        <div style={{fontSize:11,marginBottom:16,letterSpacing:".08em",textTransform:"uppercase",color:"var(--border)"}}>No chart configured</div>
+                        {isAdmin&&<button onClick={()=>setOrgEditing(true)} style={{padding:"8px 20px",borderRadius:8,background:"transparent",border:"1px solid var(--border)",color:"var(--text4)",fontSize:11,cursor:"pointer",letterSpacing:".05em"}}>edit chart</button>}
                       </div>
                     )}
 
@@ -5797,7 +5847,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                           {orgEditing&&(
                             <div onDragOver={e=>e.preventDefault()}
                               onDrop={e=>{e.preventDefault();if(orgDragId) moveNode(orgDragId,null);}}
-                              style={{width:"100%",padding:"6px",textAlign:"center",fontSize:9,color:"#2e4a66",
+                              style={{width:"100%",padding:"6px",textAlign:"center",fontSize:9,color:"var(--text4)",
                                 border:"1px dashed #192d47",borderRadius:6,marginBottom:8}}>
                               ↑ Drop here to make root
                             </div>
@@ -5811,25 +5861,25 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     {orgEditNode&&(
                       <div style={{position:"fixed",inset:0,background:"#00000090",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}
                         onClick={e=>{if(e.target===e.currentTarget)setOrgEditNode(null);}}>
-                        <div style={{background:"#0c1829",border:"1px solid #192d47",borderRadius:12,padding:24,width:360,display:"grid",gap:12}}>
-                          <div style={{fontSize:14,fontWeight:700,color:"#38bdf8",marginBottom:4}}>
+                        <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:12,padding:24,width:360,display:"grid",gap:12}}>
+                          <div style={{fontSize:14,fontWeight:700,color:"var(--info)",marginBottom:4}}>
                             {orgEditNode.id?"Edit Node":"Add Node"}
                           </div>
 
                           <div>
-                            <div style={{fontSize:10,fontWeight:700,color:"#4e6479",marginBottom:4}}>DISPLAY NAME *</div>
+                            <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",marginBottom:4}}>DISPLAY NAME *</div>
                             <input value={orgEditNode.name||""} onChange={e=>setOrgEditNode(p=>({...p,name:e.target.value}))}
                               placeholder="e.g. Sameh Said" style={{width:"100%",boxSizing:"border-box"}}/>
                           </div>
 
                           <div>
-                            <div style={{fontSize:10,fontWeight:700,color:"#4e6479",marginBottom:4}}>TITLE / ROLE LABEL</div>
+                            <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",marginBottom:4}}>TITLE / ROLE LABEL</div>
                             <input value={orgEditNode.title||""} onChange={e=>setOrgEditNode(p=>({...p,title:e.target.value}))}
                               placeholder="e.g. CTO · Romain" style={{width:"100%",boxSizing:"border-box"}}/>
                           </div>
 
                           <div>
-                            <div style={{fontSize:10,fontWeight:700,color:"#4e6479",marginBottom:4}}>LINK TO ENGINEER (optional)</div>
+                            <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",marginBottom:4}}>LINK TO ENGINEER (optional)</div>
                             <select value={orgEditNode.engineer_id||""} onChange={e=>setOrgEditNode(p=>({...p,engineer_id:e.target.value?+e.target.value:null}))}
                               style={{width:"100%",boxSizing:"border-box"}}>
                               <option value="">— External / No link —</option>
@@ -5838,7 +5888,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                           </div>
 
                           <div>
-                            <div style={{fontSize:10,fontWeight:700,color:"#4e6479",marginBottom:4}}>REPORTS TO</div>
+                            <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",marginBottom:4}}>REPORTS TO</div>
                             <select value={orgEditNode.parent_id||""} onChange={e=>setOrgEditNode(p=>({...p,parent_id:e.target.value?+e.target.value:null}))}
                               style={{width:"100%",boxSizing:"border-box"}}>
                               <option value="">— Top level (root) —</option>
@@ -5851,11 +5901,11 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                           <div style={{display:"flex",alignItems:"center",gap:8}}>
                             <input type="checkbox" id="extChk" checked={!!orgEditNode.is_external}
                               onChange={e=>setOrgEditNode(p=>({...p,is_external:e.target.checked}))}/>
-                            <label htmlFor="extChk" style={{fontSize:11,color:"#7a8faa",cursor:"pointer"}}>External person (dashed card)</label>
+                            <label htmlFor="extChk" style={{fontSize:11,color:"var(--text2)",cursor:"pointer"}}>External person (dashed card)</label>
                           </div>
 
                           <div>
-                            <div style={{fontSize:10,fontWeight:700,color:"#4e6479",marginBottom:4}}>SORT ORDER</div>
+                            <div style={{fontSize:10,fontWeight:700,color:"var(--text3)",marginBottom:4}}>SORT ORDER</div>
                             <input type="number" value={orgEditNode.sort_order||0} onChange={e=>setOrgEditNode(p=>({...p,sort_order:+e.target.value}))}
                               style={{width:80}}/>
                           </div>
@@ -5880,28 +5930,28 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                 {filteredTeam.map(eng=>(
                   <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",
                     opacity:!isEngActive(eng)?0.5:1,
-                    border:filterEngineer===String(eng.id)?"1px solid #38bdf8":!isEngActive(eng)?"1px solid #0f1e2e":"1px solid #192d47"}}
+                    border:filterEngineer===String(eng.id)?"1px solid #38bdf8":!isEngActive(eng)?"1px solid #0f1e2e":"1px solid var(--border3)"}}
                     onClick={()=>setFilterEngineer(filterEngineer===String(eng.id)?"ALL":String(eng.id))}>
                     <div className="av" style={{width:44,height:44,fontSize:13,margin:"0 auto 8px",filter:!isEngActive(eng)?"grayscale(1)":"none"}}>{eng.name?.slice(0,2).toUpperCase()}</div>
                     <div style={{fontSize:13,fontWeight:600}}>{eng.name}{!isEngActive(eng)&&<span style={{fontSize:9,marginLeft:5,color:"#f87171",background:"#f8717115",padding:"1px 4px",borderRadius:3}}>LEFT</span>}</div>
-                    <div style={{fontSize:10,color:"#2e4a66",marginBottom:4}}>{eng.role}</div>
-                    <div style={{marginBottom:8}}><span className="role-badge" style={{background:ROLE_COLORS[eng.role_type]+"20",color:ROLE_COLORS[eng.role_type]||"#4e6479"}}>{ROLE_LABELS[eng.role_type]||eng.role_type}</span></div>
+                    <div style={{fontSize:10,color:"var(--text4)",marginBottom:4}}>{eng.role}</div>
+                    <div style={{marginBottom:8}}><span className="role-badge" style={{background:ROLE_COLORS[eng.role_type]+"20",color:ROLE_COLORS[eng.role_type]||"var(--text3)"}}>{ROLE_LABELS[eng.role_type]||eng.role_type}</span></div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:7}}>
-                      <div style={{background:"#060e1c",borderRadius:5,padding:"6px 4px"}}>
-                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:"#38bdf8"}}>{(filterProject==="ALL"?eng.workHrs:teamMonthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0))}h</div>
-                        <div style={{fontSize:9,color:"#2e4a66"}}>work hrs</div>
+                      <div style={{background:"var(--bg2)",borderRadius:5,padding:"6px 4px"}}>
+                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:"var(--info)"}}>{(filterProject==="ALL"?eng.workHrs:teamMonthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0))}h</div>
+                        <div style={{fontSize:9,color:"var(--text4)"}}>work hrs</div>
                       </div>
-                      <div style={{background:"#060e1c",borderRadius:5,padding:"6px 4px"}}>
+                      <div style={{background:"var(--bg2)",borderRadius:5,padding:"6px 4px"}}>
                         <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:eng.utilization>=80?"#34d399":eng.utilization>=60?"#fb923c":"#f87171"}}>{fmtPct(eng.utilization)}</div>
-                        <div style={{fontSize:9,color:"#2e4a66"}}>util.</div>
+                        <div style={{fontSize:9,color:"var(--text4)"}}>util.</div>
                       </div>
                     </div>
-                    <div style={{fontSize:10,display:"flex",justifyContent:"space-between",color:"#4e6479",paddingBottom:6}}>
+                    <div style={{fontSize:10,display:"flex",justifyContent:"space-between",color:"var(--text3)",paddingBottom:6}}>
                       {(isAdmin||isAcct)&&<span>Bill: <span style={{color:"#a78bfa",fontWeight:600}}>{fmtPct(eng.billability)}</span></span>}
                       {eng.leaveDays>0&&<span style={{color:"#fb923c"}}>✈{eng.leaveDays}d</span>}
                     </div>
                     {(isAdmin||isAcct)&&<div style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",marginBottom:5}}>{fmtCurrency(eng.revenue)}</div>}
-                    <div style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"#1a3050",color:"#4e6479",display:"inline-block"}}>{eng.level}</div>
+                    <div style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:"var(--border)",color:"var(--text3)",display:"inline-block"}}>{eng.level}</div>
                     {/* Assigned projects */}
                     {(()=>{
                       const myProjs=projects.filter(p=>
@@ -5909,18 +5959,18 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                         (p.assigned_engineers||[]).map(String).includes(String(eng.id))
                       );
                       if(!myProjs.length) return(
-                        <div style={{fontSize:9,color:"#1a3050",marginTop:6}}>no assigned projects</div>
+                        <div style={{fontSize:9,color:"var(--border)",marginTop:6}}>no assigned projects</div>
                       );
                       return(
                         <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:3,justifyContent:"center"}}>
                           {myProjs.slice(0,4).map(p=>(
                             <span key={p.id} style={{fontSize:8,padding:"1px 5px",borderRadius:3,
-                              background:"#060e1c",border:"1px solid #192d47",color:"#38bdf8",
+                              background:"var(--bg2)",border:"1px solid var(--border3)",color:"var(--info)",
                               whiteSpace:"nowrap",maxWidth:70,overflow:"hidden",textOverflow:"ellipsis"}}>
                               {p.id}
                             </span>
                           ))}
-                          {myProjs.length>4&&<span style={{fontSize:8,color:"#2e4a66"}}>+{myProjs.length-4}</span>}
+                          {myProjs.length>4&&<span style={{fontSize:8,color:"var(--text4)"}}>+{myProjs.length-4}</span>}
                         </div>
                       );
                     })()}
@@ -5935,8 +5985,8 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
           {view==="reports"&&canReport&&(
             <div>
               <div style={{marginBottom:20}}>
-                <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Reports & PDF Export</h1>
-                <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>{MONTHS[month]} {year}</p>
+                <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>Reports & PDF Export</h1>
+                <p style={{color:"var(--text4)",fontSize:12,marginTop:3}}>{MONTHS[month]} {year}</p>
               </div>
 
               {/* Report type cards */}
@@ -5953,7 +6003,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                   <div key={r.id} className={`rpt-card ${activeRpt===r.id?"sel":""}`} onClick={()=>setActiveRpt(r.id)}>
                     <div style={{fontSize:18,marginBottom:5}}>{r.icon}</div>
                     <div style={{fontSize:12,fontWeight:700,marginBottom:3}}>{r.label}</div>
-                    <div style={{fontSize:10,color:"#2e4a66",lineHeight:1.4}}>{r.desc}</div>
+                    <div style={{fontSize:10,color:"var(--text4)",lineHeight:1.4}}>{r.desc}</div>
                   </div>
                 ))}
               </div>
@@ -5962,7 +6012,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
               {activeRpt==="individual"&&(
                 <div>
                   <div className="card" style={{marginBottom:14}}>
-                    <h3 style={{fontSize:13,fontWeight:600,color:"#f0f6ff",marginBottom:14}}>👤 Timesheet Export — {MONTHS[month]} {year}</h3>
+                    <h3 style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:14}}>👤 Timesheet Export — {MONTHS[month]} {year}</h3>
                     <div style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:12,alignItems:"flex-end",marginBottom:6}}>
                       <div><Lbl>Select Engineer (or export all)</Lbl>
                         <select value={rptEngId||"ALL"} onChange={e=>setRptEngId(e.target.value==="ALL"?null:+e.target.value)}>
@@ -5981,12 +6031,12 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                         }
                       }}>⬇ Export PDF{!rptEngId?" (All)":""}</button>
                     </div>
-                    <div style={{fontSize:11,color:"#2e4a66"}}>
+                    <div style={{fontSize:11,color:"var(--text4)"}}>
                       {!rptEngId?"Will open one PDF per engineer in separate browser tabs — allow popups if prompted":"Select an engineer above to preview their timesheet"}
                     </div>
                   </div>
                   <div className="card">
-                  <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",marginBottom:14}}>{rptEngId?"Timesheet Preview":"All Engineers Summary"}</h3>
+                  <h3 style={{fontSize:12,fontWeight:600,color:"var(--text2)",marginBottom:14}}>{rptEngId?"Timesheet Preview":"All Engineers Summary"}</h3>
                   {!rptEngId&&(
                     <table>
                       <thead><tr><th>Engineer</th><th>Role</th><th>Work Hrs</th><th>Projects</th><th>Leave Days</th><th>Quick Export</th></tr></thead>
@@ -5997,10 +6047,10 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                         const prjs=[...new Set(ee.filter(e=>e.entry_type==="work").map(e=>e.project_id))].length;
                         return<tr key={eng.id}>
                           <td><div style={{display:"flex",alignItems:"center",gap:7}}><div className="av" style={{fontSize:9,width:24,height:24}}>{eng.name?.slice(0,2).toUpperCase()}</div><span style={{fontWeight:500}}>{eng.name}</span></div></td>
-                          <td style={{fontSize:11,color:"#7a8faa"}}>{eng.role}</td>
-                          <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{wh}h</td>
+                          <td style={{fontSize:11,color:"var(--text2)"}}>{eng.role}</td>
+                          <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{wh}h</td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{prjs}</td>
-                          <td style={{color:ld>0?"#fb923c":"#2e4a66"}}>{ld}</td>
+                          <td style={{color:ld>0?"#fb923c":"var(--text4)"}}>{ld}</td>
                           <td><button className="be" style={{fontSize:11}} onClick={()=>buildTimesheetPDF(eng,monthEntries,projects,month,year)}>⬇ PDF</button></td>
                         </tr>;
                       })}</tbody>
@@ -6013,13 +6063,13 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     const ld=engEntries.filter(e=>e.entry_type==="leave").length;
                     const projs=[...new Set(engEntries.filter(e=>e.entry_type==="work").map(e=>e.project_id))];
                     return(
-                      <div style={{background:"#060e1c",borderRadius:8,padding:"14px 16px"}}>
+                      <div style={{background:"var(--bg2)",borderRadius:8,padding:"14px 16px"}}>
                         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
                           <div className="av" style={{width:40,height:40,fontSize:13}}>{eng?.name?.slice(0,2).toUpperCase()}</div>
-                          <div><div style={{fontSize:14,fontWeight:600}}>{eng?.name}</div><div style={{fontSize:11,color:"#2e4a66"}}>{eng?.role} · {eng?.level}</div></div>
+                          <div><div style={{fontSize:14,fontWeight:600}}>{eng?.name}</div><div style={{fontSize:11,color:"var(--text4)"}}>{eng?.role} · {eng?.level}</div></div>
                           <div style={{marginLeft:"auto",display:"flex",gap:20,textAlign:"center"}}>
-                            {[{l:"Work Hrs",v:wh+"h",c:"#38bdf8"},{l:"Leave Days",v:ld+"d",c:"#fb923c"},{l:"Projects",v:projs.length,c:"#a78bfa"}].map((s,i)=>(
-                              <div key={i}><div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c}}>{s.v}</div><div style={{fontSize:9,color:"#2e4a66"}}>{s.l}</div></div>
+                            {[{l:"Work Hrs",v:wh+"h",c:"var(--info)"},{l:"Leave Days",v:ld+"d",c:"#fb923c"},{l:"Projects",v:projs.length,c:"#a78bfa"}].map((s,i)=>(
+                              <div key={i}><div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c}}>{s.v}</div><div style={{fontSize:9,color:"var(--text4)"}}>{s.l}</div></div>
                             ))}
                           </div>
                         </div>
@@ -6029,10 +6079,10 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                             const proj=projects.find(p=>p.id===e.project_id);
                             return<tr key={e.id}>
                               <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>{e.date}</td>
-                              <td style={{fontSize:11,color:"#38bdf8"}}>{proj?.id}</td>
-                              <td style={{fontSize:11,color:"#7a8faa"}}>{e.task_type}</td>
-                              <td style={{fontSize:11,color:"#4e6479",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
-                              <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{e.hours}h</td>
+                              <td style={{fontSize:11,color:"var(--info)"}}>{proj?.id}</td>
+                              <td style={{fontSize:11,color:"var(--text2)"}}>{e.task_type}</td>
+                              <td style={{fontSize:11,color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                              <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
                             </tr>;})}
                           </tbody>
                         </table>
@@ -6047,18 +6097,18 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
               {activeRpt==="utilization"&&(
                 <div className="card">
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                    <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa"}}>Team Utilization Preview</h3>
+                    <h3 style={{fontSize:12,fontWeight:600,color:"var(--text2)"}}>Team Utilization Preview</h3>
                     <button className="bp" onClick={buildUtilizationPDF}>⬇ Export PDF</button>
                   </div>
                   <table>
                     <thead><tr><th>Engineer</th><th>Level</th><th>Work Hrs</th><th>Billable</th><th>Leave</th><th>Utilization</th><th>Billability</th><th>Revenue</th></tr></thead>
                     <tbody>{engStats.map(e=>(
                       <tr key={e.id}>
-                        <td><div style={{display:"flex",alignItems:"center",gap:7}}><div className="av" style={{fontSize:9,width:24,height:24}}>{e.name?.slice(0,2).toUpperCase()}</div><div><div style={{fontWeight:500,fontSize:12}}>{e.name}</div><div style={{fontSize:9,color:"#2e4a66"}}>{e.role}</div></div></div></td>
-                        <td><span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"#1a3050",color:"#4e6479"}}>{e.level}</span></td>
+                        <td><div style={{display:"flex",alignItems:"center",gap:7}}><div className="av" style={{fontSize:9,width:24,height:24}}>{e.name?.slice(0,2).toUpperCase()}</div><div><div style={{fontWeight:500,fontSize:12}}>{e.name}</div><div style={{fontSize:9,color:"var(--text4)"}}>{e.role}</div></div></div></td>
+                        <td><span style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:"var(--border)",color:"var(--text3)"}}>{e.level}</span></td>
                         <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.workHrs}h</td>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{e.billableHrs}h</td>
-                        <td style={{color:e.leaveDays>0?"#fb923c":"#2e4a66"}}>{e.leaveDays}</td>
+                        <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{e.billableHrs}h</td>
+                        <td style={{color:e.leaveDays>0?"#fb923c":"var(--text4)"}}>{e.leaveDays}</td>
                         <td><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{background:"#0a1628",height:4,borderRadius:3,width:60,overflow:"hidden"}}><div style={{height:"100%",width:`${e.utilization}%`,background:e.utilization>=80?"linear-gradient(90deg,#34d399,#10b981)":e.utilization>=60?"linear-gradient(90deg,#fb923c,#f59e0b)":"linear-gradient(90deg,#f87171,#ef4444)",borderRadius:3}}/></div><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10}}>{fmtPct(e.utilization)}</span></div></td>
                         <td><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{background:"#0a1628",height:4,borderRadius:3,width:50,overflow:"hidden"}}><div style={{height:"100%",width:`${e.billability}%`,background:"linear-gradient(90deg,#a78bfa,#7c3aed)",borderRadius:3}}/></div><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10}}>{fmtPct(e.billability)}</span></div></td>
                         <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{fmtCurrency(e.revenue)}</td>
@@ -6070,22 +6120,22 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
 
               {/* Task analysis */}
               {activeRpt==="task"&&(()=>{
-                const GC={"SCADA":"#38bdf8","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+                const GC={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
                 return(
                 <div className="card">
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
                     <div>
-                      <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",margin:0}}>Task Analysis</h3>
-                      <p style={{fontSize:11,color:"#2e4a66",marginTop:2,marginBottom:0}}>{MONTHS[month]} {year} · {totalWorkHrs}h work logged</p>
+                      <h3 style={{fontSize:13,fontWeight:700,color:"var(--text0)",margin:0}}>Task Analysis</h3>
+                      <p style={{fontSize:11,color:"var(--text4)",marginTop:2,marginBottom:0}}>{MONTHS[month]} {year} · {totalWorkHrs}h work logged</p>
                     </div>
                     <button className="bp" onClick={buildTaskPDF}>⬇ Export PDF</button>
                   </div>
 
-                  {taskStats.length===0&&<p style={{color:"#2e4a66",fontSize:12}}>No work hours logged for this period.</p>}
+                  {taskStats.length===0&&<p style={{color:"var(--text4)",fontSize:12}}>No work hours logged for this period.</p>}
 
                   {taskStats.map(grp=>{
                     const pct=totalWorkHrs?Math.round(grp.hours/totalWorkHrs*100):0;
-                    const gc=GC[grp.category]||"#38bdf8";
+                    const gc=GC[grp.category]||"var(--info)";
                     return(
                     <div key={grp.category} style={{marginBottom:18,paddingBottom:18,borderBottom:"1px solid #0d1a2d"}}>
                       {/* Group header + bar */}
@@ -6096,7 +6146,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                         </div>
                         <div style={{display:"flex",gap:14,fontSize:11}}>
                           <span style={{fontFamily:"'IBM Plex Mono',monospace",color:gc,fontWeight:700}}>{grp.hours}h</span>
-                          <span style={{color:"#4e6479"}}>{pct}%</span>
+                          <span style={{color:"var(--text3)"}}>{pct}%</span>
                           <span style={{color:"#34d399"}}>{grp.hours?Math.round(grp.billable/grp.hours*100):0}% billable</span>
                         </div>
                       </div>
@@ -6110,28 +6160,28 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                           const catPct=grp.hours?Math.round(catData.hrs/grp.hours*100):0;
                           const topActs=Object.entries(catData.activities||{}).sort((a,b)=>b[1]-a[1]).slice(0,4);
                           return(
-                          <div key={cat} style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px"}}>
+                          <div key={cat} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 10px"}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:topActs.length?4:0}}>
-                              <span style={{fontSize:11,fontWeight:600,color:"#7a8faa"}}>{cat}</span>
+                              <span style={{fontSize:11,fontWeight:600,color:"var(--text2)"}}>{cat}</span>
                               <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                                <div style={{background:"#0d1e33",height:4,borderRadius:3,width:50,overflow:"hidden"}}>
+                                <div style={{background:"var(--bg3)",height:4,borderRadius:3,width:50,overflow:"hidden"}}>
                                   <div style={{height:"100%",width:`${catPct}%`,background:gc+"80",borderRadius:3}}/>
                                 </div>
                                 <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:gc}}>{catData.hrs}h</span>
-                                <span style={{fontSize:9,color:"#2e4a66"}}>{catPct}%</span>
+                                <span style={{fontSize:9,color:"var(--text4)"}}>{catPct}%</span>
                               </div>
                             </div>
                             {topActs.length>0&&(
                               <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
                                 {topActs.map(([act,hrs])=>(
-                                  <span key={act} style={{background:"#07101e",border:"1px solid #0d1a2d",borderRadius:4,
-                                    padding:"2px 6px",fontSize:9,color:"#4e6479"}}>
+                                  <span key={act} style={{background:"var(--bg0)",border:"1px solid #0d1a2d",borderRadius:4,
+                                    padding:"2px 6px",fontSize:9,color:"var(--text3)"}}>
                                     {act.length>30?act.slice(0,28)+"…":act}
-                                    <span style={{color:"#38bdf8",fontFamily:"'IBM Plex Mono',monospace",marginLeft:4}}>{hrs}h</span>
+                                    <span style={{color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace",marginLeft:4}}>{hrs}h</span>
                                   </span>
                                 ))}
                                 {Object.keys(catData.activities||{}).length>4&&(
-                                  <span style={{fontSize:9,color:"#2e4a66",padding:"2px 4px"}}>
+                                  <span style={{fontSize:9,color:"var(--text4)",padding:"2px 4px"}}>
                                     +{Object.keys(catData.activities).length-4} more
                                   </span>
                                 )}
@@ -6160,7 +6210,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                 <div className="card" style={{textAlign:"center",padding:40}}>
                   <div style={{fontSize:36,marginBottom:10}}>📊</div>
                   <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Monthly Management Report</div>
-                  <div style={{fontSize:12,color:"#2e4a66",marginBottom:18}}>Full executive summary for {MONTHS[month]} {year}</div>
+                  <div style={{fontSize:12,color:"var(--text4)",marginBottom:18}}>Full executive summary for {MONTHS[month]} {year}</div>
                   <button className="bp" onClick={buildMonthlyPDF}>⬇ Export PDF</button>
                 </div>
               )}
@@ -6177,7 +6227,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                 <div>
                   {/* Invoice selector */}
                   <div className="card" style={{marginBottom:14}}>
-                    <h3 style={{fontSize:13,fontWeight:600,color:"#f0f6ff",marginBottom:14}}>🧾 Invoice Export — {MONTHS[month]} {year}</h3>
+                    <h3 style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:14}}>🧾 Invoice Export — {MONTHS[month]} {year}</h3>
                     {/* Quick-fix: bulk mark all active projects as billable */}
                     {allWithHours.some(p=>!p.billable)&&(
                       <div style={{background:"#1a0f00",border:"1px solid #fb923c40",borderRadius:6,padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -6210,18 +6260,18 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
                       {[
                         {l:invoiceProjId==="ALL"?"Total Billable":"Project Total",v:fmtCurrency(invTotal),c:"#a78bfa"},
-                        {l:"Billable Hours",v:invHrs+"h",c:"#38bdf8"},
+                        {l:"Billable Hours",v:invHrs+"h",c:"var(--info)"},
                         {l:invoiceProjId==="ALL"?"Projects":"Engineers",v:invoiceProjId==="ALL"?filteredProjs.length:[...new Set(entries.filter(e=>e.project_id===invoiceProjId&&new Date(e.date).getMonth()===month&&new Date(e.date).getFullYear()===year).map(e=>e.engineer_id))].length,c:"#34d399"},
                       ].map((s,i)=><div key={i} className="metric" style={{textAlign:"center"}}>
                         <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:s.c}}>{s.v}</div>
-                        <div style={{fontSize:10,color:"#2e4a66",marginTop:4}}>{s.l}</div>
+                        <div style={{fontSize:10,color:"var(--text4)",marginTop:4}}>{s.l}</div>
                       </div>)}
                     </div>
                   </div>
                   {/* Preview table */}
                   <div className="card">
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                      <h3 style={{fontSize:12,fontWeight:600,color:"#7a8faa",margin:0}}>
+                      <h3 style={{fontSize:12,fontWeight:600,color:"var(--text2)",margin:0}}>
                         {invoiceProjId==="ALL"?"All Projects — Feb "+year+" (billable highlighted)":"Project Invoice Preview"}
                       </h3>
                       {allWithHours.filter(p=>!p.billable||p.rate_per_hour===0).length>0&&(
@@ -6236,37 +6286,37 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                         {filteredProjs.map(p=>{
                           const needsRate=p.billable&&p.rate_per_hour===0;
                           const notBillable=!p.billable;
-                          const rowStyle={cursor:"pointer",opacity:notBillable?0.45:1,background:notBillable?"#07101e":"inherit"};
+                          const rowStyle={cursor:"pointer",opacity:notBillable?0.45:1,background:notBillable?"var(--bg0)":"inherit"};
                           return(
                           <tr key={p.id} style={rowStyle} onClick={()=>setInvoiceProjId(p.id)}>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:notBillable?"#4e6479":"#38bdf8"}}>{p.id}</td>
-                            <td style={{fontSize:11,fontWeight:500,color:notBillable?"#4e6479":"#f0f6ff"}}>{p.name}</td>
-                            <td style={{fontSize:11,color:"#7a8faa"}}>{p.client}</td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"#4e6479":"#f0f6ff"}}>{p.hours}h</td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:needsRate?"#fb923c":notBillable?"#4e6479":"#7a8faa"}}>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:notBillable?"var(--text3)":"var(--info)"}}>{p.id}</td>
+                            <td style={{fontSize:11,fontWeight:500,color:notBillable?"var(--text3)":"var(--text0)"}}>{p.name}</td>
+                            <td style={{fontSize:11,color:"var(--text2)"}}>{p.client}</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"var(--text3)":"var(--text0)"}}>{p.hours}h</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:needsRate?"#fb923c":notBillable?"var(--text3)":"var(--text2)"}}>
                               {notBillable?"—":`$${p.rate_per_hour}/h`}
                             </td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"#4e6479":"#a78bfa",fontWeight:700}}>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"var(--text3)":"#a78bfa",fontWeight:700}}>
                               {notBillable?"—":fmtCurrency(p.revenue)}
                             </td>
                             <td style={{fontSize:10}}>
-                              {notBillable&&<span style={{color:"#4e6479",background:"#1a3050",borderRadius:3,padding:"1px 5px"}}>not billable</span>}
+                              {notBillable&&<span style={{color:"var(--text3)",background:"var(--border)",borderRadius:3,padding:"1px 5px"}}>not billable</span>}
                               {needsRate&&<span style={{color:"#fb923c",background:"#2a1a0a",borderRadius:3,padding:"1px 5px"}}>set rate ⚠</span>}
-                              {p.billable&&p.rate_per_hour>0&&<span style={{color:"#34d399",background:"#060e1c",borderRadius:3,padding:"1px 5px"}}>✓ billable</span>}
+                              {p.billable&&p.rate_per_hour>0&&<span style={{color:"#34d399",background:"var(--bg2)",borderRadius:3,padding:"1px 5px"}}>✓ billable</span>}
                             </td>
                           </tr>
                           );
                         })}
                         {filteredProjs.filter(p=>p.billable).length>0&&(
-                          <tr style={{background:"#0d1e33"}}>
-                            <td colSpan={3} style={{fontWeight:700,color:"#f0f6ff"}}>BILLABLE TOTAL</td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#38bdf8"}}>{invHrs}h</td>
+                          <tr style={{background:"var(--bg3)"}}>
+                            <td colSpan={3} style={{fontWeight:700,color:"var(--text0)"}}>BILLABLE TOTAL</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{invHrs}h</td>
                             <td></td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa",fontSize:13}}>{fmtCurrency(invTotal)}</td>
                             <td></td>
                           </tr>
                         )}
-                        {filteredProjs.length===0&&<tr><td colSpan={7} style={{textAlign:"center",color:"#2e4a66",padding:20}}>No hours logged for {MONTHS[month]} {year}</td></tr>}
+                        {filteredProjs.length===0&&<tr><td colSpan={7} style={{textAlign:"center",color:"var(--text4)",padding:20}}>No hours logged for {MONTHS[month]} {year}</td></tr>}
                       </tbody>
                     </table>
                     {invoiceProjId!=="ALL"&&allWithHours.length>1&&(
@@ -6285,8 +6335,8 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
                 <div>
-                  <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>{isAdmin?"Admin Panel":isAcct?"Finance Panel":"Lead Panel"}</h1>
-                  <p style={{color:"#2e4a66",fontSize:12,marginTop:3}}>
+                  <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>{isAdmin?"Admin Panel":isAcct?"Finance Panel":"Lead Panel"}</h1>
+                  <p style={{color:"var(--text4)",fontSize:12,marginTop:3}}>
                     {isAdmin?"Full control: engineers, projects, entries, settings":isAcct?"Full access to Finance · Read-only on all other tabs":"Edit engineer entries · Export individual timesheets"}
                   </p>
                 </div>
@@ -6301,7 +6351,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     <div key={n.id} style={{background:"#1a0a00",border:"1px solid #fb923c40",borderRadius:8,padding:"10px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <div>
                         <div style={{fontSize:12,fontWeight:600,color:"#fb923c"}}>{n.message}</div>
-                        <div style={{fontSize:10,color:"#2e4a66",marginTop:3}}>{new Date(n.created_at).toLocaleString()} · <span style={{color:"#38bdf8"}}>Go to Engineers tab → find them → set their role</span></div>
+                        <div style={{fontSize:10,color:"var(--text4)",marginTop:3}}>{new Date(n.created_at).toLocaleString()} · <span style={{color:"var(--info)"}}>Go to Engineers tab → find them → set their role</span></div>
                       </div>
                     </div>
                   ))}
@@ -6309,7 +6359,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
               )}
 
               {/* Tabs */}
-              <div style={{display:"flex",gap:4,marginBottom:18,background:"#060e1c",borderRadius:8,padding:4,width:"fit-content"}}>
+              <div style={{display:"flex",gap:4,marginBottom:18,background:"var(--bg2)",borderRadius:8,padding:4,width:"fit-content"}}>
                 {[
                   {id:"engineers",label:"👥 Engineers",show:isAdmin||isAcct},
                   {id:"projects", label:"◈ Projects",  show:isAdmin||isLead||isAcct},
@@ -6328,10 +6378,10 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
               {adminTab==="engineers"&&(isAdmin||isAcct)&&(
                 <div className="card">
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                    <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Engineers & Access Control ({engineers.length})</h3>
+                    <h3 style={{fontSize:13,fontWeight:600,color:"var(--text2)"}}>Engineers & Access Control ({engineers.length})</h3>
                     {isAdmin&&<button className="bp" onClick={()=>setShowEngModal(true)}>+ Add Member</button>}
                   </div>
-                  <div style={{background:"#060e1c",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:11,color:"#38bdf8",marginBottom:12}}>
+                  <div style={{background:"var(--bg2)",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:11,color:"var(--info)",marginBottom:12}}>
                     ℹ New registrations default to <strong>Engineer</strong> role. Update their role here after they sign up.
                   </div>
                   <table>
@@ -6342,14 +6392,14 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       const wdStr=engWd().map(d=>["Su","Mo","Tu","We","Th","Fr","Sa"][d]).join("+");
                       return(
                         <tr key={eng.id}>
-                          <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="av" style={{fontSize:9,width:26,height:26,opacity:!isEngActive(eng)?0.4:1}}>{eng.name?.slice(0,2).toUpperCase()}</div><div><span style={{fontWeight:500,color:!isEngActive(eng)?"#4e6479":"inherit"}}>{eng.name}</span>{!isEngActive(eng)&&<span style={{marginLeft:5,fontSize:9,padding:"1px 5px",borderRadius:3,background:"#f8717120",color:"#f87171"}}>INACTIVE</span>}</div></div></td>
-                          <td style={{color:"#7a8faa",fontSize:11}}>{eng.role}</td>
-                          <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"#1a3050",color:"#4e6479"}}>{eng.level}</span></td>
-                          <td style={{color:"#4e6479",fontSize:11}}>{eng.email||"—"}</td>
+                          <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="av" style={{fontSize:9,width:26,height:26,opacity:!isEngActive(eng)?0.4:1}}>{eng.name?.slice(0,2).toUpperCase()}</div><div><span style={{fontWeight:500,color:!isEngActive(eng)?"var(--text3)":"inherit"}}>{eng.name}</span>{!isEngActive(eng)&&<span style={{marginLeft:5,fontSize:9,padding:"1px 5px",borderRadius:3,background:"#f8717120",color:"#f87171"}}>INACTIVE</span>}</div></div></td>
+                          <td style={{color:"var(--text2)",fontSize:11}}>{eng.role}</td>
+                          <td><span style={{fontSize:9,padding:"2px 6px",borderRadius:3,background:"var(--border)",color:"var(--text3)"}}>{eng.level}</span></td>
+                          <td style={{color:"var(--text3)",fontSize:11}}>{eng.email||"—"}</td>
                           <td>
                             <div style={{display:"flex",gap:5,alignItems:"center"}}>
                               <select value={pendingRoles[eng.id]??eng.role_type??"engineer"}
-                                style={{padding:"3px 6px",fontSize:11,width:"auto",background:"#060e1c",border:"1px solid #192d47",color:"#dde3ef",borderRadius:4,outline:"none"}}
+                                style={{padding:"3px 6px",fontSize:11,width:"auto",background:"var(--bg2)",border:"1px solid var(--border3)",color:"var(--text1)",borderRadius:4,outline:"none"}}
                                 onChange={e=>setPendingRoles(p=>({...p,[eng.id]:e.target.value}))}>
                                 {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                               </select>
@@ -6372,7 +6422,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                             </div>
                           </td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"#f47218"}}>{wdStr||"—"}</td>
-                          <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{es?.workHrs||0}h</td>
+                          <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{es?.workHrs||0}h</td>
                           <td><div style={{display:"flex",gap:5}}>
                             <button className="be" onClick={()=>setEditEngModal({...eng})}>✎</button>
                             <button className="bd" onClick={()=>deleteEngineer(eng.id)}>✕</button>
@@ -6445,19 +6495,19 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       return(
                     <div style={{marginBottom:14}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                        <h3 style={{fontSize:13,fontWeight:600,color:"#7a8faa"}}>Entries ({adminBrowseEntries.length})</h3>
+                        <h3 style={{fontSize:13,fontWeight:600,color:"var(--text2)"}}>Entries ({adminBrowseEntries.length})</h3>
                         <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#34d399",fontWeight:700}}>{totalWH}h work · <span style={{color:"#fb923c"}}>{leaveE.length}d leave</span></span>
                       </div>
                       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
                         {[
-                          {l:"Work Hours",  v:totalWH+"h",       c:"#38bdf8"},
+                          {l:"Work Hours",  v:totalWH+"h",       c:"var(--info)"},
                           {l:"Billable",    v:billH+"h",         c:"#34d399"},
                           {l:"Non-Billable",v:nonBillH+"h",      c:"#fb923c"},
                           {l:"Engineers",   v:uniqEngs,          c:"#a78bfa"},
                           {l:"Projects",    v:uniqProjs,         c:"#60a5fa"},
                         ].map((s,i)=>(
-                          <div key={i} style={{background:"#060e1c",borderRadius:6,padding:"8px 10px"}}>
-                            <div style={{fontSize:9,color:"#2e4a66",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div>
+                          <div key={i} style={{background:"var(--bg2)",borderRadius:6,padding:"8px 10px"}}>
+                            <div style={{fontSize:9,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div>
                             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:s.c,marginTop:4}}>{s.v}</div>
                           </div>
                         ))}
@@ -6469,7 +6519,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       <table>
                         <thead><tr><th>Date</th><th>Engineer</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th><th>Type</th><th style={{width:90}}>Actions</th></tr></thead>
                         <tbody>
-                          {adminBrowseEntries.length===0&&<tr><td colSpan={8} style={{textAlign:"center",color:"#2e4a66",padding:20}}>No entries</td></tr>}
+                          {adminBrowseEntries.length===0&&<tr><td colSpan={8} style={{textAlign:"center",color:"var(--text4)",padding:20}}>No entries</td></tr>}
                           {adminBrowseEntries.map(e=>{
                             const eng=engineers.find(x=>x.id===e.engineer_id);
                             const proj=projects.find(x=>x.id===e.project_id);
@@ -6477,10 +6527,10 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                               <tr key={e.id}>
                                 <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>{e.date}</td>
                                 <td style={{fontSize:11}}>{eng?.name||"—"}</td>
-                                <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"#38bdf8"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
-                                <td style={{fontSize:10,color:"#7a8faa"}}>{e.task_type||"—"}</td>
-                                <td style={{fontSize:10,color:"#4e6479",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
-                                <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8",fontWeight:700}}>{e.hours}h</td>
+                                <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
+                                <td style={{fontSize:10,color:"var(--text2)"}}>{e.task_type||"—"}</td>
+                                <td style={{fontSize:10,color:"var(--text3)",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                                <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
                                 <td><span style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
                                 {canEditAny&&<td><div style={{display:"flex",gap:4}}>
                                   <button className="be" style={{fontSize:10}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
@@ -6561,8 +6611,8 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                 <div style={{maxWidth:600,display:"grid",gap:14}}>
                   {/* Weekend settings card — was previously in sidebar Info tab */}
                   <div className="card">
-                    <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:4}}>🗓 My Weekend Days</h3>
-                    <p style={{fontSize:11,color:"#2e4a66",marginBottom:16,lineHeight:1.6}}>
+                    <h3 style={{fontSize:13,fontWeight:700,color:"var(--text0)",marginBottom:4}}>🗓 My Weekend Days</h3>
+                    <p style={{fontSize:11,color:"var(--text4)",marginBottom:16,lineHeight:1.6}}>
                       Select your weekend days. Affects timesheet display and utilization target.
                     </p>
                     <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,marginBottom:14}}>
@@ -6570,8 +6620,8 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                         const isWe=myWeekend.includes(i);
                         return(
                           <button key={i} onClick={()=>{const next=isWe?myWeekend.filter(d=>d!==i):[...myWeekend,i];saveMyWeekend(next);}}
-                            style={{padding:"10px 4px",borderRadius:7,border:`2px solid ${isWe?"#f47218":"#1a3050"}`,
-                              background:isWe?"#1a0a00":"#060e1c",color:isWe?"#f47218":"#4e6479",
+                            style={{padding:"10px 4px",borderRadius:7,border:`2px solid ${isWe?"#f47218":"var(--border)"}`,
+                              background:isWe?"#1a0a00":"var(--bg2)",color:isWe?"#f47218":"var(--text3)",
                               cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif"}}>
                             {name}{isWe&&<div style={{fontSize:9,marginTop:3,color:"#f47218"}}>OFF</div>}
                           </button>
@@ -6586,10 +6636,10 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       ].map(p=>(
                         <button key={p.label} onClick={()=>saveMyWeekend(p.days)}
                           style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",
-                            border:"1px solid #192d47",borderRadius:6,padding:"8px 12px",cursor:"pointer",
-                            fontFamily:"'IBM Plex Sans',sans-serif",color:"#dde3ef"}}>
+                            border:"1px solid var(--border3)",borderRadius:6,padding:"8px 12px",cursor:"pointer",
+                            fontFamily:"'IBM Plex Sans',sans-serif",color:"var(--text1)"}}>
                           <span style={{fontSize:12,fontWeight:600}}>{p.label}</span>
-                          <span style={{fontSize:10,color:"#4e6479",fontFamily:"'IBM Plex Mono',monospace"}}>{p.desc}</span>
+                          <span style={{fontSize:10,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{p.desc}</span>
                         </button>
                       ))}
                     </div>
@@ -6599,21 +6649,21 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                   </div>
 
                   <div className="card">
-                    <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:4}}>Access Role Descriptions</h3>
-                    <p style={{fontSize:11,color:"#2e4a66",marginBottom:14,lineHeight:1.6}}>Each role controls what features are visible and accessible.</p>
+                    <h3 style={{fontSize:13,fontWeight:700,color:"var(--text0)",marginBottom:4}}>Access Role Descriptions</h3>
+                    <p style={{fontSize:11,color:"var(--text4)",marginBottom:14,lineHeight:1.6}}>Each role controls what features are visible and accessible.</p>
                     <div style={{display:"grid",gap:8}}>
                       {[
-                        {role:"engineer",label:"Engineer",color:"#4e6479",perms:"Post own hours on assigned projects only · View dashboard, projects & team · No reports access"},
-                        {role:"lead",    label:"Lead Engineer",color:"#38bdf8",perms:"Post & edit any engineer's hours · View all reports · Export individual timesheets · Manage project tracker"},
+                        {role:"engineer",label:"Engineer",color:"var(--text3)",perms:"Post own hours on assigned projects only · View dashboard, projects & team · No reports access"},
+                        {role:"lead",    label:"Lead Engineer",color:"var(--info)",perms:"Post & edit any engineer's hours · View all reports · Export individual timesheets · Manage project tracker"},
                         {role:"accountant",label:"Accountant",color:"#a78bfa",perms:"Full Finance tab access · Add/edit/delete expenses · Export all reports & invoices · View rates & revenue"},
                         {role:"senior_management",label:"Senior Management",color:"#fb923c",perms:"View-only admin access · Export all reports · No data entry or editing allowed"},
                         {role:"admin",   label:"Admin",color:"#34d399",perms:"Full access · Manage engineers & projects · All reports & invoices · Configure system settings"},
                       ].map(r=>(
-                        <div key={r.role} style={{background:"#060e1c",border:`1px solid ${r.color}30`,borderRadius:8,padding:"10px 14px"}}>
+                        <div key={r.role} style={{background:"var(--bg2)",border:`1px solid ${r.color}30`,borderRadius:8,padding:"10px 14px"}}>
                           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
                             <span className="role-badge" style={{background:r.color+"20",color:r.color}}>{r.label}</span>
                           </div>
-                          <div style={{fontSize:11,color:"#4e6479",lineHeight:1.5}}>{r.perms}</div>
+                          <div style={{fontSize:11,color:"var(--text3)",lineHeight:1.5}}>{r.perms}</div>
                         </div>
                       ))}
                     </div>
@@ -6626,10 +6676,10 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
           {/* ════ MY SETTINGS (engineer only) ════ */}
           {view==="mysettings"&&false&&( /* removed — settings now in Admin › Info */
             <div>
-              <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff",marginBottom:20}}>My Settings</h1>
+              <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)",marginBottom:20}}>My Settings</h1>
               <div className="card" style={{maxWidth:480}}>
-                <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:4}}>My Weekend Days</h3>
-                <p style={{fontSize:11,color:"#2e4a66",marginBottom:16,lineHeight:1.6}}>
+                <h3 style={{fontSize:13,fontWeight:700,color:"var(--text0)",marginBottom:4}}>My Weekend Days</h3>
+                <p style={{fontSize:11,color:"var(--text4)",marginBottom:16,lineHeight:1.6}}>
                   Select your personal weekend days. This affects how your timesheet looks and your utilization target calculation. Engineers on site in Romania can set Sat+Sun, those in Egypt set Fri+Sat.
                 </p>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,marginBottom:16}}>
@@ -6640,8 +6690,8 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                         const next=isWe?myWeekend.filter(d=>d!==i):[...myWeekend,i];
                         saveMyWeekend(next);
                       }} style={{
-                        padding:"10px 4px",borderRadius:7,border:`2px solid ${isWe?"#f47218":"#1a3050"}`,
-                        background:isWe?"#1a0a00":"#060e1c",color:isWe?"#f47218":"#4e6479",
+                        padding:"10px 4px",borderRadius:7,border:`2px solid ${isWe?"#f47218":"var(--border)"}`,
+                        background:isWe?"#1a0a00":"var(--bg2)",color:isWe?"#f47218":"var(--text3)",
                         cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif",transition:"all .2s"
                       }}>
                         {name}
@@ -6656,11 +6706,11 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     {label:"🇷🇴 Romania / Europe",days:[0,6],desc:"Sat + Sun"},
                     {label:"No Weekend",days:[],desc:"All 7 days"},
                   ].map(p=>(
-                    <button key={p.label} onClick={()=>saveMyWeekend(p.days)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",border:"1px solid #192d47",borderRadius:6,padding:"8px 12px",cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",color:"#dde3ef",transition:"border-color .2s"}}
-                    onMouseEnter={e=>e.currentTarget.style.borderColor="#38bdf8"}
-                    onMouseLeave={e=>e.currentTarget.style.borderColor="#1a3050"}>
+                    <button key={p.label} onClick={()=>saveMyWeekend(p.days)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"transparent",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 12px",cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",color:"var(--text1)",transition:"border-color .2s"}}
+                    onMouseEnter={e=>e.currentTarget.style.borderColor="var(--info)"}
+                    onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
                       <span style={{fontSize:12,fontWeight:600}}>{p.label}</span>
-                      <span style={{fontSize:10,color:"#4e6479",fontFamily:"'IBM Plex Mono',monospace"}}>{p.desc}</span>
+                      <span style={{fontSize:10,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{p.desc}</span>
                     </button>
                   ))}
                 </div>
@@ -6677,9 +6727,9 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
           {view==="import"&&isAdmin&&(
             <div>
               <div style={{marginBottom:20}}>
-                <h1 style={{fontSize:21,fontWeight:700,color:"#f0f6ff"}}>Import Excel Timesheets</h1>
+                <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>Import Excel Timesheets</h1>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
-                  <p style={{color:"#2e4a66",fontSize:12}}>Upload ENEVOEGY timesheet files · Engineers &amp; projects created automatically</p>
+                  <p style={{color:"var(--text4)",fontSize:12}}>Upload ENEVOEGY timesheet files · Engineers &amp; projects created automatically</p>
                   <span style={{fontSize:10,padding:"2px 8px",borderRadius:3,background:xlsxReady?"#024b36":"#1a0a00",color:xlsxReady?"#34d399":"#fb923c",fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"}}>
                     {xlsxReady?"✓ XLSX READY":"⏳ LOADING XLSX..."}
                   </span>
@@ -6689,26 +6739,26 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                 {/* Upload panel */}
                 <div>
                   <div className="card" style={{marginBottom:14}}>
-                    <h3 style={{fontSize:13,fontWeight:700,color:"#f0f6ff",marginBottom:12}}>📂 Upload Timesheet Files</h3>
+                    <h3 style={{fontSize:13,fontWeight:700,color:"var(--text0)",marginBottom:12}}>📂 Upload Timesheet Files</h3>
                     <div style={{border:"2px dashed #192d47",borderRadius:8,padding:"28px",textAlign:"center",marginBottom:14,cursor:"pointer",transition:"border-color .2s"}}
-                      onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="#38bdf8";}}
-                      onDragLeave={e=>{e.currentTarget.style.borderColor="#1a3050";}}
-                      onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor="#1a3050";const f=[...e.dataTransfer.files].filter(f=>f.name.endsWith(".xlsx")||f.name.endsWith(".xls"));setImportFiles(prev=>[...prev,...f]);}}
+                      onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="var(--info)";}}
+                      onDragLeave={e=>{e.currentTarget.style.borderColor="var(--border)";}}
+                      onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor="var(--border)";const f=[...e.dataTransfer.files].filter(f=>f.name.endsWith(".xlsx")||f.name.endsWith(".xls"));setImportFiles(prev=>[...prev,...f]);}}
                       onClick={()=>document.getElementById("xlsxInput").click()}>
                       <div style={{fontSize:32,marginBottom:8}}>📊</div>
-                      <div style={{fontSize:13,fontWeight:600,color:"#f0f6ff",marginBottom:4}}>Drop .xlsx files here or click to browse</div>
-                      <div style={{fontSize:11,color:"#2e4a66"}}>Supports ENEVOEGY timesheet format · Multiple files at once</div>
+                      <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:4}}>Drop .xlsx files here or click to browse</div>
+                      <div style={{fontSize:11,color:"var(--text4)"}}>Supports ENEVOEGY timesheet format · Multiple files at once</div>
                       <input id="xlsxInput" type="file" accept=".xlsx,.xls" multiple style={{display:"none"}}
                         onChange={e=>setImportFiles(prev=>[...prev,...Array.from(e.target.files)])}/>
                     </div>
                     {importFiles.length>0&&(
                       <div>
-                        <div style={{fontSize:11,color:"#7a8faa",marginBottom:8,fontWeight:700}}>{importFiles.length} FILE{importFiles.length>1?"S":""} QUEUED:</div>
+                        <div style={{fontSize:11,color:"var(--text2)",marginBottom:8,fontWeight:700}}>{importFiles.length} FILE{importFiles.length>1?"S":""} QUEUED:</div>
                         {importFiles.map((f,i)=>(
-                          <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#060e1c",borderRadius:5,padding:"7px 10px",marginBottom:5}}>
+                          <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--bg2)",borderRadius:5,padding:"7px 10px",marginBottom:5}}>
                             <div>
                               <div style={{fontSize:12,fontWeight:600}}>{f.name}</div>
-                              <div style={{fontSize:10,color:"#2e4a66"}}>{(f.size/1024).toFixed(1)} KB</div>
+                              <div style={{fontSize:10,color:"var(--text4)"}}>{(f.size/1024).toFixed(1)} KB</div>
                             </div>
                             <button className="bd" style={{fontSize:10}} onClick={()=>setImportFiles(prev=>prev.filter((_,j)=>j!==i))}>✕</button>
                           </div>
@@ -6724,7 +6774,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     )}
                   </div>
                   <div className="card">
-                    <h3 style={{fontSize:12,fontWeight:700,color:"#f0f6ff",marginBottom:10}}>📋 What Gets Imported</h3>
+                    <h3 style={{fontSize:12,fontWeight:700,color:"var(--text0)",marginBottom:10}}>📋 What Gets Imported</h3>
                     {[
                       ["👤","Engineer","Created automatically from Name + Email in the sheet header"],
                       ["⏱","Work Hours","Daily task + hours + project mapped to entries"],
@@ -6734,7 +6784,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     ].map(([icon,label,desc])=>(
                       <div key={label} style={{display:"flex",gap:10,marginBottom:10}}>
                         <div style={{fontSize:16,width:24,flexShrink:0}}>{icon}</div>
-                        <div><div style={{fontSize:12,fontWeight:600}}>{label}</div><div style={{fontSize:11,color:"#2e4a66",lineHeight:1.5}}>{desc}</div></div>
+                        <div><div style={{fontSize:12,fontWeight:600}}>{label}</div><div style={{fontSize:11,color:"var(--text4)",lineHeight:1.5}}>{desc}</div></div>
                       </div>
                     ))}
                     <div style={{background:"#1a0a00",border:"1px solid #fb923c30",borderRadius:6,padding:"9px 12px",fontSize:11,color:"#fb923c",marginTop:8}}>
@@ -6744,15 +6794,15 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                 </div>
                 {/* Log panel */}
                 <div className="card" style={{maxHeight:600,overflowY:"auto"}}>
-                  <h3 style={{fontSize:12,fontWeight:700,color:"#f0f6ff",marginBottom:12}}>📋 Import Log</h3>
-                  {importLog.length===0&&<div style={{color:"#2e4a66",fontSize:12,textAlign:"center",padding:30}}>No import started yet</div>}
+                  <h3 style={{fontSize:12,fontWeight:700,color:"var(--text0)",marginBottom:12}}>📋 Import Log</h3>
+                  {importLog.length===0&&<div style={{color:"var(--text4)",fontSize:12,textAlign:"center",padding:30}}>No import started yet</div>}
                   {importLog.map((entry,i)=>(
                     <div key={i} style={{display:"flex",gap:8,marginBottom:5,fontSize:11,padding:"4px 0",borderBottom:"1px solid #0d1a2d"}}>
-                      <span style={{width:8,height:8,borderRadius:"50%",marginTop:4,flexShrink:0,background:entry.type==="ok"?"#34d399":entry.type==="error"?"#f87171":entry.type==="warn"?"#fb923c":"#38bdf8"}}/>
-                      <span style={{color:entry.type==="ok"?"#34d399":entry.type==="error"?"#f87171":entry.type==="warn"?"#fb923c":"#7a8faa",lineHeight:1.4}}>{entry.msg}</span>
+                      <span style={{width:8,height:8,borderRadius:"50%",marginTop:4,flexShrink:0,background:entry.type==="ok"?"#34d399":entry.type==="error"?"#f87171":entry.type==="warn"?"#fb923c":"var(--info)"}}/>
+                      <span style={{color:entry.type==="ok"?"#34d399":entry.type==="error"?"#f87171":entry.type==="warn"?"#fb923c":"var(--text2)",lineHeight:1.4}}>{entry.msg}</span>
                     </div>
                   ))}
-                  {importing&&<div style={{textAlign:"center",padding:10,color:"#38bdf8",fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>Processing…</div>}
+                  {importing&&<div style={{textAlign:"center",padding:10,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>Processing…</div>}
                 </div>
               </div>
             </div>
@@ -6790,9 +6840,9 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
           return matchSub && matchCat;
         });
 
-        const INP={width:"100%",background:"#060e1c",border:"1px solid #192d47",borderRadius:5,color:"#f0f6ff",padding:"7px 10px",fontSize:12,boxSizing:"border-box"};
-        const LBL={fontSize:10,color:"#7a8faa",fontWeight:700,display:"block",marginBottom:4,letterSpacing:".05em"};
-        const GC={"SCADA":"#38bdf8","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+        const INP={width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"7px 10px",fontSize:12,boxSizing:"border-box"};
+        const LBL={fontSize:10,color:"var(--text2)",fontWeight:700,display:"block",marginBottom:4,letterSpacing:".05em"};
+        const GC={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
 
         // Step pill indicator
         const totalSteps = isLeave?2:isFunc?3:4;
@@ -6800,7 +6850,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
           <div style={{display:"flex",gap:4,marginBottom:16}}>
             {Array.from({length:totalSteps},(_,i)=>(
               <div key={i} style={{flex:1,height:3,borderRadius:99,
-                background:i<step?"#38bdf8":"#1a3050",
+                background:i<step?"var(--info)":"var(--border)",
                 transition:"background .2s"}}/>
             ))}
           </div>
@@ -6809,7 +6859,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
         const Btn=({children,onClick,disabled,primary})=>(
           <button onClick={onClick} disabled={disabled}
             style={{padding:"8px 18px",borderRadius:6,border:"none",cursor:disabled?"not-allowed":"pointer",
-              background:primary?"#1d4ed8":"#0d1e33",color:disabled?"#2e4a66":"#f0f6ff",
+              background:primary?"#1d4ed8":"var(--bg3)",color:disabled?"var(--text4)":"var(--text0)",
               fontSize:12,fontWeight:700,opacity:disabled?.5:1,transition:"all .15s"}}>
             {children}
           </button>
@@ -6821,8 +6871,8 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
 
             {/* Header */}
             <div style={{marginBottom:14}}>
-              <h3 style={{fontSize:14,fontWeight:700,color:"#f0f6ff",marginBottom:2}}>Post Hours</h3>
-              <p style={{fontSize:10,color:"#2e4a66",fontFamily:"'IBM Plex Mono',monospace",margin:0}}>
+              <h3 style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:2}}>Post Hours</h3>
+              <p style={{fontSize:10,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace",margin:0}}>
                 {new Date(modalDate).toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}
                 {canEdit&&viewEng&&<span> · {viewEng.name}</span>}
               </p>
@@ -6843,9 +6893,9 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       {v:"leave",  icon:"🌴", label:"Leave"},
                     ].map(({v,icon,label})=>(
                       <button key={v} onClick={()=>setNewEntry(p=>({...p,type:v,_step:2}))}
-                        style={{padding:"14px 8px",borderRadius:8,border:`2px solid ${newEntry.type===v?"#38bdf8":"#1a3050"}`,
-                          background:newEntry.type===v?"#38bdf8"+"18":"#060e1c",
-                          color:newEntry.type===v?"#38bdf8":"#4e6479",
+                        style={{padding:"14px 8px",borderRadius:8,border:`2px solid ${newEntry.type===v?"var(--info)":"var(--border)"}`,
+                          background:newEntry.type===v?"var(--info)"+"18":"var(--bg2)",
+                          color:newEntry.type===v?"var(--info)":"var(--text3)",
                           fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",
                           flexDirection:"column",alignItems:"center",gap:4}}>
                         <span style={{fontSize:20}}>{icon}</span>{label}
@@ -6864,7 +6914,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       {LEAVE_TYPES.map(t=><option key={t}>{t}</option>)}
                     </select>
                   </div>
-                  <div style={{padding:"10px 12px",background:"#07101e",borderRadius:6,border:"1px solid #192d47",fontSize:11,color:"#4e6479"}}>
+                  <div style={{padding:"10px 12px",background:"var(--bg0)",borderRadius:6,border:"1px solid var(--border3)",fontSize:11,color:"var(--text3)"}}>
                     ℹ️ Leave entries are logged as a full 8-hour day automatically.
                   </div>
                 </div>
@@ -6878,9 +6928,9 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
                       {FUNCTION_CATS.map(c=>(
                         <button key={c} onClick={()=>setNewEntry(p=>({...p,taskType:c,function_category:c}))}
-                          style={{padding:"7px 8px",borderRadius:6,border:`1px solid ${newEntry.taskType===c?"#38bdf8":"#1a3050"}`,
-                            background:newEntry.taskType===c?"#38bdf8"+"18":"#060e1c",
-                            color:newEntry.taskType===c?"#38bdf8":"#4e6479",
+                          style={{padding:"7px 8px",borderRadius:6,border:`1px solid ${newEntry.taskType===c?"var(--info)":"var(--border)"}`,
+                            background:newEntry.taskType===c?"var(--info)"+"18":"var(--bg2)",
+                            color:newEntry.taskType===c?"var(--info)":"var(--text3)",
                             fontSize:10,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
                           {c}
                         </button>
@@ -6893,7 +6943,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
               {/* ── STEP 3 for FUNCTION: hours + description ── */}
               {step===3&&isFunc&&(
                 <div style={{display:"grid",gap:12}}>
-                  <div style={{padding:"8px 12px",background:"#38bdf8"+"12",borderRadius:6,border:"1px solid #38bdf8"+"40",fontSize:11,color:"#38bdf8",fontWeight:700}}>
+                  <div style={{padding:"8px 12px",background:"var(--info)"+"12",borderRadius:6,border:"1px solid #38bdf8"+"40",fontSize:11,color:"var(--info)",fontWeight:700}}>
                     {newEntry.taskType||FUNCTION_CATS[0]}
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"100px 1fr",gap:10,alignItems:"start"}}>
@@ -6922,12 +6972,12 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       {_noProjects?(
                         <div style={{padding:"12px",background:"#1a0a0a",border:"1px solid #f8717140",borderRadius:6,fontSize:11,color:"#f87171",textAlign:"center"}}>
                           ⚠ {_targetEng?.name||"This engineer"} is not assigned to any active project.<br/>
-                          <span style={{color:"#4e6479",fontSize:10}}>Ask an admin to assign projects first.</span>
+                          <span style={{color:"var(--text3)",fontSize:10}}>Ask an admin to assign projects first.</span>
                         </div>
                       ):(
                         <select value={newEntry.projectId}
                           onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null,_actCat:null,_actSub:null}))}
-                          style={{...INP,borderColor:!newEntry.projectId?"#f87171":"#1a3050"}}>
+                          style={{...INP,borderColor:!newEntry.projectId?"#f87171":"var(--border)"}}>
                           <option value="">— Select Project —</option>
                           {_availProjs.map(p=>(
                             <option key={p.id} value={p.id}>{p.id} — {p.name}</option>
@@ -6939,7 +6989,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                   {/* Sub-site if available */}
                   {newEntry.projectId&&projSubList.length>0&&(
                     <div>
-                      <label style={LBL}>SUB-SITE <span style={{color:"#4e6479",fontWeight:400}}>(optional)</span></label>
+                      <label style={LBL}>SUB-SITE <span style={{color:"var(--text3)",fontWeight:400}}>(optional)</span></label>
                       <select value={newEntry._actSub||""}
                         onChange={e=>setNewEntry(p=>({...p,_actSub:e.target.value||null,activityId:null}))}
                         style={INP}>
@@ -6970,9 +7020,9 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                             activityId:null
                           }))}
                           style={{flex:1,padding:"6px 4px",borderRadius:6,
-                            border:`1px solid ${newEntry._group===g?(GC[g]||"#38bdf8")+"80":"#1a3050"}`,
-                            background:newEntry._group===g?(GC[g]||"#38bdf8")+"15":"#060e1c",
-                            color:newEntry._group===g?(GC[g]||"#38bdf8"):"#4e6479",
+                            border:`1px solid ${newEntry._group===g?(GC[g]||"var(--info)")+"80":"var(--border)"}`,
+                            background:newEntry._group===g?(GC[g]||"var(--info)")+"15":"var(--bg2)",
+                            color:newEntry._group===g?(GC[g]||"var(--info)"):"var(--text3)",
                             fontSize:10,fontWeight:700,cursor:"pointer"}}>
                           {g}
                         </button>
@@ -6997,7 +7047,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       <select value={newEntry.activityId||""}
                         onChange={e=>setNewEntry(p=>({...p,activityId:e.target.value||null,
                           taskType:filteredActs.find(a=>String(a.id)===e.target.value)?.activity_name||p.taskType}))}
-                        style={{...INP,borderColor:"#38bdf8"+"60"}}>
+                        style={{...INP,borderColor:"var(--info)"+"60"}}>
                         <option value="">— General (no specific activity) —</option>
                         {filteredActs
                           .filter(a=>!newEntry.taskCategory||a.category===newEntry.taskCategory)
@@ -7016,7 +7066,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       </select>
                     )}
                     {filteredActs.length>0&&(
-                      <div style={{fontSize:9,color:"#38bdf8",marginTop:3,paddingLeft:2}}>
+                      <div style={{fontSize:9,color:"var(--info)",marginTop:3,paddingLeft:2}}>
                         ✓ Linked to project tracker activities
                       </div>
                     )}
@@ -7029,15 +7079,15 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                 <div style={{display:"grid",gap:12}}>
                   {/* Summary badge */}
                   <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                    <span style={{padding:"3px 8px",borderRadius:99,background:(GC[newEntry._group]||"#38bdf8")+"18",
-                      color:GC[newEntry._group]||"#38bdf8",fontSize:10,fontWeight:700}}>
+                    <span style={{padding:"3px 8px",borderRadius:99,background:(GC[newEntry._group]||"var(--info)")+"18",
+                      color:GC[newEntry._group]||"var(--info)",fontSize:10,fontWeight:700}}>
                       {newEntry._group}
                     </span>
-                    <span style={{padding:"3px 8px",borderRadius:99,background:"#1a3050",color:"#7a8faa",fontSize:10}}>
+                    <span style={{padding:"3px 8px",borderRadius:99,background:"var(--border)",color:"var(--text2)",fontSize:10}}>
                       {newEntry.taskCategory}
                     </span>
                     {newEntry.taskType&&(
-                      <span style={{padding:"3px 8px",borderRadius:99,background:"#1a3050",color:"#7a8faa",fontSize:10}}>
+                      <span style={{padding:"3px 8px",borderRadius:99,background:"var(--border)",color:"var(--text2)",fontSize:10}}>
                         {newEntry.taskType.length>30?newEntry.taskType.slice(0,28)+"…":newEntry.taskType}
                       </span>
                     )}
@@ -7050,7 +7100,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                         onChange={e=>setNewEntry(p=>({...p,hours:+e.target.value}))} style={INP}/>
                     </div>
                     <div>
-                      <label style={LBL}>NOTES <span style={{color:"#4e6479",fontWeight:400}}>(optional)</span></label>
+                      <label style={LBL}>NOTES <span style={{color:"var(--text3)",fontWeight:400}}>(optional)</span></label>
                       <textarea rows={2} value={newEntry.activity}
                         onChange={e=>setNewEntry(p=>({...p,activity:e.target.value}))}
                         placeholder="e.g. Completed BESS display animations…"
@@ -7171,7 +7221,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
               {/* Team assignment */}
               <div>
                 <Lbl>Assigned Team Members</Lbl>
-                <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:160,overflowY:"auto"}}>
+                <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:160,overflowY:"auto"}}>
                   {engineers.filter(e=>{
                     if(!isEngActive(e)) return false;
                     if(e.role_type==="accountant"||e.role_type==="senior_management") return false;
@@ -7186,9 +7236,9 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                       <input type="checkbox" checked={sel} onChange={()=>setNewProj(p=>{
                         const cur=p.assigned_engineers||[];
                         return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
-                      })} style={{accentColor:"#38bdf8"}}/>
-                      <span style={{fontSize:10,color:sel?"#38bdf8":"#7a8faa"}}>{e.name}</span>
-                      <span style={{fontSize:9,color:"#2e4a66",marginLeft:"auto"}}>{e.role} · {e.role_type==="lead"?"Lead":e.level||""}</span>
+                      })} style={{accentColor:"var(--info)"}}/>
+                      <span style={{fontSize:10,color:sel?"var(--info)":"var(--text2)"}}>{e.name}</span>
+                      <span style={{fontSize:9,color:"var(--text4)",marginLeft:"auto"}}>{e.role} · {e.role_type==="lead"?"Lead":e.level||""}</span>
                     </label>);
                   })}
                 </div>
@@ -7212,11 +7262,11 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
           <div className="modal" style={{maxWidth:580,maxHeight:"85vh",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
             <h3 style={{fontSize:15,fontWeight:700,marginBottom:12}}>Edit Project — {editProjModal._origId||editProjModal.id}</h3>
             {/* Tab bar */}
-            <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid #192d47"}}>
+            <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid var(--border3)"}}>
               {(isAdmin?[["details","⚙ Details"],["team","👥 Team"],["activities","📋 Activities"]]:[["details","⚙ Details"],["team","👥 Team"],["activities","📋 Activities"]]).map(([t,l])=>(
                 <button key={t} onClick={()=>setEpTab(t)}
                   style={{padding:"6px 14px",border:"none",borderBottom:epTab===t?"2px solid #38bdf8":"2px solid transparent",
-                    background:"transparent",color:epTab===t?"#38bdf8":"#4e6479",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                    background:"transparent",color:epTab===t?"var(--info)":"var(--text3)",fontSize:11,fontWeight:600,cursor:"pointer"}}>
                   {l}{t==="activities"?` (${epActs.length})`:""}
                 </button>
               ))}
@@ -7227,7 +7277,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
               <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
                 <div><Lbl>Project No. <span style={{color:"#f87171",fontSize:9}}>(rename re-links all entries)</span></Lbl>
                   {isAdmin?<input value={editProjModal.id||""} onChange={e=>setEditProjModal(p=>({...p,id:e.target.value.toUpperCase(),_origId:p._origId||p.id}))}/>
-                  :<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#38bdf8",padding:"8px 0"}}>{editProjModal.id}</div>}
+                  :<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)",padding:"8px 0"}}>{editProjModal.id}</div>}
                 </div>
                 <div><Lbl>Project Name</Lbl><input value={editProjModal.name} onChange={e=>setEditProjModal(p=>({...p,name:e.target.value}))}/></div>
               </div>
@@ -7246,8 +7296,8 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
             </div>}
             {/* ── TEAM TAB ── */}
             {epTab==="team"&&<div>
-              <div style={{fontSize:11,color:"#4e6479",marginBottom:10}}>Select engineers assigned to this project. Only assigned engineers can post hours.</div>
-              <div style={{background:"#060e1c",border:"1px solid #192d47",borderRadius:6,padding:"6px 8px",display:"grid",gridTemplateColumns:"1fr",gap:4,maxHeight:300,overflowY:"auto"}}>
+              <div style={{fontSize:11,color:"var(--text3)",marginBottom:10}}>Select engineers assigned to this project. Only assigned engineers can post hours.</div>
+              <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 8px",display:"grid",gridTemplateColumns:"1fr",gap:4,maxHeight:300,overflowY:"auto"}}>
                 {engineers.filter(e=>{
                   if(!isEngActive(e)) return false;
                   if(e.role_type==="accountant"||e.role_type==="senior_management") return false;
@@ -7259,21 +7309,21 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                   const displayName=nameParts.length>=2?nameParts[0]+" "+nameParts[nameParts.length-1]:e.name;
                   return(
                   <label key={e.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"7px 10px",borderRadius:6,
-                    background:sel?"#0a1628":"#060e1c",border:`1px solid ${sel?"#0ea5e940":"#0d1e33"}`,transition:"background .15s"}}>
+                    background:sel?"#0a1628":"var(--bg2)",border:`1px solid ${sel?"#0ea5e940":"var(--bg3)"}`,transition:"background .15s"}}>
                     <input type="checkbox" checked={sel} onChange={()=>setEditProjModal(p=>{
                       const cur=p.assigned_engineers||[];
                       return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
-                    })} style={{accentColor:"#38bdf8",width:14,height:14,flexShrink:0}}/>
+                    })} style={{accentColor:"var(--info)",width:14,height:14,flexShrink:0}}/>
                     <div className="av" style={{width:30,height:30,fontSize:11,flexShrink:0}}>{(e.name||"").slice(0,2).toUpperCase()}</div>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:12,fontWeight:600,color:sel?"#38bdf8":"#f0f6ff",letterSpacing:.2}}>{displayName}</div>
-                      <div style={{fontSize:10,color:"#4e6479",marginTop:1}}>{e.role} · <span style={{color:ROLE_COLORS[e.role_type]||"#4e6479"}}>{ROLE_LABELS[e.role_type]||e.role_type}</span></div>
+                      <div style={{fontSize:12,fontWeight:600,color:sel?"var(--info)":"var(--text0)",letterSpacing:.2}}>{displayName}</div>
+                      <div style={{fontSize:10,color:"var(--text3)",marginTop:1}}>{e.role} · <span style={{color:ROLE_COLORS[e.role_type]||"var(--text3)"}}>{ROLE_LABELS[e.role_type]||e.role_type}</span></div>
                     </div>
-                    {sel&&<span style={{fontSize:9,color:"#38bdf8",background:"#38bdf820",padding:"2px 6px",borderRadius:3,flexShrink:0}}>✓ Assigned</span>}
+                    {sel&&<span style={{fontSize:9,color:"var(--info)",background:"#38bdf820",padding:"2px 6px",borderRadius:3,flexShrink:0}}>✓ Assigned</span>}
                   </label>);
                 })}
               </div>
-              <div style={{fontSize:10,color:"#4e6479",marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:10,color:"var(--text3)",marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <span>{(editProjModal.assigned_engineers||[]).length} engineer{(editProjModal.assigned_engineers||[]).length!==1?"s":""} assigned</span>
                 {(editProjModal.assigned_engineers||[]).length>0&&
                   <button style={{background:"none",border:"none",color:"#f87171",fontSize:10,cursor:"pointer"}}
@@ -7288,7 +7338,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
               supabase={supabase} showToast={showToast}
             />}
                         </div>
-            {epTab!=="activities"&&<div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",borderTop:"1px solid #192d47",paddingTop:14}}>
+            {epTab!=="activities"&&<div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",borderTop:"1px solid var(--border3)",paddingTop:14}}>
               <button className="bg" onClick={()=>setEditProjModal(null)}>Cancel</button>
               <button className="bp" onClick={saveEditProject}>Save Changes</button>
             </div>}
@@ -7329,7 +7379,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                 <select value={newEng.role_type} onChange={e=>setNewEng(p=>({...p,role_type:e.target.value}))}>
                   {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                 </select>
-                <div style={{fontSize:10,color:"#2e4a66",marginTop:4}}>
+                <div style={{fontSize:10,color:"var(--text4)",marginTop:4}}>
                   {newEng.role_type==="engineer"&&"Can log hours & view own timesheets"}
                   {newEng.role_type==="lead"&&"Engineer + can view all team timesheets"}
                   {newEng.role_type==="accountant"&&"Full access to Finance tab, invoices & reports — no timesheet editing"}
@@ -7337,15 +7387,15 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                 </div>
               </div>
             </div>
-              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
-                <span style={{fontSize:11,color:"#7a8faa",flex:1}}>Employment Status</span>
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"var(--bg2)",borderRadius:6,border:"1px solid var(--border3)"}}>
+                <span style={{fontSize:11,color:"var(--text2)",flex:1}}>Employment Status</span>
                 {["Active","Inactive"].map(s=>{
                   const active=s==="Active";
                   const sel=(newEng.is_active!==false&&!newEng.termination_date)===active;
                   return <button key={s} onClick={()=>setNewEng(p=>({...p,is_active:active}))}
-                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"#1a3050"}`,
-                      background:sel?(active?"#34d399":"#f87171")+"15":"#060e1c",
-                      color:sel?(active?"#34d399":"#f87171"):"#4e6479",fontSize:11,fontWeight:600,cursor:"pointer"}}>{s}</button>;
+                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"var(--border)"}`,
+                      background:sel?(active?"#34d399":"#f87171")+"15":"var(--bg2)",
+                      color:sel?(active?"#34d399":"#f87171"):"var(--text3)",fontSize:11,fontWeight:600,cursor:"pointer"}}>{s}</button>;
                 })}
               </div>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
@@ -7376,17 +7426,17 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
               <div><Lbl>Access Role</Lbl><select value={editEngModal.role_type||"engineer"} onChange={e=>setEditEngModal(p=>({...p,role_type:e.target.value}))}>{ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Join Date</Lbl><input type="date" value={editEngModal.join_date||""} onChange={e=>setEditEngModal(p=>({...p,join_date:e.target.value||null}))}/></div>
-                <div><Lbl>Left Date <span style={{color:"#4e6479",fontWeight:400}}>(sets inactive)</span></Lbl><input type="date" value={editEngModal.termination_date||""} onChange={e=>setEditEngModal(p=>({...p,termination_date:e.target.value||null,is_active:e.target.value?false:p.is_active}))}/></div>
+                <div><Lbl>Left Date <span style={{color:"var(--text3)",fontWeight:400}}>(sets inactive)</span></Lbl><input type="date" value={editEngModal.termination_date||""} onChange={e=>setEditEngModal(p=>({...p,termination_date:e.target.value||null,is_active:e.target.value?false:p.is_active}))}/></div>
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
-                <span style={{fontSize:11,color:"#7a8faa",flex:1}}>Status</span>
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"var(--bg2)",borderRadius:6,border:"1px solid var(--border3)"}}>
+                <span style={{fontSize:11,color:"var(--text2)",flex:1}}>Status</span>
                 {["Active","Inactive"].map(s=>{
                   const active=s==="Active";
                   const sel=isEngActive(editEngModal)===active;
                   return <button key={s} onClick={()=>setEditEngModal(p=>({...p,is_active:active,termination_date:active?null:p.termination_date||TODAY_STR}))}
-                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"#1a3050"}`,
-                      background:sel?(active?"#34d399":"#f87171")+"15":"#060e1c",
-                      color:sel?(active?"#34d399":"#f87171"):"#4e6479",fontSize:11,fontWeight:600,cursor:"pointer"}}>{s}</button>;
+                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"var(--border)"}`,
+                      background:sel?(active?"#34d399":"#f87171")+"15":"var(--bg2)",
+                      color:sel?(active?"#34d399":"#f87171"):"var(--text3)",fontSize:11,fontWeight:600,cursor:"pointer"}}>{s}</button>;
                 })}
               </div>
             </div>
@@ -7404,7 +7454,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
         <div className="modal-ov" onClick={()=>{setShowStaffModal(false);setEditStaff(null);}}>
           <div className="modal" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
             <h3 style={{fontSize:15,fontWeight:700,marginBottom:4}}>{editStaff?"Edit Staff Member":"Add Staff Member"}</h3>
-            {!editStaff&&<p style={{fontSize:10,color:"#2e4a66",marginBottom:16}}>This will also create an engineer login record if email is provided.</p>}
+            {!editStaff&&<p style={{fontSize:10,color:"var(--text4)",marginBottom:16}}>This will also create an engineer login record if email is provided.</p>}
             <div style={{display:"grid",gap:11}}>
               {/* Row 1: Name + Type */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -7433,7 +7483,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
               {!editStaff&&(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <div>
-                    <Lbl>Email <span style={{color:"#2e4a66",fontWeight:400}}>(signup email)</span></Lbl>
+                    <Lbl>Email <span style={{color:"var(--text4)",fontWeight:400}}>(signup email)</span></Lbl>
                     <input type="email" value={newStaff.email||""} onChange={e=>setNewStaff(p=>({...p,email:e.target.value}))} placeholder="name@enevoegy.com"/>
                   </div>
                   <div><Lbl>Level</Lbl>
@@ -7450,7 +7500,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                   <select value={newStaff.role_type||"engineer"} onChange={e=>setNewStaff(p=>({...p,role_type:e.target.value}))}>
                     {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                   </select>
-                  <div style={{fontSize:10,color:"#2e4a66",marginTop:3}}>
+                  <div style={{fontSize:10,color:"var(--text4)",marginTop:3}}>
                     {(newStaff.role_type||"engineer")==="engineer"&&"Can log hours & view own timesheets"}
                     {(newStaff.role_type||"engineer")==="lead"&&"Can view all timesheets + approve hours"}
                     {(newStaff.role_type||"engineer")==="accountant"&&"Full Finance tab access"}
@@ -7470,15 +7520,15 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                 <div><Lbl>Termination Date</Lbl><input type="date" value={(editStaff||newStaff).termination_date||""} onChange={e=>editStaff?setEditStaff(p=>({...p,termination_date:e.target.value||null})):setNewStaff(p=>({...p,termination_date:e.target.value||null}))}/></div>
               </div>
               {/* Active status */}
-              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#060e1c",borderRadius:6,border:"1px solid #192d47"}}>
-                <span style={{fontSize:11,color:"#7a8faa",flex:1}}>Employment Status</span>
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"var(--bg2)",borderRadius:6,border:"1px solid var(--border3)"}}>
+                <span style={{fontSize:11,color:"var(--text2)",flex:1}}>Employment Status</span>
                 {["Active","Inactive"].map(s=>{
                   const active=s==="Active";
                   const sel=(editStaff||newStaff).active!==false===active;
                   return <button key={s} onClick={()=>editStaff?setEditStaff(p=>({...p,active})):setNewStaff(p=>({...p,active}))}
-                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"#1a3050"}`,
-                      background:sel?(active?"#34d399":"#f87171")+"15":"#060e1c",
-                      color:sel?(active?"#34d399":"#f87171"):"#4e6479",fontSize:11,fontWeight:600,cursor:"pointer"}}>{s}</button>;
+                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"var(--border)"}`,
+                      background:sel?(active?"#34d399":"#f87171")+"15":"var(--bg2)",
+                      color:sel?(active?"#34d399":"#f87171"):"var(--text3)",fontSize:11,fontWeight:600,cursor:"pointer"}}>{s}</button>;
                 })}
               </div>
               <div><Lbl>Notes</Lbl><input value={(editStaff||newStaff).notes||""} onChange={e=>editStaff?setEditStaff(p=>({...p,notes:e.target.value})):setNewStaff(p=>({...p,notes:e.target.value}))} placeholder="Optional"/></div>
@@ -7511,9 +7561,9 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     const active=(editExp||newExp).currency===cur||(!(editExp||newExp).currency&&cur==="USD");
                     return(
                     <button key={cur} onClick={()=>editExp?setEditExp(p=>({...p,currency:cur})):setNewExp(p=>({...p,currency:cur}))}
-                      style={{flex:1,padding:"7px",borderRadius:6,border:`1px solid ${active?(cur==="USD"?"#38bdf8":"#a78bfa")+"80":"#1a3050"}`,
-                        background:active?(cur==="USD"?"#38bdf8":"#a78bfa")+"15":"#060e1c",
-                        color:active?(cur==="USD"?"#38bdf8":"#a78bfa"):"#4e6479",
+                      style={{flex:1,padding:"7px",borderRadius:6,border:`1px solid ${active?(cur==="USD"?"var(--info)":"#a78bfa")+"80":"var(--border)"}`,
+                        background:active?(cur==="USD"?"var(--info)":"#a78bfa")+"15":"var(--bg2)",
+                        color:active?(cur==="USD"?"var(--info)":"#a78bfa"):"var(--text3)",
                         fontSize:12,fontWeight:700,cursor:"pointer"}}>
                       {cur}
                     </button>);
@@ -7539,7 +7589,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     </div>
                     {isEGP&&(
                       <div>
-                        <Lbl>RATE <span style={{color:"#4e6479",fontWeight:400,fontSize:9}}>EGP/$</span></Lbl>
+                        <Lbl>RATE <span style={{color:"var(--text3)",fontWeight:400,fontSize:9}}>EGP/$</span></Lbl>
                         <input type="number" min="1" max="9999" step="1"
                           value={exp.entry_rate||""}
                           onChange={e=>setRate(e.target.value?+e.target.value:null)}
@@ -7548,8 +7598,8 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     )}
                   </div>
                   {isEGP&&(exp.amount_egp>0)&&(
-                    <div style={{padding:"5px 10px",background:"#060e1c",borderRadius:4,border:"1px solid #0f1e2e",fontSize:10,color:"#4e6479"}}>
-                      ≈ <span style={{color:"#38bdf8",fontFamily:"'IBM Plex Mono',monospace"}}>${(Math.round((exp.amount_egp||0)/(rate)*100)/100).toLocaleString()}</span>
+                    <div style={{padding:"5px 10px",background:"var(--bg2)",borderRadius:4,border:"1px solid #0f1e2e",fontSize:10,color:"var(--text3)"}}>
+                      ≈ <span style={{color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>${(Math.round((exp.amount_egp||0)/(rate)*100)/100).toLocaleString()}</span>
                       <span style={{marginLeft:8}}>@ {rate} EGP/$</span>
                     </div>
                   )}
@@ -7583,7 +7633,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
         <div className="modal-ov" onClick={()=>setShowFuncModal(false)}>
           <div className="modal" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
             <h3 style={{fontSize:15,fontWeight:700,marginBottom:4}}>⚡ Log Function Hours</h3>
-            <p style={{fontSize:10,color:"#2e4a66",marginBottom:16}}>Post non-billable activity hours for an engineer — visible in KPI reports.</p>
+            <p style={{fontSize:10,color:"var(--text4)",marginBottom:16}}>Post non-billable activity hours for an engineer — visible in KPI reports.</p>
             <div style={{display:"grid",gap:11}}>
               <div><Lbl>Engineer</Lbl>
                 <select value={newFunc.engineer_id} onChange={e=>setNewFunc(p=>({...p,engineer_id:e.target.value}))}
@@ -7605,7 +7655,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                   <span style={{fontSize:10,color:FUNC_COLORS[newFunc.function_category]||"#6b7280"}}>{newFunc.function_category}</span>
                 </div>
               </div>
-              <div><Lbl>Description <span style={{color:"#38bdf8"}}>(used in KPI reports)</span></Lbl>
+              <div><Lbl>Description <span style={{color:"var(--info)"}}>(used in KPI reports)</span></Lbl>
                 <textarea rows={3} value={newFunc.activity} onChange={e=>setNewFunc(p=>({...p,activity:e.target.value}))}
                   placeholder="e.g. Delivered PLC basics session to 3 junior engineers…" style={{resize:"vertical"}}/>
               </div>
