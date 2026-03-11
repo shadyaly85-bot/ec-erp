@@ -5997,12 +5997,12 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               {/* Report type cards */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:18}}>
                 {[
-                  {id:"utilization",icon:"◉",label:"Team Utilization",desc:"All engineers utilization & billability",show:isAdmin||isAcct},
+                  {id:"utilization",icon:"◉",label:"Team Utilization",desc:"All engineers utilization & billability",show:isAdmin||isAcct||isSenior},
                   {id:"individual",icon:"👤",label:"Individual Timesheet",desc:"One engineer — full monthly timesheet PDF",show:true},
                   {id:"task",icon:"⊟",label:"Task Analysis",desc:"Task categories & activity log",show:true},
-                  {id:"projtasks",icon:"◈",label:"Project Analysis",desc:"Per-project hours, tasks & engineer breakdown",show:isAdmin||isAcct||isLead},
+                  {id:"projtasks",icon:"◈",label:"Project Analysis",desc:"Per-project hours, tasks & engineer breakdown",show:isAdmin||isAcct||isLead||isSenior},
                   {id:"vacation",icon:"✈",label:"Vacation Report",desc:"Leave & absence summary per engineer",show:true},
-                  {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct},
+                  {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct||isSenior},
                   {id:"invoice",icon:"🧾",label:"Invoice Export",desc:"Billable invoice per month",show:canInvoice},
                 ].filter(r=>r.show).map(r=>(
                   <div key={r.id} className={`rpt-card ${activeRpt===r.id?"sel":""}`} onClick={()=>setActiveRpt(r.id)}>
@@ -6336,15 +6336,12 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
           )}
 
           {/* ════ ADMIN / LEAD PANEL ════ */}
-          {view==="admin"&&(isAdmin||role==="lead"||isAcct)&&(
+          {view==="admin"&&(isAdmin||role==="lead"||isAcct||isSenior)&&(
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
                 <div>
                   <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>{isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":"Lead Panel"}</h1>
-                    <p style={{color:"var(--text4)",fontSize:13,marginTop:3}}>{isAdmin?"Full control: engineers, projects, entries, settings":isSenior?"View-only access · Reports & Finance overview":isAcct?"Full access to Finance · View all data":"Edit engineer entries · Export individual timesheets"}</p>
-                  <p style={{color:"var(--text4)",fontSize:14,marginTop:3}}>
-                    {isAdmin?"Full control: engineers, projects, entries, settings":isAcct?"Full access to Finance · Read-only on all other tabs":"Edit engineer entries · Export individual timesheets"}
-                  </p>
+                  <p style={{color:"var(--text4)",fontSize:13,marginTop:3}}>{isAdmin?"Full control: engineers, projects, entries, settings":isSenior?"View-only access · full visibility across all data":isAcct?"Full access to Finance · View all data":"Edit engineer entries · Export individual timesheets"}</p>
                 </div>
                 {unreadCount>0&&isAdmin&&<button className="bg" onClick={markAllRead}>Mark {unreadCount} notifications read</button>}
               </div>
@@ -6381,7 +6378,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               </div>
 
               {/* ENGINEERS */}
-              {adminTab==="engineers"&&(isAdmin||isAcct)&&(
+              {adminTab==="engineers"&&(isAdmin||isAcct||isSenior)&&(
                 <div className="card">
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                     <h3 style={{fontSize:15,fontWeight:600,color:"var(--text2)"}}>Engineers & Access Control ({engineers.length})</h3>
@@ -6441,7 +6438,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               )}
 
               {/* PROJECTS */}
-              {adminTab==="projects"&&(isAdmin||isLead||isAcct)&&(
+              {adminTab==="projects"&&(isAdmin||isLead||isAcct||isSenior)&&(
                 <ProjectsTab
                   projects={projects}
                   subprojects={subprojects}
