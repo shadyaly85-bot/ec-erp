@@ -437,10 +437,10 @@ function SignupScreen({onBack}){
       </div>
       <div><Lbl>Email</Lbl><input type="email" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="you@company.com"/></div>
       <div><Lbl>Password</Lbl><input type="password" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} placeholder="Min 6 characters"/></div>
-      <div style={{background:"#071e36",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:13,color:"var(--info)"}}>
+      <div style={{background:"var(--bg3)",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:13,color:"var(--info)"}}>
         ℹ Account role is set to <strong>Engineer</strong> by default. Your admin can upgrade your access level after registration.
       </div>
-      {err&&<div style={{padding:"8px 12px",borderRadius:6,fontSize:14,background:err.startsWith("✓")?"#022c22":"#450a0a",color:err.startsWith("✓")?"#34d399":"#f87171",border:`1px solid ${err.startsWith("✓")?"#34d399":"#f87171"}`}}>{err}</div>}
+      {err&&<div style={{padding:"8px 12px",borderRadius:6,fontSize:14,background:err.startsWith("✓")?"var(--bg3)":"#450a0a",color:err.startsWith("✓")?"#34d399":"#f87171",border:`1px solid ${err.startsWith("✓")?"#34d399":"#f87171"}`}}>{err}</div>}
       <button className="bp" onClick={handle} disabled={loading} style={{width:"100%",justifyContent:"center",padding:11}}>{loading?"Creating…":"Create Account"}</button>
       <div style={{textAlign:"center",fontSize:14,color:"var(--text4)",cursor:"pointer"}} onClick={onBack}>← Back to Sign In</div>
     </div>
@@ -484,10 +484,10 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
 
   const GROUP_COLORS={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
   const STATUS_STYLE={
-    "Completed":{bg:"#022c22",color:"#34d399"},
-    "In Progress":{bg:"#0a1628",color:"var(--info)"},
+    "Completed":{bg:"var(--bg3)",color:"#34d399"},
+    "In Progress":{bg:"var(--bg3)",color:"var(--info)"},
     "On Hold":{bg:"#1a0f00",color:"#fb923c"},
-    "Not Started":{bg:"#0a1628",color:"var(--text3)"},
+    "Not Started":{bg:"var(--bg3)",color:"var(--text3)"},
   };
 
   if(aDraft) return(
@@ -591,7 +591,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
                   <span style={{fontSize:11,padding:"1px 6px",borderRadius:3,background:ss.bg,color:ss.color}}>{a.status}</span>
                   {a.assigned_to&&<span style={{fontSize:11,color:"var(--text2)"}}>👤 {a.assigned_to}</span>}
                 </div>
-                {pct>0&&<div style={{marginTop:6,background:"#0a1628",borderRadius:3,height:4,overflow:"hidden"}}>
+                {pct>0&&<div style={{marginTop:6,background:"var(--bg3)",borderRadius:3,height:4,overflow:"hidden"}}>
                   <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:3}}/>
                 </div>}
               </div>
@@ -1559,7 +1559,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)",fontWeight:700}}>{pm.proj.id}</span>
                   <span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:pm.proj.status==="Active"?"#024b36":"var(--border)",color:pm.proj.status==="Active"?"#34d399":"var(--text2)"}}>{pm.proj.status}</span>
-                  {pm.proj.billable&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"#071e36",color:"var(--info)"}}>BILLABLE</span>}
+                  {pm.proj.billable&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)"}}>BILLABLE</span>}
                 </div>
                 <div style={{fontSize:17,fontWeight:700,color:"var(--text0)"}}>{pm.proj.name}</div>
                 {pm.proj.client&&<div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Client: {pm.proj.client} · Phase: {pm.proj.phase||"—"}</div>}
@@ -1610,7 +1610,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                           <span style={{color:"var(--text3)"}}>{data.engs.size} eng</span>
                         </div>
                       </div>
-                      <div style={{background:"#0a1628",height:5,borderRadius:3,overflow:"hidden"}}>
+                      <div style={{background:"var(--bg3)",height:5,borderRadius:3,overflow:"hidden"}}>
                         <div style={{height:"100%",width:`${tpct}%`,background:col,borderRadius:3,opacity:0.85}}/>
                       </div>
                     </div>
@@ -1636,7 +1636,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                           <span style={{color:"var(--text4)"}}>{epct}%</span>
                         </div>
                       </div>
-                      <div style={{background:"#0a1628",height:5,borderRadius:3,overflow:"hidden"}}>
+                      <div style={{background:"var(--bg3)",height:5,borderRadius:3,overflow:"hidden"}}>
                         <div style={{height:"100%",width:`${epct}%`,background:"linear-gradient(90deg,#0ea5e9,#38bdf8)",borderRadius:3}}/>
                       </div>
                       {topEngTask&&<div style={{fontSize:11,color:"var(--text4)",marginTop:1}}>Top: {topEngTask[0]} ({topEngTask[1]}h)</div>}
@@ -1653,7 +1653,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                   <span style={{color:"var(--text3)"}}>Billable coverage</span>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontWeight:700}}>{billPct}%</span>
                 </div>
-                <div style={{background:"#0a1628",height:6,borderRadius:3,overflow:"hidden"}}>
+                <div style={{background:"var(--bg3)",height:6,borderRadius:3,overflow:"hidden"}}>
                   <div style={{height:"100%",width:`${billPct}%`,background:"linear-gradient(90deg,#34d399,#10b981)",borderRadius:3}}/>
                 </div>
               </div>
@@ -1930,7 +1930,7 @@ Object.entries(TAXONOMY_GROUPS).forEach(([g,cats])=>cats.forEach(c=>{CAT_TO_GROU
    PROJECT TRACKER — standalone component (no IIFE, no re-render loops)
    ════════════════════════════════════════════════════════ */
 const STATUS_COLOR={"Completed":"#34d399","In Progress":"var(--info)","Not Started":"var(--text3)","On Hold":"#fb923c"};
-const STATUS_BG={"Completed":"#022c22","In Progress":"#0a1628","Not Started":"#0a1628","On Hold":"#1c0f00"};
+const STATUS_BG={"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started":"#1e293b40","On Hold":"#78350f30"};
 
 /* ── Inline category/activity editor modal ── */
 function ActivityEditModal({act, onSave, onClose, engineers}){
@@ -2188,7 +2188,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete}){
       <div style={{fontWeight:600,fontSize:13}}>{a.activity_name}</div>
       {a.remarks&&<div style={{fontSize:11,color:"#f87171",fontStyle:"italic",marginTop:1,maxWidth:190,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.remarks}</div>}
     </td>
-    <td><span style={{fontSize:11,padding:"2px 7px",borderRadius:3,background:STATUS_BG[a.status]||"#0a1628",color:sc,fontWeight:700,whiteSpace:"nowrap"}}>{a.status}</span></td>
+    <td><span style={{fontSize:11,padding:"2px 7px",borderRadius:3,background:STATUS_BG[a.status]||"var(--bg3)",color:sc,fontWeight:700,whiteSpace:"nowrap"}}>{a.status}</span></td>
     <td>
       <div style={{display:"flex",alignItems:"center",gap:7}}>
         <div style={{width:52,height:5,background:"var(--bg1)",borderRadius:3,overflow:"hidden",flexShrink:0}}>
@@ -2341,12 +2341,12 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
               <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4}}/>
             </div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {done>0&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"#022c22",color:"#34d399",fontWeight:700}}>{done} Done</span>}
-              {active>0&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"#0a1628",color:"var(--info)",fontWeight:700}}>{active} Active</span>}
-              {pending>0&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"#0a1628",color:"var(--text3)",fontWeight:700}}>{pending} Pending</span>}
-              {hasSubs&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",fontWeight:700}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-sites</span>}
+              {done>0&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"#34d399",fontWeight:700}}>{done} Done</span>}
+              {active>0&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)",fontWeight:700}}>{active} Active</span>}
+              {pending>0&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--text3)",fontWeight:700}}>{pending} Pending</span>}
+              {hasSubs&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"#a78bfa",fontWeight:700}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-sites</span>}
               {projActs.length===0&&canEdit&&(
-                <span style={{fontSize:11,padding:"2px 8px",borderRadius:3,background:"#0a1628",color:"var(--info)",border:"1px dashed #192d47",cursor:"pointer"}}
+                <span style={{fontSize:11,padding:"2px 8px",borderRadius:3,background:"var(--bg3)",color:"var(--info)",border:"1px dashed #192d47",cursor:"pointer"}}
                   onClick={e=>{e.stopPropagation();setTrackerProj(p.id);}}>
                   + Add activities
                 </span>
@@ -2408,7 +2408,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     {hasSubs&&(
     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
       <button onClick={()=>{setTrackerSub(null);setExpandedCats({});}}
-        style={{fontSize:12,padding:"4px 12px",borderRadius:5,border:`1px solid ${!trackerSub?"var(--info)":"var(--border)"}`,background:!trackerSub?"#0a1628":"transparent",color:!trackerSub?"var(--info)":"var(--text3)",cursor:"pointer"}}>
+        style={{fontSize:12,padding:"4px 12px",borderRadius:5,border:`1px solid ${!trackerSub?"var(--info)":"var(--border)"}`,background:!trackerSub?"var(--bg3)":"transparent",color:!trackerSub?"var(--info)":"var(--text3)",cursor:"pointer"}}>
         All Sites
       </button>
       {projSubs.map(sp=>{
@@ -2509,10 +2509,10 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     {/* Summary strip */}
     <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
       {[
-        {label:"Completed",  count:visActs.filter(a=>a.status==="Completed").length,  color:"#34d399",bg:"#022c22"},
-        {label:"In Progress",count:visActs.filter(a=>a.status==="In Progress").length, color:"var(--info)",bg:"#0a1628"},
-        {label:"Not Started",count:visActs.filter(a=>a.status==="Not Started").length, color:"var(--text3)",bg:"#0a1628"},
-        {label:"On Hold",    count:visActs.filter(a=>a.status==="On Hold").length,     color:"#fb923c",bg:"#1c0f00"},
+        {label:"Completed",  count:visActs.filter(a=>a.status==="Completed").length,  color:"#34d399",bg:"var(--bg3)"},
+        {label:"In Progress",count:visActs.filter(a=>a.status==="In Progress").length, color:"var(--info)",bg:"var(--bg3)"},
+        {label:"Not Started",count:visActs.filter(a=>a.status==="Not Started").length, color:"var(--text3)",bg:"var(--bg3)"},
+        {label:"On Hold",    count:visActs.filter(a=>a.status==="On Hold").length,     color:"#fb923c",bg:"var(--bg3)"},
       ].filter(s=>s.count>0).map(s=>(
         <div key={s.label} style={{display:"flex",gap:6,alignItems:"center",background:s.bg,border:`1px solid ${s.color}25`,borderRadius:6,padding:"5px 10px"}}>
           <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:s.color}}>{s.count}</span>
@@ -2582,7 +2582,7 @@ function SubProjectModal({projectId, sub, engineers, onSave, onClose}){
               const assignedArr = (draft.assigned_engineers||[]).map(String);
               const sel = assignedArr.includes(String(e.id));
               return(
-              <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"2px 4px",borderRadius:3,background:sel?"#0a1628":"transparent"}}>
+              <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"2px 4px",borderRadius:3,background:sel?"var(--bg3)":"transparent"}}>
                 <input type="checkbox" checked={sel} onChange={()=>setDraft(p=>{
                   const cur=(p.assigned_engineers||[]).map(String);
                   return {...p, assigned_engineers: sel ? cur.filter(x=>x!==String(e.id)) : [...cur,String(e.id)]};
@@ -2694,12 +2694,12 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
                 background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"var(--border)",
                 color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span></td>
               <td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontWeight:700,
-                background:p.billable?"#071e36":"#1a0a00",color:p.billable?"var(--info)":"#fb923c"}}>
+                background:p.billable?"var(--bg3)":"#1a0a00",color:p.billable?"var(--info)":"#fb923c"}}>
                 {p.billable?"Billable":"Non-Bill"}</span></td>
               <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{hrs}h</td>
               <td>
                 {pSubs.length>0
-                  ? <span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"#1a0a30",color:"#a78bfa",
+                  ? <span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"#a78bfa",
                       fontWeight:700,cursor:"pointer"}}
                       onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}>
                       {pSubs.length} sub-site{pSubs.length>1?"s":""}
@@ -2709,7 +2709,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
               </td>
               <td><div style={{display:"flex",gap:4}}>
                 {canEdit&&<button className="be" title="Edit project" onClick={()=>setEditProjModal({...p})}>✎</button>}
-                {canEdit&&<button style={{fontSize:12,padding:"2px 7px",borderRadius:4,background:"#1a0a30",
+                {canEdit&&<button style={{fontSize:12,padding:"2px 7px",borderRadius:4,background:"var(--bg3)",
                   border:"1px solid #a78bfa30",color:"#a78bfa",cursor:"pointer"}}
                   title="Add sub-site" onClick={()=>setSubProjModal({projectId:p.id,sub:null})}>+⊕</button>}
                 {isAdmin&&<button className="bd" title="Delete project" onClick={()=>deleteProject(p.id)}>✕</button>}
@@ -3058,7 +3058,7 @@ const netColor=netPL>=0?"#34d399":"#f87171";
               <td style={{fontWeight:600}}>{s.name}</td>
               <td style={{fontSize:12,color:"var(--info)"}}>{s.department}</td>
               <td style={{fontSize:12,color:"var(--text2)"}}>{s.role}</td>
-              <td style={{fontSize:11}}><span style={{padding:"2px 6px",borderRadius:3,background:"#071e36",color:"var(--info)",fontWeight:700}}>{s.type?.replace("_"," ")}</span></td>
+              <td style={{fontSize:11}}><span style={{padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)",fontWeight:700}}>{s.type?.replace("_"," ")}</span></td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171",fontWeight:700}}>{fmtCurrency(s.salary_usd||0)}</td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>EGP {(s.salary_egp||0).toLocaleString()}</td>
               <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)"}}>{s.join_date||"—"}</td>
@@ -3104,7 +3104,7 @@ const netColor=netPL>=0?"#34d399":"#f87171";
           <thead><tr><th>Category</th><th>Description</th><th style={{textAlign:"right"}}>USD</th><th style={{textAlign:"right"}}>EGP</th><th>Notes</th><th>Actions</th></tr></thead>
           <tbody>{monthExp.map(e=>(
             <tr key={e.id}>
-              <td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"#071e36",color:"var(--info)",fontWeight:700}}>{e.category}</span></td>
+              <td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)",fontWeight:700}}>{e.category}</span></td>
               <td style={{fontWeight:500}}>{e.description}</td>
               <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c",fontWeight:700}}>
                 {e.amount_usd>0
@@ -3237,7 +3237,7 @@ engineers.forEach(eng=>{
 /* ── KPI rating helpers — module-level so JSX render can access them ── */
 const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Performer":"High Performer";
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
-const kpiRatingBg=   s=>s<=40?"#1a0808":s<=75?"#1c0f00":s<=95?"#0a1628":"#022c22";
+const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
 function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, alertDay, setAlertDay}){
   const yearEntries = useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
@@ -3343,7 +3343,7 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
 
   {/* Rating legend */}
   <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-    {[["0–40","Under Performer","#f87171","#1a0808"],["41–75","Competent","#fb923c","#1c0f00"],["76–95","Performer","var(--info)","#0a1628"],["96–120","High Performer","#34d399","#022c22"]].map(([r,l,c,bg])=>(
+    {[["0–40","Under Performer","#f87171","#7f1d1d20"],["41–75","Competent","#fb923c","var(--bg3)"],["76–95","Performer","var(--info)","var(--bg3)"],["96–120","High Performer","#34d399","var(--bg3)"]].map(([r,l,c,bg])=>(
       <div key={r} style={{display:"flex",alignItems:"center",gap:5,background:bg,border:`1px solid ${c}25`,borderRadius:6,padding:"4px 9px"}}>
         <div style={{width:7,height:7,borderRadius:2,background:c}}/>
         <span style={{fontSize:12,color:c,fontWeight:700}}>{r}</span>
@@ -3359,7 +3359,7 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
     <div style={{fontSize:13,fontWeight:700,color:"#f87171",marginBottom:10}}>⏰ TIMESHEET DELAY ALERTS</div>
     <div style={{display:"grid",gap:6}}>
       {alertNotifs.map(n=>(
-        <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"#1a0808",borderRadius:6,padding:"8px 12px"}}>
+        <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"#7f1d1d20",borderRadius:6,padding:"8px 12px"}}>
           <span style={{fontSize:12,color:"#f87171",flex:1}}>{n.message}</span>
           <span style={{fontSize:11,color:"var(--text3)"}}>{new Date(n.created_at).toLocaleDateString("en-GB")}</span>
           <button className="bg" style={{fontSize:11,padding:"2px 6px"}} onClick={async()=>{
@@ -3520,7 +3520,7 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
                       <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:item.color}}>{item.v}</div>
                     </div>
                   </div>
-                  <div style={{fontSize:11,color:"#1e3a52",marginTop:2,fontStyle:"italic"}}>→ {item.target}</div>
+                  <div style={{fontSize:11,color:"var(--text4)",marginTop:2,fontStyle:"italic"}}>→ {item.target}</div>
                 </div>
               ))}
             </div>
@@ -3556,7 +3556,7 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
         <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:6}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
         <textarea value={engNotes.general||""} onChange={e=>setNote("general",e.target.value)}
           rows={4} placeholder="Overall performance summary, key achievements, areas for improvement, next year goals…"
-          style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,color:"#a0b4c8",fontSize:13,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,color:"var(--text2)",fontSize:13,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
         <div style={{fontSize:11,color:"var(--text4)",marginTop:4}}>Notes saved in-session — to persist, copy to the head office review form.</div>
       </div>
 
@@ -5163,7 +5163,7 @@ export default function App(){
                           <span style={{fontSize:13,fontWeight:500}}>{eng.name}</span>
                           <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)"}}>{eng.workHrs}h · {fmtPct(eng.utilization)}</span>
                         </div>
-                        <div style={{background:"#0a1628",height:4,borderRadius:3,overflow:"hidden"}}>
+                        <div style={{background:"var(--bg3)",height:4,borderRadius:3,overflow:"hidden"}}>
                           <div style={{height:"100%",width:`${eng.utilization}%`,borderRadius:3,background:eng.utilization>=80?"linear-gradient(90deg,#34d399,#10b981)":eng.utilization>=60?"linear-gradient(90deg,#fb923c,#f59e0b)":"linear-gradient(90deg,#f87171,#ef4444)"}}/>
                         </div>
                       </div>
@@ -5180,7 +5180,7 @@ export default function App(){
                         <span style={{fontSize:13}}>{cat.category}</span>
                         <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)"}}>{cat.hours}h · {pct}%</span>
                       </div>
-                      <div style={{background:"#0a1628",height:4,borderRadius:3,overflow:"hidden"}}>
+                      <div style={{background:"var(--bg3)",height:4,borderRadius:3,overflow:"hidden"}}>
                         <div className="bar" style={{width:`${pct}%`}}/>
                       </div>
                     </div>);})}
@@ -5196,7 +5196,7 @@ export default function App(){
                       <td style={{fontSize:13}}>{p.name}</td>
                       <td style={{color:"var(--text2)",fontSize:13}}>{p.phase}</td>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.hours}h</td>
-                      {(isAdmin||isAcct)&&<><td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"#071e36":"#1a0a00",color:p.billable?"var(--info)":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
+                      {(isAdmin||isAcct)&&<><td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"var(--bg3)":"#1a0a00",color:p.billable?"var(--info)":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{p.billable?fmtCurrency(p.revenue):"—"}</td></>}
                     </tr>
                   ))}</tbody>
@@ -5327,7 +5327,7 @@ export default function App(){
                       {de.map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
                         return(
-                          <div key={e.id} style={{background:"var(--bg0)",border:`1px solid ${e.billable?"#071e36":"#152535"}`,borderRadius:4,padding:"5px 6px",marginBottom:3,fontSize:11}}>
+                          <div key={e.id} style={{background:"var(--bg0)",border:`1px solid ${e.billable?"var(--bg3)":"#152535"}`,borderRadius:4,padding:"5px 6px",marginBottom:3,fontSize:11}}>
                             <div style={{display:"flex",justifyContent:"space-between",gap:2}}>
                               <div style={{flex:1,minWidth:0}}>
                                 {e.entry_type==="leave"
@@ -5680,7 +5680,7 @@ export default function App(){
                         {/* job title: node.title (manual) or eng.role (from DB) or ROLE_LABELS fallback */}
                         {(node.title||eng?.role||eng)&&(
                           <div style={{
-                            fontSize:12, color: node.is_external?"#3d5c75":"#7aa0be",
+                            fontSize:12, color: node.is_external?"var(--text3)":"var(--text2)",
                             lineHeight:1.4, letterSpacing:".01em",
                             fontStyle: node.is_external?"italic":"normal",
                             fontWeight:500,
@@ -5708,7 +5708,7 @@ export default function App(){
                 };
 
                 // Recursive tree renderer
-                const CONN = "#1e3d5c";  // connector line color
+                const CONN = isDark ? "#3a6a9a" : "#1a3a5c";  // connector line color — visible in both themes
                 const RenderLevel = ({nodes, depth=0}) => {
                   if(!nodes.length) return null;
                   const gap = 24;
@@ -5766,7 +5766,26 @@ export default function App(){
                   const buildLevel2 = (ns) => {
                     if(!ns.length) return "";
                     const ch2=(pid)=>orgNodes.filter(n=>n.parent_id===pid).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-                    return `<div class="level">${ns.map(n=>`<div class="branch">${buildCard2(n)}${ch2(n.id).length?`<div class="vl"></div><div class="sub">${buildLevel2(ch2(n.id))}</div>`:""}</div>`).join("")}</div>`;
+                    // For multiple siblings: wrap in a level div with a spanning h-line using JS-calculated width
+                    const branches = ns.map(n=>{
+                      const children = ch2(n.id);
+                      const childrenHtml = children.length
+                        ? `<div class="vl"></div><div class="sub"><div class="level" style="position:relative;">${children.map(c=>`<div class="branch-wrap">${buildCard2(c)}${ch2(c.id).length?`<div class="vl"></div><div class="sub"><div class="level" style="position:relative;">${ch2(c.id).map(gc=>`<div class="branch-wrap">${buildCard2(gc)}</div>`).join("")}</div></div>`:""}</div>`).join("")}</div></div>`
+                        : "";
+                      return `<div class="branch">${buildCard2(n)}${childrenHtml}</div>`;
+                    });
+                    if(ns.length === 1) return branches[0];
+                    // Multiple siblings: draw horizontal connector line using a table-like row
+                    return `<div style="display:flex;flex-direction:row;align-items:flex-start;justify-content:center;position:relative;">
+                      <div style="position:absolute;top:0;left:10%;right:10%;height:2px;background:#1a3a5c;z-index:0;"></div>
+                      ${ns.map(n=>{
+                        const children = ch2(n.id);
+                        const childrenHtml = children.length
+                          ? `<div class="vl"></div><div class="sub"><div style="display:flex;flex-direction:row;align-items:flex-start;justify-content:center;position:relative;"><div style="position:absolute;top:0;left:10%;right:10%;height:2px;background:#1a3a5c;z-index:0;"></div>${children.map(c=>`<div class="branch-wrap">${buildCard2(c)}</div>`).join("")}</div></div>`
+                          : "";
+                        return `<div class="branch-wrap">${buildCard2(n)}${childrenHtml}</div>`;
+                      }).join("")}
+                    </div>`;
                   };
                   const rts=orgNodes.filter(n=>!n.parent_id).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
                   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
@@ -5776,25 +5795,34 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
 .hdr img{width:48px;height:48px;border-radius:9px;object-fit:contain;}
 .hdr h1{font-size:19px;font-weight:800;color:#0b1f38;letter-spacing:-.02em;}
 .hdr p{font-size:12px;color:#4a6a8a;margin-top:3px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;}
+/* ── Chart layout ── */
 .chart{display:flex;flex-direction:column;align-items:center;}
-.level{display:flex;gap:16px;align-items:flex-start;justify-content:center;position:relative;}
-.branch{display:flex;flex-direction:column;align-items:center;}
-.vl{width:2px;height:16px;background:#1a3a5c;margin:0 auto;}
-.sub{display:flex;flex-direction:column;align-items:center;}
-.sub-row{display:flex;gap:16px;align-items:flex-start;justify-content:center;position:relative;}
-.sub-row::before{content:'';position:absolute;top:0;left:calc(50% - 50%);right:calc(50% - 50%);height:2px;background:#1a3a5c;}
-.card{width:148px;background:#f0f6ff;border-radius:10px;padding:13px 10px 11px;text-align:center;border:2px solid #1a3a5c;box-shadow:0 2px 8px rgba(10,30,60,0.12);}
+/* each node + its children stacked vertically */
+.branch{display:flex;flex-direction:column;align-items:center;position:relative;}
+/* vertical line down from a parent card */
+.vl{width:2px;min-height:18px;background:#1a3a5c;flex-shrink:0;}
+/* row of sibling branches */
+.level{display:flex;flex-direction:row;gap:0;align-items:flex-start;justify-content:center;position:relative;}
+/* horizontal bar spanning all siblings */
+.level::before{content:'';position:absolute;top:0;left:50%;right:50%;height:2px;background:#1a3a5c;transition:left .1s,right .1s;}
+/* wrapper for children after the vl */
+.sub{display:flex;flex-direction:column;align-items:center;width:100%;}
+/* each branch inside a level gets a spacer so the h-line can reach it */
+.branch-wrap{display:flex;flex-direction:column;align-items:center;padding:0 8px;position:relative;}
+/* vertical stub from h-line down to card */
+.branch-wrap::before{content:'';width:2px;height:18px;background:#1a3a5c;margin:0 auto;}
+.card{width:148px;background:#f0f6ff;border-radius:10px;padding:13px 10px 11px;text-align:center;border:2px solid #1a3a5c;box-shadow:0 2px 8px rgba(10,30,60,0.12);position:relative;z-index:1;}
 .card.ext{background:#f8f8f8;border:2px dashed #8aaac0;opacity:0.85;}
 .avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:16px;font-weight:800;border:2.5px solid;}
 .name{font-size:14px;font-weight:800;line-height:1.3;margin-bottom:3px;color:#0b1f38;letter-spacing:-.01em;}
-.jtitle{font-size:9.5px;color:#2a4a6a;line-height:1.4;letter-spacing:.01em;font-weight:600;}
+.jtitle{font-size:10px;color:#2a4a6a;line-height:1.4;letter-spacing:.01em;font-weight:600;}
 .jrole{font-size:10px;color:#4a6a8a;letter-spacing:.05em;text-transform:uppercase;font-weight:700;margin-top:2px;}
-.connector{width:2px;background:#1a3a5c;}
 @media print{
   @page{margin:8mm;size:A4 landscape;}
-  body{zoom:0.72;}
+  body{zoom:0.68;}
   .card{page-break-inside:avoid;break-inside:avoid;}
   .branch{page-break-inside:avoid;break-inside:avoid;}
+  .branch-wrap{page-break-inside:avoid;break-inside:avoid;}
   .level{page-break-inside:avoid;break-inside:avoid;}
 }
 </style></head><body>
@@ -5807,7 +5835,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                 };
 
                 return(
-                  <div style={{background:"#040c18",borderRadius:12,padding:"20px 0 0",margin:"-4px 0"}}>
+                  <div style={{background:"var(--bg1)",borderRadius:12,padding:"20px 0 0",margin:"-4px 0"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:28,padding:"0 24px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:14}}>
                         <img src={LOGO_SRC} alt="ENEVO" style={{width:40,height:40,borderRadius:9,objectFit:"contain",opacity:0.85}}/>
@@ -6109,8 +6137,8 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                         <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.workHrs}h</td>
                         <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{e.billableHrs}h</td>
                         <td style={{color:e.leaveDays>0?"#fb923c":"var(--text4)"}}>{e.leaveDays}</td>
-                        <td><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{background:"#0a1628",height:4,borderRadius:3,width:60,overflow:"hidden"}}><div style={{height:"100%",width:`${e.utilization}%`,background:e.utilization>=80?"linear-gradient(90deg,#34d399,#10b981)":e.utilization>=60?"linear-gradient(90deg,#fb923c,#f59e0b)":"linear-gradient(90deg,#f87171,#ef4444)",borderRadius:3}}/></div><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12}}>{fmtPct(e.utilization)}</span></div></td>
-                        <td><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{background:"#0a1628",height:4,borderRadius:3,width:50,overflow:"hidden"}}><div style={{height:"100%",width:`${e.billability}%`,background:"linear-gradient(90deg,#a78bfa,#7c3aed)",borderRadius:3}}/></div><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12}}>{fmtPct(e.billability)}</span></div></td>
+                        <td><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{background:"var(--bg3)",height:4,borderRadius:3,width:60,overflow:"hidden"}}><div style={{height:"100%",width:`${e.utilization}%`,background:e.utilization>=80?"linear-gradient(90deg,#34d399,#10b981)":e.utilization>=60?"linear-gradient(90deg,#fb923c,#f59e0b)":"linear-gradient(90deg,#f87171,#ef4444)",borderRadius:3}}/></div><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12}}>{fmtPct(e.utilization)}</span></div></td>
+                        <td><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{background:"var(--bg3)",height:4,borderRadius:3,width:50,overflow:"hidden"}}><div style={{height:"100%",width:`${e.billability}%`,background:"linear-gradient(90deg,#a78bfa,#7c3aed)",borderRadius:3}}/></div><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12}}>{fmtPct(e.billability)}</span></div></td>
                         <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{fmtCurrency(e.revenue)}</td>
                       </tr>
                     ))}</tbody>
@@ -6151,7 +6179,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                         </div>
                       </div>
                       {/* Group progress bar */}
-                      <div style={{background:"#0a1628",height:6,borderRadius:4,overflow:"hidden",marginBottom:10}}>
+                      <div style={{background:"var(--bg3)",height:6,borderRadius:4,overflow:"hidden",marginBottom:10}}>
                         <div style={{height:"100%",width:`${pct}%`,background:gc,borderRadius:4,transition:"width .4s"}}/>
                       </div>
                       {/* Category pills with activity drill-down */}
@@ -6643,7 +6671,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                         </button>
                       ))}
                     </div>
-                    <div style={{padding:"9px 12px",background:"#022c22",border:"1px solid #34d399",borderRadius:6,fontSize:13,color:"#34d399"}}>
+                    <div style={{padding:"9px 12px",background:"var(--bg3)",border:"1px solid #34d399",borderRadius:6,fontSize:13,color:"#34d399"}}>
                       ✓ Your weekend: {myWeekend.length===0?"None (all days)":myWeekend.map(d=>["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d]).join(" + ")}
                     </div>
                   </div>
@@ -6714,7 +6742,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                     </button>
                   ))}
                 </div>
-                <div style={{padding:"9px 12px",background:"#022c22",border:"1px solid #34d399",borderRadius:6,fontSize:13,color:"#34d399"}}>
+                <div style={{padding:"9px 12px",background:"var(--bg3)",border:"1px solid #34d399",borderRadius:6,fontSize:13,color:"#34d399"}}>
                   ✓ Your weekend: {myWeekend.length===0?"None (all days)":myWeekend.map(d=>["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d]).join(" + ")}
                   {" "}· Working days this month: {getWorkDaysInMonth(year,month,myWeekend).length} · Target: {getTargetHrs(year,month,myWeekend)}h
                 </div>
@@ -7232,7 +7260,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                   }).map(e=>{
                     const sel=(newProj.assigned_engineers||[]).includes(String(e.id));
                     return(
-                    <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 4px",borderRadius:4,background:sel?"#0a1628":"transparent"}}>
+                    <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 4px",borderRadius:4,background:sel?"var(--bg3)":"transparent"}}>
                       <input type="checkbox" checked={sel} onChange={()=>setNewProj(p=>{
                         const cur=p.assigned_engineers||[];
                         return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
@@ -7309,7 +7337,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
                   const displayName=nameParts.length>=2?nameParts[0]+" "+nameParts[nameParts.length-1]:e.name;
                   return(
                   <label key={e.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"7px 10px",borderRadius:6,
-                    background:sel?"#0a1628":"var(--bg2)",border:`1px solid ${sel?"#0ea5e940":"var(--bg3)"}`,transition:"background .15s"}}>
+                    background:sel?"var(--bg3)":"var(--bg2)",border:`1px solid ${sel?"#0ea5e940":"var(--bg3)"}`,transition:"background .15s"}}>
                     <input type="checkbox" checked={sel} onChange={()=>setEditProjModal(p=>{
                       const cur=p.assigned_engineers||[];
                       return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
@@ -7670,7 +7698,7 @@ body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24p
 
       {/* Toast */}
       {toast&&(
-        <div className="toast" style={{background:toast.ok?"#022c22":"#450a0a",color:toast.ok?"#34d399":"#f87171",border:`1px solid ${toast.ok?"#34d399":"#f87171"}`}}>
+        <div className="toast" style={{background:toast.ok?"var(--bg3)":"#450a0a",color:toast.ok?"#34d399":"#f87171",border:`1px solid ${toast.ok?"#34d399":"#f87171"}`}}>
           {toast.ok?"✓":"✕"} {toast.msg}
         </div>
       )}
