@@ -3713,11 +3713,10 @@ export default function App(){
   const canReport = canViewFinance || isLead; // senior + accountant + lead see Reports
   const canPostHours = !canViewFinance || isAdmin; // senior+accountant view timesheets read-only
   const canInvoice= isAcct; // ONLY admin + accountant see invoices — NOT senior
-  // Redirect senior_management away from data-entry pages
+  // Redirect away from old mysettings page (merged into Admin › Info)
   useEffect(()=>{
-    if(isSenior&&(view==="timesheet")) setView("dashboard");
-    if(view==="mysettings") setView("dashboard"); // Info merged into Admin › Info tab
-  },[isSenior,view]);
+    if(view==="mysettings") setView("dashboard");
+  },[view]);
   // When accountant/senior first opens Finance Panel, default to Finance tab
   useEffect(()=>{
     if(canViewFinance&&!isAdmin&&view==="admin"){
@@ -4918,15 +4917,13 @@ export default function App(){
   ════════════════════════ */
   const navItems = [
     {id:"dashboard", icon:"▦", label:"Dashboard"},
-    // Post Hours: engineers/leads post; accountant sees read-only review; senior_management excluded
-    ...(!isSenior?[{id:"timesheet",icon:"⏱",label:isAcct?"Hours Review":"Post Hours"}]:[]),
-    // Projects: visible to all except senior_management
-    ...(!isSenior?[{id:"projects",icon:"◈",label:"Projects"}]:[]),
-    // Team: visible to all except senior_management
-    ...(!isSenior?[{id:"team",icon:"◉",label:"Team"}]:[]),
+    // Timesheet: senior sees read-only Hours Review (same as accountant)
+    {id:"timesheet", icon:"⏱", label:(isAcct||isSenior)?"Hours Review":"Post Hours"},
+    {id:"projects",  icon:"◈", label:"Projects"},
+    {id:"team",      icon:"◉", label:"Team"},
     ...(canReport?[{id:"reports",icon:"⊞",label:"Reports & PDF"}]:[]),
-    ...(isAdmin||canViewFinance||role==="lead"?[{id:"admin",icon:"⚙",label:isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":"Lead Panel"}]:[]),
-    ...(isAdmin&&!isSenior?[{id:"import",icon:"⬆",label:"Import Excel"}]:[]),
+    {id:"admin", icon:"⚙", label:isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":"Lead Panel"},
+    ...(isAdmin?[{id:"import",icon:"⬆",label:"Import Excel"}]:[]),
   ];
 
   return(
@@ -6370,9 +6367,9 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               {/* Tabs */}
               <div style={{display:"flex",gap:4,marginBottom:18,background:"var(--bg2)",borderRadius:8,padding:4,width:"fit-content"}}>
                 {[
-                  {id:"engineers",label:"👥 Engineers",show:isAdmin||isAcct},
-                  {id:"projects", label:"◈ Projects",  show:isAdmin||isLead||isAcct},
-                  {id:"entries",  label:"⏱ All Entries",show:isAdmin||isLead||isAcct},
+                  {id:"engineers",label:"👥 Engineers",show:isAdmin||isAcct||isSenior},
+                  {id:"projects", label:"◈ Projects",  show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"entries",  label:"⏱ All Entries",show:isAdmin||isLead||isAcct||isSenior},
                   {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct||isSenior},
                   {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead||isAcct||isSenior},
                   {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead||isAcct||isSenior},
