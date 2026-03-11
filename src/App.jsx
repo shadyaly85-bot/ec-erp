@@ -5708,128 +5708,119 @@ export default function App(){
                 };
 
                 // Recursive tree renderer
-                const CONN = isDark ? "#3a6a9a" : "#1a3a5c";  // connector line color — visible in both themes
-                const RenderLevel = ({nodes, depth=0}) => {
+                // ── Live org chart renderer (React) ──
+                // Uses border-based connectors: each node sits inside a <td> that draws
+                // its top-border (the horizontal bar) and left-border (the elbow line).
+                const CONN = isDark ? "#3a6a9a" : "#1e4d80";
+
+                const OrgRow = ({nodes, depth}) => {
                   if(!nodes.length) return null;
-                  const gap = 24;
-                  return(
-                    <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                      <div style={{display:"flex",gap,alignItems:"flex-start",position:"relative"}}>
-                        {/* Horizontal bridge line across siblings */}
-                        {nodes.length>1&&(
-                          <div style={{
-                            position:"absolute", top:0,
-                            left:`calc(50% - (100% - 148px) / 2)`,
-                            right:`calc(50% - (100% - 148px) / 2)`,
-                            height:1, background:CONN,
-                          }}/>
-                        )}
-                        {nodes.map(node=>{
-                          const kids = children(node.id);
-                          return(
-                            <div key={node.id} style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                              {/* Vertical drop from bridge to card */}
-                              {nodes.length>1&&<div style={{width:1,height:16,background:CONN}}/>}
-                              <OrgCard node={node}/>
-                              {/* Add child button */}
-                              {orgEditing&&isAdmin&&(
-                                <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:node.id,is_external:false,sort_order:kids.length})}
-                                  style={{marginTop:5,background:"transparent",border:"1px dashed #2a4d6e",color:"#4a7a9a",
-                                    borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",width:"100%",letterSpacing:".05em",fontWeight:600}}>
-                                  + add
-                                </button>
-                              )}
-                              {kids.length>0&&(
-                                <>
-                                  <div style={{width:1,height:20,background:CONN}}/>
-                                  <RenderLevel nodes={kids} depth={depth+1}/>
-                                </>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                  return (
+                    <table style={{borderCollapse:"separate",borderSpacing:0,tableLayout:"fixed",margin:"0 auto"}}>
+                      <tbody>
+                        <tr>
+                          {nodes.map((node,i)=>{
+                            const kids = children(node.id);
+                            const isFirst = i===0, isLast = i===nodes.length-1;
+                            const solo = nodes.length===1;
+                            return (
+                              <td key={node.id} style={{
+                                verticalAlign:"top", padding:"0 12px",
+                                textAlign:"center",
+                                borderTop: solo||depth===0 ? "none" : `2px solid ${CONN}`,
+                                borderLeft: (!solo && !isFirst) ? `2px solid ${CONN}` : "none",
+                                paddingTop: depth===0 ? 0 : 0,
+                              }}>
+                                {/* vertical stub from top border down to card */}
+                                {depth>0 && (
+                                  <div style={{width:2,height:18,background:CONN,margin:"0 auto"}}/>
+                                )}
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                                  <OrgCard node={node}/>
+                                  {orgEditing&&isAdmin&&(
+                                    <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:node.id,is_external:false,sort_order:kids.length})}
+                                      style={{marginTop:5,background:"transparent",border:`1px dashed ${CONN}`,color:CONN,
+                                        borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer",width:"100%",letterSpacing:".05em",fontWeight:600}}>
+                                      + add
+                                    </button>
+                                  )}
+                                  {kids.length>0&&(
+                                    <>
+                                      <div style={{width:2,height:20,background:CONN}}/>
+                                      <OrgRow nodes={kids} depth={depth+1}/>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      </tbody>
+                    </table>
                   );
                 };
 
-                // PDF export function
+                const RenderLevel = ({nodes}) => {
+                  if(!nodes||!nodes.length) return null;
+                  return <OrgRow nodes={nodes} depth={0}/>;
+                };
+
+                // ── PDF export ──
+                // Uses an HTML <table> approach for reliable cross-browser connector lines.
                 const exportOrgPDF = () => {
+                  const ch2 = (pid) => orgNodes.filter(n=>n.parent_id===pid).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+
                   const buildCard2 = (node) => {
                     const eng2 = node.engineer_id ? engineers.find(e=>e.id===node.engineer_id) : null;
-                    const rc2 = eng2 ? (ROLE_COLORS[eng2.role_type]||"#1a3a5c") : "#1a3a5c";
+                    const rc2 = eng2 ? (ROLE_COLORS[eng2.role_type]||"#1a5276") : "#1a5276";
                     const ini2 = (node.name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
-                    const cardClass = node.is_external ? "card ext" : "card";
-                    const avatarBg = `background:linear-gradient(135deg,${rc2}30,${rc2}15);border-color:${rc2};color:${rc2}`;
-                    return `<div class="${cardClass}"><div class="avatar" style="${avatarBg}">${ini2}</div><div class="name">${node.name}</div>${node.title?`<div class="jtitle">${node.title}</div>`:""}${eng2&&!node.is_external?`<div class="jrole">${ROLE_LABELS[eng2.role_type]||eng2.role||""}</div>`:""}</div>`;
+                    const ext = node.is_external;
+                    return `<div style="width:136px;background:${ext?"#f8fafc":"#eef4fb"};border-radius:10px;padding:12px 8px 10px;text-align:center;border:2px solid ${ext?"#8aaac0":"#1a5276"};box-shadow:0 2px 8px rgba(10,30,60,0.10);display:inline-block;${ext?"opacity:0.8;border-style:dashed;":""}">
+  <div style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 7px;font-size:15px;font-weight:800;border:2.5px solid ${rc2};background:${rc2}22;color:${rc2}">${ini2}</div>
+  <div style="font-size:13px;font-weight:800;line-height:1.3;margin-bottom:2px;color:#0b1f38">${node.name}</div>
+  ${node.title?`<div style="font-size:10px;color:#2a4a6a;font-weight:600;line-height:1.4">${node.title}</div>`:""}
+  ${eng2&&!ext?`<div style="font-size:9px;color:#4a6a8a;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-top:2px">${ROLE_LABELS[eng2.role_type]||eng2.role||""}</div>`:""}
+</div>`;
                   };
-                  const buildLevel2 = (ns) => {
-                    if(!ns.length) return "";
-                    const ch2=(pid)=>orgNodes.filter(n=>n.parent_id===pid).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-                    // For multiple siblings: wrap in a level div with a spanning h-line using JS-calculated width
-                    const branches = ns.map(n=>{
-                      const children = ch2(n.id);
-                      const childrenHtml = children.length
-                        ? `<div class="vl"></div><div class="sub"><div class="level" style="position:relative;">${children.map(c=>`<div class="branch-wrap">${buildCard2(c)}${ch2(c.id).length?`<div class="vl"></div><div class="sub"><div class="level" style="position:relative;">${ch2(c.id).map(gc=>`<div class="branch-wrap">${buildCard2(gc)}</div>`).join("")}</div></div>`:""}</div>`).join("")}</div></div>`
-                        : "";
-                      return `<div class="branch">${buildCard2(n)}${childrenHtml}</div>`;
+
+                  // Recursive table builder — each level is a <table> row of <td>s
+                  // The top-border of each <td> (except first child) forms the horizontal connector
+                  const buildTable = (nodes, isRoot) => {
+                    if(!nodes.length) return "";
+                    const solo = nodes.length === 1;
+                    const tds = nodes.map((n, i) => {
+                      const kids = ch2(n.id);
+                      const isFirst = i === 0;
+                      // border-top spans all siblings; border-left creates the elbow on all but first
+                      const tdStyle = isRoot||solo
+                        ? `padding:0 10px;vertical-align:top;text-align:center;`
+                        : `padding:0 10px;vertical-align:top;text-align:center;border-top:2px solid #1a5276;${!isFirst?"border-left:2px solid #1a5276;":""}`;
+                      const stub = (!isRoot&&!solo) ? `<div style="width:2px;height:16px;background:#1a5276;margin:0 auto;"></div>` : "";
+                      const vline = kids.length ? `<div style="width:2px;height:18px;background:#1a5276;margin:0 auto;"></div>` : "";
+                      return `<td style="${tdStyle}">${stub}${buildCard2(n)}${vline}${kids.length?buildTable(kids,false):""}</td>`;
                     });
-                    if(ns.length === 1) return branches[0];
-                    // Multiple siblings: draw horizontal connector line using a table-like row
-                    return `<div style="display:flex;flex-direction:row;align-items:flex-start;justify-content:center;position:relative;">
-                      <div style="position:absolute;top:0;left:10%;right:10%;height:2px;background:#1a3a5c;z-index:0;"></div>
-                      ${ns.map(n=>{
-                        const children = ch2(n.id);
-                        const childrenHtml = children.length
-                          ? `<div class="vl"></div><div class="sub"><div style="display:flex;flex-direction:row;align-items:flex-start;justify-content:center;position:relative;"><div style="position:absolute;top:0;left:10%;right:10%;height:2px;background:#1a3a5c;z-index:0;"></div>${children.map(c=>`<div class="branch-wrap">${buildCard2(c)}</div>`).join("")}</div></div>`
-                          : "";
-                        return `<div class="branch-wrap">${buildCard2(n)}${childrenHtml}</div>`;
-                      }).join("")}
-                    </div>`;
+                    return `<table style="border-collapse:separate;border-spacing:0;margin:0 auto;"><tbody><tr>${tds.join("")}</tr></tbody></table>`;
                   };
-                  const rts=orgNodes.filter(n=>!n.parent_id).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-                  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
+
+                  const rts = orgNodes.filter(n=>!n.parent_id).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+                  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:#ffffff;font-family:'Segoe UI',Arial,sans-serif;padding:28px 24px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-.hdr{display:flex;align-items:center;gap:16px;margin-bottom:36px;padding-bottom:16px;border-bottom:2px solid #0e2a4a;}
-.hdr img{width:48px;height:48px;border-radius:9px;object-fit:contain;}
-.hdr h1{font-size:19px;font-weight:800;color:#0b1f38;letter-spacing:-.02em;}
-.hdr p{font-size:12px;color:#4a6a8a;margin-top:3px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;}
-/* ── Chart layout ── */
-.chart{display:flex;flex-direction:column;align-items:center;}
-/* each node + its children stacked vertically */
-.branch{display:flex;flex-direction:column;align-items:center;position:relative;}
-/* vertical line down from a parent card */
-.vl{width:2px;min-height:18px;background:#1a3a5c;flex-shrink:0;}
-/* row of sibling branches */
-.level{display:flex;flex-direction:row;gap:0;align-items:flex-start;justify-content:center;position:relative;}
-/* horizontal bar spanning all siblings */
-.level::before{content:'';position:absolute;top:0;left:50%;right:50%;height:2px;background:#1a3a5c;transition:left .1s,right .1s;}
-/* wrapper for children after the vl */
-.sub{display:flex;flex-direction:column;align-items:center;width:100%;}
-/* each branch inside a level gets a spacer so the h-line can reach it */
-.branch-wrap{display:flex;flex-direction:column;align-items:center;padding:0 8px;position:relative;}
-/* vertical stub from h-line down to card */
-.branch-wrap::before{content:'';width:2px;height:18px;background:#1a3a5c;margin:0 auto;}
-.card{width:148px;background:#f0f6ff;border-radius:10px;padding:13px 10px 11px;text-align:center;border:2px solid #1a3a5c;box-shadow:0 2px 8px rgba(10,30,60,0.12);position:relative;z-index:1;}
-.card.ext{background:#f8f8f8;border:2px dashed #8aaac0;opacity:0.85;}
-.avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:16px;font-weight:800;border:2.5px solid;}
-.name{font-size:14px;font-weight:800;line-height:1.3;margin-bottom:3px;color:#0b1f38;letter-spacing:-.01em;}
-.jtitle{font-size:10px;color:#2a4a6a;line-height:1.4;letter-spacing:.01em;font-weight:600;}
-.jrole{font-size:10px;color:#4a6a8a;letter-spacing:.05em;text-transform:uppercase;font-weight:700;margin-top:2px;}
+body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.hdr{display:flex;align-items:center;gap:14px;margin-bottom:30px;padding-bottom:14px;border-bottom:2px solid #0e2a4a;}
+.hdr img{width:44px;height:44px;border-radius:8px;object-fit:contain;}
+.hdr h1{font-size:18px;font-weight:800;color:#0b1f38;}
+.hdr p{font-size:11px;color:#4a6a8a;margin-top:2px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;}
 @media print{
-  @page{margin:8mm;size:A4 landscape;}
-  body{zoom:0.68;}
-  .card{page-break-inside:avoid;break-inside:avoid;}
-  .branch{page-break-inside:avoid;break-inside:avoid;}
-  .branch-wrap{page-break-inside:avoid;break-inside:avoid;}
-  .level{page-break-inside:avoid;break-inside:avoid;}
+  @page{margin:6mm;size:A4 landscape;}
+  body{zoom:0.65;}
 }
 </style></head><body>
 <div class="hdr"><img src="${LOGO_SRC}"/><div><h1>Organization Chart</h1><p>ENEVO Group · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div>
-<div class="chart">${buildLevel2(rts)}</div>
-<script>window.onload=()=>setTimeout(()=>{window.print();},400);</script></body></html>`;
-                  const w=window.open("","_blank");
+<div style="display:flex;justify-content:center;">${buildTable(rts, true)}</div>
+<script>window.onload=()=>setTimeout(()=>{window.print();},500);</script>
+</body></html>`;
+                  const w = window.open("","_blank");
                   if(w){w.document.write(html);w.document.close();}
                   else showToast("Allow popups to export PDF",false);
                 };
