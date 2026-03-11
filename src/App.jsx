@@ -3049,7 +3049,7 @@ const netColor=netPL>=0?"#34d399":"#f87171";
       <div className="card">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>ALL STAFF ({staff.length})</div>
-          <button className="bp" onClick={()=>{setEditStaff(null);setShowStaffModal(true)}}>+ Add Staff</button>
+          {!isSenior&&<button className="bp" onClick={()=>{setEditStaff(null);setShowStaffModal(true)}}>+ Add Staff</button>}
         </div>
         <table>
           <thead><tr><th>Name</th><th>Dept</th><th>Role</th><th>Type</th><th style={{textAlign:"right"}}>USD/mo</th><th style={{textAlign:"right"}}>EGP/mo</th><th>Joined</th><th>Left</th><th>Status</th><th>Actions</th></tr></thead>
@@ -3065,8 +3065,9 @@ const netColor=netPL>=0?"#34d399":"#f87171";
               <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:s.termination_date?"#f87171":"var(--text4)"}}>{s.termination_date||"—"}</td>
               <td><span style={{fontSize:11,padding:"2px 5px",borderRadius:3,background:s.active!==false?"#024b36":"#1a0a00",color:s.active!==false?"#34d399":"#f87171"}}>{s.active!==false?"Active":"Inactive"}</span></td>
               <td><div style={{display:"flex",gap:4}}>
-                <button className="be" onClick={()=>{setEditStaff({...s});setShowStaffModal(true)}}>✎</button>
-                <button className="bd" onClick={()=>deleteStaff(s.id)}>✕</button>
+                {!isSenior&&<button className="be" onClick={()=>{setEditStaff({...s});setShowStaffModal(true)}}>✎</button>}
+                {!isSenior&&<button className="bd" onClick={()=>deleteStaff(s.id)}>✕</button>}
+                {isSenior&&<span style={{fontSize:11,color:"var(--text4)"}}>—</span>}
               </div></td>
             </tr>
           ))}</tbody>
@@ -3702,24 +3703,27 @@ export default function App(){
   };
   const isSenior  = role==="senior_management";
   const isLead    = role==="lead"||role==="admin";
-  const isAcct    = role==="accountant"||role==="admin"||role==="senior_management";
+  // isAcct: ONLY accountant+admin get Finance edit rights. senior_management is view-only.
+  const isAcct    = role==="accountant"||role==="admin";
+  // canViewFinance: senior_management CAN see Finance panel (read-only) but cannot edit
+  const canViewFinance = isAcct || isSenior;
   const canEditAny= isLead; // admin + lead can edit any engineer's entries
-  const canBrowseAll = isLead||isAcct; // accountant can browse all engineers for review
+  const canBrowseAll = isLead||canViewFinance; // all finance-visible roles can browse engineers
   const canEdit   = true;   // everyone can edit/delete their own entries
-  const canReport = isAcct || isLead; // only admin + accountant see Reports & PDF
-  const canPostHours = !isAcct || isAdmin; // accountant views timesheets read-only, cannot post or edit
+  const canReport = canViewFinance || isLead; // senior + accountant + lead see Reports
+  const canPostHours = !canViewFinance || isAdmin; // senior+accountant view timesheets read-only
+  const canInvoice= isAcct; // ONLY admin + accountant see invoices — NOT senior
   // Redirect senior_management away from data-entry pages
   useEffect(()=>{
     if(isSenior&&(view==="timesheet")) setView("dashboard");
     if(view==="mysettings") setView("dashboard"); // Info merged into Admin › Info tab
   },[isSenior,view]);
-  // When accountant first opens Finance Panel, default to Finance tab
+  // When accountant/senior first opens Finance Panel, default to Finance tab
   useEffect(()=>{
-    if(isAcct&&!isAdmin&&view==="admin"){
+    if(canViewFinance&&!isAdmin&&view==="admin"){
       setAdminTab(prev=>prev==="engineers"?"finance":prev);
     }
-  },[isAcct,isAdmin,view]);
-  const canInvoice= isAcct; // admin + accountant can see invoices
+  },[canViewFinance,isAdmin,view]);
 
   const viewEngId = canEditAny ? (browseEngId||myProfile?.id) : myProfile?.id;
   const viewEng   = engineers.find(e=>e.id===viewEngId);
@@ -4914,15 +4918,14 @@ export default function App(){
   ════════════════════════ */
   const navItems = [
     {id:"dashboard", icon:"▦", label:"Dashboard"},
-    // Post Hours: engineers/leads post; accountant sees read-only review
+    // Post Hours: engineers/leads post; accountant sees read-only review; senior_management excluded
     ...(!isSenior?[{id:"timesheet",icon:"⏱",label:isAcct?"Hours Review":"Post Hours"}]:[]),
-    // Projects: visible to all except senior_management — accountant sees it read-only
+    // Projects: visible to all except senior_management
     ...(!isSenior?[{id:"projects",icon:"◈",label:"Projects"}]:[]),
     // Team: visible to all except senior_management
     ...(!isSenior?[{id:"team",icon:"◉",label:"Team"}]:[]),
     ...(canReport?[{id:"reports",icon:"⊞",label:"Reports & PDF"}]:[]),
-    ...(isAdmin||isAcct||role==="lead"?[{id:"admin",icon:"⚙",label:isAdmin?"Admin Panel":isAcct?"Finance Panel":"Lead Panel"}]:[]),
-    // Info tab removed from sidebar — weekend settings moved into admin panel Info tab
+    ...(isAdmin||canViewFinance||role==="lead"?[{id:"admin",icon:"⚙",label:isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":"Lead Panel"}]:[]),
     ...(isAdmin&&!isSenior?[{id:"import",icon:"⬆",label:"Import Excel"}]:[]),
   ];
 
@@ -6340,7 +6343,8 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
                 <div>
-                  <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>{isAdmin?"Admin Panel":isAcct?"Finance Panel":"Lead Panel"}</h1>
+                  <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>{isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":"Lead Panel"}</h1>
+                    <p style={{color:"var(--text4)",fontSize:13,marginTop:3}}>{isAdmin?"Full control: engineers, projects, entries, settings":isSenior?"View-only access · Reports & Finance overview":isAcct?"Full access to Finance · View all data":"Edit engineer entries · Export individual timesheets"}</p>
                   <p style={{color:"var(--text4)",fontSize:14,marginTop:3}}>
                     {isAdmin?"Full control: engineers, projects, entries, settings":isAcct?"Full access to Finance · Read-only on all other tabs":"Edit engineer entries · Export individual timesheets"}
                   </p>
@@ -6369,10 +6373,10 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   {id:"engineers",label:"👥 Engineers",show:isAdmin||isAcct},
                   {id:"projects", label:"◈ Projects",  show:isAdmin||isLead||isAcct},
                   {id:"entries",  label:"⏱ All Entries",show:isAdmin||isLead||isAcct},
-                  {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct},
-                  {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead||isAcct},
-                  {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead||isAcct},
-                  {id:"tracker",  label:"📊 Tracker",    show:isAdmin||isLead||isAcct},
+                  {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct||isSenior},
+                  {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"tracker",  label:"📊 Tracker",    show:isAdmin||isLead||isAcct||isSenior},
                   {id:"settings", label:"ℹ Info",        show:isAdmin},
                 ].filter(t=>t.show).map(t=>(
                   <button key={t.id} className={`atab ${adminTab===t.id?"a":""}`} onClick={()=>setAdminTab(t.id)}>{t.label}</button>
@@ -6553,7 +6557,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 
 
               {/* ══ FINANCE MODULE ══ */}
-              {adminTab==="finance"&&(isAdmin||isAcct)&&(
+              {adminTab==="finance"&&(isAdmin||isAcct||isSenior)&&(
                 <FinanceTab
                   staff={staff} entries={entries} expenses={expenses}
                   projects={projects} engineers={engineers}
@@ -6570,7 +6574,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               )}
 
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
-              {adminTab==="functions"&&(isAdmin||isLead||isAcct)&&(
+              {adminTab==="functions"&&(isAdmin||isLead||isAcct||isSenior)&&(
                 <FunctionsTab
                   entries={entries} engineers={engineers}
                   funcYear={funcYear} setFuncYear={setFuncYear}
@@ -6581,7 +6585,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               )}
 
               {/* ══ KPI DASHBOARD ══ */}
-              {adminTab==="kpis"&&(isAdmin||isLead||isAcct)&&(
+              {adminTab==="kpis"&&(isAdmin||isLead||isAcct||isSenior)&&(
                 <KPIsTab
                   entries={entries} engineers={engineers} projects={projects}
                   kpiYear={kpiYear} setKpiYear={setKpiYear}
@@ -6595,7 +6599,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 
 
               {/* ══ PROJECT TRACKER ══ */}
-              {adminTab==="tracker"&&(isAdmin||isLead||isAcct)&&(
+              {adminTab==="tracker"&&(isAdmin||isLead||isAcct||isSenior)&&(
                 <ProjectTracker
                   projects={projects}
                   activities={activities}
