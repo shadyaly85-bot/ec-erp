@@ -5715,25 +5715,22 @@ export default function App(){
 
                 const OrgRow = ({nodes, depth}) => {
                   if(!nodes.length) return null;
+                  const solo = nodes.length===1;
                   return (
                     <table style={{borderCollapse:"separate",borderSpacing:0,tableLayout:"fixed",margin:"0 auto"}}>
                       <tbody>
                         <tr>
                           {nodes.map((node,i)=>{
                             const kids = children(node.id);
-                            const isFirst = i===0, isLast = i===nodes.length-1;
-                            const solo = nodes.length===1;
                             return (
                               <td key={node.id} style={{
                                 verticalAlign:"top", padding:"0 12px",
                                 textAlign:"center",
-                                borderTop: solo||depth===0 ? "none" : `2px solid ${CONN}`,
-                                borderLeft: (!solo && !isFirst) ? `2px solid ${CONN}` : "none",
-                                paddingTop: depth===0 ? 0 : 0,
+                                borderTop: (!solo && depth>0) ? `2px solid ${CONN}` : "none",
                               }}>
                                 {/* vertical stub from top border down to card */}
                                 {depth>0 && (
-                                  <div style={{width:2,height:18,background:CONN,margin:"0 auto"}}/>
+                                  <div style={{width:2,height:18,background:(!solo)?CONN:"transparent",margin:"0 auto"}}/>
                                 )}
                                 <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
                                   <OrgCard node={node}/>
@@ -5790,11 +5787,10 @@ export default function App(){
                     const solo = nodes.length === 1;
                     const tds = nodes.map((n, i) => {
                       const kids = ch2(n.id);
-                      const isFirst = i === 0;
-                      // border-top spans all siblings; border-left creates the elbow on all but first
+                      // border-top only — no border-left (avoids full-height vertical lines)
                       const tdStyle = isRoot||solo
                         ? `padding:0 10px;vertical-align:top;text-align:center;`
-                        : `padding:0 10px;vertical-align:top;text-align:center;border-top:2px solid #1a5276;${!isFirst?"border-left:2px solid #1a5276;":""}`;
+                        : `padding:0 10px;vertical-align:top;text-align:center;border-top:2px solid #1a5276;`;
                       const stub = (!isRoot&&!solo) ? `<div style="width:2px;height:16px;background:#1a5276;margin:0 auto;"></div>` : "";
                       const vline = kids.length ? `<div style="width:2px;height:18px;background:#1a5276;margin:0 auto;"></div>` : "";
                       return `<td style="${tdStyle}">${stub}${buildCard2(n)}${vline}${kids.length?buildTable(kids,false):""}</td>`;
