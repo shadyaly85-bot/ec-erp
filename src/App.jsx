@@ -57,6 +57,8 @@ const ROLES_LIST = [
 const ROLE_TYPES   = ["engineer","lead","accountant","senior_management","admin"];
 const ROLE_LABELS  = {engineer:"Engineer",lead:"Lead Engineer",accountant:"Accountant",senior_management:"Senior Management",admin:"Admin"};
 const ROLE_COLORS  = {engineer:"var(--text3)",lead:"var(--info)",accountant:"#a78bfa",senior_management:"#94a3b8",admin:"#34d399"};
+// Only engineer and lead post billable hours — excluded from utilization: accountant, senior_management, admin
+const isBillableRole = r => r==="engineer"||r==="lead";
 
 const fmt          = d => d.toISOString().slice(0,10);
 const today        = new Date();
@@ -546,7 +548,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
         <label style={{fontSize:12,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>ASSIGNED TO</label>
         <select value={aDraft.assigned_to||""} onChange={e=>setADraft(p=>({...p,assigned_to:e.target.value}))}>
           <option value="">— Unassigned —</option>
-          {(engineers||[]).filter(e=>isEngActive(e)&&e.role_type!=="accountant"&&e.role_type!=="senior_management").map(e=>(
+          {(engineers||[]).filter(e=>isEngActive(e)&&isBillableRole(e.role_type)).map(e=>(
             <option key={e.id} value={e.name}>{e.name} · {e.role}</option>
           ))}
         </select>
@@ -4811,7 +4813,7 @@ export default function App(){
   const billabilityPct= totalWorkHrs?Math.round(totalBillable/totalWorkHrs*100):0;
 
   const engStats=useMemo(()=>engineers
-    .filter(eng=>eng.role_type!=="accountant"&&eng.role_type!=="senior_management")
+    .filter(eng=>isBillableRole(eng.role_type))
     .filter(eng=>{
       // Exclude terminated engineers whose termination date was before this month started
       if(eng.termination_date){
@@ -5289,7 +5291,7 @@ export default function App(){
                   {canBrowseAll&&(
                     <div><Lbl>Browse Engineer</Lbl>
                       <select style={{width:190}} value={viewEngId||""} onChange={e=>setBrowseEngId(+e.target.value)}>
-                        {engineers.filter(e=>isEngActive(e)&&e.role_type!=="admin"&&e.role_type!=="senior_management"&&e.role_type!=="accountant").map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
+                        {engineers.filter(e=>isEngActive(e)&&isBillableRole(e.role_type)).map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
                       </select>
                     </div>
                   )}
