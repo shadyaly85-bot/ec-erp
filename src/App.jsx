@@ -2260,6 +2260,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   // ── Callbacks ──
   const saveActivity = useCallback(async(draft)=>{
     const {id,...fields}=draft;
+    const prev = activities.find(a=>a.id===id);
+    const assigneeChanged = fields.assigned_to && fields.assigned_to !== prev?.assigned_to;
     // map category → group_name for DB compatibility
     const payload={...fields, group_name: fields.category||fields.group_name, updated_at:new Date().toISOString()};
     const {data,error}=await supabase.from("project_activities").update(payload).eq("id",id).select().single();
@@ -2267,7 +2269,13 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
     setEditActivity(null);
     showToast("Activity saved ✓");
-  },[setActivities,showToast]);
+    // ── notify if assignee changed ──
+    if(assigneeChanged) sendAssignmentEmail({
+      type:"activity", projectId:fields.project_id,
+      itemName:fields.activity_name, assignedTo:fields.assigned_to,
+      dueDate:fields.end_date||null,
+    });
+  },[activities,setActivities,showToast,sendAssignmentEmail]);
 
   const confirmAdd = useCallback(async({category,activity_name,start_date,end_date,assigned_to})=>{
     if(!addModal) return;
@@ -2288,7 +2296,13 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     setAddModal(null);
     showToast("Activity added ✓");
     if(category) setExpandedCats(p=>({...p,[category]:true}));
-  },[addModal,actsByProj,setActivities,showToast]);
+    // ── notify assigned engineer ──
+    if(assigned_to) sendAssignmentEmail({
+      type:"activity", projectId:projId,
+      itemName:activity_name, assignedTo:assigned_to,
+      dueDate:end_date||null,
+    });
+  },[addModal,actsByProj,setActivities,showToast,sendAssignmentEmail]);
 
   const deleteActivity = useCallback(async(id)=>{
     if(!window.confirm("Delete this activity?")) return;
@@ -3677,6 +3691,48 @@ export default function App(){
 
   const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3500);};
 
+  // ── Assignment email helper ──
+  // Silently fires-and-forgets — never blocks the UI or shows errors to user
+  const sendAssignmentEmail = useCallback(async({ type, projectId, projectName, itemName, assignedTo, assignedToIds, dueDate, notes }) => {
+    try {
+      // Resolve recipients: assigned_to is a name string, assignedToIds is an array of engineer IDs
+      const recipients = [];
+      if (assignedTo) {
+        const eng = engineers.find(e => e.name === assignedTo);
+        if (eng?.email) recipients.push({ email: eng.email, name: eng.name });
+      }
+      if (assignedToIds?.length) {
+        assignedToIds.forEach(id => {
+          const eng = engineers.find(e => String(e.id) === String(id));
+          if (eng?.email && !recipients.find(r => r.email === eng.email)) {
+            recipients.push({ email: eng.email, name: eng.name });
+          }
+        });
+      }
+      if (!recipients.length) return; // no email addresses on file — silently skip
+
+      const proj = projectName || projects.find(p => p.id === projectId)?.name || projectId;
+      const assignedBy = myProfile?.name || "EC-ERP";
+
+      await Promise.all(recipients.map(r =>
+        fetch("/api/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: r.email,
+            recipientName: r.name,
+            assignedBy,
+            type,
+            projectName: proj,
+            itemName,
+            dueDate: dueDate || null,
+            notes: notes || null,
+          }),
+        }).catch(() => {}) // swallow network errors silently
+      ));
+    } catch { /* never surface email errors to the user */ }
+  }, [engineers, projects, myProfile]);
+
   // My personal weekend setting (from my engineer profile, falls back to default)
   const myWeekend = useMemo(()=>{
     try{ return myProfile?.weekend_days?JSON.parse(myProfile.weekend_days):DEFAULT_WEEKEND; }
@@ -4557,6 +4613,13 @@ export default function App(){
     setShowProjModal(false);
     setNewProj({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
     showToast("Project created ✓");
+    // ── notify assigned engineers ──
+    if(projToInsert.assigned_engineers?.length) sendAssignmentEmail({
+      type:"project", projectId:projToInsert.id,
+      projectName:projToInsert.name,
+      itemName:projToInsert.name,
+      assignedToIds:projToInsert.assigned_engineers,
+    });
   };
   const saveEditProject=async()=>{
     if(!editProjModal) return;
@@ -4564,10 +4627,7 @@ export default function App(){
     const origId=_origId||rest.id;
     const newId=rest.id;
     const idChanged=_origId&&_origId!==newId;
-    // If project renamed, also rename activities project_id in local state
-    // (DB cascade handles it via project_id FK only if ON UPDATE CASCADE — but we sync locally too)
     if(idChanged){
-      // Rename project ID: insert new, re-link entries, delete old
       let insertData={...rest};
       let {error:e1}=await supabase.from("projects").insert(insertData);
       if(e1&&e1.message&&e1.message.includes("assigned_engineers")){
@@ -4585,8 +4645,11 @@ export default function App(){
       setEditProjModal(null); showToast("Project ID renamed & entries re-linked ✓");
     } else {
       const{id,...fields}=rest;
+      // find newly added engineers vs previous state
+      const prevProj=projects.find(p=>p.id===id);
+      const prevIds=(prevProj?.assigned_engineers||[]).map(String);
+      const newIds=(fields.assigned_engineers||[]).map(String).filter(x=>!prevIds.includes(x));
       let {data,error}=await supabase.from("projects").update(fields).eq("id",id).select().single();
-      // Fallback: if assigned_engineers column doesn't exist yet, save without it
       if(error&&error.message&&error.message.includes("assigned_engineers")){
         const{assigned_engineers:_ae,...fieldsNoAE}=fields;
         const res=await supabase.from("projects").update(fieldsNoAE).eq("id",id).select().single();
@@ -4598,6 +4661,13 @@ export default function App(){
         setProjects(prev=>prev.map(p=>p.id===data.id?{...data,assigned_engineers:fields.assigned_engineers||[]}:p));
       }
       setEditProjModal(null); showToast("Project updated ✓");
+      // ── notify newly assigned engineers only ──
+      if(newIds.length) sendAssignmentEmail({
+        type:"project", projectId:id,
+        projectName:fields.name||id,
+        itemName:fields.name||id,
+        assignedToIds:newIds,
+      });
     }
   };
   const deleteProject=async id=>{
@@ -4625,14 +4695,28 @@ export default function App(){
     if(error){showToast("Error: "+error.message,false);return;}
     setSubprojects(prev=>[...prev,data]);
     setSubProjModal(null); showToast("Sub-project added ✓");
+    // ── notify assigned engineers ──
+    if(assigned_engineers?.length) sendAssignmentEmail({
+      type:"subproject", projectId:pid,
+      itemName:name.trim(), assignedToIds:assigned_engineers,
+    });
   };
   const saveSubProject=async(sub)=>{
     const{id,...fields}=sub;
+    const prev=subprojects.find(s=>s.id===id);
+    // find newly added engineers (not in previous assignment)
+    const prevIds=(prev?.assigned_engineers||[]).map(String);
+    const newIds=(fields.assigned_engineers||[]).map(String).filter(x=>!prevIds.includes(x));
     const{data,error}=await supabase.from("project_subprojects")
       .update(fields).eq("id",id).select().single();
     if(error){showToast("Error: "+error.message,false);return;}
     setSubprojects(prev=>prev.map(s=>s.id===data.id?data:s));
     setSubProjModal(null); showToast("Sub-project saved ✓");
+    // ── notify newly assigned engineers only ──
+    if(newIds.length) sendAssignmentEmail({
+      type:"subproject", projectId:fields.project_id,
+      itemName:fields.name, assignedToIds:newIds,
+    });
   };
   const deleteSubProject=async(id)=>{
     if(!window.confirm("Delete this sub-project and unlink its activities?")) return;
@@ -5209,12 +5293,6 @@ export default function App(){
           {/* ════ TIMESHEET ════ */}
           {view==="timesheet"&&(
             <div>
-              {isAcct&&(
-                <div style={{background:"var(--bg2)",border:"1px solid #34d39930",borderRadius:8,padding:"8px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
-                  <span style={{fontSize:18}}>👁</span>
-                  <span style={{fontSize:14,color:"#34d399",fontWeight:500}}>Read-only review mode — you can see all posted hours but cannot add, edit or delete entries</span>
-                </div>
-              )}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
                 <div>
                   <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>{isAcct?"Hours Review":"Post Hours"}</h1>
