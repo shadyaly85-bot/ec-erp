@@ -8698,7 +8698,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     </div>
                   </div>
                 </div>
-              )
+              )}
 
               {/* ACTIVITY LOG */}
               {adminTab==="actlog"&&isAdmin&&(
