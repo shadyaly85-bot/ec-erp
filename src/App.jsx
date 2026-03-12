@@ -4439,7 +4439,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading,
 function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, setEgpRate,
   finTab, setFinTab, finMonth, setFinMonth, finYear, setFinYear,
   setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
-  deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior, isLead, isAcct,
+  deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior, isAcct,
   journalEntries, setJournalEntries, fixedAssets, journalLoading, assetsLoading,
   finSubTab, setFinSubTab, accounts}){
 
@@ -4585,10 +4585,10 @@ const projProfit=projects.map(p=>{
         {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
       </select>
     </div>
-    <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>
+    <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
       buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
-      logAction("EXPORT","Finance",`Exported Finance PDF — ${MONTHS_[finMonth]} ${finYear}`,{month:finMonth,year:finYear})
-    }>⬇ Export PDF</button>
+      logAction("EXPORT","Finance",`Exported Finance PDF — ${MONTHS_[finMonth]} ${finYear}`,{month:finMonth,year:finYear});
+    }}>⬇ Export PDF</button>
   </div>
   )}
 
@@ -4982,7 +4982,7 @@ const projProfit=projects.map(p=>{
         </div>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{background:"var(--bg2)"}}>
-            {["Name","Department","Role","EGP Salary","USD Salary","Join Date"].map(h=>(
+            {["Name","Department","Role","EGP Salary","USD Salary","Join Date",""].map(h=>(
               <th key={h} style={{padding:"7px 12px",textAlign:["EGP Salary","USD Salary"].includes(h)?"right":"left",color:"var(--text3)",fontSize:12}}>{h}</th>
             ))}
           </tr></thead>
@@ -4992,22 +4992,29 @@ const projProfit=projects.map(p=>{
                 <td style={{padding:"6px 12px",fontWeight:600,color:"var(--text1)"}}>{s.name}</td>
                 <td style={{padding:"6px 12px",color:"var(--text3)"}}>{s.department}</td>
                 <td style={{padding:"6px 12px"}}><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)"}}>{s.role}</span></td>
-                <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#fb923c",fontWeight:600}}>{s.salary_egp?fmtEGP(+s.salary_egp):"—"}</td>
-                <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#38bdf8"}}>{s.salary_usd?`$${(+s.salary_usd).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"}</td>
+                <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#fb923c",fontWeight:600}}>{s.salary_egp?fmtEGP(+s.salary_egp):"\u2014"}</td>
+                <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#38bdf8"}}>{s.salary_usd?`$${(+s.salary_usd).toLocaleString("en-US",{minimumFractionDigits:2})}`:"\u2014"}</td>
                 <td style={{padding:"6px 12px",fontSize:12,color:"var(--text4)"}}>{s.join_date||"—"}</td>
+                <td style={{padding:"6px 8px"}}>
+                  {(isAdmin||isAcct)&&(
+                    <button onClick={()=>{setEditStaff({...s});setShowStaffModal(true);}}
+                      style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,padding:"3px 9px",color:"var(--text2)",cursor:"pointer",fontSize:12}}>✏</button>
+                  )}
+                </td>
               </tr>
             ))}
             <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)",fontWeight:700}}>
               <td colSpan={3} style={{padding:"8px 12px",color:"var(--text0)"}}>TOTAL ({activeSt.length} staff)</td>
               <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#fb923c",fontSize:14}}>{fmtEGP(totalEGP)}</td>
-              <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#38bdf8"}}>{totalUSD>0?`$${totalUSD.toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"}</td>
-              <td/>
+              <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#38bdf8"}}>{totalUSD>0?`$${totalUSD.toLocaleString("en-US",{minimumFractionDigits:2})}`:""}</td>
+              <td colSpan={2}/>
             </tr>
           </tbody>
         </table>
-        {(isAdmin||isLead)&&(
-          <div style={{padding:"10px 14px",borderTop:"1px solid var(--border3)",display:"flex",gap:8}}>
-            <button className="bp" onClick={()=>{setEditStaff(null);setShowStaffModal(true);}}>+ Add Staff Member</button>
+        {(isAdmin||isAcct)&&(
+          <div style={{padding:"10px 14px",borderTop:"1px solid var(--border3)",display:"flex",gap:8,alignItems:"center"}}>
+            {isAdmin&&<button className="bp" onClick={()=>{setEditStaff(null);setShowStaffModal(true);}}>+ Add Staff Member</button>}
+            {isAcct&&!isAdmin&&<span style={{fontSize:12,color:"var(--text4)"}}>✏ Click the edit button on any row to update salary</span>}
           </div>
         )}
       </div>
