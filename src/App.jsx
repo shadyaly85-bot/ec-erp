@@ -4181,6 +4181,261 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
 /* ════════════════════════════════════════════════════════
    FINANCE TAB — main container
    ════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════
+   ACTIVITY LOG TAB — admin only
+   ══════════════════════════════════════════════════════════ */
+function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading,
+  onRefresh, onArchive, onLoadArchive, retentionDays, setRetentionDays}) {
+
+  const [tab,        setTab]       = React.useState("live");   // live | archive
+  const [search,     setSearch]    = React.useState("");
+  const [modFilter,  setModFilter] = React.useState("ALL");
+  const [actFilter,  setActFilter] = React.useState("ALL");
+  const [userFilter, setUserFilter]= React.useState("ALL");
+  const [dateFrom,   setDateFrom]  = React.useState("");
+  const [dateTo,     setDateTo]    = React.useState("");
+  const [page,       setPage]      = React.useState(0);
+  const PAGE_SIZE = 100;
+
+  const source = tab==="live" ? activityLog : archiveLog;
+
+  const modules = React.useMemo(()=>["ALL",...new Set(source.map(l=>l.module))].sort(),[source]);
+  const actions = React.useMemo(()=>["ALL",...new Set(source.map(l=>l.action))].sort(),[source]);
+  const users   = React.useMemo(()=>["ALL",...new Set(source.map(l=>l.user_name).filter(Boolean))].sort(),[source]);
+
+  const filtered = React.useMemo(()=>{
+    setPage(0);
+    return source.filter(l=>{
+      if(modFilter!=="ALL"  && l.module!==modFilter)    return false;
+      if(actFilter!=="ALL"  && l.action!==actFilter)    return false;
+      if(userFilter!=="ALL" && l.user_name!==userFilter) return false;
+      if(dateFrom && l.created_at < dateFrom)           return false;
+      if(dateTo   && l.created_at > dateTo+"T23:59:59") return false;
+      if(search && !`${l.detail||""} ${l.user_name||""} ${l.module} ${l.action}`.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+  // eslint-disable-next-line
+  },[source,modFilter,actFilter,userFilter,dateFrom,dateTo,search]);
+
+  const page_count = Math.ceil(filtered.length / PAGE_SIZE);
+  const visible    = filtered.slice(page*PAGE_SIZE, (page+1)*PAGE_SIZE);
+
+  const actionColor = a=>({
+    CREATE:"#34d399",UPDATE:"#38bdf8",DELETE:"#f87171",
+    LOGIN:"#a78bfa", LOGOUT:"#fb923c",EXPORT:"#facc15",IMPORT:"#34d399"
+  }[a]||"var(--text3)");
+  const moduleColor = m=>({
+    Journal:"#a78bfa",TimeEntry:"#38bdf8",Staff:"#fb923c",
+    Project:"#34d399",Engineer:"#38bdf8",Expense:"#facc15",
+    Auth:"#f87171",   Finance:"#34d399", Import:"#fb923c"
+  }[m]||"var(--text3)");
+
+  const exportCSV = ()=>{
+    const rows = [
+      ["Timestamp","User","Role","Action","Module","Detail","Meta"],
+      ...filtered.map(l=>[
+        l.created_at ? new Date(l.created_at).toLocaleString("en-EG") : "",
+        l.user_name||"", l.user_role||"", l.action||"", l.module||"",
+        `"${(l.detail||"").replace(/"/g,'\"\')}"`  ,
+        `"${(l.meta||"").replace(/"/g,'\"\')}"`    ,
+      ])
+    ].map(r=>r.join(",")).join("\n");
+    const a=Object.assign(document.createElement("a"),{
+      href:URL.createObjectURL(new Blob([rows],{type:"text/csv"})),
+      download:`EC-ERP_ActivityLog_${tab}_${new Date().toISOString().slice(0,10)}.csv`
+    });
+    a.click();
+  };
+
+  const resetFilters=()=>{ setSearch("");setModFilter("ALL");setActFilter("ALL");setUserFilter("ALL");setDateFrom("");setDateTo(""); };
+
+  const hasFilters = search||modFilter!=="ALL"||actFilter!=="ALL"||userFilter!=="ALL"||dateFrom||dateTo;
+
+  return(
+    <div style={{display:"grid",gap:12}}>
+
+      {/* ── Tabs: Live vs Archive ── */}
+      <div style={{display:"flex",gap:0,background:"var(--bg2)",borderRadius:8,padding:4,width:"fit-content"}}>
+        {[
+          {id:"live",    label:`📋 Live Log (${activityLog.length})`},
+          {id:"archive", label:`🗄 Archive (${archiveLog.length})`},
+        ].map(t=>(
+          <button key={t.id} className={`atab ${tab===t.id?"a":""}`} onClick={()=>{setTab(t.id);resetFilters();setPage(0);}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Archive controls (shown when on Live tab) ── */}
+      {tab==="live"&&(
+        <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,padding:"12px 16px",display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:13,color:"var(--text2)",fontWeight:600}}>🗄 Archive Management</span>
+          <span style={{fontSize:12,color:"var(--text4)"}}>Move entries older than</span>
+          <select value={retentionDays} onChange={e=>setRetentionDays(+e.target.value)}
+            style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:13}}>
+            {[30,60,90,180].map(d=><option key={d} value={d}>{d} days</option>)}
+          </select>
+          <span style={{fontSize:12,color:"var(--text4)"}}>to archive</span>
+          <button onClick={onArchive}
+            style={{background:"#f8711820",border:"1px solid #f8711840",borderRadius:6,padding:"5px 14px",color:"#f87171",cursor:"pointer",fontSize:13,fontWeight:600}}>
+            ⬆ Archive Now
+          </button>
+          <span style={{fontSize:11,color:"var(--text4)",marginLeft:"auto"}}>
+            Archive keeps data forever · Live table stays fast · Export CSV to download either
+          </span>
+          <button onClick={async()=>{
+            if(!window.confirm("Delete archive entries older than 1 year? This cannot be undone.")) return;
+            const {data,error} = await supabase.rpc("prune_activity_archive",{max_age_days:365});
+            if(error){alert("Prune error: "+error.message);return;}
+            showToast(`Pruned ${data||0} archive entries older than 1 year`);
+            logAction("DELETE","Auth",`Pruned activity archive — entries older than 365d`,{pruned:data});
+            setArchiveLog([]);
+          }} style={{background:"#f8711810",border:"1px solid #f8711830",borderRadius:6,padding:"5px 12px",color:"#f87171",cursor:"pointer",fontSize:12,opacity:0.8}}>
+            🗑 Prune Archive &gt;1yr
+          </button>
+        </div>
+      )}
+
+      {/* ── Archive load prompt ── */}
+      {tab==="archive"&&archiveLog.length===0&&!archiveLoading&&(
+        <div style={{textAlign:"center",padding:24,background:"var(--bg2)",borderRadius:8,border:"1px solid var(--border3)"}}>
+          <div style={{fontSize:14,color:"var(--text2)",marginBottom:10}}>Archive not loaded — it's kept separate to keep the UI fast.</div>
+          <button className="bp" onClick={onLoadArchive}>Load Archive Data</button>
+        </div>
+      )}
+      {tab==="archive"&&archiveLoading&&(
+        <div style={{textAlign:"center",padding:24,color:"var(--text4)"}}>Loading archive…</div>
+      )}
+
+      {/* ── Toolbar ── */}
+      {(tab==="live"||(tab==="archive"&&archiveLog.length>0))&&(
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+        <input placeholder="🔍 Search…" value={search} onChange={e=>setSearch(e.target.value)}
+          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,width:190}}/>
+        <select value={modFilter} onChange={e=>setModFilter(e.target.value)}
+          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+          <option value="ALL">All Modules</option>
+          {modules.filter(m=>m!=="ALL").map(m=><option key={m}>{m}</option>)}
+        </select>
+        <select value={actFilter} onChange={e=>setActFilter(e.target.value)}
+          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+          <option value="ALL">All Actions</option>
+          {actions.filter(a=>a!=="ALL").map(a=><option key={a}>{a}</option>)}
+        </select>
+        <select value={userFilter} onChange={e=>setUserFilter(e.target.value)}
+          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+          <option value="ALL">All Users</option>
+          {users.filter(u=>u!=="ALL").map(u=><option key={u}>{u}</option>)}
+        </select>
+        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
+          title="From date"
+          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 8px",color:"var(--text0)",fontSize:13}}/>
+        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
+          title="To date"
+          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 8px",color:"var(--text0)",fontSize:13}}/>
+        {hasFilters&&<button onClick={resetFilters}
+          style={{background:"transparent",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text3)",cursor:"pointer",fontSize:12}}>✕ Clear</button>}
+        <span style={{fontSize:12,color:"var(--text4)"}}>{filtered.length} of {source.length} events</span>
+        <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+          {tab==="live"&&<button onClick={onRefresh}
+            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 12px",color:"var(--text2)",cursor:"pointer",fontSize:13}}>
+            ↻ Refresh
+          </button>}
+          <button className="bp" onClick={exportCSV} style={{padding:"6px 14px",fontSize:13}}>
+            ⬇ Export CSV
+          </button>
+        </div>
+      </div>
+      )}
+
+      {/* ── KPI strip (live only) ── */}
+      {tab==="live"&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+          {[
+            {l:"Live Events",  v:activityLog.length,                                              c:"var(--info)"},
+            {l:"Logins Today", v:activityLog.filter(l=>l.created_at&&new Date(l.created_at).toDateString()===new Date().toDateString()&&l.action==="LOGIN").length, c:"#a78bfa"},
+            {l:"Creates",      v:activityLog.filter(l=>l.action==="CREATE").length,               c:"#34d399"},
+            {l:"Deletes",      v:activityLog.filter(l=>l.action==="DELETE").length,               c:"#f87171"},
+            {l:"Exports",      v:activityLog.filter(l=>l.action==="EXPORT"||l.action==="IMPORT").length, c:"#facc15"},
+          ].map((k,i)=>(
+            <div key={i} style={{background:"var(--bg2)",border:`1px solid ${k.c}25`,borderRadius:8,padding:"8px 12px"}}>
+              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
+              <div style={{fontSize:11,color:"var(--text4)",marginTop:2}}>{k.l}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Table ── */}
+      {(loading&&tab==="live") ? (
+        <div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>Loading…</div>
+      ) : (tab==="live"||archiveLog.length>0) ? (
+        filtered.length===0 ? (
+          <div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>
+            {source.length===0 ? "No events yet." : "No results match your filters."}
+          </div>
+        ) : (
+        <div className="card" style={{padding:0,overflow:"hidden"}}>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead><tr style={{background:"var(--bg2)"}}>
+                {["Timestamp","User","Role","Action","Module","Detail","Meta"].map(h=>(
+                  <th key={h} style={{padding:"7px 12px",textAlign:"left",color:"var(--text3)",fontWeight:600,fontSize:12,borderBottom:"1px solid var(--border3)",whiteSpace:"nowrap"}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {visible.map((l,i)=>{
+                  let meta={};
+                  try{meta=JSON.parse(l.meta||"{}");}catch(e){}
+                  const ts = l.created_at
+                    ? new Date(l.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})
+                    : "—";
+                  return(
+                    <tr key={l.id||i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
+                      <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--text4)",whiteSpace:"nowrap"}}>{ts}</td>
+                      <td style={{padding:"6px 12px",color:"var(--text1)",fontWeight:500,fontSize:12,whiteSpace:"nowrap"}}>{l.user_name||"—"}</td>
+                      <td style={{padding:"6px 12px"}}><span style={{fontSize:10,padding:"2px 5px",borderRadius:3,background:"var(--bg2)",color:"var(--info)",fontWeight:600}}>{l.user_role||"—"}</span></td>
+                      <td style={{padding:"6px 12px"}}><span style={{fontSize:11,padding:"2px 7px",borderRadius:4,background:actionColor(l.action)+"20",color:actionColor(l.action),fontWeight:700}}>{l.action}</span></td>
+                      <td style={{padding:"6px 12px"}}><span style={{fontSize:11,padding:"2px 7px",borderRadius:4,background:moduleColor(l.module)+"15",color:moduleColor(l.module),fontWeight:600}}>{l.module}</span></td>
+                      <td style={{padding:"6px 12px",color:"var(--text2)",fontSize:12,maxWidth:280,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={l.detail}>{l.detail||"—"}</td>
+                      <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"var(--text4)",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}
+                        title={JSON.stringify(meta)}>
+                        {Object.keys(meta).length>0 ? Object.entries(meta).slice(0,3).map(([k,v])=>`${k}:${v}`).join(" · ") : ""}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {page_count>1&&(
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",borderTop:"1px solid var(--border3)",background:"var(--bg2)"}}>
+              <span style={{fontSize:12,color:"var(--text4)"}}>Showing {page*PAGE_SIZE+1}–{Math.min((page+1)*PAGE_SIZE,filtered.length)} of {filtered.length}</span>
+              <div style={{display:"flex",gap:4}}>
+                {[{l:"«",v:0},{l:"‹",v:page-1}].map(b=>(
+                  <button key={b.l} onClick={()=>setPage(Math.max(0,b.v))} disabled={page===0}
+                    style={{padding:"3px 8px",background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text2)",cursor:page===0?"not-allowed":"pointer",fontSize:12,opacity:page===0?0.4:1}}>{b.l}</button>
+                ))}
+                {Array.from({length:Math.min(7,page_count)},(_,i)=>{
+                  const pg=Math.max(0,Math.min(page_count-7,page-3))+i;
+                  return <button key={pg} onClick={()=>setPage(pg)}
+                    style={{padding:"3px 8px",background:pg===page?"var(--accent)":"var(--bg1)",border:`1px solid ${pg===page?"var(--accent)":"var(--border3)"}`,borderRadius:4,color:pg===page?"#fff":"var(--text2)",cursor:"pointer",fontSize:12}}>{pg+1}</button>;
+                })}
+                {[{l:"›",v:page+1},{l:"»",v:page_count-1}].map(b=>(
+                  <button key={b.l} onClick={()=>setPage(Math.min(page_count-1,b.v))} disabled={page===page_count-1}
+                    style={{padding:"3px 8px",background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text2)",cursor:page===page_count-1?"not-allowed":"pointer",fontSize:12,opacity:page===page_count-1?0.4:1}}>{b.l}</button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+
 function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, setEgpRate,
   finTab, setFinTab, finMonth, setFinMonth, finYear, setFinYear,
   setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
@@ -4331,7 +4586,8 @@ const projProfit=projects.map(p=>{
       </select>
     </div>
     <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>
-      buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate})
+      buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
+      logAction("EXPORT","Finance",`Exported Finance PDF — ${MONTHS_[finMonth]} ${finYear}`,{month:finMonth,year:finYear})
     }>⬇ Export PDF</button>
   </div>
   )}
@@ -4346,12 +4602,14 @@ const projProfit=projects.map(p=>{
       onAdd={async(entry)=>{
         if(!isAcct&&!isAdmin) return;
         const {data,error}=await supabase.from("journal_entries").insert([{...entry,posted_by:"accountant"}]).select();
-        if(!error&&data) setJournalEntries(prev=>[...prev,...data]);
+        if(!error&&data){ setJournalEntries(prev=>[...prev,...data]);
+          logAction("CREATE","Journal",`Posted entry #${entry.entry_no} — ${entry.entry_type} · ${entry.account_name}`,{entry_no:entry.entry_no,entry_type:entry.entry_type,account:entry.account_name,debit:entry.debit,credit:entry.credit}); }
       }}
       onDelete={async(id)=>{
         if(!isAcct&&!isAdmin) return;
         await supabase.from("journal_entries").delete().eq("id",id);
         setJournalEntries(prev=>prev.filter(e=>e.id!==id));
+        logAction("DELETE","Journal",`Deleted journal entry line id:${id}`,{id});
       }}
     />
   )}
@@ -5304,6 +5562,11 @@ export default function App(){
   const [journalEntries,setJournalEntries]   = useState([]);
   const [fixedAssets,setFixedAssets]         = useState([]);
   const [accounts,setAccounts]               = useState([]);
+  const [activityLog,setActivityLog]         = useState([]);
+  const [archiveLog,setArchiveLog]           = useState([]);
+  const [logLoading,setLogLoading]           = useState(false);
+  const [archiveLoading,setArchiveLoading]   = useState(false);
+  const [retentionDays,setRetentionDays]     = useState(30);
   const [journalLoading,setJournalLoading]   = useState(false);
   const [assetsLoading,setAssetsLoading]     = useState(false);
   const [finSubTab,setFinSubTab]             = useState("journal"); // journal|balance|pl|assets
@@ -5324,6 +5587,22 @@ export default function App(){
   const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
 
   const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3500);};
+
+  // ── Activity logger — fire-and-forget, never blocks UI ──
+  const logAction=useCallback((action,module,detail,meta={})=>{
+    if(!session?.user) return;
+    const entry={
+      user_id:session.user.id,
+      user_name:myProfile?.name||session.user.email||"unknown",
+      user_role:myProfile?.role_type||"unknown",
+      action,module,detail,
+      meta:JSON.stringify(meta),
+    };
+    supabase.from("activity_log").insert(entry)
+      .then(({data,error})=>{
+        if(!error&&data) setActivityLog(prev=>[{...entry,id:data[0]?.id,created_at:new Date().toISOString()},...prev].slice(0,2000));
+      });
+  },[session,myProfile]);
 
   // My personal weekend setting (from my engineer profile, falls back to default)
   const myWeekend = useMemo(()=>{
@@ -5427,6 +5706,12 @@ export default function App(){
       if(journalR.data) setJournalEntries(journalR.data);
       if(assetsR.data) setFixedAssets(assetsR.data);
       if(accountsR?.data) setAccounts(accountsR.data);
+      // Load activity log for admin
+      if(myProfile?.role_type==="admin"||role==="admin"){
+        setLogLoading(true);
+        supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
+          .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
+      }
       // Trigger timesheet delay alerts after data loads
       if(engsR.data&&entrR.data) setTimeout(()=>checkTimesheetAlerts(engsR.data,entrR.data),1500);
     }catch(e){showToast("Error loading data",false);}
@@ -5454,11 +5739,13 @@ export default function App(){
     e.preventDefault(); setAuthErr("");
     const {error}=await supabase.auth.signInWithPassword({email:authEmail,password:authPwd});
     if(error) setAuthErr(error.message);
+    else { setTimeout(()=>logAction("LOGIN","Auth",`Signed in as ${authEmail}`),800); }
   };
   const handleLogout=async()=>{
+    logAction("LOGOUT","Auth","Signed out");
     await supabase.auth.signOut();
     setSession(null);setEngineers([]);setProjects([]);setEntries([]);setMyProfile(null);setStaff([]);setExpenses([]);setJournalEntries([]);setFixedAssets([]);
-    setAccounts([]);
+    setAccounts([]);setActivityLog([]);setArchiveLog([]);
   };
 
   // Load tracker data: eagerly when session exists (not lazily)
@@ -5569,6 +5856,7 @@ export default function App(){
     setModalDate(null);
     setNewEntry({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
     showToast("Hours posted ✓");
+    logAction("CREATE","TimeEntry",`Posted ${basePayload.hours}h on ${basePayload.project_id} for ${basePayload.date}`,{project_id:basePayload.project_id,hours:basePayload.hours,date:basePayload.date});
   };
 
 
@@ -5650,6 +5938,7 @@ export default function App(){
     if(upd) setEntries(prev=>prev.map(e=>e.id===upd.id?upd:e));
     else setEntries(prev=>prev.map(e=>e.id===editEntry.id?{...e,...payload}:e));
     setEditEntry(null); showToast("Entry updated ✓");
+    logAction("UPDATE","TimeEntry",`Updated time entry on ${editEntry?.date}`,{id:editEntry?.id,date:editEntry?.date});
   };
 
   const deleteEntry=async(id, engineerId)=>{
@@ -5798,6 +6087,7 @@ export default function App(){
         if(ed){
           setEngineers(prev=>[...prev,ed].sort((a,b)=>a.name.localeCompare(b.name)));
           showToast("Member added ✓ — appears in Team + Finance");
+          logAction("CREATE","Staff",`Added staff+engineer: ${newStaff?.name}`,{name:newStaff?.name,role:newStaff?.role_type});
         } else {
           showToast("Staff added ✓ — set salary in Finance › Staff");
         }
@@ -5813,9 +6103,11 @@ export default function App(){
 
   const deleteStaff=useCallback(async(id)=>{
     if(!window.confirm("Delete this staff member?")) return;
+    const name=staff.find(s=>s.id===id)?.name||id;
     await supabase.from("staff").delete().eq("id",id);
     setStaff(prev=>prev.filter(s=>s.id!==id));
-  },[]);
+    logAction("DELETE","Staff",`Deleted staff member: ${name}`,{id,name});
+  },[staff,logAction]);
 
   const saveExpense=useCallback(async()=>{
     const payload=editExp?{...editExp}:{...newExp};
@@ -5826,16 +6118,18 @@ export default function App(){
       else showToast(error?.message||"Error",false);
     } else {
       const{data,error}=await supabase.from("expenses").insert(payload).select().single();
-      if(!error&&data){setExpenses(prev=>[data,...prev]);showToast("Expense added");setShowExpModal(false);setNewExp({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:egpRate,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});}
+      if(!error&&data){setExpenses(prev=>[data,...prev]);showToast("Expense added");setShowExpModal(false);setNewExp({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:egpRate,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});logAction("CREATE","Expense",`Added expense: ${payload.description}`,{category:payload.category,amount_usd:payload.amount_usd,amount_egp:payload.amount_egp});}
       else showToast(error?.message||"Error",false);
     }
   },[editExp,newExp,showToast]);
 
   const deleteExpense=useCallback(async(id)=>{
     if(!window.confirm("Delete this expense?")) return;
+    const exp=expenses.find(e=>e.id===id);
     await supabase.from("expenses").delete().eq("id",id);
     setExpenses(prev=>prev.filter(e=>e.id!==id));
-  },[]);
+    logAction("DELETE","Expense",`Deleted expense: ${exp?.description||id}`,{id,description:exp?.description});
+  },[expenses,logAction]);
 
   /* ── EXCEL IMPORT ── */
   const importTimesheets=async files=>{
@@ -6195,6 +6489,7 @@ export default function App(){
     addLog("info","✅ All files processed — refreshing...");
     await loadAll();
     setImporting(false);
+    logAction("IMPORT","Import",`Imported ${files.length} timesheet file(s)`,{files:files.map(f=>f.name)});
   };
 
   const bulkDeleteEntries=async()=>{
@@ -6206,6 +6501,7 @@ export default function App(){
     setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id)));
     setSelectedEntries(new Set());
     showToast(`Deleted ${ids.length} entries`);
+    logAction("DELETE","TimeEntry",`Bulk deleted ${ids.length} time entries`,{count:ids.length});
   };
 
   /* ── PROJECT CRUD ── */
@@ -6218,6 +6514,7 @@ export default function App(){
     setShowProjModal(false);
     setNewProj({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
     showToast("Project created ✓");
+    logAction("CREATE","Project",`Created project ${newProj.id} — ${newProj.name}`,{project_id:newProj.id,name:newProj.name});
   };
   const saveEditProject=async()=>{
     if(!editProjModal) return;
@@ -6255,6 +6552,7 @@ export default function App(){
         setProjects(prev=>prev.map(p=>p.id===data.id?{...data,assigned_engineers:fields.assigned_engineers||[]}:p));
       }
       setEditProjModal(null); showToast("Project updated ✓");
+      logAction("UPDATE","Project",`Updated project ${editProjModal?.id}`,{project_id:editProjModal?.id});
     }
   };
   const deleteProject=async id=>{
@@ -6268,6 +6566,7 @@ export default function App(){
     setActivities(prev=>prev.filter(a=>a.project_id!==id));
     setSubprojects(prev=>prev.filter(s=>s.project_id!==id));
     showToast("Project deleted",false);
+    logAction("DELETE","Project",`Deleted project ${id}`,{project_id:id});
   };
 
   /* ── SUB-PROJECT CRUD ── */
@@ -8126,6 +8425,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead||isAcct||isSenior},
                   {id:"tracker",  label:"📊 Tracker",    show:isAdmin||isLead||isAcct||isSenior},
                   {id:"settings", label:"ℹ Info",        show:isAdmin},
+                  {id:"actlog",   label:"🪵 Activity Log", show:isAdmin},
                 ].filter(t=>t.show).map(t=>(
                   <button key={t.id} className={`atab ${adminTab===t.id?"a":""}`} onClick={()=>setAdminTab(t.id)}>{t.label}</button>
                 ))}
@@ -8174,6 +8474,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                                   if(data) setEngineers(prev=>prev.map(x=>x.id===data.id?data:x));
                                   setPendingRoles(p=>{const n={...p};delete n[eng.id];return n;});
                                   showToast(`${eng.name} → ${ROLE_LABELS[newRole]} ✓`);
+                                  logAction("UPDATE","Engineer",`Role changed: ${eng.name} → ${newRole}`,{engineer_id:eng.id,name:eng.name,new_role:newRole});
                                 }}>Save</button>
                               )}
                             </div>
@@ -8390,7 +8691,43 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     </div>
                   </div>
                 </div>
-              )}
+              )
+
+              {/* ACTIVITY LOG */}
+              {adminTab==="actlog"&&isAdmin&&(
+                <ActivityLogTab
+                  activityLog={activityLog}
+                  archiveLog={archiveLog}
+                  loading={logLoading}
+                  archiveLoading={archiveLoading}
+                  retentionDays={retentionDays}
+                  setRetentionDays={setRetentionDays}
+                  onRefresh={()=>{
+                    setLogLoading(true);
+                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
+                      .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
+                  }}
+                  onArchive={async()=>{
+                    if(!window.confirm(`Move logs older than ${retentionDays} days to archive?`)) return;
+                    const {data,error} = await supabase.rpc("archive_activity_log",{retention_days:retentionDays});
+                    if(error){ alert("Archive error: "+error.message); return; }
+                    const r = data?.[0]||{};
+                    showToast(`Archived ${r.archived_count||0} events, removed ${r.deleted_count||0} from live log`);
+                    logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:r.archived_count,deleted:r.deleted_count});
+                    // Reload live log
+                    setLogLoading(true);
+                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
+                      .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
+                    // Clear archive cache so it reloads fresh next time
+                    setArchiveLog([]);
+                  }}
+                  onLoadArchive={()=>{
+                    setArchiveLoading(true);
+                    supabase.from("activity_log_archive").select("*").order("created_at",{ascending:false}).limit(2000)
+                      .then(({data})=>{ if(data) setArchiveLog(data); setArchiveLoading(false); });
+                  }}
+                />
+              )}}
             </div>
           )}
 
