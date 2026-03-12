@@ -2756,13 +2756,863 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
 }
 
 
+
+/* ════════════════════════════════════════════════════════
+   FINANCE MODULE COMPONENTS — Excel-matched tabs
+   ════════════════════════════════════════════════════════ */
+
+/* Helper used by all finance components */
+const fmtEGP = v => v != null ? `EGP ${Math.abs(+v).toLocaleString("en-EG",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—";
+const fmtEGPsigned = v => `${+v>=0?"+":"-"} EGP ${Math.abs(+v).toLocaleString("en-EG",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+
+/* ── JOURNAL LEDGER ── */
+function JournalLedger({journalEntries, isAcct, isAdmin, onAdd, onDelete, loading}) {
+  const [filterAcct,  setFilterAcct]  = React.useState("ALL");
+  const [filterType,  setFilterType]  = React.useState("ALL");
+  const [filterMonth, setFilterMonth] = React.useState("ALL");
+  const [search,      setSearch]      = React.useState("");
+  const [showAdd,     setShowAdd]     = React.useState(false);
+  const [newLine,     setNewLine]     = React.useState({
+    entry_no:"", entry_date:"", month:"", entry_type:"Custody",
+    account_name:"", statement_type:"Profit & Loss Sheet", main_account:"",
+    debit:0, credit:0, description:""
+  });
+
+  const MO = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const canWrite = isAcct || isAdmin;
+
+  const accounts = React.useMemo(()=>["ALL",...[...new Set(journalEntries.map(e=>e.account_name))].sort()],[journalEntries]);
+  const types    = React.useMemo(()=>["ALL",...[...new Set(journalEntries.map(e=>e.entry_type))].sort()],[journalEntries]);
+  const months   = React.useMemo(()=>["ALL",...[...new Set(journalEntries.map(e=>e.month))].sort((a,b)=>+a-+b)],[journalEntries]);
+
+  const filtered = React.useMemo(()=>journalEntries.filter(e=>{
+    if(filterAcct!=="ALL" && e.account_name!==filterAcct) return false;
+    if(filterType!=="ALL" && e.entry_type!==filterType) return false;
+    if(filterMonth!=="ALL" && String(e.month)!==String(filterMonth)) return false;
+    if(search && !`${e.entry_no} ${e.account_name} ${e.description} ${e.main_account}`.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  }),[journalEntries,filterAcct,filterType,filterMonth,search]);
+
+  const totDr = filtered.reduce((s,e)=>s+(+e.debit||0),0);
+  const totCr = filtered.reduce((s,e)=>s+(+e.credit||0),0);
+  const balanced = Math.abs(totDr-totCr)<0.01;
+
+  const typeColor = t=>({
+    "Opening":"#38bdf8","Accrued Salaries":"#a78bfa","Revenue":"#34d399",
+    "Custody":"#fb923c","Creditors":"#f87171","Shareholders":"#facc15",
+    "project in process":"#94a3b8"
+  }[t]||"var(--text3)");
+
+  return(
+    <div>
+      {/* Toolbar */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
+        <input placeholder="🔍 Search..." value={search} onChange={e=>setSearch(e.target.value)}
+          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,width:190}}/>
+        <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)}
+          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+          <option value="ALL">All Months</option>
+          {months.filter(m=>m!=="ALL").map(m=><option key={m} value={m}>{MO[+m]||m}</option>)}
+        </select>
+        <select value={filterType} onChange={e=>setFilterType(e.target.value)}
+          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+          <option value="ALL">All Types</option>
+          {types.filter(t=>t!=="ALL").map(t=><option key={t}>{t}</option>)}
+        </select>
+        <select value={filterAcct} onChange={e=>setFilterAcct(e.target.value)}
+          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,maxWidth:200}}>
+          {accounts.map(a=><option key={a}>{a}</option>)}
+        </select>
+        <span style={{fontSize:12,color:"var(--text4)",marginLeft:"auto"}}>{filtered.length} lines</span>
+        {canWrite&&<button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>setShowAdd(true)}>+ Post Entry</button>}
+      </div>
+
+      {/* Balance strip */}
+      <div style={{display:"flex",gap:8,marginBottom:12}}>
+        {[
+          {l:"Filtered Debit",  v:fmtEGP(totDr), c:"#34d399"},
+          {l:"Filtered Credit", v:fmtEGP(totCr), c:"#f87171"},
+          {l:"Balanced",        v:balanced?"✓ YES":"✗ NO", c:balanced?"#34d399":"#f87171"},
+        ].map((k,i)=>(
+          <div key={i} style={{background:"var(--bg2)",border:`1px solid ${k.c}30`,borderRadius:8,padding:"7px 14px",minWidth:155}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:k.c}}>{k.v}</div>
+            <div style={{fontSize:11,color:"var(--text4)",marginTop:1}}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {loading?<div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>Loading journal...</div>:(
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead>
+            <tr style={{background:"var(--bg2)"}}>
+              {["Entry#","Date","Type","Account","Category","Debit (EGP)","Credit (EGP)","Balance","Description",""].map(h=>(
+                <th key={h} style={{padding:"7px 10px",textAlign:h.includes("EGP")||h==="Balance"?"right":"left",color:"var(--text3)",fontWeight:600,fontSize:12,borderBottom:"1px solid var(--border3)",whiteSpace:"nowrap"}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((e,i)=>(
+              <tr key={i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
+                <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text2)",whiteSpace:"nowrap"}}>{e.entry_no}</td>
+                <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text3)",whiteSpace:"nowrap"}}>{String(e.entry_date).slice(0,10)}</td>
+                <td style={{padding:"6px 10px"}}>
+                  <span style={{background:typeColor(e.entry_type)+"20",color:typeColor(e.entry_type),padding:"2px 6px",borderRadius:4,fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{e.entry_type}</span>
+                </td>
+                <td style={{padding:"6px 10px",color:"var(--text1)",fontWeight:500,whiteSpace:"nowrap"}}>{e.account_name}</td>
+                <td style={{padding:"6px 10px"}}>
+                  <div style={{fontSize:11,color:"var(--text3)"}}>{e.main_account}</div>
+                  <span style={{fontSize:10,color:e.statement_type==="Balance Sheet"?"#38bdf8":"#a78bfa",fontWeight:600}}>{e.statement_type==="Balance Sheet"?"BS":"P&L"}</span>
+                </td>
+                <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#34d399",textAlign:"right"}}>{+e.debit>0?`EGP ${(+e.debit).toLocaleString("en-EG",{minimumFractionDigits:2,maximumFractionDigits:2})}`:""}</td>
+                <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#f87171",textAlign:"right"}}>{+e.credit>0?`EGP ${(+e.credit).toLocaleString("en-EG",{minimumFractionDigits:2,maximumFractionDigits:2})}`:""}</td>
+                <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:+e.balance>=0?"#34d399":"#f87171",textAlign:"right",whiteSpace:"nowrap"}}>{fmtEGP(+e.balance)}</td>
+                <td style={{padding:"6px 10px",color:"var(--text3)",fontSize:12,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={e.description}>{e.description}</td>
+                <td style={{padding:"6px 10px"}}>
+                  {canWrite&&e.posted_by!=="migration"&&(
+                    <button onClick={()=>onDelete(e.id)} style={{background:"transparent",border:"none",color:"#f87171",cursor:"pointer",fontSize:13,padding:"2px 5px"}} title="Delete entry">✕</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      )}
+
+      {/* Add Entry Modal */}
+      {showAdd&&canWrite&&(
+        <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+          <div className="card" style={{width:540,maxHeight:"90vh",overflowY:"auto",padding:24}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",margin:0}}>Post Journal Entry</h3>
+              <button onClick={()=>setShowAdd(false)} style={{background:"none",border:"none",color:"var(--text3)",fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
+            </div>
+            <div style={{background:"#fb923c10",border:"1px solid #fb923c40",borderRadius:6,padding:"8px 12px",marginBottom:14,fontSize:12,color:"#fb923c"}}>
+              ⚠ Each journal entry must balance: Debit total = Credit total across all lines for the same Entry No.
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              {[
+                {l:"Entry No (e.g. 58)",   k:"entry_no",   t:"text",   ph:"58"},
+                {l:"Date",                 k:"entry_date", t:"date",   ph:""},
+                {l:"Month (1–12)",         k:"month",      t:"number", ph:""},
+                {l:"Entry Type",           k:"entry_type", t:"text",   ph:"Custody"},
+                {l:"Account Name",         k:"account_name",t:"text",  ph:"e.g. Office rent"},
+                {l:"Main Account",         k:"main_account",t:"text",  ph:"e.g. Administrative expenses"},
+              ].map(f=>(
+                <div key={f.k}>
+                  <div style={{fontSize:11,color:"var(--text4)",marginBottom:4}}>{f.l}</div>
+                  <input type={f.t} value={newLine[f.k]} placeholder={f.ph}
+                    onChange={e=>setNewLine(p=>({...p,[f.k]:e.target.value}))}
+                    style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
+                </div>
+              ))}
+              <div>
+                <div style={{fontSize:11,color:"var(--text4)",marginBottom:4}}>Statement Type</div>
+                <select value={newLine.statement_type} onChange={e=>setNewLine(p=>({...p,statement_type:e.target.value}))}
+                  style={{width:"100%",background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+                  <option>Profit &amp; Loss Sheet</option>
+                  <option>Balance Sheet</option>
+                </select>
+              </div>
+              <div/>
+              <div>
+                <div style={{fontSize:11,color:"var(--text4)",marginBottom:4}}>Debit (EGP)</div>
+                <input type="number" min="0" step="0.01" value={newLine.debit}
+                  onChange={e=>setNewLine(p=>({...p,debit:+e.target.value,balance:+e.target.value-(p.credit||0)}))}
+                  style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:"var(--text4)",marginBottom:4}}>Credit (EGP)</div>
+                <input type="number" min="0" step="0.01" value={newLine.credit}
+                  onChange={e=>setNewLine(p=>({...p,credit:+e.target.value,balance:(p.debit||0)-(+e.target.value)}))}
+                  style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
+              </div>
+            </div>
+            <div style={{marginTop:10}}>
+              <div style={{fontSize:11,color:"var(--text4)",marginBottom:4}}>Description</div>
+              <input value={newLine.description} placeholder="e.g. Office rent for 03-2026"
+                onChange={e=>setNewLine(p=>({...p,description:e.target.value}))}
+                style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:16,justifyContent:"flex-end"}}>
+              <button onClick={()=>setShowAdd(false)}
+                style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 16px",color:"var(--text2)",cursor:"pointer"}}>Cancel</button>
+              <button className="bp" onClick={()=>{
+                if(!newLine.entry_no||!newLine.entry_date||!newLine.account_name) return;
+                const balance = (+newLine.debit||0)-(+newLine.credit||0);
+                onAdd({...newLine, month:+newLine.month, debit:+newLine.debit, credit:+newLine.credit, balance});
+                setShowAdd(false);
+                setNewLine({entry_no:"",entry_date:"",month:"",entry_type:"Custody",account_name:"",statement_type:"Profit & Loss Sheet",main_account:"",debit:0,credit:0,description:""});
+              }}>Post Entry</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── BALANCE SHEET ── */
+function BalanceSheetView({journalEntries}) {
+  // Correct BS equation: Assets = Liabilities + Equity + Current Year Profit
+  // Net P&L is retained earnings not yet formally closed — standard for open year
+
+  const data = React.useMemo(()=>{
+    const map = {};
+    journalEntries.forEach(e=>{
+      const key = e.main_account;
+      if(!map[key]) map[key]={main:key, stmt:e.statement_type, accounts:{}, dr:0, cr:0};
+      if(!map[key].accounts[e.account_name]) map[key].accounts[e.account_name]={name:e.account_name,dr:0,cr:0};
+      map[key].accounts[e.account_name].dr += +e.debit||0;
+      map[key].accounts[e.account_name].cr += +e.credit||0;
+      map[key].dr += +e.debit||0;
+      map[key].cr += +e.credit||0;
+    });
+    return map;
+  },[journalEntries]);
+
+  // Asset groups: debit-normal → net = Dr - Cr (positive = asset)
+  const ASSET_G  = ['Fixed Assets','Cash & Cash Equivalents','Cash Custody','Customers','Non-Current assets'];
+  // Liability groups: credit-normal → net = Cr - Dr (positive = liability)
+  const LIAB_G   = ['Accrued Expenses','Creditors and other accounts payable','Tax and Social Insurance Authority','Payable Notes'];
+  // Equity groups: credit-normal
+  const EQUITY_G = ['Capital','Share holders'];
+
+  const totalAssets = ASSET_G.reduce((s,g)=>{
+    if(!data[g]) return s;
+    // Cash Custody: company money held by staff = asset for the company
+    // Net = Cr - Dr (credit heavy means cash out to custodians = asset)
+    if(g==='Cash Custody') return s + Math.abs(data[g].dr - data[g].cr);
+    return s + Math.max(0, data[g].dr - data[g].cr);
+  },0);
+
+  const totalLiab = LIAB_G.reduce((s,g)=>{
+    if(!data[g]) return s;
+    // Tax: some sub-accounts are assets (VAT receivable), handle per account
+    if(g==='Tax and Social Insurance Authority'){
+      return s + Object.values(data[g].accounts).reduce((ss,a)=>ss+Math.max(0,a.cr-a.dr),0);
+    }
+    return s + Math.max(0, data[g].cr - data[g].dr);
+  },0);
+
+  const totalEquity = EQUITY_G.reduce((s,g)=>{
+    if(!data[g]) return s;
+    return s + (data[g].cr - data[g].dr);
+  },0);
+
+  const netProfit = journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet")
+    .reduce((s,e)=>s+(+e.credit||0)-(+e.debit||0),0);
+
+  const totalEquityIncRetained = totalEquity + netProfit;
+  const bsCheck = Math.abs(totalAssets - (totalLiab + totalEquityIncRetained));
+
+  const SectionHeader = ({title, total, color}) => (
+    <div style={{background:color+"18",borderBottom:`2px solid ${color}`,padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <span style={{fontSize:13,fontWeight:700,color,letterSpacing:".08em"}}>{title}</span>
+      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color}}>{fmtEGP(total)}</span>
+    </div>
+  );
+
+  const AccountRow = ({label, sublabel, dr, cr, net, isTotal}) => (
+    <tr style={{borderBottom:"1px solid var(--border3)",background:isTotal?"var(--bg2)":"transparent",fontWeight:isTotal?700:400}}>
+      <td style={{padding:"7px 16px",color:isTotal?"var(--text0)":"var(--text2)",fontSize:isTotal?13:13}}>{label}</td>
+      <td style={{padding:"7px 16px",color:"var(--text4)",fontSize:12}}>{sublabel||""}</td>
+      <td style={{padding:"7px 16px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#34d399"}}>{dr>0?fmtEGP(dr):""}</td>
+      <td style={{padding:"7px 16px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#f87171"}}>{cr>0?fmtEGP(cr):""}</td>
+      <td style={{padding:"7px 16px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:net>0?"#34d399":net<0?"#f87171":"var(--text3)",fontWeight:isTotal?700:500}}>{fmtEGP(Math.abs(net))}</td>
+    </tr>
+  );
+
+  const THead = () => (
+    <thead>
+      <tr style={{background:"var(--bg2)"}}>
+        {["Account","Category","Debit","Credit","Net Balance"].map(h=>(
+          <th key={h} style={{padding:"7px 16px",textAlign:h==="Account"||h==="Category"?"left":"right",color:"var(--text3)",fontWeight:600,fontSize:12,borderBottom:"1px solid var(--border3)"}}>{h}</th>
+        ))}
+      </tr>
+    </thead>
+  );
+
+  return(
+    <div style={{display:"grid",gap:14}}>
+      {/* KPI strip */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+        {[
+          {l:"Total Assets",      v:fmtEGP(totalAssets),              c:"#34d399"},
+          {l:"Total Liabilities", v:fmtEGP(totalLiab),                c:"#f87171"},
+          {l:"Total Equity",      v:fmtEGP(totalEquityIncRetained),   c:"#38bdf8"},
+          {l:"BS Check",          v:bsCheck<1?"✓ Balanced":`Off by EGP ${bsCheck.toLocaleString("en-EG",{maximumFractionDigits:0})}`, c:bsCheck<1?"#34d399":"#fb923c"},
+        ].map((k,i)=>(
+          <div key={i} className="card" style={{textAlign:"center",padding:"14px 8px"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:k.c}}>{k.v}</div>
+            <div style={{fontSize:11,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ASSETS */}
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <SectionHeader title="ASSETS" total={totalAssets} color="#34d399"/>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><THead/>
+          <tbody>
+            {ASSET_G.filter(g=>data[g]).map(g=>
+              Object.values(data[g].accounts).map((a,i)=>{
+                const net = g==='Cash Custody' ? a.cr-a.dr : a.dr-a.cr;
+                if(Math.abs(net)<0.01 && g==='Non-Current assets') return null; // closed WIP
+                return <AccountRow key={g+a.name} label={a.name} sublabel={g} dr={a.dr} cr={a.cr} net={Math.abs(net)}/>;
+              })
+            )}
+            <AccountRow label="TOTAL ASSETS" dr={0} cr={0} net={totalAssets} isTotal/>
+          </tbody>
+        </table>
+      </div>
+
+      {/* LIABILITIES */}
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <SectionHeader title="LIABILITIES" total={totalLiab} color="#f87171"/>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><THead/>
+          <tbody>
+            {LIAB_G.filter(g=>data[g]).map(g=>{
+              if(g==='Tax and Social Insurance Authority'){
+                return Object.values(data[g].accounts).map((a,i)=>{
+                  const net = a.cr - a.dr; // positive = liability, negative = VAT asset
+                  const isLiab = net > 0;
+                  if(Math.abs(net)<0.01) return null;
+                  return <AccountRow key={a.name} label={a.name} sublabel={isLiab?"🔴 payable":"🟢 receivable"} dr={a.dr} cr={a.cr} net={Math.abs(net)}/>;
+                });
+              }
+              return Object.values(data[g].accounts).map((a)=>{
+                const net = a.cr - a.dr;
+                if(Math.abs(net)<0.01) return null;
+                return <AccountRow key={g+a.name} label={a.name} sublabel={g} dr={a.dr} cr={a.cr} net={Math.abs(net)}/>;
+              });
+            })}
+            <AccountRow label="TOTAL LIABILITIES" dr={0} cr={0} net={totalLiab} isTotal/>
+          </tbody>
+        </table>
+      </div>
+
+      {/* EQUITY */}
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <SectionHeader title="EQUITY" total={totalEquityIncRetained} color="#38bdf8"/>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><THead/>
+          <tbody>
+            {EQUITY_G.filter(g=>data[g]).map(g=>
+              Object.values(data[g].accounts).map(a=>{
+                const net = a.cr - a.dr;
+                return <AccountRow key={g+a.name} label={a.name} sublabel={g} dr={a.dr} cr={a.cr} net={Math.abs(net)}/>;
+              })
+            )}
+            <tr style={{borderBottom:"1px solid var(--border3)"}}>
+              <td style={{padding:"7px 16px",color:"var(--text2)"}}>Retained Earnings (Current Year)</td>
+              <td style={{padding:"7px 16px",color:"var(--text4)",fontSize:12}}>Net P&L — not yet closed</td>
+              <td colSpan={2}/>
+              <td style={{padding:"7px 16px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:netProfit>=0?"#34d399":"#f87171",fontWeight:500}}>{fmtEGP(netProfit)}</td>
+            </tr>
+            <AccountRow label="TOTAL EQUITY" dr={0} cr={0} net={totalEquityIncRetained} isTotal/>
+          </tbody>
+        </table>
+      </div>
+
+      {bsCheck>=1&&<div style={{background:"#fb923c15",border:"1px solid #fb923c",borderRadius:8,padding:"10px 16px",fontSize:13,color:"#fb923c"}}>
+        ⚠ Balance Sheet equation differs by EGP {bsCheck.toLocaleString("en-EG",{maximumFractionDigits:2})}. This may indicate missing journal entries or opening balance adjustments needed.
+      </div>}
+    </div>
+  );
+}
+
+/* ── EXPENSES (mirrors Excel "expenses" pivot) ── */
+function ExpensesView({journalEntries}) {
+  const MO_SHORT = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const [viewMode, setViewMode] = React.useState("pivot"); // pivot | monthly
+
+  const plEntries = journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet" && +e.debit>0);
+  const revEntries = journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet" && +e.credit>0);
+
+  const activeMonths = React.useMemo(()=>[...new Set(plEntries.map(e=>e.month))].sort((a,b)=>+a-+b),[plEntries]);
+
+  // Build pivot: main_account → account_name → month → amount
+  const pivot = React.useMemo(()=>{
+    const m = {};
+    plEntries.forEach(e=>{
+      if(!m[e.main_account]) m[m.length]=null, m[e.main_account]={cat:e.main_account,accounts:{},catTotal:0};
+      if(!m[e.main_account].accounts[e.account_name]) m[e.main_account].accounts[e.account_name]={name:e.account_name,months:{},total:0};
+      m[e.main_account].accounts[e.account_name].months[e.month] = (m[e.main_account].accounts[e.account_name].months[e.month]||0)+(+e.debit);
+      m[e.main_account].accounts[e.account_name].total += +e.debit;
+      m[e.main_account].catTotal += +e.debit;
+    });
+    return m;
+  },[plEntries]);
+
+  const totalExpenses = plEntries.reduce((s,e)=>s+(+e.debit),0);
+  const totalRevenue  = revEntries.reduce((s,e)=>s+(+e.credit),0);
+  const netPL = totalRevenue - totalExpenses;
+
+  const monthTotal = mo => plEntries.filter(e=>e.month===mo).reduce((s,e)=>s+(+e.debit),0);
+  const monthRev   = mo => revEntries.filter(e=>e.month===mo).reduce((s,e)=>s+(+e.credit),0);
+
+  return(
+    <div style={{display:"grid",gap:14}}>
+      {/* KPI strip */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+        {[
+          {l:"Total Revenue (EGP)",  v:fmtEGP(totalRevenue),  c:"#34d399"},
+          {l:"Total Expenses (EGP)", v:fmtEGP(totalExpenses), c:"#f87171"},
+          {l:"Net P&L (EGP)",        v:fmtEGP(netPL),         c:netPL>=0?"#34d399":"#f87171"},
+        ].map((k,i)=>(
+          <div key={i} className="card" style={{textAlign:"center",padding:"14px 8px"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:k.c}}>{k.v}</div>
+            <div style={{fontSize:11,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* View toggle */}
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <div style={{background:"#f8711815",borderBottom:"2px solid #f87171",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:13,fontWeight:700,color:"#f87171",letterSpacing:".08em"}}>EXPENSES BREAKDOWN</span>
+          <div style={{display:"flex",gap:4}}>
+            {[{id:"pivot",l:"Pivot View"},{id:"monthly",l:"Monthly View"}].map(b=>(
+              <button key={b.id} onClick={()=>setViewMode(b.id)}
+                style={{background:viewMode===b.id?"#f8711820":"transparent",border:`1px solid ${viewMode===b.id?"#f87171":"var(--border3)"}`,borderRadius:5,padding:"3px 10px",color:viewMode===b.id?"#f87171":"var(--text3)",cursor:"pointer",fontSize:12}}>
+                {b.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {viewMode==="pivot"?(
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:"var(--bg2)"}}>
+                  <th style={{padding:"7px 14px",textAlign:"left",color:"var(--text3)",fontWeight:600,fontSize:12,minWidth:160}}>Category</th>
+                  <th style={{padding:"7px 14px",textAlign:"left",color:"var(--text3)",fontWeight:600,fontSize:12,minWidth:200}}>Account</th>
+                  {activeMonths.map(m=>(
+                    <th key={m} style={{padding:"7px 10px",textAlign:"right",color:"var(--text3)",fontWeight:600,fontSize:12,whiteSpace:"nowrap"}}>{MO_SHORT[+m]}</th>
+                  ))}
+                  <th style={{padding:"7px 14px",textAlign:"right",color:"var(--text3)",fontWeight:600,fontSize:12}}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.values(pivot).sort((a,b)=>b.catTotal-a.catTotal).map(cat=>{
+                  const accts = Object.values(cat.accounts).sort((a,b)=>b.total-a.total);
+                  return accts.map((acc,i)=>(
+                    <tr key={cat.cat+acc.name} style={{borderBottom:"1px solid var(--border3)"}}>
+                      <td style={{padding:"6px 14px",color:"var(--text3)",fontSize:12,fontStyle:"italic"}}>{i===0?cat.cat:""}</td>
+                      <td style={{padding:"6px 14px",color:"var(--text1)",fontWeight:500}}>{acc.name}</td>
+                      {activeMonths.map(m=>(
+                        <td key={m} style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"var(--text2)"}}>
+                          {acc.months[m]?(+acc.months[m]).toLocaleString("en-EG",{maximumFractionDigits:0}):"-"}
+                        </td>
+                      ))}
+                      <td style={{padding:"6px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c",fontWeight:600}}>{fmtEGP(acc.total)}</td>
+                    </tr>
+                  ));
+                })}
+                {/* Revenue row */}
+                <tr style={{borderTop:"2px solid #34d39940",background:"#34d39908"}}>
+                  <td style={{padding:"7px 14px",color:"#34d399",fontWeight:700}}>Revenue</td>
+                  <td style={{padding:"7px 14px",color:"var(--text2)"}}>Enevo Group S.R.L.</td>
+                  {activeMonths.map(m=>(
+                    <td key={m} style={{padding:"7px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#34d399"}}>
+                      {monthRev(m)?(+monthRev(m)).toLocaleString("en-EG",{maximumFractionDigits:0}):"-"}
+                    </td>
+                  ))}
+                  <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399",fontWeight:700}}>{fmtEGP(totalRevenue)}</td>
+                </tr>
+                {/* Total expenses row */}
+                <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)"}}>
+                  <td colSpan={2} style={{padding:"9px 14px",fontWeight:700,color:"var(--text0)"}}>TOTAL EXPENSES</td>
+                  {activeMonths.map(m=>(
+                    <td key={m} style={{padding:"9px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",fontWeight:700,color:"#f87171"}}>
+                      {(+monthTotal(m)).toLocaleString("en-EG",{maximumFractionDigits:0})}
+                    </td>
+                  ))}
+                  <td style={{padding:"9px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",fontWeight:700,color:"#f87171"}}>{fmtEGP(totalExpenses)}</td>
+                </tr>
+                {/* Net P&L row */}
+                <tr style={{background:netPL>=0?"#34d39910":"#f8711810",borderTop:"1px solid var(--border)"}}>
+                  <td colSpan={2} style={{padding:"9px 14px",fontWeight:700,color:netPL>=0?"#34d399":"#f87171"}}>NET P&L</td>
+                  {activeMonths.map(m=>(
+                    <td key={m} style={{padding:"9px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",fontWeight:700,color:monthRev(m)-monthTotal(m)>=0?"#34d399":"#f87171"}}>
+                      {(monthRev(m)-monthTotal(m)).toLocaleString("en-EG",{maximumFractionDigits:0})}
+                    </td>
+                  ))}
+                  <td style={{padding:"9px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",fontWeight:700,color:netPL>=0?"#34d399":"#f87171"}}>{fmtEGP(netPL)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ):(
+          // Monthly view — bar chart style
+          <div style={{padding:16,display:"grid",gap:16}}>
+            {activeMonths.map(m=>{
+              const mExp = monthTotal(m);
+              const mRev = monthRev(m);
+              const mNet = mRev - mExp;
+              const mEntries = plEntries.filter(e=>e.month===m);
+              const max = Math.max(mExp,mRev,1);
+              return(
+                <div key={m} style={{borderBottom:"1px solid var(--border3)",paddingBottom:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <span style={{fontWeight:700,color:"var(--text0)",fontSize:15}}>{MO_SHORT[+m]}</span>
+                    <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:mNet>=0?"#34d399":"#f87171",fontWeight:600}}>
+                      Net: {fmtEGP(mNet)}
+                    </span>
+                  </div>
+                  {[{l:"Revenue",v:mRev,c:"#34d399"},{l:"Expenses",v:mExp,c:"#f87171"}].map(bar=>(
+                    <div key={bar.l} style={{display:"grid",gridTemplateColumns:"80px 1fr 130px",gap:8,alignItems:"center",marginBottom:6}}>
+                      <span style={{fontSize:12,color:"var(--text3)"}}>{bar.l}</span>
+                      <div style={{height:10,background:"var(--bg2)",borderRadius:4,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:`${Math.round(bar.v/max*100)}%`,background:bar.c,borderRadius:4}}/>
+                      </div>
+                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:bar.c,textAlign:"right"}}>{fmtEGP(bar.v)}</span>
+                    </div>
+                  ))}
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:8}}>
+                    {mEntries.sort((a,b)=>+b.debit-+a.debit).slice(0,8).map((e,i)=>(
+                      <span key={i} style={{fontSize:11,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,padding:"2px 7px",color:"var(--text3)"}}>
+                        {e.account_name}: {(+e.debit).toLocaleString("en-EG",{maximumFractionDigits:0})}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── CASH CUSTODY (mirrors Excel Custody sheet) ── */
+function CashCustodyView({journalEntries}) {
+  const MO = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const [selected, setSelected] = React.useState("ALL");
+
+  const custodyEntries = journalEntries.filter(e=>e.main_account==="Cash Custody");
+
+  // Per-person summary: credit = cash out to custodian (company asset), debit = cash back/spent
+  const persons = React.useMemo(()=>{
+    const m={};
+    custodyEntries.forEach(e=>{
+      const name = e.account_name.trim();
+      if(!m[name]) m[name]={name,totalOut:0,totalBack:0,transactions:[]};
+      m[name].totalOut  += +e.credit||0;  // cash given to person
+      m[name].totalBack += +e.debit||0;   // cash returned / spent
+      m[name].transactions.push(e);
+    });
+    // held = totalOut - totalBack (positive = still holding company cash)
+    Object.values(m).forEach(p=>p.held = p.totalOut - p.totalBack);
+    return m;
+  },[custodyEntries]);
+
+  const totalHeld = Object.values(persons).reduce((s,p)=>s+p.held,0);
+
+  const selectedTx = selected==="ALL"
+    ? custodyEntries.sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date)))
+    : (persons[selected]?.transactions||[]).sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date)));
+
+  const personColor = n=>({
+    "Eng Shady":"#38bdf8","Eng Sameh Saied":"#a78bfa",
+    "Eng Ahmed Hassan":"#fb923c","Omar Faheem":"#34d399","Ahmed Sultan Sakr":"#facc15"
+  }[n]||"var(--text3)");
+
+  return(
+    <div style={{display:"grid",gap:14}}>
+      {/* Per-person KPI cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+        {Object.values(persons).sort((a,b)=>b.held-a.held).map(p=>(
+          <div key={p.name} className="card" style={{textAlign:"center",padding:"12px 8px",cursor:"pointer",border:`1px solid ${selected===p.name?personColor(p.name):"var(--border3)"}`,transition:"border .2s"}}
+            onClick={()=>setSelected(selected===p.name?"ALL":p.name)}>
+            <div style={{fontSize:11,color:personColor(p.name),fontWeight:700,marginBottom:4}}>{p.name}</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:p.held>0?"#34d399":"var(--text3)"}}>{fmtEGP(p.held)}</div>
+            <div style={{fontSize:11,color:"var(--text4)",marginTop:2}}>currently holds</div>
+            <div style={{fontSize:11,color:"var(--text4)",marginTop:2}}>{p.transactions.length} transactions</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Total strip */}
+      <div style={{background:"var(--bg2)",border:"1px solid #34d39940",borderRadius:8,padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontSize:13,color:"var(--text2)"}}>Total company cash in custody (all custodians)</span>
+        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:"#34d399"}}>{fmtEGP(totalHeld)}</span>
+      </div>
+
+      {/* Transaction log */}
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <div style={{background:"#fb923c15",borderBottom:"2px solid #fb923c",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:13,fontWeight:700,color:"#fb923c"}}>
+            TRANSACTION LOG {selected!=="ALL"?`— ${selected}`:"— ALL CUSTODIANS"}
+          </span>
+          {selected!=="ALL"&&<button onClick={()=>setSelected("ALL")} style={{background:"transparent",border:"1px solid var(--border3)",borderRadius:4,padding:"2px 8px",color:"var(--text3)",cursor:"pointer",fontSize:12}}>Show All</button>}
+        </div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead>
+              <tr style={{background:"var(--bg2)"}}>
+                {["Date","Entry#","Person","Type","Cash Out (Cr)","Cash Back/Spent (Dr)","Net","Description"].map(h=>(
+                  <th key={h} style={{padding:"7px 12px",textAlign:["Cash Out (Cr)","Cash Back/Spent (Dr)","Net"].includes(h)?"right":"left",color:"var(--text3)",fontWeight:600,fontSize:12,borderBottom:"1px solid var(--border3)",whiteSpace:"nowrap"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {selectedTx.map((e,i)=>{
+                const net = (+e.debit||0)-(+e.credit||0); // positive = net return, negative = net disbursement
+                return(
+                  <tr key={i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
+                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text3)",whiteSpace:"nowrap"}}>{String(e.entry_date).slice(0,10)}</td>
+                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text4)"}}>{e.entry_no}</td>
+                    <td style={{padding:"6px 12px"}}>
+                      <span style={{color:personColor(e.account_name.trim()),fontWeight:600,fontSize:12}}>{e.account_name.trim()}</span>
+                    </td>
+                    <td style={{padding:"6px 12px"}}>
+                      <span style={{background:"#fb923c20",color:"#fb923c",padding:"1px 6px",borderRadius:4,fontSize:11}}>{e.entry_type}</span>
+                    </td>
+                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#f87171"}}>{+e.credit>0?fmtEGP(+e.credit):""}</td>
+                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#34d399"}}>{+e.debit>0?fmtEGP(+e.debit):""}</td>
+                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:net>0?"#34d399":"#f87171",fontWeight:600}}>{fmtEGP(Math.abs(net))}</td>
+                    <td style={{padding:"6px 12px",color:"var(--text3)",fontSize:12,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={e.description}>{e.description}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── TAX & SOCIAL INSURANCE (mirrors Excel Tax sheet) ── */
+function TaxSocialView({journalEntries}) {
+  const MO = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  const taxEntries = journalEntries.filter(e=>e.main_account==="Tax and Social Insurance Authority");
+
+  const byAccount = React.useMemo(()=>{
+    const m={};
+    taxEntries.forEach(e=>{
+      const name = e.account_name;
+      if(!m[name]) m[name]={name,entries:[],totalDr:0,totalCr:0,byMonth:{}};
+      m[name].entries.push(e);
+      m[name].totalDr += +e.debit||0;
+      m[name].totalCr += +e.credit||0;
+      const mo = e.month;
+      if(!m[name].byMonth[mo]) m[name].byMonth[mo]={dr:0,cr:0};
+      m[name].byMonth[mo].dr += +e.debit||0;
+      m[name].byMonth[mo].cr += +e.credit||0;
+    });
+    Object.values(m).forEach(a=>{
+      a.net = a.totalCr - a.totalDr; // positive = liability (credit heavy), negative = receivable
+      a.isLiab = a.net > 0;
+    });
+    return m;
+  },[taxEntries]);
+
+  const activeMonths = [...new Set(taxEntries.map(e=>e.month))].sort((a,b)=>+a-+b);
+
+  const totalLiab = Object.values(byAccount).filter(a=>a.isLiab).reduce((s,a)=>s+a.net,0);
+  const totalAsset= Object.values(byAccount).filter(a=>!a.isLiab).reduce((s,a)=>s+Math.abs(a.net),0);
+  const netPosition = totalAsset - totalLiab;
+
+  const acctColor = n=>({
+    "Payroll Tax":"#f87171",
+    "Social Insurance Authority":"#fb923c",
+    "Martyrs Families Fund":"#a78bfa",
+    "VAT":"#34d399"
+  }[n]||"var(--text3)");
+
+  return(
+    <div style={{display:"grid",gap:14}}>
+      {/* KPI strip */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+        {[
+          {l:"Total Tax Liabilities",  v:fmtEGP(totalLiab),     c:"#f87171"},
+          {l:"VAT Receivable",          v:fmtEGP(totalAsset),    c:"#34d399"},
+          {l:"Net Tax Position",        v:fmtEGP(Math.abs(netPosition)), c:netPosition>=0?"#34d399":"#f87171",
+           sub:netPosition>=0?"🟢 Net receivable":"🔴 Net payable to government"},
+        ].map((k,i)=>(
+          <div key={i} className="card" style={{textAlign:"center",padding:"14px 8px"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
+            <div style={{fontSize:11,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+            {k.sub&&<div style={{fontSize:11,color:k.c,marginTop:4}}>{k.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Account cards */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        {Object.values(byAccount).map(a=>(
+          <div key={a.name} className="card" style={{padding:0,overflow:"hidden"}}>
+            <div style={{background:acctColor(a.name)+"18",borderBottom:`2px solid ${acctColor(a.name)}`,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:13,fontWeight:700,color:acctColor(a.name)}}>{a.name}</span>
+              <span style={{fontSize:12,color:a.isLiab?"#f87171":"#34d399",fontWeight:600}}>
+                {a.isLiab?"🔴 PAYABLE":"🟢 RECEIVABLE"} {fmtEGP(Math.abs(a.net))}
+              </span>
+            </div>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:"var(--bg2)"}}>
+                  <th style={{padding:"6px 12px",textAlign:"left",color:"var(--text3)",fontSize:12}}>Month</th>
+                  <th style={{padding:"6px 12px",textAlign:"right",color:"var(--text3)",fontSize:12}}>Debit</th>
+                  <th style={{padding:"6px 12px",textAlign:"right",color:"var(--text3)",fontSize:12}}>Credit</th>
+                  <th style={{padding:"6px 12px",textAlign:"right",color:"var(--text3)",fontSize:12}}>Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeMonths.filter(m=>a.byMonth[m]).map((m,i)=>{
+                  const mo = a.byMonth[m];
+                  const net = mo.cr - mo.dr;
+                  return(
+                    <tr key={m} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
+                      <td style={{padding:"6px 12px",color:"var(--text2)",fontWeight:500}}>{MO[+m]}</td>
+                      <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#34d399"}}>{mo.dr>0?fmtEGP(mo.dr):""}</td>
+                      <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#f87171"}}>{mo.cr>0?fmtEGP(mo.cr):""}</td>
+                      <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:net>0?"#f87171":"#34d399",fontWeight:600}}>{fmtEGP(Math.abs(net))}</td>
+                    </tr>
+                  );
+                })}
+                <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)"}}>
+                  <td style={{padding:"7px 12px",fontWeight:700,color:"var(--text0)"}}>TOTAL</td>
+                  <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#34d399",fontWeight:700}}>{a.totalDr>0?fmtEGP(a.totalDr):""}</td>
+                  <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#f87171",fontWeight:700}}>{a.totalCr>0?fmtEGP(a.totalCr):""}</td>
+                  <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:a.isLiab?"#f87171":"#34d399",fontWeight:700}}>{fmtEGP(Math.abs(a.net))}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+
+      {/* Payment status note */}
+      <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,padding:"12px 16px",fontSize:13,color:"var(--text3)"}}>
+        <div style={{fontWeight:700,color:"var(--text1)",marginBottom:6}}>📌 Note on Tax Obligations</div>
+        These figures represent <strong>accrued liabilities</strong> — amounts due to the government based on payroll. Actual payment dates depend on Egyptian tax authority deadlines. VAT figures show input VAT paid on purchases and are a receivable against output VAT on invoices.
+      </div>
+    </div>
+  );
+}
+
+/* ── FIXED ASSETS ── */
+function FixedAssetsView({fixedAssets, loading}) {
+  const TODAY = new Date();
+
+  const assetsWithDepr = React.useMemo(()=>fixedAssets.map(a=>{
+    const purchased = new Date(a.purchase_date);
+    const yearsElapsed = Math.max(0,(TODAY-purchased)/(365.25*24*3600*1000));
+    const annualDepr = +a.cost_egp / +a.useful_life_years;
+    const accDepr    = Math.min(+a.cost_egp, annualDepr * yearsElapsed);
+    const netBook    = Math.max(0, +a.cost_egp - accDepr);
+    const pctDepr    = +a.cost_egp>0?(accDepr/+a.cost_egp*100):0;
+    return {...a, annualDepr, accDepr, netBook, pctDepr, yearsElapsed};
+  }),[fixedAssets]);
+
+  const byCategory = React.useMemo(()=>{
+    const m={};
+    assetsWithDepr.forEach(a=>{
+      if(!m[a.category]) m[a.category]={cat:a.category,assets:[],cost:0,depr:0,net:0};
+      m[a.category].assets.push(a);
+      m[a.category].cost += +a.cost_egp;
+      m[a.category].depr += a.accDepr;
+      m[a.category].net  += a.netBook;
+    });
+    return m;
+  },[assetsWithDepr]);
+
+  const totCost = assetsWithDepr.reduce((s,a)=>s+(+a.cost_egp),0);
+  const totDepr = assetsWithDepr.reduce((s,a)=>s+a.accDepr,0);
+  const totNet  = assetsWithDepr.reduce((s,a)=>s+a.netBook,0);
+
+  const catColor = c=>({
+    "Computers & Programs":"#38bdf8","Furniture":"#a78bfa",
+    "Aircondition":"#34d399","Decoration & Furnishing":"#fb923c","Electrical Equipment":"#facc15"
+  }[c]||"var(--text3)");
+
+  if(loading) return <div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>Loading assets...</div>;
+
+  return(
+    <div style={{display:"grid",gap:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+        {[
+          {l:"Total at Cost",      v:fmtEGP(totCost),  c:"#38bdf8"},
+          {l:"Accumulated Depr.", v:fmtEGP(totDepr),  c:"#fb923c"},
+          {l:"Net Book Value",    v:fmtEGP(totNet),   c:"#34d399"},
+        ].map((k,i)=>(
+          <div key={i} className="card" style={{textAlign:"center",padding:"14px 8px"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
+            <div style={{fontSize:11,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".08em",marginTop:4}}>{k.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {Object.values(byCategory).sort((a,b)=>b.cost-a.cost).map(cat=>(
+        <div key={cat.cat} className="card" style={{padding:0,overflow:"hidden"}}>
+          <div style={{background:catColor(cat.cat)+"15",borderBottom:`2px solid ${catColor(cat.cat)}`,padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:13,fontWeight:700,color:catColor(cat.cat)}}>{cat.cat}</span>
+            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text3)"}}>
+              {cat.assets.length} items · Cost: {fmtEGP(cat.cost)} · Net: {fmtEGP(cat.net)}
+            </span>
+          </div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:"var(--bg2)"}}>
+                  {["Asset","Purchase Date","Cost (EGP)","Useful Life","Annual Depr.","Acc. Depr.","Net Book Value","Depr. %"].map(h=>(
+                    <th key={h} style={{padding:"7px 12px",textAlign:h==="Asset"?"left":"right",color:"var(--text3)",fontWeight:600,fontSize:12,whiteSpace:"nowrap"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {cat.assets.map((a,i)=>(
+                  <tr key={i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
+                    <td style={{padding:"7px 12px",color:"var(--text1)"}}>{a.asset_name}</td>
+                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"var(--text3)"}}>{a.purchase_date}</td>
+                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#38bdf8"}}>{fmtEGP(+a.cost_egp)}</td>
+                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"var(--text3)"}}>{a.useful_life_years}y</td>
+                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"var(--text2)"}}>{fmtEGP(a.annualDepr)}/yr</td>
+                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",color:"#fb923c"}}>{fmtEGP(a.accDepr)}</td>
+                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399",fontWeight:600}}>{fmtEGP(a.netBook)}</td>
+                    <td style={{padding:"7px 12px",textAlign:"right"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6}}>
+                        <div style={{width:50,height:6,background:"var(--bg2)",borderRadius:3,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:`${Math.min(100,a.pctDepr).toFixed(0)}%`,background:"#fb923c",borderRadius:3}}/>
+                        </div>
+                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--text3)",minWidth:35}}>{a.pctDepr.toFixed(1)}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)"}}>
+                  <td colSpan={2} style={{padding:"8px 12px",fontWeight:700,color:"var(--text0)"}}>SUBTOTAL</td>
+                  <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",fontWeight:700,color:"#38bdf8"}}>{fmtEGP(cat.cost)}</td>
+                  <td/>
+                  <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",fontWeight:700,color:"var(--text2)"}}>{fmtEGP(cat.cost/cat.assets.reduce((s,a)=>s+(+a.useful_life_years),0)*cat.assets.length)}/yr avg</td>
+                  <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,textAlign:"right",fontWeight:700,color:"#fb923c"}}>{fmtEGP(cat.depr)}</td>
+                  <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",fontWeight:700,color:"#34d399"}}>{fmtEGP(cat.net)}</td>
+                  <td/>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ════════════════════════════════════════════════════════
    FINANCE TAB — standalone component
    ════════════════════════════════════════════════════════ */
 function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, setEgpRate,
   finTab, setFinTab, finMonth, setFinMonth, finYear, setFinYear,
   setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
-  deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior, isLead, isAcct}){
+  deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior, isLead, isAcct,
+  journalEntries, setJournalEntries, fixedAssets, journalLoading, assetsLoading,
+  finSubTab, setFinSubTab}){
 
   const derived = useMemo(()=>{
     const activeStaff=staff.filter(s=>s.active!==false);
@@ -2905,9 +3755,18 @@ const netColor=netPL>=0?"#34d399":"#f87171";
     </div>
   )}
   {/* Finance sub-tabs */}
-  <div style={{display:"flex",gap:4,marginBottom:16,background:"var(--bg2)",borderRadius:8,padding:4,width:"fit-content"}}>
-    {[{id:"pl",label:"📊 P&L"},{id:"salaries",label:"👤 Salaries"},{id:"expenses",label:"🧾 Expenses"}].map(t=>(
-      <button key={t.id} className={`atab ${finTab===t.id?"a":""}`} onClick={()=>setFinTab(t.id)}>{t.label}</button>
+  <div style={{display:"flex",gap:4,marginBottom:16,background:"var(--bg2)",borderRadius:8,padding:4,width:"fit-content",flexWrap:"wrap"}}>
+    {[
+      {id:"journal",  label:"📒 Journal"},
+      {id:"balance",  label:"⚖ Balance Sheet"},
+      {id:"expenses", label:"🧾 Expenses"},
+      {id:"custody",  label:"💵 Cash Custody"},
+      {id:"assets",   label:"🏗 Fixed Assets"},
+      {id:"tax",      label:"🧾 Tax & Social Insurance"},
+      {id:"pl",       label:"📈 P&L Summary"},
+      {id:"salaries", label:"👤 Salaries"},
+    ].map(t=>(
+      <button key={t.id} className={`atab ${finSubTab===t.id?"a":""}`} onClick={()=>setFinSubTab(t.id)}>{t.label}</button>
     ))}
   </div>
 
@@ -2936,8 +3795,52 @@ const netColor=netPL>=0?"#34d399":"#f87171";
     }}>⬇ Export P&L PDF</button>
   </div>
 
-  {/* ── P&L TAB ── */}
-  {finTab==="pl"&&(
+  {/* ── JOURNAL TAB ── */}
+  {finSubTab==="journal"&&(
+    <JournalLedger
+      journalEntries={journalEntries}
+      isAcct={isAcct} isAdmin={isAdmin}
+      loading={journalLoading}
+      onAdd={async(entry)=>{
+        if(!isAcct&&!isAdmin) return;
+        const {data,error} = await supabase.from("journal_entries").insert([{...entry,posted_by:"accountant"}]).select();
+        if(!error&&data) setJournalEntries(prev=>[...prev,...data]);
+      }}
+      onDelete={async(id)=>{
+        if(!isAcct&&!isAdmin) return;
+        await supabase.from("journal_entries").delete().eq("id",id);
+        setJournalEntries(prev=>prev.filter(e=>e.id!==id));
+      }}
+    />
+  )}
+
+  {/* ── BALANCE SHEET TAB ── */}
+  {finSubTab==="balance"&&(
+    <BalanceSheetView journalEntries={journalEntries}/>
+  )}
+
+  {/* ── EXPENSES TAB (mirrors Excel expenses pivot) ── */}
+  {finSubTab==="expenses"&&(
+    <ExpensesView journalEntries={journalEntries}/>
+  )}
+
+  {/* ── CASH CUSTODY TAB (mirrors Excel Custody sheet) ── */}
+  {finSubTab==="custody"&&(
+    <CashCustodyView journalEntries={journalEntries}/>
+  )}
+
+  {/* ── FIXED ASSETS TAB ── */}
+  {finSubTab==="assets"&&(
+    <FixedAssetsView fixedAssets={fixedAssets} loading={assetsLoading}/>
+  )}
+
+  {/* ── TAX & SOCIAL INSURANCE TAB (mirrors Excel Tax sheet) ── */}
+  {finSubTab==="tax"&&(
+    <TaxSocialView journalEntries={journalEntries}/>
+  )}
+
+  {/* ── P&L SUMMARY TAB (Operations — EC-ERP derived) ── */}
+  {finSubTab==="pl"&&(
     <div style={{display:"grid",gap:14}}>
       {/* KPI strip */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
@@ -3040,7 +3943,7 @@ const netColor=netPL>=0?"#34d399":"#f87171";
   )}
 
   {/* ── SALARIES TAB ── */}
-  {finTab==="salaries"&&(
+  {finSubTab==="salaries"&&(
     <div style={{display:"grid",gap:14}}>
       {/* Payroll KPIs */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
@@ -3105,8 +4008,8 @@ const netColor=netPL>=0?"#34d399":"#f87171";
     </div>
   )}
 
-  {/* ── EXPENSES TAB ── */}
-  {finTab==="expenses"&&(
+  {/* ── OLD EXPENSES ENTRY FORM — REMOVED: journal replaces this ── */}
+  {false&&finSubTab==="__old_expenses__"&&(
     <div style={{display:"grid",gap:14}}>
       {/* Expense KPIs */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
@@ -3696,6 +4599,11 @@ export default function App(){
 
   // ── Finance Module State ──
   const [staff,setStaff]                   = useState([]);
+  const [journalEntries,setJournalEntries]   = useState([]);
+  const [fixedAssets,setFixedAssets]         = useState([]);
+  const [journalLoading,setJournalLoading]   = useState(false);
+  const [assetsLoading,setAssetsLoading]     = useState(false);
+  const [finSubTab,setFinSubTab]             = useState("journal"); // journal|balance|pl|assets
   const [expenses,setExpenses]             = useState([]);
   const [finTab,setFinTab]                 = useState("pl");        // pl | salaries | expenses
   const [egpRate,setEgpRate]               = useState(50);          // EGP per 1 USD exchange rate
@@ -3783,7 +4691,7 @@ export default function App(){
   const loadAll=useCallback(async()=>{
     setLoading(true);
     try{
-      const [engsR,projR,entrR,profR,notifR,staffR,expR]=await Promise.all([
+      const [engsR,projR,entrR,profR,notifR,staffR,expR,journalR,assetsR]=await Promise.all([
         supabase.from("engineers").select("*").order("name"),
         supabase.from("projects").select("*").order("id"),
         supabase.from("time_entries").select("*").order("date",{ascending:false}),
@@ -3791,6 +4699,8 @@ export default function App(){
         supabase.from("notifications").select("*").order("created_at",{ascending:false}).limit(50),
         supabase.from("staff").select("*").order("name"),
         supabase.from("expenses").select("*").order("year",{ascending:false}).order("month",{ascending:false}),
+        supabase.from("journal_entries").select("*").order("entry_date",{ascending:true}),
+        supabase.from("finance_fixed_assets").select("*").order("purchase_date",{ascending:true}),
       ]);
       if(engsR.data) setEngineers(engsR.data);
       if(projR.data) setProjects(projR.data);
@@ -3810,6 +4720,8 @@ export default function App(){
         }
       }
       if(expR.data) setExpenses(expR.data);
+      if(journalR.data) setJournalEntries(journalR.data);
+      if(assetsR.data) setFixedAssets(assetsR.data);
       // Trigger timesheet delay alerts after data loads
       if(engsR.data&&entrR.data) setTimeout(()=>checkTimesheetAlerts(engsR.data,entrR.data),1500);
     }catch(e){showToast("Error loading data",false);}
@@ -3840,7 +4752,7 @@ export default function App(){
   };
   const handleLogout=async()=>{
     await supabase.auth.signOut();
-    setSession(null);setEngineers([]);setProjects([]);setEntries([]);setMyProfile(null);setStaff([]);setExpenses([]);
+    setSession(null);setEngineers([]);setProjects([]);setEntries([]);setMyProfile(null);setStaff([]);setExpenses([]);setJournalEntries([]);setFixedAssets([]);
   };
 
   // Load tracker data: eagerly when session exists (not lazily)
@@ -6700,7 +7612,10 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   deleteStaff={deleteStaff} deleteExpense={deleteExpense}
                   fmtCurrency={fmtCurrency} buildFinancePDF={buildFinancePDF}
                   isAdmin={isAdmin} isSenior={isSenior} isLead={isLead} isAcct={isAcct}
-                />
+                  journalEntries={journalEntries} setJournalEntries={setJournalEntries}
+                  fixedAssets={fixedAssets} journalLoading={journalLoading}
+                  assetsLoading={assetsLoading} finSubTab={finSubTab} setFinSubTab={setFinSubTab}
+                  />
               )}
 
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
