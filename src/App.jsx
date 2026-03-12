@@ -4236,8 +4236,8 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading,
       ...filtered.map(l=>[
         l.created_at ? new Date(l.created_at).toLocaleString("en-EG") : "",
         l.user_name||"", l.user_role||"", l.action||"", l.module||"",
-        `"${(l.detail||"").replace(/"/g,'\"\')}"`  ,
-        `"${(l.meta||"").replace(/"/g,'\"\')}"`    ,
+        '"' + (l.detail||"").replace(/"/g,'""') + '"',
+        '"' + (l.meta||"").replace(/"/g,'""') + '"',
       ])
     ].map(r=>r.join(",")).join("\n");
     const a=Object.assign(document.createElement("a"),{
