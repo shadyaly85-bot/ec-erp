@@ -5711,8 +5711,8 @@ export default function App(){
       if(journalR.data) setJournalEntries(journalR.data);
       if(assetsR.data) setFixedAssets(assetsR.data);
       if(accountsR?.data) setAccounts(accountsR.data);
-      // Load activity log for admin
-      if(myProfile?.role_type==="admin"||role==="admin"){
+      // Load activity log for admin — use profR.data directly (myProfile state is stale here)
+      if(profR.data?.role_type==="admin"){
         setLogLoading(true);
         supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
           .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
@@ -8747,11 +8747,11 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     const r = data?.[0]||{};
                     showToast(`Archived ${r.archived_count||0} events, removed ${r.deleted_count||0} from live log`);
                     logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:r.archived_count,deleted:r.deleted_count});
-                    // Reload live log
+                    // Reload live log after archive
                     setLogLoading(true);
                     supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
-                      .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
-                    // Clear archive cache so it reloads fresh next time
+                      .then(({data:liveData})=>{ if(liveData) setActivityLog(liveData); setLogLoading(false); });
+                    // Reset archive cache so next "Load Archive" gets fresh data
                     setArchiveLog([]);
                   }}
                   onLoadArchive={()=>{
