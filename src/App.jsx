@@ -4184,7 +4184,7 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
 /* ══════════════════════════════════════════════════════════
    ACTIVITY LOG TAB — admin only
    ══════════════════════════════════════════════════════════ */
-function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading,
+function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archiveLoaded,
   onRefresh, onArchive, onLoadArchive, onPruneArchive, retentionDays, setRetentionDays}) {
 
   const [tab,        setTab]       = React.useState("live");   // live | archive
@@ -4291,11 +4291,14 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading,
       )}
 
       {/* ── Archive load prompt ── */}
-      {tab==="archive"&&archiveLog.length===0&&!archiveLoading&&(
+      {tab==="archive"&&!archiveLoaded&&!archiveLoading&&(
         <div style={{textAlign:"center",padding:24,background:"var(--bg2)",borderRadius:8,border:"1px solid var(--border3)"}}>
-          <div style={{fontSize:14,color:"var(--text2)",marginBottom:10}}>Archive not loaded — it's kept separate to keep the UI fast.</div>
+          <div style={{fontSize:14,color:"var(--text2)",marginBottom:10}}>Archive not loaded — kept separate to keep the UI fast.</div>
           <button className="bp" onClick={onLoadArchive}>Load Archive Data</button>
         </div>
+      )}
+      {tab==="archive"&&archiveLoaded&&archiveLog.length===0&&!archiveLoading&&(
+        <div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No archived entries yet.</div>
       )}
       {tab==="archive"&&archiveLoading&&(
         <div style={{textAlign:"center",padding:24,color:"var(--text4)"}}>Loading archive…</div>
@@ -5565,6 +5568,7 @@ export default function App(){
   const [accounts,setAccounts]               = useState([]);
   const [activityLog,setActivityLog]         = useState([]);
   const [archiveLog,setArchiveLog]           = useState([]);
+  const [archiveLoaded,setArchiveLoaded]     = useState(false);
   const [logLoading,setLogLoading]           = useState(false);
   const [archiveLoading,setArchiveLoading]   = useState(false);
   const [retentionDays,setRetentionDays]     = useState(30);
@@ -7896,7 +7900,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 <script>window.onload=()=>setTimeout(()=>{window.print();},500);</script>
 </body></html>`;
                   const w = window.open("","_blank");
-                  if(w){w.document.write(html);w.document.close();}
+                  if(w){w.document.write(html);w.document.close();logAction("EXPORT","OrgChart",`Exported org chart PDF`,{nodes:orgNodes.length});}
                   else showToast("Allow popups to export PDF",false);
                 };
 
@@ -8735,6 +8739,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 <ActivityLogTab
                   activityLog={activityLog}
                   archiveLog={archiveLog}
+                  archiveLoaded={archiveLoaded}
                   loading={logLoading}
                   archiveLoading={archiveLoading}
                   retentionDays={retentionDays}
@@ -8756,12 +8761,16 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
                       .then(({data:liveData})=>{ if(liveData) setActivityLog(liveData); setLogLoading(false); });
                     // Reset archive cache so next "Load Archive" gets fresh data
-                    setArchiveLog([]);
+                    setArchiveLog([]); setArchiveLoaded(false);
                   }}
                   onLoadArchive={()=>{
                     setArchiveLoading(true);
                     supabase.from("activity_log_archive").select("*").order("created_at",{ascending:false}).limit(2000)
-                      .then(({data})=>{ if(data) setArchiveLog(data); setArchiveLoading(false); });
+                      .then(({data,error})=>{
+                        if(error){ console.error("[Archive] Load failed:",error.message); showToast("Archive load error: "+error.message,false); }
+                        else{ setArchiveLog(data||[]); setArchiveLoaded(true); }
+                        setArchiveLoading(false);
+                      });
                   }}
                   onPruneArchive={async()=>{
                     if(!window.confirm("Delete archive entries older than 1 year? This cannot be undone.")) return;
@@ -8769,7 +8778,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     if(error){alert("Prune error: "+error.message);return;}
                     showToast(`Pruned ${data||0} archive entries older than 1 year`);
                     logAction("DELETE","Auth",`Pruned activity archive — entries older than 365d`,{pruned:data});
-                    setArchiveLog([]);
+                    setArchiveLog([]); setArchiveLoaded(false);
                   }}
                 />
               )}
