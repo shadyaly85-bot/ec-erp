@@ -5857,7 +5857,9 @@ export default function App(){
     setModalDate(null);
     setNewEntry({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
     showToast("Hours posted ✓");
-    logAction("CREATE","TimeEntry",`Posted ${basePayload.hours}h on ${basePayload.project_id} for ${basePayload.date}`,{project_id:basePayload.project_id,hours:basePayload.hours,date:basePayload.date});
+    const _engName = engineers.find(e=>String(e.id)===String(engId))?.name||engId;
+    const _onBehalf = String(engId)!==String(myProfile?.id) ? ` on behalf of ${_engName}` : "";
+    logAction("CREATE","TimeEntry",`Posted ${basePayload.hours}h on ${basePayload.project_id||basePayload.entry_type} for ${basePayload.date}${_onBehalf}`,{engineer_id:engId,engineer_name:_engName,project_id:basePayload.project_id,hours:basePayload.hours,date:basePayload.date,entry_type:basePayload.entry_type});
   };
 
 
@@ -5911,7 +5913,10 @@ export default function App(){
     }
     if(error){showToast("Paste error: "+error.message,false);return;}
     if(data) setEntries(prev=>[...data,...prev]);
+    const _engName2 = engineers.find(e=>String(e.id)===String(engId))?.name||engId;
+    const _onBehalf2 = String(engId)!==String(myProfile?.id) ? ` on behalf of ${_engName2}` : "";
     showToast(`Pasted ${inserts.length} entr${inserts.length===1?"y":"ies"} to ${targetDate} ✓`);
+    logAction("CREATE","TimeEntry",`Pasted ${inserts.length} entries to ${targetDate}${_onBehalf2}`,{engineer_id:engId,engineer_name:_engName2,date:targetDate,count:inserts.length});
   };
 
   const saveEditEntry=async()=>{
@@ -5939,7 +5944,9 @@ export default function App(){
     if(upd) setEntries(prev=>prev.map(e=>e.id===upd.id?upd:e));
     else setEntries(prev=>prev.map(e=>e.id===editEntry.id?{...e,...payload}:e));
     setEditEntry(null); showToast("Entry updated ✓");
-    logAction("UPDATE","TimeEntry",`Updated time entry on ${editEntry?.date}`,{id:editEntry?.id,date:editEntry?.date});
+    const _editEngName = engineers.find(e=>String(e.id)===String(editEntry?.engineer_id))?.name||"";
+    const _editOnBehalf = editEntry?.engineer_id && String(editEntry.engineer_id)!==String(myProfile?.id) ? ` on behalf of ${_editEngName}` : "";
+    logAction("UPDATE","TimeEntry",`Updated time entry on ${editEntry?.date}${_editOnBehalf}`,{id:editEntry?.id,engineer_id:editEntry?.engineer_id,engineer_name:_editEngName,date:editEntry?.date});
   };
 
   const deleteEntry=async(id, engineerId)=>{
@@ -5948,7 +5955,10 @@ export default function App(){
     const {error}=await supabase.from("time_entries").delete().eq("id",id);
     if(error){showToast("Error",false);return;}
     setEntries(prev=>prev.filter(e=>e.id!==id));
+    const _delEngName = engineers.find(e=>String(e.id)===String(engineerId))?.name||engineerId;
+    const _delOnBehalf = String(engineerId)!==String(myProfile?.id) ? ` on behalf of ${_delEngName}` : "";
     showToast("Deleted",false);
+    logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_delOnBehalf}`,{id,engineer_id:engineerId,engineer_name:_delEngName});
   };
 
   /* ── FUNCTION ENTRIES & KPI ALERTS ── */
@@ -5979,6 +5989,9 @@ export default function App(){
     if(error){showToast("Error: "+error.message,false);return;}
     if(data) setEntries(prev=>[data,...prev]);
     showToast("Function hours posted ✓");
+    const _funcEngName=engineers.find(e=>String(e.id)===String(newFunc.engineer_id))?.name||newFunc.engineer_id;
+    const _funcOnBehalf=String(newFunc.engineer_id)!==String(myProfile?.id)?` on behalf of ${_funcEngName}`:"";
+    logAction("CREATE","TimeEntry",`Posted function ${newFunc.hours}h — ${newFunc.function_category} for ${newFunc.date}${_funcOnBehalf}`,{engineer_id:newFunc.engineer_id,engineer_name:_funcEngName,category:newFunc.function_category,hours:newFunc.hours,date:newFunc.date});
     setShowFuncModal(false);
     setNewFunc({engineer_id:"",date:new Date().toISOString().slice(0,10),function_category:FUNCTION_CATS[0],hours:2,activity:""});
   },[newFunc,showToast]);
@@ -6003,6 +6016,8 @@ export default function App(){
     const laggards=[];
     engs.forEach(eng=>{
       if(["accountant","senior_management","admin"].includes(eng.role_type)) return; // skip non-posting roles
+      if(eng.is_active===false) return; // skip explicitly inactive
+      if(eng.termination_date&&String(eng.termination_date).slice(0,10)<todayStr) return; // skip terminated
       // Any work or function entry Mon→Fri this week?
       const hasWeekHours=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")));
       if(!hasWeekHours) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
@@ -6057,6 +6072,7 @@ export default function App(){
         setEngineers(prev=>prev.map(e=>e.id===matchEng.id?{...e,...engSync}:e));
       }
       showToast("Staff updated ✓");setEditStaff(null);setShowStaffModal(false);
+      logAction("UPDATE","Staff",`Updated staff: ${data.name}`,{id:data.id,name:data.name,department:data.department,role:data.role});
     } else {
       // ── ADD staff ──
       const{data,error}=await supabase.from("staff").insert(staffPayload).select().single();
@@ -6088,14 +6104,17 @@ export default function App(){
         if(ed){
           setEngineers(prev=>[...prev,ed].sort((a,b)=>a.name.localeCompare(b.name)));
           showToast("Member added ✓ — appears in Team + Finance");
-          logAction("CREATE","Staff",`Added staff+engineer: ${newStaff?.name}`,{name:newStaff?.name,role:newStaff?.role_type});
+          logAction("CREATE","Staff",`Added staff+engineer: ${data.name}`,{id:data.id,name:data.name,role:data.role,department:data.department});
         } else {
           showToast("Staff added ✓ — set salary in Finance › Staff");
+          logAction("CREATE","Staff",`Added staff (no engineer link): ${data.name}`,{id:data.id,name:data.name});
         }
       } else if(existsEng){
         showToast("Staff added ✓ — linked to existing engineer profile");
+        logAction("CREATE","Staff",`Added staff (linked to existing engineer): ${data.name}`,{id:data.id,name:data.name});
       } else {
         showToast("Staff added ✓ — provide email to grant system access");
+        logAction("CREATE","Staff",`Added staff (no email/access): ${data.name}`,{id:data.id,name:data.name});
       }
       setShowStaffModal(false);
       setNewStaff({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:null,termination_date:null,email:"",level:"Mid",role_type:"engineer",notes:""});
@@ -6115,7 +6134,7 @@ export default function App(){
     if(!payload.description.trim()){showToast("Description required",false);return;}
     if(editExp){
       const{data,error}=await supabase.from("expenses").update(payload).eq("id",editExp.id).select().single();
-      if(!error&&data){setExpenses(prev=>prev.map(e=>e.id===data.id?data:e));showToast("Expense updated");setEditExp(null);setShowExpModal(false);}
+      if(!error&&data){setExpenses(prev=>prev.map(e=>e.id===data.id?data:e));showToast("Expense updated");setEditExp(null);setShowExpModal(false);logAction("UPDATE","Expense",`Updated expense: ${data.description}`,{id:data.id,category:data.category,amount_usd:data.amount_usd,amount_egp:data.amount_egp});}
       else showToast(error?.message||"Error",false);
     } else {
       const{data,error}=await supabase.from("expenses").insert(payload).select().single();
@@ -6539,6 +6558,7 @@ export default function App(){
       setActivities(prev=>prev.map(a=>a.project_id===origId?{...a,project_id:newId}:a));
       setSubprojects(prev=>prev.map(s=>s.project_id===origId?{...s,project_id:newId}:s));
       setEditProjModal(null); showToast("Project ID renamed & entries re-linked ✓");
+      logAction("UPDATE","Project",`Renamed project ${origId} → ${newId}`,{old_id:origId,new_id:newId});
     } else {
       const{id,...fields}=rest;
       let {data,error}=await supabase.from("projects").update(fields).eq("id",id).select().single();
@@ -6582,6 +6602,7 @@ export default function App(){
     if(error){showToast("Error: "+error.message,false);return;}
     setSubprojects(prev=>[...prev,data]);
     setSubProjModal(null); showToast("Sub-project added ✓");
+    logAction("CREATE","Project",`Added sub-project: ${data.name} (${pid})`,{subproject_id:data.id,name:data.name,project_id:pid});
   };
   const saveSubProject=async(sub)=>{
     const{id,...fields}=sub;
@@ -6590,15 +6611,18 @@ export default function App(){
     if(error){showToast("Error: "+error.message,false);return;}
     setSubprojects(prev=>prev.map(s=>s.id===data.id?data:s));
     setSubProjModal(null); showToast("Sub-project saved ✓");
+    logAction("UPDATE","Project",`Updated sub-project: ${data.name}`,{subproject_id:data.id,name:data.name});
   };
   const deleteSubProject=async(id)=>{
     if(!window.confirm("Delete this sub-project and unlink its activities?")) return;
+    const sub=subprojects.find(s=>s.id===id);
     // Unlink activities (set subproject_id to null)
     await supabase.from("project_activities").update({subproject_id:null}).eq("subproject_id",id);
     await supabase.from("project_subprojects").delete().eq("id",id);
     setSubprojects(prev=>prev.filter(s=>s.id!==id));
     setActivities(prev=>prev.map(a=>String(a.subproject_id)===String(id)?{...a,subproject_id:null}:a));
     showToast("Sub-project deleted",false);
+    logAction("DELETE","Project",`Deleted sub-project: ${sub?.name||id}`,{subproject_id:id,name:sub?.name});
   };
 
   /* ── ENGINEER CRUD ── */
@@ -6666,6 +6690,7 @@ export default function App(){
     setShowEngModal(false);
     setNewEng({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
     showToast("Member added ✓ — set salary in Finance › Staff");
+    logAction("CREATE","Engineer",`Added engineer: ${data.name}`,{id:data.id,name:data.name,role_type:data.role_type,role:data.role});
   };
   const saveEditEngineer=async()=>{
     if(!editEngModal) return;
@@ -6699,6 +6724,7 @@ export default function App(){
     setEngineers(prev=>prev.map(e=>e.id===id?merged:e));
     if(id===myProfile?.id) setMyProfile(merged);
     setEditEngModal(null); showToast("Updated ✓");
+    logAction("UPDATE","Engineer",`Updated engineer: ${merged.name}`,{id,name:merged.name,role_type:merged.role_type,is_active:merged.is_active,termination_date:merged.termination_date||null});
   };
   const deleteEngineer=async id=>{
     if(!window.confirm("Delete this engineer and all their entries?")) return;
@@ -6712,6 +6738,7 @@ export default function App(){
     // Clear from activities assigned_to
     if(eng) setActivities(prev=>prev.map(a=>a.assigned_to===eng.name?{...a,assigned_to:""}:a));
     showToast("Removed",false);
+    logAction("DELETE","Engineer",`Deleted engineer: ${eng?.name||id}`,{id,name:eng?.name});
   };
 
   /* ── DERIVED STATS ── */
