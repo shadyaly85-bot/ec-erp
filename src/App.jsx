@@ -5718,7 +5718,7 @@ export default function App(){
           .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
       }
       // Trigger timesheet delay alerts after data loads
-      if(engsR.data&&entrR.data) setTimeout(()=>checkTimesheetAlerts(engsR.data,entrR.data),1500);
+      if(engsR.data&&entrR.data) setTimeout(()=>checkTimesheetAlerts(engsR.data,entrR.data,staffR.data||[]),1500);
     }catch(e){showToast("Error loading data",false);}
     setLoading(false);
   },[session]);
@@ -6001,17 +6001,14 @@ export default function App(){
   },[newFunc,showToast]);
 
   // Check for engineers who haven't posted hours by Friday — only alerts on Fri/Sat/Sun
-  const checkTimesheetAlerts=useCallback(async(engs,allE)=>{
+  const checkTimesheetAlerts=useCallback(async(engs,allE,staffList=[])=>{
     if(!isAdmin&&!isLead) return;
     const today=new Date();
-    const dayOfWeek=today.getDay(); // 0=Sun,1=Mon,...,5=Fri,6=Sat
-    // Only alert from the configured alertDay onwards through Sunday
+    const dayOfWeek=today.getDay();
     const isEndOfWeek=dayOfWeek===0||(dayOfWeek>=alertDay&&dayOfWeek<=6);
     if(!isEndOfWeek) return;
-    // Get Monday of current week
     const mondayOffset=dayOfWeek===0?-6:1-dayOfWeek;
     const weekStart=new Date(today);weekStart.setDate(today.getDate()+mondayOffset);weekStart.setHours(0,0,0,0);
-    // Friday of current week
     const friday=new Date(weekStart);friday.setDate(weekStart.getDate()+4);
     const weekStartStr=weekStart.toISOString().slice(0,10);
     const fridayStr=friday.toISOString().slice(0,10);
@@ -6019,9 +6016,16 @@ export default function App(){
 
     const laggards=[];
     engs.forEach(eng=>{
-      if(["accountant","senior_management","admin"].includes(eng.role_type)) return; // skip non-posting roles
-      if(eng.is_active===false) return; // skip explicitly inactive
-      if(eng.termination_date&&String(eng.termination_date).slice(0,10)<todayStr) return; // skip terminated
+      if(["accountant","senior_management","admin"].includes(eng.role_type)) return;
+      // Check is_active and termination_date on engineer row
+      if(eng.is_active===false) return;
+      if(eng.termination_date&&String(eng.termination_date).slice(0,10)<todayStr) return;
+      // Also cross-check staff table — termination may only be set there
+      const staffMatch=staffList.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
+      if(staffMatch){
+        if(staffMatch.active===false) return;
+        if(staffMatch.termination_date&&String(staffMatch.termination_date).slice(0,10)<todayStr) return;
+      }
       // Any work or function entry Mon→Fri this week?
       const hasWeekHours=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")));
       if(!hasWeekHours) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
