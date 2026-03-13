@@ -5601,7 +5601,11 @@ export default function App(){
     };
     supabase.from("activity_log").insert(entry).select()
       .then(({data,error})=>{
-        if(!error&&data) setActivityLog(prev=>[{...entry,id:data[0]?.id,created_at:new Date().toISOString()},...prev].slice(0,2000));
+        if(error){
+          console.error("[ActivityLog] Insert failed:",error.message,"| payload:",entry);
+        } else if(data){
+          setActivityLog(prev=>[{...entry,id:data[0]?.id,created_at:new Date().toISOString()},...prev].slice(0,2000));
+        }
       });
   },[session,myProfile]);
 
