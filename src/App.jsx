@@ -5141,7 +5141,7 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
-function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, onDismissNotif, alertDay, setAlertDay}){
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, timesheetAlerts, onDismissAlert, alertDay, setAlertDay}){
   const yearEntries = useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
   const engKPIs = useMemo(()=>{
 /* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
@@ -5223,7 +5223,7 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
   const selKPI = kpiEngId ? engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)) : null;
 
 
-  const alertNotifs = (notifications||[]).filter(n=>n.type==="timesheet_alert"&&!n.read);
+  const alertNotifs = timesheetAlerts||[];
 
   return(
 <div style={{display:"grid",gap:14}}>
@@ -5509,7 +5509,7 @@ export default function App(){
   // sessionStorage remembers if user left it open (not closed)
   const [notifPanelOpen,setNotifPanelOpen] = useState(false);
   const toggleNotifPanel = React.useCallback(()=>{
-    setNotifPanelOpen(prev=>!prev);
+    setNotifPanelOpen(prev=>{ console.log("[NOTIF] panel toggled to:", !prev); return !prev; });
   },[]);
   const [myProfile,setMyProfile]     = useState(null);
   const [loading,setLoading]         = useState(false);
@@ -5707,30 +5707,13 @@ export default function App(){
       if(entrR.data) setEntries(entrR.data);
       if(profR.data){ setMyProfile(profR.data); setBrowseEngId(profR.data.id); }
       if(notifR.data){
-        // Deduplicate timesheet alerts by alert_key — keep only newest per key, delete duplicates
-        const all = notifR.data;
-        const seenKeys = new Map(); // alert_key -> keep newest (highest id)
-        const toDelete = [];
-        // First pass: group by alert_key for timesheet_alert type
-        all.forEach(n=>{
-          if(n.type==="timesheet_alert"){
-            let key=null;
-            try{ key=JSON.parse(n.meta||"{}").alert_key; }catch{}
-            if(key){
-              if(seenKeys.has(key)){
-                // Keep the one with higher id (newer), delete the other
-                const prev=seenKeys.get(key);
-                if(n.id>prev.id){ toDelete.push(prev.id); seenKeys.set(key,n); }
-                else { toDelete.push(n.id); }
-              } else { seenKeys.set(key,n); }
-            }
-          }
-        });
-        // Also delete read rows (legacy)
-        all.filter(n=>n.read).forEach(n=>toDelete.push(n.id));
-        if(toDelete.length) supabase.from("notifications").delete().in("id",[...new Set(toDelete)]).then(()=>{});
-        const deduped = all.filter(n=>!n.read && !toDelete.includes(n.id));
-        setNotifications(deduped);
+        // Only load signup + system notifications from DB
+        // Timesheet alerts are computed in memory via timesheetAlerts useMemo — never stored in DB anymore
+        const dbNotifs = notifR.data.filter(n=>n.type!=="timesheet_alert"&&!n.read);
+        // Delete any old timesheet_alert rows from DB (legacy cleanup)
+        const oldAlertIds = notifR.data.filter(n=>n.type==="timesheet_alert"||n.read).map(n=>n.id);
+        if(oldAlertIds.length) supabase.from("notifications").delete().in("id",oldAlertIds).then(()=>{});
+        setNotifications(dbNotifs);
       }
       if(staffR.data){
         const sData=staffR.data;
@@ -5807,7 +5790,7 @@ export default function App(){
 
 
 
-  const unreadCount=notifications.length; // all rows are unread (dismissed = deleted)
+  const unreadCount=notifications.filter(n=>n.type!=="timesheet_alert").length + timesheetAlerts.length;
 
   // Dismiss = permanently delete from DB so they never come back on refresh
   const dismissNotification=useCallback(async(id)=>{
@@ -5822,8 +5805,9 @@ export default function App(){
         }
       }catch(e){}
     }
+    console.log("[NOTIF] dismissNotification deleting id:", id);
     await supabase.from("notifications").delete().eq("id",id);
-    setNotifications(prev=>prev.filter(x=>x.id!==id));
+    setNotifications(prev=>{ console.log("[NOTIF] after dismiss, remaining:", prev.filter(x=>x.id!==id).length); return prev.filter(x=>x.id!==id); });
   },[notifications]);
 
   const dismissAllOfType=useCallback(async(type)=>{
@@ -6079,67 +6063,68 @@ export default function App(){
     setNewFunc({engineer_id:"",date:new Date().toISOString().slice(0,10),function_category:FUNCTION_CATS[0],hours:2,activity:""});
   },[newFunc,showToast]);
 
-  // Check for engineers who haven't posted hours by Friday — only alerts on Fri/Sat/Sun
-  const checkTimesheetAlerts=useCallback(async(engs,allE,staffList=[],currentNotifs=[])=>{
-    if(!isAdmin&&!isLead) return;
+  // Compute timesheet alerts in memory — no DB writes, no race conditions
+  // Dismissed alerts tracked in state so they survive minimize/maximize
+  const [dismissedAlertKeys, setDismissedAlertKeys] = React.useState(()=>{
+    try{ return new Set(JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]")); }
+    catch{ return new Set(); }
+  });
+
+  const timesheetAlerts = React.useMemo(()=>{
+    if(!isAdmin&&!isLead) return [];
     const today=new Date();
     const dayOfWeek=today.getDay();
     const isEndOfWeek=dayOfWeek===0||(dayOfWeek>=alertDay&&dayOfWeek<=6);
-    if(!isEndOfWeek) return;
+    if(!isEndOfWeek) return [];
     const mondayOffset=dayOfWeek===0?-6:1-dayOfWeek;
     const weekStart=new Date(today);weekStart.setDate(today.getDate()+mondayOffset);weekStart.setHours(0,0,0,0);
     const friday=new Date(weekStart);friday.setDate(weekStart.getDate()+4);
     const weekStartStr=weekStart.toISOString().slice(0,10);
     const fridayStr=friday.toISOString().slice(0,10);
     const todayStr=today.toISOString().slice(0,10);
-
-    const laggards=[];
-    engs.forEach(eng=>{
+    const alerts=[];
+    engineers.forEach(eng=>{
       if(["accountant","senior_management","admin"].includes(eng.role_type)) return;
       if(eng.is_active===false) return;
       if(eng.termination_date&&String(eng.termination_date).slice(0,10)<todayStr) return;
-      const staffMatch=staffList.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
+      const staffMatch=staff.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
       if(staffMatch){
         if(staffMatch.active===false) return;
         if(staffMatch.termination_date&&String(staffMatch.termination_date).slice(0,10)<todayStr) return;
       }
-      const hasWeekHours=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")));
-      if(!hasWeekHours) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
-    });
-
-    if(laggards.length===0) return;
-
-    // Build set of already-known alert keys from: current state + sessionStorage
-    // This is the only source of truth — no DB round trip needed
-    const knownKeys = new Set([
-      ...currentNotifs.map(n=>{ try{ return JSON.parse(n.meta||"{}").alert_key; }catch{ return null; } }).filter(Boolean),
-      ...JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]"),
-    ]);
-
-    for(const{eng,type,label}of laggards){
-      const key=`timesheet_alert_${eng.id}_${type}_${weekStartStr}`;
-      if(knownKeys.has(key)) continue;
-      await supabase.from("notifications").insert({
+      const key=`timesheet_alert_${eng.id}_weekly_${weekStartStr}`;
+      if(dismissedAlertKeys.has(key)) return;
+      const hasWeekHours=entries.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||e.entry_type==="function"||e.task_category==="Function"));
+      if(!hasWeekHours) alerts.push({
+        id: key, // use key as id
         type:"timesheet_alert",
-        message:`⏰ ${eng.name}: ${label}`,
-        meta:JSON.stringify({engineer_id:eng.id,alert_key:key,alert_type:type}),
-        read:false
+        engineer_id: eng.id,
+        engineer_name: eng.name,
+        key,
+        message:`⏰ ${eng.name}: No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`,
+        created_at: new Date().toISOString(),
       });
-      knownKeys.add(key); // prevent double-insert within same loop
-    }
-  },[isAdmin,isLead,alertDay]);
+    });
+    return alerts;
+  },[isAdmin,isLead,alertDay,engineers,entries,staff,dismissedAlertKeys]);
 
-  // Run alert check once when user first logs in (engineers+entries loaded)
-  const alertsRanRef = React.useRef(false);
-  useEffect(()=>{
-    if(!session||(!isAdmin&&!isLead)) return;
-    if(alertsRanRef.current) return;
-    if(!engineers.length||!entries.length) return;
-    alertsRanRef.current = true;
-    // Capture notifications snapshot NOW so checkTimesheetAlerts skips already-shown alerts
-    const notifSnapshot = notifications.slice();
-    setTimeout(()=>checkTimesheetAlerts(engineers,entries,staff,notifSnapshot),1500);
-  },[session,engineers.length,entries.length]); // eslint-disable-line
+  const dismissTimesheetAlert = React.useCallback((key)=>{
+    setDismissedAlertKeys(prev=>{
+      const next = new Set(prev);
+      next.add(key);
+      sessionStorage.setItem("ec_dismissed_alerts", JSON.stringify([...next]));
+      return next;
+    });
+  },[]);
+
+  const dismissAllTimesheetAlerts = React.useCallback(()=>{
+    const keys = timesheetAlerts.map(a=>a.key);
+    setDismissedAlertKeys(prev=>{
+      const next = new Set([...prev,...keys]);
+      sessionStorage.setItem("ec_dismissed_alerts", JSON.stringify([...next]));
+      return next;
+    });
+  },[timesheetAlerts])
 
   /* ── FINANCE CRUD ── */
   const STAFF_DEPTS=["Engineering","Management","Finance","Operations","IT","Administration","Other"];
@@ -8560,15 +8545,13 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 {false&&unreadCount>0&&isAdmin&&<button className="bg" onClick={()=>{ notifications.forEach(n=>supabase.from("notifications").delete().eq("id",n.id)); setNotifications([]); }}>Dismiss all {notifications.length} notifications</button>}
               </div>
 
-              {/* Notifications (admin only) — collapsible, state survives tab switches */}
-              {isAdmin&&notifications.length>0&&(()=>{
-                const signupNotifs  = notifications.filter(n=>n.type==="new_signup");
-                const alertNotifs2  = notifications.filter(n=>n.type==="timesheet_alert");
-                const otherNotifs   = notifications.filter(n=>n.type!=="new_signup"&&n.type!=="timesheet_alert");
-                const totalCount    = notifications.length;
+              {/* Notifications panel — signups+system from DB, timesheet alerts computed in memory */}
+              {isAdmin&&(notifications.filter(n=>n.type!=="timesheet_alert").length>0||timesheetAlerts.length>0)&&(()=>{
+                const signupNotifs = notifications.filter(n=>n.type==="new_signup");
+                const otherNotifs  = notifications.filter(n=>n.type!=="new_signup"&&n.type!=="timesheet_alert");
+                const totalCount   = signupNotifs.length + timesheetAlerts.length + otherNotifs.length;
                 return(
                 <div style={{marginBottom:18,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:10,overflow:"hidden"}}>
-                  {/* Panel header — always visible, click to toggle */}
                   <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",userSelect:"none"}}
                     onClick={toggleNotifPanel}>
                     <span style={{fontSize:15}}>🔔</span>
@@ -8576,17 +8559,19 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     <span style={{background:"#ef444420",color:"#f87171",fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,minWidth:20,textAlign:"center"}}>{totalCount}</span>
                     <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
                       <button style={{background:"#f8717110",border:"1px solid #f8717130",borderRadius:5,padding:"3px 10px",color:"#f87171",fontSize:11,cursor:"pointer"}}
-                        onClick={e=>{e.stopPropagation(); const ids=notifications.map(n=>n.id); supabase.from("notifications").delete().in("id",ids); setNotifications([]);}}>
-                        Dismiss All
-                      </button>
+                        onClick={e=>{
+                          e.stopPropagation();
+                          // Dismiss all: delete DB notifications + dismiss all computed alerts
+                          const ids=notifications.map(n=>n.id);
+                          if(ids.length) supabase.from("notifications").delete().in("id",ids);
+                          setNotifications([]);
+                          dismissAllTimesheetAlerts();
+                        }}>Dismiss All</button>
                       <span style={{fontSize:14,color:"var(--text4)",fontWeight:700,transform:notifPanelOpen?"rotate(0)":"rotate(-90deg)",display:"inline-block",transition:"transform 0.2s"}}>▾</span>
                     </div>
                   </div>
-
-                  {/* Collapsible body */}
                   {notifPanelOpen&&(
                   <div style={{borderTop:"1px solid var(--border3)",padding:"12px 14px",display:"grid",gap:10}}>
-
                     {/* 👤 New Signups */}
                     {signupNotifs.length>0&&(
                       <div>
@@ -8601,10 +8586,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                             <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg1)",borderRadius:7,padding:"9px 12px",border:"1px solid #fb923c18"}}>
                               <div style={{flex:1,minWidth:0}}>
                                 <div style={{fontSize:13,fontWeight:600,color:"var(--text0)"}}>{n.message}</div>
-                                <div style={{fontSize:11,color:"var(--text4)",marginTop:3}}>
-                                  {new Date(n.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}
-                                  {" · "}<span style={{color:"var(--info)"}}>Engineers tab → set role</span>
-                                </div>
+                                <div style={{fontSize:11,color:"var(--text4)",marginTop:3}}>{new Date(n.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}{" · "}<span style={{color:"var(--info)"}}>Engineers tab → set role</span></div>
                               </div>
                               <button style={{flexShrink:0,background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"3px 9px",color:"var(--text3)",fontSize:11,cursor:"pointer"}}
                                 onClick={()=>dismissNotification(n.id)}>✕</button>
@@ -8613,33 +8595,28 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                         </div>
                       </div>
                     )}
-
-                    {/* ⏰ Timesheet Alerts */}
-                    {alertNotifs2.length>0&&(
+                    {/* ⏰ Timesheet Alerts — computed in memory, dismiss tracked in state */}
+                    {timesheetAlerts.length>0&&(
                       <div>
                         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
                           <span style={{fontSize:12,fontWeight:700,color:"#f87171",textTransform:"uppercase",letterSpacing:".05em"}}>⏰ Timesheet Alerts</span>
-                          <span style={{background:"#f8717120",color:"#f87171",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{alertNotifs2.length}</span>
+                          <span style={{background:"#f8717120",color:"#f87171",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{timesheetAlerts.length}</span>
                           <button style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--text4)",fontSize:11,cursor:"pointer",padding:"2px 6px"}}
-                            onClick={()=>dismissAllOfType("timesheet_alert")}>Dismiss all</button>
+                            onClick={dismissAllTimesheetAlerts}>Dismiss all</button>
                         </div>
                         <div style={{display:"grid",gap:5}}>
-                          {alertNotifs2.map(n=>(
-                            <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg1)",borderRadius:7,padding:"9px 12px",border:"1px solid #f8717118"}}>
+                          {timesheetAlerts.map(a=>(
+                            <div key={a.key} style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg1)",borderRadius:7,padding:"9px 12px",border:"1px solid #f8717118"}}>
                               <div style={{flex:1,minWidth:0}}>
-                                <div style={{fontSize:13,color:"var(--text0)"}}>{n.message}</div>
-                                <div style={{fontSize:11,color:"var(--text4)",marginTop:3}}>
-                                  {new Date(n.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}
-                                </div>
+                                <div style={{fontSize:13,color:"var(--text0)"}}>{a.message}</div>
                               </div>
                               <button style={{flexShrink:0,background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"3px 9px",color:"var(--text3)",fontSize:11,cursor:"pointer"}}
-                                onClick={()=>dismissNotification(n.id)}>✕</button>
+                                onClick={()=>dismissTimesheetAlert(a.key)}>✕</button>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
-
                     {/* ℹ System */}
                     {otherNotifs.length>0&&(
                       <div>
@@ -8647,7 +8624,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                           <span style={{fontSize:12,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em"}}>ℹ System</span>
                           <span style={{background:"var(--bg3)",color:"var(--text3)",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{otherNotifs.length}</span>
                           <button style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--text4)",fontSize:11,cursor:"pointer",padding:"2px 6px"}}
-                            onClick={()=>{const ids=otherNotifs.map(n=>n.id);supabase.from("notifications").delete().in("id",ids);setNotifications(prev=>prev.filter(n=>n.type==="new_signup"||n.type==="timesheet_alert"));}}>Dismiss all</button>
+                            onClick={()=>{const ids=otherNotifs.map(n=>n.id);supabase.from("notifications").delete().in("id",ids);setNotifications(prev=>prev.filter(n=>n.type==="new_signup"));}}>Dismiss all</button>
                         </div>
                         <div style={{display:"grid",gap:5}}>
                           {otherNotifs.map(n=>(
@@ -8663,1298 +8640,8 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                         </div>
                       </div>
                     )}
-
                   </div>
                   )}
                 </div>
                 );
               })()}
-
-              {/* Tabs */}
-              <div style={{display:"flex",gap:4,marginBottom:18,background:"var(--bg2)",borderRadius:8,padding:4,width:"fit-content"}}>
-                {[
-                  {id:"engineers",label:"👥 Engineers",show:isAdmin||isAcct||isSenior},
-                  {id:"projects", label:"◈ Projects",  show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"entries",  label:"⏱ All Entries",show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct||isSenior},
-                  {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"tracker",  label:"📊 Tracker",    show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"settings", label:"ℹ Info",        show:isAdmin},
-                  {id:"actlog",   label:"🪵 Activity Log", show:isAdmin},
-                ].filter(t=>t.show).map(t=>(
-                  <button key={t.id} className={`atab ${adminTab===t.id?"a":""}`} onClick={()=>setAdminTab(t.id)}>{t.label}</button>
-                ))}
-              </div>
-
-              {/* ENGINEERS */}
-              {adminTab==="engineers"&&(isAdmin||isAcct||isSenior)&&(
-                <div className="card">
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                    <h3 style={{fontSize:15,fontWeight:600,color:"var(--text2)"}}>Engineers & Access Control ({engineers.length})</h3>
-                    {isAdmin&&<button className="bp" onClick={()=>setShowEngModal(true)}>+ Add Member</button>}
-                  </div>
-                  <div style={{background:"var(--bg2)",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:13,color:"var(--info)",marginBottom:12}}>
-                    ℹ New registrations default to <strong>Engineer</strong> role. Update their role here after they sign up.
-                  </div>
-                  <table>
-                    <thead><tr><th>Name</th><th>Job Role</th><th>Level</th><th>Email</th><th>Access Role</th><th>Weekend</th><th>Month Hrs</th><th style={{width:110}}>Actions</th></tr></thead>
-                    <tbody>{engineers.map(eng=>{
-                      const es=engStats.find(e=>e.id===eng.id);
-                      const engWd=()=>{try{return eng.weekend_days?JSON.parse(eng.weekend_days):DEFAULT_WEEKEND;}catch{return DEFAULT_WEEKEND;}};
-                      const wdStr=engWd().map(d=>["Su","Mo","Tu","We","Th","Fr","Sa"][d]).join("+");
-                      return(
-                        <tr key={eng.id}>
-                          <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="av" style={{fontSize:11,width:26,height:26,opacity:!isEngActive(eng)?0.4:1}}>{eng.name?.slice(0,2).toUpperCase()}</div><div><span style={{fontWeight:500,color:!isEngActive(eng)?"var(--text3)":"inherit"}}>{eng.name}</span>{!isEngActive(eng)&&<span style={{marginLeft:5,fontSize:11,padding:"1px 5px",borderRadius:3,background:"#f8717120",color:"#f87171"}}>INACTIVE</span>}</div></div></td>
-                          <td style={{color:"var(--text2)",fontSize:13}}>{eng.role}</td>
-                          <td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--border)",color:"var(--text3)"}}>{eng.level}</span></td>
-                          <td style={{color:"var(--text3)",fontSize:13}}>{eng.email||"—"}</td>
-                          <td>
-                            <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                              <select value={pendingRoles[eng.id]??eng.role_type??"engineer"}
-                                style={{padding:"3px 6px",fontSize:13,width:"auto",background:"var(--bg2)",border:"1px solid var(--border3)",color:"var(--text1)",borderRadius:4,outline:"none"}}
-                                onChange={e=>setPendingRoles(p=>({...p,[eng.id]:e.target.value}))}>
-                                {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                              </select>
-                              {pendingRoles[eng.id]&&pendingRoles[eng.id]!==eng.role_type&&(
-                                <button className="be" style={{fontSize:12,padding:"3px 8px"}} onClick={async()=>{
-                                  const newRole=pendingRoles[eng.id];
-                                  const {data,error}=await supabase.from("engineers").update({role_type:newRole}).eq("id",eng.id).select().single();
-                                  if(error){
-                                    // RLS blocks this — need policy: allow admin to update any row
-                                    // Workaround: update local state and show SQL to run
-                                    setEngineers(prev=>prev.map(e=>e.id===eng.id?{...e,role_type:newRole}:e));
-                                    showToast("Role set locally ✓ — To persist: run SQL migration in Admin › Info tab",false);
-                                    return;
-                                  }
-                                  if(data) setEngineers(prev=>prev.map(x=>x.id===data.id?data:x));
-                                  setPendingRoles(p=>{const n={...p};delete n[eng.id];return n;});
-                                  showToast(`${eng.name} → ${ROLE_LABELS[newRole]} ✓`);
-                                  logAction("UPDATE","Engineer",`Role changed: ${eng.name} → ${newRole}`,{engineer_id:eng.id,name:eng.name,new_role:newRole});
-                                }}>Save</button>
-                              )}
-                            </div>
-                          </td>
-                          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#f47218"}}>{wdStr||"—"}</td>
-                          <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{es?.workHrs||0}h</td>
-                          <td><div style={{display:"flex",gap:5}}>
-                            <button className="be" onClick={()=>setEditEngModal({...eng})}>✎</button>
-                            <button className="bd" onClick={()=>deleteEngineer(eng.id)}>✕</button>
-                          </div></td>
-                        </tr>
-                      );
-                    })}</tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* PROJECTS */}
-              {adminTab==="projects"&&(isAdmin||isLead||isAcct||isSenior)&&(
-                <ProjectsTab
-                  projects={projects}
-                  subprojects={subprojects}
-                  entries={entries}
-                  engineers={engineers}
-                  expandedProj={expandedProj}
-                  setExpandedProj={setExpandedProj}
-                  setShowProjModal={setShowProjModal}
-                  setEditProjModal={setEditProjModal}
-                  setSubProjModal={setSubProjModal}
-                  deleteProject={deleteProject}
-                  deleteSubProject={deleteSubProject}
-                  isAdmin={isAdmin}
-                  isLead={isLead}
-                  isAcct={isAcct}
-                />
-              )}
-
-              {/* ALL ENTRIES */}
-              {adminTab==="entries"&&(
-                <div>
-                  <div className="card" style={{marginBottom:12}}>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-                      <div><Lbl>Engineer</Lbl>
-                        <select value={entryFilter.engineer} onChange={e=>setEntryFilter(p=>({...p,engineer:e.target.value}))}>
-                          <option value="ALL">All Engineers</option>
-                          {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-                        </select>
-                      </div>
-                      <div><Lbl>Project</Lbl>
-                        <select value={entryFilter.project} onChange={e=>setEntryFilter(p=>({...p,project:e.target.value}))}>
-                          <option value="ALL">All Projects</option>
-                          {projects.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
-                        </select>
-                      </div>
-                      <div><Lbl>Month</Lbl>
-                        <select value={entryFilter.month} onChange={e=>setEntryFilter(p=>({...p,month:+e.target.value}))}>
-                          {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
-                        </select>
-                      </div>
-                      <div><Lbl>Year</Lbl>
-                        <select value={entryFilter.year} onChange={e=>setEntryFilter(p=>({...p,year:+e.target.value}))}>
-                          {[year-2,year-1,year,year+1].map(y=><option key={y}>{y}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="card">
-                    {(()=>{
-                      const workE=adminBrowseEntries.filter(e=>e.entry_type==="work");
-                      const leaveE=adminBrowseEntries.filter(e=>e.entry_type==="leave");
-                      const totalWH=workE.reduce((s,e)=>s+e.hours,0);
-                      const billH=workE.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
-                      const nonBillH=totalWH-billH;
-                      const uniqEngs=[...new Set(workE.map(e=>e.engineer_id))].length;
-                      const uniqProjs=[...new Set(workE.map(e=>e.project_id).filter(Boolean))].length;
-                      return(
-                    <div style={{marginBottom:14}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                        <h3 style={{fontSize:15,fontWeight:600,color:"var(--text2)"}}>Entries ({adminBrowseEntries.length})</h3>
-                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#34d399",fontWeight:700}}>{totalWH}h work · <span style={{color:"#fb923c"}}>{leaveE.length}d leave</span></span>
-                      </div>
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
-                        {[
-                          {l:"Work Hours",  v:totalWH+"h",       c:"var(--info)"},
-                          {l:"Billable",    v:billH+"h",         c:"#34d399"},
-                          {l:"Non-Billable",v:nonBillH+"h",      c:"#fb923c"},
-                          {l:"Engineers",   v:uniqEngs,          c:"#a78bfa"},
-                          {l:"Projects",    v:uniqProjs,         c:"#60a5fa"},
-                        ].map((s,i)=>(
-                          <div key={i} style={{background:"var(--bg2)",borderRadius:6,padding:"8px 10px"}}>
-                            <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div>
-                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c,marginTop:4}}>{s.v}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                      );
-                    })()}
-                    <div style={{maxHeight:500,overflowY:"auto"}}>
-                      <table>
-                        <thead><tr><th>Date</th><th>Engineer</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th><th>Type</th><th style={{width:90}}>Actions</th></tr></thead>
-                        <tbody>
-                          {adminBrowseEntries.length===0&&<tr><td colSpan={8} style={{textAlign:"center",color:"var(--text4)",padding:20}}>No entries</td></tr>}
-                          {adminBrowseEntries.map(e=>{
-                            const eng=engineers.find(x=>x.id===e.engineer_id);
-                            const proj=projects.find(x=>x.id===e.project_id);
-                            return(
-                              <tr key={e.id}>
-                                <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                                <td style={{fontSize:13}}>{eng?.name||"—"}</td>
-                                <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
-                                <td style={{fontSize:12,color:"var(--text2)"}}>{e.task_type||"—"}</td>
-                                <td style={{fontSize:12,color:"var(--text3)",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
-                                <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
-                                <td><span style={{fontSize:11,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
-                                {canEditAny&&<td><div style={{display:"flex",gap:4}}>
-                                  <button className="be" style={{fontSize:12}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
-                                  {isAdmin&&<button className="bd" style={{fontSize:12}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}
-                                </div></td>}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-
-              {/* ══ FINANCE MODULE ══ */}
-              {adminTab==="finance"&&(isAdmin||isAcct||isSenior)&&(
-                <FinanceTab
-                  staff={staff} entries={entries} expenses={expenses}
-                  projects={projects} engineers={engineers}
-                  egpRate={egpRate} setEgpRate={setEgpRate}
-                  finTab={finTab} setFinTab={setFinTab}
-                  finMonth={finMonth} setFinMonth={setFinMonth}
-                  finYear={finYear} setFinYear={setFinYear}
-                  setEditStaff={setEditStaff} setShowStaffModal={setShowStaffModal}
-                  setEditExp={setEditExp} setNewExp={setNewExp} setShowExpModal={setShowExpModal}
-                  deleteStaff={deleteStaff} deleteExpense={deleteExpense}
-                  fmtCurrency={fmtCurrency} buildFinancePDF={buildFinancePDF}
-                  isAdmin={isAdmin} isSenior={isSenior} isLead={isLead} isAcct={isAcct}
-                  journalEntries={journalEntries} setJournalEntries={setJournalEntries}
-                  fixedAssets={fixedAssets} journalLoading={journalLoading}
-                  assetsLoading={assetsLoading} finSubTab={finSubTab} setFinSubTab={setFinSubTab}
-                  accounts={accounts}/>
-              )}
-
-              {/* ══ FUNCTIONS / ACTIVITIES ══ */}
-              {adminTab==="functions"&&(isAdmin||isLead||isAcct||isSenior)&&(
-                <FunctionsTab
-                  entries={entries} engineers={engineers}
-                  funcYear={funcYear} setFuncYear={setFuncYear}
-                  funcEngId={funcEngId} setFuncEngId={setFuncEngId}
-                  deleteEntry={deleteEntry} isAdmin={isAdmin} isLead={isLead} isAcct={isAcct} year={year}
-                  setShowFuncModal={setShowFuncModal}
-                />
-              )}
-
-              {/* ══ KPI DASHBOARD ══ */}
-              {adminTab==="kpis"&&(isAdmin||isLead||isAcct||isSenior)&&(
-                <KPIsTab
-                  entries={entries} engineers={engineers} projects={projects}
-                  kpiYear={kpiYear} setKpiYear={setKpiYear}
-                  kpiEngId={kpiEngId} setKpiEngId={setKpiEngId}
-                  kpiNotes={kpiNotes} setKpiNotes={setKpiNotes}
-                  isAdmin={isAdmin} isLead={isLead} isAcct={isAcct} year={year}
-                  notifications={notifications}
-                  onDismissNotif={dismissNotification}
-                  alertDay={alertDay} setAlertDay={setAlertDay}
-                />
-              )}
-
-
-              {/* ══ PROJECT TRACKER ══ */}
-              {adminTab==="tracker"&&(isAdmin||isLead||isAcct||isSenior)&&(
-                <ProjectTracker
-                  projects={projects}
-                  activities={activities}
-                  subprojects={subprojects}
-                  entries={entries}
-                  engineers={engineers}
-                  isAdmin={isAdmin}
-                  isLead={isLead}
-                  isAcct={isAcct}
-                  activitiesLoaded={activitiesLoaded}
-                  setActivities={setActivities}
-                  showToast={showToast}
-                />
-              )}
-
-              {/* SETTINGS */}
-              {adminTab==="settings"&&isAdmin&&(
-                <div style={{maxWidth:600,display:"grid",gap:14}}>
-                  <div className="card">
-                    <h3 style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>Access Role Descriptions</h3>
-                    <p style={{fontSize:13,color:"var(--text4)",marginBottom:14,lineHeight:1.6}}>Each role controls what features are visible and accessible.</p>
-                    <div style={{display:"grid",gap:8}}>
-                      {[
-                        {role:"engineer",label:"Engineer",color:"var(--text3)",perms:"Post own hours on assigned projects only · View dashboard, projects & team · No reports access"},
-                        {role:"lead",    label:"Lead Engineer",color:"var(--info)",perms:"Post & edit any engineer's hours · View all reports · Export individual timesheets · Manage project tracker"},
-                        {role:"accountant",label:"Accountant",color:"#a78bfa",perms:"Full Finance tab access · Add/edit/delete expenses · Export all reports & invoices · View rates & revenue"},
-                        {role:"senior_management",label:"Senior Management",color:"#fb923c",perms:"View-only admin access · Export all reports · No data entry or editing allowed"},
-                        {role:"admin",   label:"Admin",color:"#34d399",perms:"Full access · Manage engineers & projects · All reports & invoices · Configure system settings"},
-                      ].map(r=>(
-                        <div key={r.role} style={{background:"var(--bg2)",border:`1px solid ${r.color}30`,borderRadius:8,padding:"10px 14px"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                            <span className="role-badge" style={{background:r.color+"20",color:r.color}}>{r.label}</span>
-                          </div>
-                          <div style={{fontSize:13,color:"var(--text3)",lineHeight:1.5}}>{r.perms}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ACTIVITY LOG */}
-              {adminTab==="actlog"&&isAdmin&&(
-                <ActivityLogTab
-                  activityLog={activityLog}
-                  archiveLog={archiveLog}
-                  archiveLoaded={archiveLoaded}
-                  loading={logLoading}
-                  archiveLoading={archiveLoading}
-                  retentionDays={retentionDays}
-                  setRetentionDays={setRetentionDays}
-                  onRefresh={()=>{
-                    setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
-                      .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
-                  }}
-                  onArchive={async()=>{
-                    if(!window.confirm(`Move logs older than ${retentionDays} days to archive?`)) return;
-                    const {data,error} = await supabase.rpc("archive_activity_log",{retention_days:retentionDays});
-                    if(error){ alert("Archive error: "+error.message); return; }
-                    const r = data?.[0]||{};
-                    showToast(`Archived ${r.archived_count||0} events, removed ${r.deleted_count||0} from live log`);
-                    logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:r.archived_count,deleted:r.deleted_count});
-                    // Reload live log after archive
-                    setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
-                      .then(({data:liveData})=>{ if(liveData) setActivityLog(liveData); setLogLoading(false); });
-                    // Reset archive cache so next "Load Archive" gets fresh data
-                    setArchiveLog([]); setArchiveLoaded(false);
-                  }}
-                  onLoadArchive={()=>{
-                    setArchiveLoading(true);
-                    supabase.from("activity_log_archive").select("*").order("created_at",{ascending:false}).limit(2000)
-                      .then(({data,error})=>{
-                        if(error){ console.error("[Archive] Load failed:",error.message); showToast("Archive load error: "+error.message,false); }
-                        else{ setArchiveLog(data||[]); setArchiveLoaded(true); }
-                        setArchiveLoading(false);
-                      });
-                  }}
-                  onPruneArchive={async()=>{
-                    if(!window.confirm("Delete archive entries older than 1 year? This cannot be undone.")) return;
-                    const {data,error} = await supabase.rpc("prune_activity_archive",{max_age_days:365});
-                    if(error){alert("Prune error: "+error.message);return;}
-                    showToast(`Pruned ${data||0} archive entries older than 1 year`);
-                    logAction("DELETE","Auth",`Pruned activity archive — entries older than 365d`,{pruned:data});
-                    setArchiveLog([]); setArchiveLoaded(false);
-                  }}
-                />
-              )}
-            </div>
-          )}
-
-
-
-
-          {/* ════ IMPORT EXCEL ════ */}
-          {view==="import"&&isAdmin&&(
-            <div>
-              <div style={{marginBottom:20}}>
-                <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>Import Excel Timesheets</h1>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
-                  <p style={{color:"var(--text4)",fontSize:14}}>Upload ENEVOEGY timesheet files · Engineers &amp; projects created automatically</p>
-                  <span style={{fontSize:12,padding:"2px 8px",borderRadius:3,background:xlsxReady?"#024b36":"#1a0a00",color:xlsxReady?"#34d399":"#fb923c",fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"}}>
-                    {xlsxReady?"✓ XLSX READY":"⏳ LOADING XLSX..."}
-                  </span>
-                </div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-                {/* Upload panel */}
-                <div>
-                  <div className="card" style={{marginBottom:14}}>
-                    <h3 style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:12}}>📂 Upload Timesheet Files</h3>
-                    <div style={{border:"2px dashed #192d47",borderRadius:8,padding:"28px",textAlign:"center",marginBottom:14,cursor:"pointer",transition:"border-color .2s"}}
-                      onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="var(--info)";}}
-                      onDragLeave={e=>{e.currentTarget.style.borderColor="var(--border)";}}
-                      onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor="var(--border)";const f=[...e.dataTransfer.files].filter(f=>f.name.endsWith(".xlsx")||f.name.endsWith(".xls"));setImportFiles(prev=>[...prev,...f]);}}
-                      onClick={()=>document.getElementById("xlsxInput").click()}>
-                      <div style={{fontSize:32,marginBottom:8}}>📊</div>
-                      <div style={{fontSize:15,fontWeight:600,color:"var(--text0)",marginBottom:4}}>Drop .xlsx files here or click to browse</div>
-                      <div style={{fontSize:13,color:"var(--text4)"}}>Supports ENEVOEGY timesheet format · Multiple files at once</div>
-                      <input id="xlsxInput" type="file" accept=".xlsx,.xls" multiple style={{display:"none"}}
-                        onChange={e=>setImportFiles(prev=>[...prev,...Array.from(e.target.files)])}/>
-                    </div>
-                    {importFiles.length>0&&(
-                      <div>
-                        <div style={{fontSize:13,color:"var(--text2)",marginBottom:8,fontWeight:700}}>{importFiles.length} FILE{importFiles.length>1?"S":""} QUEUED:</div>
-                        {importFiles.map((f,i)=>(
-                          <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--bg2)",borderRadius:5,padding:"7px 10px",marginBottom:5}}>
-                            <div>
-                              <div style={{fontSize:14,fontWeight:600}}>{f.name}</div>
-                              <div style={{fontSize:12,color:"var(--text4)"}}>{(f.size/1024).toFixed(1)} KB</div>
-                            </div>
-                            <button className="bd" style={{fontSize:12}} onClick={()=>setImportFiles(prev=>prev.filter((_,j)=>j!==i))}>✕</button>
-                          </div>
-                        ))}
-                        {!xlsxReady&&<div style={{background:"#1a0a00",border:"1px solid #fb923c30",borderRadius:6,padding:"8px 12px",fontSize:13,color:"#fb923c",marginBottom:8}}>⏳ XLSX library loading... wait a moment then try again.</div>}
-                        <div style={{display:"flex",gap:10,marginTop:12}}>
-                          <button className="bp" style={{flex:1,justifyContent:"center"}} disabled={importing||!xlsxReady} onClick={()=>importTimesheets(importFiles)}>
-                            {importing?"⏳ Importing...":!xlsxReady?"⏳ Loading XLSX...":"⬆ Import All Files"}
-                          </button>
-                          <button className="bg" onClick={()=>{setImportFiles([]);setImportLog([]);}}>Clear</button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="card">
-                    <h3 style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:10}}>📋 What Gets Imported</h3>
-                    {[
-                      ["👤","Engineer","Created automatically from Name + Email in the sheet header"],
-                      ["⏱","Work Hours","Daily task + hours + project mapped to entries"],
-                      ["✈","Leave Days","Public holidays and leave days detected automatically"],
-                      ["◈","Projects","Matched by project name — assign missing ones after import"],
-                      ["🔤","Task Types","Auto-detected from task description (SCADA, HMI, PLC, etc.)"],
-                    ].map(([icon,label,desc])=>(
-                      <div key={label} style={{display:"flex",gap:10,marginBottom:10}}>
-                        <div style={{fontSize:16,width:24,flexShrink:0}}>{icon}</div>
-                        <div><div style={{fontSize:14,fontWeight:600}}>{label}</div><div style={{fontSize:13,color:"var(--text4)",lineHeight:1.5}}>{desc}</div></div>
-                      </div>
-                    ))}
-                    <div style={{background:"#1a0a00",border:"1px solid #fb923c30",borderRadius:6,padding:"9px 12px",fontSize:13,color:"#fb923c",marginTop:8}}>
-                      ⚠ After importing, go to Admin → All Entries to review and assign project numbers to any unmatched entries.
-                    </div>
-                  </div>
-                </div>
-                {/* Log panel */}
-                <div className="card" style={{maxHeight:600,overflowY:"auto"}}>
-                  <h3 style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:12}}>📋 Import Log</h3>
-                  {importLog.length===0&&<div style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:30}}>No import started yet</div>}
-                  {importLog.map((entry,i)=>(
-                    <div key={i} style={{display:"flex",gap:8,marginBottom:5,fontSize:13,padding:"4px 0",borderBottom:"1px solid #0d1a2d"}}>
-                      <span style={{width:8,height:8,borderRadius:"50%",marginTop:4,flexShrink:0,background:entry.type==="ok"?"#34d399":entry.type==="error"?"#f87171":entry.type==="warn"?"#fb923c":"var(--info)"}}/>
-                      <span style={{color:entry.type==="ok"?"#34d399":entry.type==="error"?"#f87171":entry.type==="warn"?"#fb923c":"var(--text2)",lineHeight:1.4}}>{entry.msg}</span>
-                    </div>
-                  ))}
-                  {importing&&<div style={{textAlign:"center",padding:10,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>Processing…</div>}
-                </div>
-              </div>
-            </div>
-          )}
-
-          </>}
-        </div>
-      </div>
-
-      {/* ════ MODALS ════ */}
-
-      {/* Add Entry */}
-      {modalDate&&(()=>{
-        const step = newEntry._step||1;
-        const isWork = newEntry.type==="work";
-        const isLeave = newEntry.type==="leave";
-        const isFunc = newEntry.type==="function";
-        // Determine target engineer (who hours are being posted FOR)
-        const _postForId = canEditAny ? viewEngId : myProfile?.id;
-        const _targetEng = canEditAny
-          ? engineers.find(e=>e.id===viewEngId||String(e.id)===String(viewEngId))
-          : myProfile;
-        const _targetRole = _targetEng?.role_type||"engineer";
-        const _availProjs = getPostableProjects(_postForId);
-        const _noProjects = isWork && _availProjs.length===0;
-        const groupCats = TAXONOMY_GROUPS[newEntry._group]||[];
-        const catActs = ACTIVITY_TAXONOMY[newEntry.taskCategory]||[];
-        const projActs = isWork&&newEntry.projectId
-          ? activities.filter(a=>a.project_id===newEntry.projectId&&a.status!=="Completed")
-          : [];
-        const projSubList=[...new Set(projActs.map(a=>a.subproject_id).filter(Boolean))];
-        const filteredActs = projActs.filter(a=>{
-          const matchSub = !newEntry._actSub || String(a.subproject_id)===String(newEntry._actSub);
-          const matchCat = !newEntry._actCat || a.category===newEntry._actCat || a.group_name===newEntry._actCat;
-          return matchSub && matchCat;
-        });
-
-        const INP={width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"7px 10px",fontSize:14,boxSizing:"border-box"};
-        const LBL={fontSize:12,color:"var(--text2)",fontWeight:700,display:"block",marginBottom:4,letterSpacing:".05em"};
-        const GC={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
-
-        // Step pill indicator
-        const totalSteps = isLeave?2:isFunc?3:4;
-        const StepBar=()=>(
-          <div style={{display:"flex",gap:4,marginBottom:16}}>
-            {Array.from({length:totalSteps},(_,i)=>(
-              <div key={i} style={{flex:1,height:3,borderRadius:99,
-                background:i<step?"var(--info)":"var(--border)",
-                transition:"background .2s"}}/>
-            ))}
-          </div>
-        );
-
-        const Btn=({children,onClick,disabled,primary})=>(
-          <button onClick={onClick} disabled={disabled}
-            style={{padding:"8px 18px",borderRadius:6,border:"none",cursor:disabled?"not-allowed":"pointer",
-              background:primary?"#1d4ed8":"var(--bg3)",color:disabled?"var(--text4)":"var(--text0)",
-              fontSize:14,fontWeight:700,opacity:disabled?.5:1,transition:"all .15s"}}>
-            {children}
-          </button>
-        );
-
-        return(
-        <div className="modal-ov" onClick={()=>setModalDate(null)}>
-          <div className="modal" style={{maxWidth:420}} onClick={e=>e.stopPropagation()}>
-
-            {/* Header */}
-            <div style={{marginBottom:14}}>
-              <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:2}}>Post Hours</h3>
-              <p style={{fontSize:12,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace",margin:0}}>
-                {new Date(modalDate).toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}
-                {canEdit&&viewEng&&<span> · {viewEng.name}</span>}
-              </p>
-            </div>
-
-            <StepBar/>
-
-            <div style={{display:"grid",gap:12}}>
-
-              {/* ── STEP 1: Entry type ── */}
-              {step===1&&(
-                <div>
-                  <label style={LBL}>WHAT ARE YOU LOGGING?</label>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:4}}>
-                    {[
-                      {v:"work",   icon:"🔧", label:"Work"},
-                      {v:"function",icon:"📋",label:"Function"},
-                      {v:"leave",  icon:"🌴", label:"Leave"},
-                    ].map(({v,icon,label})=>(
-                      <button key={v} onClick={()=>setNewEntry(p=>({...p,type:v,_step:2}))}
-                        style={{padding:"14px 8px",borderRadius:8,border:`2px solid ${newEntry.type===v?"var(--info)":"var(--border)"}`,
-                          background:newEntry.type===v?"var(--info)"+"18":"var(--bg2)",
-                          color:newEntry.type===v?"var(--info)":"var(--text3)",
-                          fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",
-                          flexDirection:"column",alignItems:"center",gap:4}}>
-                        <span style={{fontSize:20}}>{icon}</span>{label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* ── STEP 2 for LEAVE: type + hours ── */}
-              {step===2&&isLeave&&(
-                <div style={{display:"grid",gap:12}}>
-                  <div>
-                    <label style={LBL}>LEAVE TYPE</label>
-                    <select value={newEntry.leaveType} onChange={e=>setNewEntry(p=>({...p,leaveType:e.target.value}))} style={INP}>
-                      {LEAVE_TYPES.map(t=><option key={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div style={{padding:"10px 12px",background:"var(--bg0)",borderRadius:6,border:"1px solid var(--border3)",fontSize:13,color:"var(--text3)"}}>
-                    ℹ️ Leave entries are logged as a full 8-hour day automatically.
-                  </div>
-                </div>
-              )}
-
-              {/* ── STEP 2 for FUNCTION: category ── */}
-              {step===2&&isFunc&&(
-                <div style={{display:"grid",gap:12}}>
-                  <div>
-                    <label style={LBL}>FUNCTION CATEGORY</label>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                      {FUNCTION_CATS.map(c=>(
-                        <button key={c} onClick={()=>setNewEntry(p=>({...p,taskType:c,function_category:c}))}
-                          style={{padding:"7px 8px",borderRadius:6,border:`1px solid ${newEntry.taskType===c?"var(--info)":"var(--border)"}`,
-                            background:newEntry.taskType===c?"var(--info)"+"18":"var(--bg2)",
-                            color:newEntry.taskType===c?"var(--info)":"var(--text3)",
-                            fontSize:12,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
-                          {c}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ── STEP 3 for FUNCTION: hours + description ── */}
-              {step===3&&isFunc&&(
-                <div style={{display:"grid",gap:12}}>
-                  <div style={{padding:"8px 12px",background:"var(--info)"+"12",borderRadius:6,border:"1px solid #38bdf8"+"40",fontSize:13,color:"var(--info)",fontWeight:700}}>
-                    {newEntry.taskType||FUNCTION_CATS[0]}
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"100px 1fr",gap:10,alignItems:"start"}}>
-                    <div>
-                      <label style={LBL}>HOURS</label>
-                      <input type="number" min=".5" max="12" step=".5" value={newEntry.hours}
-                        onChange={e=>setNewEntry(p=>({...p,hours:+e.target.value}))} style={INP}/>
-                    </div>
-                    <div>
-                      <label style={LBL}>DESCRIPTION</label>
-                      <textarea rows={2} value={newEntry.activity}
-                        onChange={e=>setNewEntry(p=>({...p,activity:e.target.value}))}
-                        placeholder="Describe the activity…" style={{...INP,resize:"vertical"}}/>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ── STEP 2 for WORK: project + sub-site ── */}
-              {step===2&&isWork&&(
-                <div style={{display:"grid",gap:12}}>
-                  {(()=>{
-                    return(
-                    <div>
-                      <label style={LBL}>PROJECT</label>
-                      {_noProjects?(
-                        <div style={{padding:"12px",background:"#1a0a0a",border:"1px solid #f8717140",borderRadius:6,fontSize:13,color:"#f87171",textAlign:"center"}}>
-                          ⚠ {_targetEng?.name||"This engineer"} is not assigned to any active project.<br/>
-                          <span style={{color:"var(--text3)",fontSize:12}}>Ask an admin to assign projects first.</span>
-                        </div>
-                      ):(
-                        <select value={newEntry.projectId}
-                          onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null,_actCat:null,_actSub:null}))}
-                          style={{...INP,borderColor:!newEntry.projectId?"#f87171":"var(--border)"}}>
-                          <option value="">— Select Project —</option>
-                          {_availProjs.map(p=>(
-                            <option key={p.id} value={p.id}>{p.id} — {p.name}</option>
-                          ))}
-                        </select>
-                      )}
-                    </div>);
-                  })()}
-                  {/* Sub-site if available */}
-                  {newEntry.projectId&&projSubList.length>0&&(
-                    <div>
-                      <label style={LBL}>SUB-SITE <span style={{color:"var(--text3)",fontWeight:400}}>(optional)</span></label>
-                      <select value={newEntry._actSub||""}
-                        onChange={e=>setNewEntry(p=>({...p,_actSub:e.target.value||null,activityId:null}))}
-                        style={INP}>
-                        <option value="">— All sub-sites —</option>
-                        {projSubList.map(sid=>{
-                          const sp=subprojects.find(s=>String(s.id)===String(sid));
-                          return sp?<option key={sid} value={sid}>{sp.name}</option>:null;
-                        })}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ── STEP 3 for WORK: group + category + activity ── */}
-              {step===3&&isWork&&(
-                <div style={{display:"grid",gap:12}}>
-
-                  {/* Group pills */}
-                  <div>
-                    <label style={LBL}>WORK GROUP</label>
-                    <div style={{display:"flex",gap:6}}>
-                      {TAXONOMY_GROUP_NAMES.map(g=>(
-                        <button key={g} onClick={()=>setNewEntry(p=>({
-                            ...p,_group:g,
-                            taskCategory:TAXONOMY_GROUPS[g][0],
-                            taskType:ACTIVITY_TAXONOMY[TAXONOMY_GROUPS[g][0]]?.[0]||"",
-                            activityId:null
-                          }))}
-                          style={{flex:1,padding:"6px 4px",borderRadius:6,
-                            border:`1px solid ${newEntry._group===g?(GC[g]||"var(--info)")+"80":"var(--border)"}`,
-                            background:newEntry._group===g?(GC[g]||"var(--info)")+"15":"var(--bg2)",
-                            color:newEntry._group===g?(GC[g]||"var(--info)"):"var(--text3)",
-                            fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                          {g}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Category dropdown */}
-                  <div>
-                    <label style={LBL}>CATEGORY</label>
-                    <select value={newEntry.taskCategory}
-                      onChange={e=>setNewEntry(p=>({...p,taskCategory:e.target.value,taskType:ACTIVITY_TAXONOMY[e.target.value]?.[0]||"",activityId:null}))}
-                      style={INP}>
-                      {groupCats.map(c=><option key={c}>{c}</option>)}
-                    </select>
-                  </div>
-
-                  {/* Activity — from tracker if available, else from taxonomy */}
-                  <div>
-                    <label style={LBL}>ACTIVITY</label>
-                    {filteredActs.length>0?(
-                      <select value={newEntry.activityId||""}
-                        onChange={e=>setNewEntry(p=>({...p,activityId:e.target.value||null,
-                          taskType:filteredActs.find(a=>String(a.id)===e.target.value)?.activity_name||p.taskType}))}
-                        style={{...INP,borderColor:"var(--info)"+"60"}}>
-                        <option value="">— General (no specific activity) —</option>
-                        {filteredActs
-                          .filter(a=>!newEntry.taskCategory||a.category===newEntry.taskCategory)
-                          .map(a=>(
-                          <option key={a.id} value={a.id}>
-                            {a.activity_name} · {Math.round((a.progress||0)*100)}%
-                          </option>
-                        ))}
-                      </select>
-                    ):(
-                      <select value={newEntry.taskType}
-                        onChange={e=>setNewEntry(p=>({...p,taskType:e.target.value}))}
-                        style={INP}>
-                        {catActs.map(t=><option key={t}>{t}</option>)}
-                        <option value="Other">Other…</option>
-                      </select>
-                    )}
-                    {filteredActs.length>0&&(
-                      <div style={{fontSize:11,color:"var(--info)",marginTop:3,paddingLeft:2}}>
-                        ✓ Linked to project tracker activities
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ── STEP 4 for WORK: hours + description ── */}
-              {step===4&&isWork&&(
-                <div style={{display:"grid",gap:12}}>
-                  {/* Summary badge */}
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                    <span style={{padding:"3px 8px",borderRadius:99,background:(GC[newEntry._group]||"var(--info)")+"18",
-                      color:GC[newEntry._group]||"var(--info)",fontSize:12,fontWeight:700}}>
-                      {newEntry._group}
-                    </span>
-                    <span style={{padding:"3px 8px",borderRadius:99,background:"var(--border)",color:"var(--text2)",fontSize:12}}>
-                      {newEntry.taskCategory}
-                    </span>
-                    {newEntry.taskType&&(
-                      <span style={{padding:"3px 8px",borderRadius:99,background:"var(--border)",color:"var(--text2)",fontSize:12}}>
-                        {newEntry.taskType.length>30?newEntry.taskType.slice(0,28)+"…":newEntry.taskType}
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{display:"grid",gridTemplateColumns:"100px 1fr",gap:10,alignItems:"start"}}>
-                    <div>
-                      <label style={LBL}>HOURS</label>
-                      <input type="number" min=".5" max="12" step=".5" value={newEntry.hours}
-                        onChange={e=>setNewEntry(p=>({...p,hours:+e.target.value}))} style={INP}/>
-                    </div>
-                    <div>
-                      <label style={LBL}>NOTES <span style={{color:"var(--text3)",fontWeight:400}}>(optional)</span></label>
-                      <textarea rows={2} value={newEntry.activity}
-                        onChange={e=>setNewEntry(p=>({...p,activity:e.target.value}))}
-                        placeholder="e.g. Completed BESS display animations…"
-                        style={{...INP,resize:"vertical"}}/>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Navigation */}
-            <div style={{display:"flex",justifyContent:"space-between",marginTop:18,gap:10}}>
-              <div>
-                {step>1&&(
-                  <Btn onClick={()=>setNewEntry(p=>({...p,_step:p._step-1}))}>← Back</Btn>
-                )}
-              </div>
-              <div style={{display:"flex",gap:8}}>
-                <Btn onClick={()=>setModalDate(null)}>Cancel</Btn>
-                {step<totalSteps?(
-                  <Btn primary
-                    disabled={
-                      (step===2&&isWork&&(_noProjects||!newEntry.projectId))||
-                      (step===2&&isFunc&&!newEntry.taskType)
-                    }
-                    onClick={()=>setNewEntry(p=>({...p,_step:p._step+1}))}>
-                    Next →
-                  </Btn>
-                ):(
-                  <Btn primary
-                    disabled={!newEntry.hours||(isWork&&!newEntry.projectId)}
-                    onClick={()=>addEntry(modalDate)}>
-                    ✓ Post Hours
-                  </Btn>
-                )}
-              </div>
-            </div>
-
-          </div>
-        </div>);
-      })()}
-
-      {editEntry&&(
-        <div className="modal-ov" onClick={()=>setEditEntry(null)}>
-          <div className="modal" onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:18}}>Edit Entry</h3>
-            <div style={{display:"grid",gap:11}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Date</Lbl><input type="date" value={editEntry.date} onChange={e=>setEditEntry(p=>({...p,date:e.target.value}))}/></div>
-                <div><Lbl>Entry Type</Lbl>
-                  <select value={editEntry.type} onChange={e=>setEditEntry(p=>({...p,type:e.target.value}))}>
-                    <option value="work">Work</option><option value="leave">Leave</option>
-                  </select>
-                </div>
-              </div>
-              {editEntry.type==="work"?<>
-                <div><Lbl>Project</Lbl>
-                  <select value={editEntry.projectId||""} onChange={e=>setEditEntry(p=>({...p,projectId:e.target.value}))}>
-                    <option value="">— Select —</option>
-                    {projects.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
-                  </select>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <div><Lbl>Task Category</Lbl>
-                    <select value={editEntry.taskCategory||editEntry.task_category||"SCADA"} onChange={e=>setEditEntry(p=>({...p,taskCategory:e.target.value,taskType:(TASK_CATEGORIES[e.target.value]||[])[0]||""}))}>
-                      {Object.keys(TASK_CATEGORIES).map(c=><option key={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div><Lbl>Task Type</Lbl>
-                    <select value={editEntry.taskType||editEntry.task_type||""} onChange={e=>setEditEntry(p=>({...p,taskType:e.target.value}))}>
-                      {(TASK_CATEGORIES[editEntry.taskCategory||editEntry.task_category||"SCADA"]||[]).map(t=><option key={t}>{t}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div><Lbl>Hours</Lbl><input type="number" min=".5" max="12" step=".5" value={editEntry.hours} onChange={e=>setEditEntry(p=>({...p,hours:+e.target.value}))}/></div>
-                <div><Lbl>Activity Description</Lbl>
-                  <textarea rows={3} value={editEntry.activity||""} onChange={e=>setEditEntry(p=>({...p,activity:e.target.value}))} style={{resize:"vertical"}}/>
-                </div>
-              </>:(
-                <div><Lbl>Leave Type</Lbl>
-                  <select value={editEntry.leaveType||editEntry.leave_type||LEAVE_TYPES[0]} onChange={e=>setEditEntry(p=>({...p,leaveType:e.target.value}))}>
-                    {LEAVE_TYPES.map(t=><option key={t}>{t}</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
-              <button className="bg" onClick={()=>setEditEntry(null)}>Cancel</button>
-              <button className="bp" onClick={saveEditEntry}>Save Changes</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* New Project */}
-      {showProjModal&&(
-        <div className="modal-ov" onClick={()=>setShowProjModal(false)}>
-          <div className="modal" style={{maxWidth:520}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:18}}>New Project</h3>
-            <div style={{display:"grid",gap:11}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Project Number (e.g. EC-2025-009)</Lbl><input value={newProj.id} onChange={e=>setNewProj(p=>({...p,id:e.target.value}))} placeholder="EC-2025-009"/></div>
-                <div><Lbl>Status</Lbl><select value={newProj.status} onChange={e=>setNewProj(p=>({...p,status:e.target.value}))}>{["Active","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}</select></div>
-              </div>
-              <div><Lbl>Project Name</Lbl><input value={newProj.name} onChange={e=>setNewProj(p=>({...p,name:e.target.value}))}/></div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Type</Lbl><select value={newProj.type} onChange={e=>setNewProj(p=>({...p,type:e.target.value}))}><option>Renewable Energy</option><option>Industrial</option></select></div>
-                <div><Lbl>Phase</Lbl><select value={newProj.phase} onChange={e=>setNewProj(p=>({...p,phase:e.target.value}))}>{PHASES.map(ph=><option key={ph}>{ph}</option>)}</select></div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Client</Lbl><input value={newProj.client} onChange={e=>setNewProj(p=>({...p,client:e.target.value}))}/></div>
-                <div><Lbl>Origin (HQ / BU)</Lbl><input value={newProj.origin} onChange={e=>setNewProj(p=>({...p,origin:e.target.value}))}/></div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Billable?</Lbl><select value={newProj.billable?"yes":"no"} onChange={e=>setNewProj(p=>({...p,billable:e.target.value==="yes"}))}><option value="yes">Yes</option><option value="no">No — Internal</option></select></div>
-                <div><Lbl>Rate per Hour ($)</Lbl><input type="number" value={newProj.rate_per_hour} onChange={e=>setNewProj(p=>({...p,rate_per_hour:+e.target.value}))}/></div>
-              </div>
-              {/* Team assignment */}
-              <div>
-                <Lbl>Assigned Team Members</Lbl>
-                <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,maxHeight:160,overflowY:"auto"}}>
-                  {engineers.filter(e=>{
-                    if(!isEngActive(e)) return false;
-                    if(e.role_type==="accountant"||e.role_type==="senior_management") return false;
-                    if(isLead&&!isAdmin){
-                      return e.id===myProfile?.id||e.role_type==="engineer";
-                    }
-                    return true;
-                  }).map(e=>{
-                    const sel=(newProj.assigned_engineers||[]).includes(String(e.id));
-                    return(
-                    <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"3px 4px",borderRadius:4,background:sel?"var(--bg3)":"transparent"}}>
-                      <input type="checkbox" checked={sel} onChange={()=>setNewProj(p=>{
-                        const cur=p.assigned_engineers||[];
-                        return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
-                      })} style={{accentColor:"var(--info)"}}/>
-                      <span style={{fontSize:12,color:sel?"var(--info)":"var(--text2)"}}>{e.name}</span>
-                      <span style={{fontSize:11,color:"var(--text4)",marginLeft:"auto"}}>{e.role} · {e.role_type==="lead"?"Lead":e.level||""}</span>
-                    </label>);
-                  })}
-                </div>
-              </div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
-              <button className="bg" onClick={()=>setShowProjModal(false)}>Cancel</button>
-              <button className="bp" onClick={addProject}>Create Project</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Project */}
-      {editProjModal&&(()=>{
-        const epTab=editProjModal._tab||"details";
-        const epActs=(activities||[]).filter(a=>a.project_id===(editProjModal._origId||editProjModal.id));
-        const setEpTab=t=>setEditProjModal(p=>({...p,_tab:t}));
-        return(
-        <div className="modal-ov" onClick={()=>setEditProjModal(null)}>
-          <div className="modal" style={{maxWidth:580,maxHeight:"85vh",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:12}}>Edit Project — {editProjModal._origId||editProjModal.id}</h3>
-            {/* Tab bar */}
-            <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid var(--border3)"}}>
-              {(isAdmin?[["details","⚙ Details"],["team","👥 Team"],["activities","📋 Activities"]]:[["details","⚙ Details"],["team","👥 Team"],["activities","📋 Activities"]]).map(([t,l])=>(
-                <button key={t} onClick={()=>setEpTab(t)}
-                  style={{padding:"6px 14px",border:"none",borderBottom:epTab===t?"2px solid #38bdf8":"2px solid transparent",
-                    background:"transparent",color:epTab===t?"var(--info)":"var(--text3)",fontSize:13,fontWeight:600,cursor:"pointer"}}>
-                  {l}{t==="activities"?` (${epActs.length})`:""}
-                </button>
-              ))}
-            </div>
-            <div style={{overflowY:"auto",flex:1}}>
-            {/* ── DETAILS TAB ── */}
-            {epTab==="details"&&<div style={{display:"grid",gap:11}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
-                <div><Lbl>Project No. <span style={{color:"#f87171",fontSize:11}}>(rename re-links all entries)</span></Lbl>
-                  {isAdmin?<input value={editProjModal.id||""} onChange={e=>setEditProjModal(p=>({...p,id:e.target.value.toUpperCase(),_origId:p._origId||p.id}))}/>
-                  :<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,color:"var(--info)",padding:"8px 0"}}>{editProjModal.id}</div>}
-                </div>
-                <div><Lbl>Project Name</Lbl><input value={editProjModal.name} onChange={e=>setEditProjModal(p=>({...p,name:e.target.value}))}/></div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Status</Lbl><select value={editProjModal.status} onChange={e=>setEditProjModal(p=>({...p,status:e.target.value}))}>{["Active","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}</select></div>
-                <div><Lbl>Phase</Lbl><select value={editProjModal.phase} onChange={e=>setEditProjModal(p=>({...p,phase:e.target.value}))}>{PHASES.map(ph=><option key={ph}>{ph}</option>)}</select></div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Client</Lbl><input value={editProjModal.client||""} onChange={e=>setEditProjModal(p=>({...p,client:e.target.value}))}/></div>
-                <div><Lbl>Origin</Lbl><input value={editProjModal.origin||""} onChange={e=>setEditProjModal(p=>({...p,origin:e.target.value}))}/></div>
-              </div>
-              {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Billable?</Lbl><select value={editProjModal.billable?"yes":"no"} onChange={e=>setEditProjModal(p=>({...p,billable:e.target.value==="yes"}))}><option value="yes">Yes</option><option value="no">No</option></select></div>
-                <div><Lbl>Rate per Hour ($)</Lbl><input type="number" value={editProjModal.rate_per_hour} onChange={e=>setEditProjModal(p=>({...p,rate_per_hour:+e.target.value}))}/></div>
-              </div>}
-            </div>}
-            {/* ── TEAM TAB ── */}
-            {epTab==="team"&&<div>
-              <div style={{fontSize:13,color:"var(--text3)",marginBottom:10}}>Select engineers assigned to this project. Only assigned engineers can post hours.</div>
-              <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 8px",display:"grid",gridTemplateColumns:"1fr",gap:4,maxHeight:300,overflowY:"auto"}}>
-                {engineers.filter(e=>{
-                  if(!isEngActive(e)) return false;
-                  if(e.role_type==="accountant"||e.role_type==="senior_management") return false;
-                  if(isLead&&!isAdmin) return e.id===myProfile?.id||e.role_type==="engineer"||e.role_type==="lead";
-                  return true;
-                }).map(e=>{
-                  const sel=(editProjModal.assigned_engineers||[]).includes(String(e.id));
-                  const nameParts=(e.name||"").trim().split(" ");
-                  const displayName=nameParts.length>=2?nameParts[0]+" "+nameParts[nameParts.length-1]:e.name;
-                  return(
-                  <label key={e.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"7px 10px",borderRadius:6,
-                    background:sel?"var(--bg3)":"var(--bg2)",border:`1px solid ${sel?"#0ea5e940":"var(--bg3)"}`,transition:"background .15s"}}>
-                    <input type="checkbox" checked={sel} onChange={()=>setEditProjModal(p=>{
-                      const cur=p.assigned_engineers||[];
-                      return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
-                    })} style={{accentColor:"var(--info)",width:14,height:14,flexShrink:0}}/>
-                    <div className="av" style={{width:30,height:30,fontSize:13,flexShrink:0}}>{(e.name||"").slice(0,2).toUpperCase()}</div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:14,fontWeight:600,color:sel?"var(--info)":"var(--text0)",letterSpacing:.2}}>{displayName}</div>
-                      <div style={{fontSize:12,color:"var(--text3)",marginTop:1}}>{e.role} · <span style={{color:ROLE_COLORS[e.role_type]||"var(--text3)"}}>{ROLE_LABELS[e.role_type]||e.role_type}</span></div>
-                    </div>
-                    {sel&&<span style={{fontSize:11,color:"var(--info)",background:"#38bdf820",padding:"2px 6px",borderRadius:3,flexShrink:0}}>✓ Assigned</span>}
-                  </label>);
-                })}
-              </div>
-              <div style={{fontSize:12,color:"var(--text3)",marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span>{(editProjModal.assigned_engineers||[]).length} engineer{(editProjModal.assigned_engineers||[]).length!==1?"s":""} assigned</span>
-                {(editProjModal.assigned_engineers||[]).length>0&&
-                  <button style={{background:"none",border:"none",color:"#f87171",fontSize:12,cursor:"pointer"}}
-                    onClick={()=>setEditProjModal(p=>({...p,assigned_engineers:[]}))}>Clear all</button>}
-              </div>
-            </div>}
-            {/* ── ACTIVITIES TAB ── */}
-            {epTab==="activities"&&<EditProjActivities
-              projId={editProjModal._origId||editProjModal.id}
-              activities={activities} setActivities={setActivities}
-              engineers={engineers} isEngActive={isEngActive}
-              supabase={supabase} showToast={showToast}
-            />}
-                        </div>
-            {epTab!=="activities"&&<div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",borderTop:"1px solid var(--border3)",paddingTop:14}}>
-              <button className="bg" onClick={()=>setEditProjModal(null)}>Cancel</button>
-              <button className="bp" onClick={saveEditProject}>Save Changes</button>
-            </div>}
-          </div>
-        </div>);
-      })()}
-
-      {/* Sub-Project Add/Edit */}
-      {subProjModal&&(
-        <SubProjectModal
-          key={subProjModal.sub?.id||"new"}
-          projectId={subProjModal.projectId}
-          sub={subProjModal.sub||null}
-          engineers={engineers}
-          onSave={subProjModal.sub?saveSubProject:addSubProject}
-          onClose={()=>setSubProjModal(null)}
-        />
-      )}
-
-      {/* Add Engineer */}
-      {showEngModal&&(
-        <div className="modal-ov" onClick={()=>setShowEngModal(false)}>
-          <div className="modal" onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:18}}>Add Member</h3>
-            <div style={{display:"grid",gap:11}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Full Name</Lbl><input value={newEng.name} onChange={e=>setNewEng(p=>({...p,name:e.target.value}))}/></div>
-                <div><Lbl>Level</Lbl><select value={newEng.level} onChange={e=>setNewEng(p=>({...p,level:e.target.value}))}>{LEVELS.map(l=><option key={l}>{l}</option>)}</select></div>
-              </div>
-              <div><Lbl>Job Title</Lbl>
-                <select value={newEng.role||ROLES_LIST[0]} onChange={e=>setNewEng(p=>({...p,role:e.target.value}))}>
-                  {ROLES_LIST.map(r=><option key={r}>{r}</option>)}
-                </select>
-              </div>
-              <div><Lbl>Email (must match their signup email)</Lbl><input type="email" value={newEng.email} onChange={e=>setNewEng(p=>({...p,email:e.target.value}))}/></div>
-              <div>
-                <Lbl>Access Role</Lbl>
-                <select value={newEng.role_type} onChange={e=>setNewEng(p=>({...p,role_type:e.target.value}))}>
-                  {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                </select>
-                <div style={{fontSize:12,color:"var(--text4)",marginTop:4}}>
-                  {newEng.role_type==="engineer"&&"Can log hours & view own timesheets"}
-                  {newEng.role_type==="lead"&&"Engineer + can view all team timesheets"}
-                  {newEng.role_type==="accountant"&&"Full access to Finance tab, invoices & reports — no timesheet editing"}
-                  {newEng.role_type==="admin"&&"Full access to everything including settings"}
-                </div>
-              </div>
-            </div>
-              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"var(--bg2)",borderRadius:6,border:"1px solid var(--border3)"}}>
-                <span style={{fontSize:13,color:"var(--text2)",flex:1}}>Employment Status</span>
-                {["Active","Inactive"].map(s=>{
-                  const active=s==="Active";
-                  const sel=(newEng.is_active!==false&&!newEng.termination_date)===active;
-                  return <button key={s} onClick={()=>setNewEng(p=>({...p,is_active:active}))}
-                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"var(--border)"}`,
-                      background:sel?(active?"#34d399":"#f87171")+"15":"var(--bg2)",
-                      color:sel?(active?"#34d399":"#f87171"):"var(--text3)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{s}</button>;
-                })}
-              </div>
-            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
-              <button className="bg" onClick={()=>setShowEngModal(false)}>Cancel</button>
-              <button className="bp" onClick={addEngineer}>Add Member</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Engineer */}
-      {editEngModal&&(
-        <div className="modal-ov" onClick={()=>setEditEngModal(null)}>
-          <div className="modal" onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:18}}>Edit — {editEngModal.name}</h3>
-            <div style={{display:"grid",gap:11}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Full Name</Lbl><input value={editEngModal.name||""} onChange={e=>setEditEngModal(p=>({...p,name:e.target.value}))}/></div>
-                <div><Lbl>Level</Lbl><select value={editEngModal.level||"Mid"} onChange={e=>setEditEngModal(p=>({...p,level:e.target.value}))}>{LEVELS.map(l=><option key={l}>{l}</option>)}</select></div>
-              </div>
-              <div><Lbl>Job Title</Lbl>
-                <select value={editEngModal.role||""} onChange={e=>setEditEngModal(p=>({...p,role:e.target.value}))}>
-                  <option value="">— Select —</option>
-                  {ROLES_LIST.map(r=><option key={r}>{r}</option>)}
-                </select>
-              </div>
-              <div><Lbl>Email</Lbl><input type="email" value={editEngModal.email||""} onChange={e=>setEditEngModal(p=>({...p,email:e.target.value}))}/></div>
-              <div><Lbl>Access Role</Lbl><select value={editEngModal.role_type||"engineer"} onChange={e=>setEditEngModal(p=>({...p,role_type:e.target.value}))}>{ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Join Date</Lbl><input type="date" value={editEngModal.join_date||""} onChange={e=>setEditEngModal(p=>({...p,join_date:e.target.value||null}))}/></div>
-                <div><Lbl>Left Date <span style={{color:"var(--text3)",fontWeight:400}}>(sets inactive)</span></Lbl><input type="date" value={editEngModal.termination_date||""} onChange={e=>setEditEngModal(p=>({...p,termination_date:e.target.value||null,is_active:e.target.value?false:p.is_active}))}/></div>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"var(--bg2)",borderRadius:6,border:"1px solid var(--border3)"}}>
-                <span style={{fontSize:13,color:"var(--text2)",flex:1}}>Status</span>
-                {["Active","Inactive"].map(s=>{
-                  const active=s==="Active";
-                  const sel=isEngActive(editEngModal)===active;
-                  return <button key={s} onClick={()=>setEditEngModal(p=>({...p,is_active:active,termination_date:active?null:p.termination_date||TODAY_STR}))}
-                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"var(--border)"}`,
-                      background:sel?(active?"#34d399":"#f87171")+"15":"var(--bg2)",
-                      color:sel?(active?"#34d399":"#f87171"):"var(--text3)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{s}</button>;
-                })}
-              </div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
-              <button className="bg" onClick={()=>setEditEngModal(null)}>Cancel</button>
-              <button className="bp" onClick={saveEditEngineer}>Save</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {/* ── STAFF MODAL ── */}
-      {showStaffModal&&(
-        <div className="modal-ov" onClick={()=>{setShowStaffModal(false);setEditStaff(null);}}>
-          <div className="modal" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:4}}>{editStaff?"Edit Staff Member":"Add Staff Member"}</h3>
-            {!editStaff&&<p style={{fontSize:12,color:"var(--text4)",marginBottom:16}}>This will also create an engineer login record if email is provided.</p>}
-            <div style={{display:"grid",gap:11}}>
-              {/* Row 1: Name + Type */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Full Name</Lbl><input value={(editStaff||newStaff).name} onChange={e=>editStaff?setEditStaff(p=>({...p,name:e.target.value})):setNewStaff(p=>({...p,name:e.target.value}))}/></div>
-                <div><Lbl>Employment Type</Lbl>
-                  <select value={(editStaff||newStaff).type||"full_time"} onChange={e=>editStaff?setEditStaff(p=>({...p,type:e.target.value})):setNewStaff(p=>({...p,type:e.target.value}))}>
-                    {["full_time","part_time","contractor","intern"].map(t=><option key={t} value={t}>{t.replace("_"," ")}</option>)}
-                  </select>
-                </div>
-              </div>
-              {/* Row 2: Department + Job Title */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Department</Lbl>
-                  <select value={(editStaff||newStaff).department||"Engineering"} onChange={e=>editStaff?setEditStaff(p=>({...p,department:e.target.value})):setNewStaff(p=>({...p,department:e.target.value}))}>
-                    {["Engineering","Management","Finance","Operations","IT","Administration","Other"].map(d=><option key={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div><Lbl>Job Title</Lbl>
-                  <select value={(editStaff||newStaff).role||""} onChange={e=>editStaff?setEditStaff(p=>({...p,role:e.target.value})):setNewStaff(p=>({...p,role:e.target.value}))}>
-                    <option value="">— Select —</option>
-                    {ROLES_LIST.map(r=><option key={r}>{r}</option>)}
-                  </select>
-                </div>
-              </div>
-              {/* Row 3: Email (for engineer record) + Level — new staff only */}
-              {!editStaff&&(
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <div>
-                    <Lbl>Email <span style={{color:"var(--text4)",fontWeight:400}}>(signup email)</span></Lbl>
-                    <input type="email" value={newStaff.email||""} onChange={e=>setNewStaff(p=>({...p,email:e.target.value}))} placeholder="name@enevoegy.com"/>
-                  </div>
-                  <div><Lbl>Level</Lbl>
-                    <select value={newStaff.level||"Mid"} onChange={e=>setNewStaff(p=>({...p,level:e.target.value}))}>
-                      {["Junior","Mid","Senior","Lead","Manager","Director"].map(l=><option key={l}>{l}</option>)}
-                    </select>
-                  </div>
-                </div>
-              )}
-              {/* Row 4: Access Role — new staff only */}
-              {!editStaff&&(
-                <div>
-                  <Lbl>System Access Role</Lbl>
-                  <select value={newStaff.role_type||"engineer"} onChange={e=>setNewStaff(p=>({...p,role_type:e.target.value}))}>
-                    {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                  </select>
-                  <div style={{fontSize:12,color:"var(--text4)",marginTop:3}}>
-                    {(newStaff.role_type||"engineer")==="engineer"&&"Can log hours & view own timesheets"}
-                    {(newStaff.role_type||"engineer")==="lead"&&"Can view all timesheets + approve hours"}
-                    {(newStaff.role_type||"engineer")==="accountant"&&"Full Finance tab access"}
-                    {(newStaff.role_type||"engineer")==="senior_management"&&"View-only access across all tabs"}
-                    {(newStaff.role_type||"engineer")==="admin"&&"Full access to everything"}
-                  </div>
-                </div>
-              )}
-              {/* Salaries */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Monthly Salary (USD)</Lbl><input type="number" value={(editStaff||newStaff).salary_usd||""} onChange={e=>editStaff?setEditStaff(p=>({...p,salary_usd:+e.target.value})):setNewStaff(p=>({...p,salary_usd:+e.target.value}))} placeholder="0"/></div>
-                <div><Lbl>Monthly Salary (EGP)</Lbl><input type="number" value={(editStaff||newStaff).salary_egp||""} onChange={e=>editStaff?setEditStaff(p=>({...p,salary_egp:+e.target.value})):setNewStaff(p=>({...p,salary_egp:+e.target.value}))} placeholder="0"/></div>
-              </div>
-              {/* Dates */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Join / Start Date</Lbl><input type="date" value={(editStaff||newStaff).join_date||""} onChange={e=>editStaff?setEditStaff(p=>({...p,join_date:e.target.value||null})):setNewStaff(p=>({...p,join_date:e.target.value||null}))}/></div>
-                <div><Lbl>Termination Date</Lbl><input type="date" value={(editStaff||newStaff).termination_date||""} onChange={e=>editStaff?setEditStaff(p=>({...p,termination_date:e.target.value||null})):setNewStaff(p=>({...p,termination_date:e.target.value||null}))}/></div>
-              </div>
-              {/* Active status */}
-              <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"var(--bg2)",borderRadius:6,border:"1px solid var(--border3)"}}>
-                <span style={{fontSize:13,color:"var(--text2)",flex:1}}>Employment Status</span>
-                {["Active","Inactive"].map(s=>{
-                  const active=s==="Active";
-                  const sel=(editStaff||newStaff).active!==false===active;
-                  return <button key={s} onClick={()=>editStaff?setEditStaff(p=>({...p,active})):setNewStaff(p=>({...p,active}))}
-                    style={{padding:"4px 14px",borderRadius:5,border:`1px solid ${sel?(active?"#34d399":"#f87171")+"80":"var(--border)"}`,
-                      background:sel?(active?"#34d399":"#f87171")+"15":"var(--bg2)",
-                      color:sel?(active?"#34d399":"#f87171"):"var(--text3)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{s}</button>;
-                })}
-              </div>
-              <div><Lbl>Notes</Lbl><input value={(editStaff||newStaff).notes||""} onChange={e=>editStaff?setEditStaff(p=>({...p,notes:e.target.value})):setNewStaff(p=>({...p,notes:e.target.value}))} placeholder="Optional"/></div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
-              <button className="bg" onClick={()=>{setShowStaffModal(false);setEditStaff(null);}}>Cancel</button>
-              <button className="bp" onClick={saveStaff}>{editStaff?"Save Changes":"Add Member"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── EXPENSE MODAL ── */}
-      {showExpModal&&(
-        <div className="modal-ov" onClick={()=>{setShowExpModal(false);setEditExp(null);}}>
-          <div className="modal" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:18}}>{editExp?"Edit Expense":"Add Expense"}</h3>
-            <div style={{display:"grid",gap:11}}>
-              <div><Lbl>Category</Lbl>
-                <select value={(editExp||newExp).category} onChange={e=>editExp?setEditExp(p=>({...p,category:e.target.value})):setNewExp(p=>({...p,category:e.target.value}))}>
-                  {["Office Rent & Utilities","Salaries","Software & Subscriptions","Travel & Transportation","Equipment & Supplies","Other"].map(c=><option key={c}>{c}</option>)}
-                </select>
-              </div>
-              <div><Lbl>Description</Lbl><input value={(editExp||newExp).description} onChange={e=>editExp?setEditExp(p=>({...p,description:e.target.value})):setNewExp(p=>({...p,description:e.target.value}))} placeholder="e.g. Office Rent — Cairo HQ"/></div>
-              {/* Currency selector + single amount + optional rate */}
-              <div>
-                <Lbl>CURRENCY</Lbl>
-                <div style={{display:"flex",gap:8}}>
-                  {["USD","EGP"].map(cur=>{
-                    const active=(editExp||newExp).currency===cur||(!(editExp||newExp).currency&&cur==="USD");
-                    return(
-                    <button key={cur} onClick={()=>editExp?setEditExp(p=>({...p,currency:cur})):setNewExp(p=>({...p,currency:cur}))}
-                      style={{flex:1,padding:"7px",borderRadius:6,border:`1px solid ${active?(cur==="USD"?"var(--info)":"#a78bfa")+"80":"var(--border)"}`,
-                        background:active?(cur==="USD"?"var(--info)":"#a78bfa")+"15":"var(--bg2)",
-                        color:active?(cur==="USD"?"var(--info)":"#a78bfa"):"var(--text3)",
-                        fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                      {cur}
-                    </button>);
-                  })}
-                </div>
-              </div>
-              {(()=>{
-                const exp=editExp||newExp;
-                const cur=exp.currency||"USD";
-                const isEGP=cur==="EGP";
-                const rate=exp.entry_rate||egpRate;
-                const amtVal=isEGP?(exp.amount_egp||""):(exp.amount_usd||"");
-                const setAmt=v=>{ if(editExp) setEditExp(p=>isEGP?{...p,amount_egp:v,amount_usd:0}:{...p,amount_usd:v,amount_egp:0}); else setNewExp(p=>isEGP?{...p,amount_egp:v,amount_usd:0}:{...p,amount_usd:v,amount_egp:0}); };
-                const setRate=v=>{ if(editExp) setEditExp(p=>({...p,entry_rate:v||null})); else setNewExp(p=>({...p,entry_rate:v||null})); };
-                return(<>
-                  <div style={{display:"grid",gridTemplateColumns:isEGP?"2fr 1fr":"1fr",gap:10}}>
-                    <div>
-                      <Lbl>{isEGP?"AMOUNT (EGP)":"AMOUNT (USD)"}</Lbl>
-                      <input type="number" min="0" step={isEGP?"1":"0.01"}
-                        value={amtVal}
-                        onChange={e=>setAmt(+e.target.value)}
-                        placeholder={isEGP?"0":"0.00"}/>
-                    </div>
-                    {isEGP&&(
-                      <div>
-                        <Lbl>RATE <span style={{color:"var(--text3)",fontWeight:400,fontSize:11}}>EGP/$</span></Lbl>
-                        <input type="number" min="1" max="9999" step="1"
-                          value={exp.entry_rate||""}
-                          onChange={e=>setRate(e.target.value?+e.target.value:null)}
-                          placeholder={String(egpRate)}/>
-                      </div>
-                    )}
-                  </div>
-                  {isEGP&&(exp.amount_egp>0)&&(
-                    <div style={{padding:"5px 10px",background:"var(--bg2)",borderRadius:4,border:"1px solid #0f1e2e",fontSize:12,color:"var(--text3)"}}>
-                      ≈ <span style={{color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>${(Math.round((exp.amount_egp||0)/(rate)*100)/100).toLocaleString()}</span>
-                      <span style={{marginLeft:8}}>@ {rate} EGP/$</span>
-                    </div>
-                  )}
-                </>);
-              })()}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Month</Lbl>
-                  <select value={(editExp||newExp).month} onChange={e=>editExp?setEditExp(p=>({...p,month:+e.target.value})):setNewExp(p=>({...p,month:+e.target.value}))}>
-                    {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m,i)=><option key={i} value={i}>{m}</option>)}
-                  </select>
-                </div>
-                <div><Lbl>Year</Lbl>
-                  <select value={(editExp||newExp).year} onChange={e=>editExp?setEditExp(p=>({...p,year:+e.target.value})):setNewExp(p=>({...p,year:+e.target.value}))}>
-                    {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div><Lbl>Notes</Lbl><input value={(editExp||newExp).notes||""} onChange={e=>editExp?setEditExp(p=>({...p,notes:e.target.value})):setNewExp(p=>({...p,notes:e.target.value}))} placeholder="Optional notes"/></div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
-              <button className="bg" onClick={()=>{setShowExpModal(false);setEditExp(null);}}>Cancel</button>
-              <button className="bp" onClick={saveExpense}>{editExp?"Save Changes":"Add Expense"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {/* ── FUNCTION HOURS MODAL ── */}
-      {showFuncModal&&(
-        <div className="modal-ov" onClick={()=>setShowFuncModal(false)}>
-          <div className="modal" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:4}}>⚡ Log Function Hours</h3>
-            <p style={{fontSize:12,color:"var(--text4)",marginBottom:16}}>Post non-billable activity hours for an engineer — visible in KPI reports.</p>
-            <div style={{display:"grid",gap:11}}>
-              <div><Lbl>Engineer</Lbl>
-                <select value={newFunc.engineer_id} onChange={e=>setNewFunc(p=>({...p,engineer_id:e.target.value}))}
-                  style={{borderColor:!newFunc.engineer_id?"#f87171":""}}>
-                  <option value="">— Select Engineer —</option>
-                  {engineers.map(e=><option key={e.id} value={e.id}>{e.name} · {e.role}</option>)}
-                </select>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Date</Lbl><input type="date" value={newFunc.date} onChange={e=>setNewFunc(p=>({...p,date:e.target.value}))}/></div>
-                <div><Lbl>Hours</Lbl><input type="number" min=".5" max="12" step=".5" value={newFunc.hours} onChange={e=>setNewFunc(p=>({...p,hours:+e.target.value}))}/></div>
-              </div>
-              <div><Lbl>Function Category</Lbl>
-                <select value={newFunc.function_category} onChange={e=>setNewFunc(p=>({...p,function_category:e.target.value}))}>
-                  {FUNCTION_CATS.map(c=><option key={c}>{c}</option>)}
-                </select>
-                <div style={{display:"flex",alignItems:"center",gap:6,marginTop:6}}>
-                  <div style={{width:10,height:10,borderRadius:2,background:FUNC_COLORS[newFunc.function_category]||"#6b7280",flexShrink:0}}/>
-                  <span style={{fontSize:12,color:FUNC_COLORS[newFunc.function_category]||"#6b7280"}}>{newFunc.function_category}</span>
-                </div>
-              </div>
-              <div><Lbl>Description <span style={{color:"var(--info)"}}>(used in KPI reports)</span></Lbl>
-                <textarea rows={3} value={newFunc.activity} onChange={e=>setNewFunc(p=>({...p,activity:e.target.value}))}
-                  placeholder="e.g. Delivered PLC basics session to 3 junior engineers…" style={{resize:"vertical"}}/>
-              </div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
-              <button className="bg" onClick={()=>setShowFuncModal(false)}>Cancel</button>
-              <button className="bp" onClick={addFunctionEntry}>Post Function Hours</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Toast */}
-      {toast&&(
-        <div className="toast" style={{background:toast.ok?"var(--bg3)":"#450a0a",color:toast.ok?"#34d399":"#f87171",border:`1px solid ${toast.ok?"#34d399":"#f87171"}`}}>
-          {toast.ok?"✓":"✕"} {toast.msg}
-        </div>
-      )}
-    </div>
-  );
-}
