@@ -5505,18 +5505,11 @@ export default function App(){
   const [projects,setProjects]       = useState([]);
   const [entries,setEntries]         = useState([]);
   const [notifications,setNotifications] = useState([]);
-  // Panel open state persisted in sessionStorage — survives loadAll re-runs and tab switches
-  const [notifPanelOpen,setNotifPanelOpen] = useState(()=>{
-    // Default open only if not previously closed this session
-    return sessionStorage.getItem("ec_notif_panel_closed") !== "1";
-  });
+  // Panel ALWAYS starts closed — user opens manually by clicking the bell header
+  // sessionStorage remembers if user left it open (not closed)
+  const [notifPanelOpen,setNotifPanelOpen] = useState(false);
   const toggleNotifPanel = React.useCallback(()=>{
-    setNotifPanelOpen(prev=>{
-      const next = !prev;
-      if(!next) sessionStorage.setItem("ec_notif_panel_closed","1");
-      else sessionStorage.removeItem("ec_notif_panel_closed");
-      return next;
-    });
+    setNotifPanelOpen(prev=>!prev);
   },[]);
   const [myProfile,setMyProfile]     = useState(null);
   const [loading,setLoading]         = useState(false);
@@ -5714,11 +5707,30 @@ export default function App(){
       if(entrR.data) setEntries(entrR.data);
       if(profR.data){ setMyProfile(profR.data); setBrowseEngId(profR.data.id); }
       if(notifR.data){
-        // Filter out already-read rows (legacy from before delete-on-dismiss), clean them up from DB
-        const unread = notifR.data.filter(n=>!n.read);
-        const staleIds = notifR.data.filter(n=>n.read).map(n=>n.id);
-        if(staleIds.length) supabase.from("notifications").delete().in("id",staleIds).then(()=>{});
-        setNotifications(unread);
+        // Deduplicate timesheet alerts by alert_key — keep only newest per key, delete duplicates
+        const all = notifR.data;
+        const seenKeys = new Map(); // alert_key -> keep newest (highest id)
+        const toDelete = [];
+        // First pass: group by alert_key for timesheet_alert type
+        all.forEach(n=>{
+          if(n.type==="timesheet_alert"){
+            let key=null;
+            try{ key=JSON.parse(n.meta||"{}").alert_key; }catch{}
+            if(key){
+              if(seenKeys.has(key)){
+                // Keep the one with higher id (newer), delete the other
+                const prev=seenKeys.get(key);
+                if(n.id>prev.id){ toDelete.push(prev.id); seenKeys.set(key,n); }
+                else { toDelete.push(n.id); }
+              } else { seenKeys.set(key,n); }
+            }
+          }
+        });
+        // Also delete read rows (legacy)
+        all.filter(n=>n.read).forEach(n=>toDelete.push(n.id));
+        if(toDelete.length) supabase.from("notifications").delete().in("id",[...new Set(toDelete)]).then(()=>{});
+        const deduped = all.filter(n=>!n.read && !toDelete.includes(n.id));
+        setNotifications(deduped);
       }
       if(staffR.data){
         const sData=staffR.data;
@@ -6099,30 +6111,34 @@ export default function App(){
       if(!hasWeekHours) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
     });
 
-    // Post notifications for new alerts — skip if already in DB or dismissed this session
-    const sessionDismissed = JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]");
+    if(laggards.length===0) return;
+
+    // Fetch all existing timesheet alerts once — JS dedup, no jsonb/ilike issues
+    const {data:existingNotifs} = await supabase.from("notifications")
+      .select("id,meta").eq("type","timesheet_alert");
+    const existingKeys = new Set(
+      (existingNotifs||[]).map(n=>{ try{ return JSON.parse(n.meta||"{}").alert_key; }catch{ return null; } }).filter(Boolean)
+    );
+    const sessionDismissed = new Set(JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]"));
+
+    let inserted=0;
     for(const{eng,type,label}of laggards){
       const key=`timesheet_alert_${eng.id}_${type}_${weekStartStr}`;
-      if(sessionDismissed.includes(key)) continue; // dismissed this session — don't re-insert
-      // Check DB — try jsonb filter first, fall back to message match
-      let existing=null;
-      const {data:d1,error:e1}=await supabase.from("notifications").select("id").eq("meta->>alert_key",key).maybeSingle();
-      if(!e1) existing=d1;
-      else {
-        // meta column may not be jsonb — fall back to message content check
-        const msg=`⏰ ${eng.name}: No hours posted this week (Mon ${weekStartStr}`;
-        const {data:d2}=await supabase.from("notifications").select("id").ilike("message",`%${msg}%`).maybeSingle();
-        existing=d2;
-      }
-      if(existing) continue;
+      if(existingKeys.has(key)||sessionDismissed.has(key)) continue;
       await supabase.from("notifications").insert({
         type:"timesheet_alert",
         message:`⏰ ${eng.name}: ${label}`,
         meta:JSON.stringify({engineer_id:eng.id,alert_key:key,alert_type:type}),
         read:false
       });
+      inserted++;
     }
-  },[isAdmin,isLead,alertDay]);
+    // Reload into state only if new alerts were inserted
+    if(inserted>0){
+      const {data:fresh}=await supabase.from("notifications").select("*").order("created_at",{ascending:false});
+      if(fresh) setNotifications(fresh.filter(n=>!n.read));
+    }
+  },[isAdmin,isLead,alertDay,setNotifications]);
 
   /* ── FINANCE CRUD ── */
   const STAFF_DEPTS=["Engineering","Management","Finance","Operations","IT","Administration","Other"];
