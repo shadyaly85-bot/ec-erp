@@ -5754,11 +5754,7 @@ export default function App(){
         supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
           .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
       }
-      // Trigger timesheet alerts once per session only (flag in sessionStorage)
-      if(engsR.data&&entrR.data&&!sessionStorage.getItem("ec_alerts_checked")){
-        sessionStorage.setItem("ec_alerts_checked","1");
-        setTimeout(()=>checkTimesheetAlerts(engsR.data,entrR.data,staffR.data||[]),1500);
-      }
+      // Timesheet alerts: checked via checkTimesheetAlerts called from useEffect below
     }catch(e){showToast("Error loading data",false);}
     setLoading(false);
   },[session]);
@@ -6084,7 +6080,7 @@ export default function App(){
   },[newFunc,showToast]);
 
   // Check for engineers who haven't posted hours by Friday — only alerts on Fri/Sat/Sun
-  const checkTimesheetAlerts=useCallback(async(engs,allE,staffList=[])=>{
+  const checkTimesheetAlerts=useCallback(async(engs,allE,staffList=[],currentNotifs=[])=>{
     if(!isAdmin&&!isLead) return;
     const today=new Date();
     const dayOfWeek=today.getDay();
@@ -6100,43 +6096,50 @@ export default function App(){
     const laggards=[];
     engs.forEach(eng=>{
       if(["accountant","senior_management","admin"].includes(eng.role_type)) return;
-      // Check is_active and termination_date on engineer row
       if(eng.is_active===false) return;
       if(eng.termination_date&&String(eng.termination_date).slice(0,10)<todayStr) return;
-      // Also cross-check staff table — termination may only be set there
       const staffMatch=staffList.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
       if(staffMatch){
         if(staffMatch.active===false) return;
         if(staffMatch.termination_date&&String(staffMatch.termination_date).slice(0,10)<todayStr) return;
       }
-      // Any work or function entry Mon→Fri this week?
       const hasWeekHours=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")));
       if(!hasWeekHours) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
     });
 
     if(laggards.length===0) return;
 
-    // Fetch all existing timesheet alerts once — JS dedup, no jsonb/ilike issues
-    const {data:existingNotifs} = await supabase.from("notifications")
-      .select("id,meta").eq("type","timesheet_alert");
-    const existingKeys = new Set(
-      (existingNotifs||[]).map(n=>{ try{ return JSON.parse(n.meta||"{}").alert_key; }catch{ return null; } }).filter(Boolean)
-    );
-    const sessionDismissed = new Set(JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]"));
+    // Build set of already-known alert keys from: current state + sessionStorage
+    // This is the only source of truth — no DB round trip needed
+    const knownKeys = new Set([
+      ...currentNotifs.map(n=>{ try{ return JSON.parse(n.meta||"{}").alert_key; }catch{ return null; } }).filter(Boolean),
+      ...JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]"),
+    ]);
 
     for(const{eng,type,label}of laggards){
       const key=`timesheet_alert_${eng.id}_${type}_${weekStartStr}`;
-      if(existingKeys.has(key)||sessionDismissed.has(key)) continue;
-      // Insert to DB only — never touch notifications state here
-      // State was set correctly by loadAll; touching it here would undo user dismissals
+      if(knownKeys.has(key)) continue;
       await supabase.from("notifications").insert({
         type:"timesheet_alert",
         message:`⏰ ${eng.name}: ${label}`,
         meta:JSON.stringify({engineer_id:eng.id,alert_key:key,alert_type:type}),
         read:false
       });
+      knownKeys.add(key); // prevent double-insert within same loop
     }
   },[isAdmin,isLead,alertDay]);
+
+  // Run alert check once when user first logs in (engineers+entries loaded)
+  const alertsRanRef = React.useRef(false);
+  useEffect(()=>{
+    if(!session||(!isAdmin&&!isLead)) return;
+    if(alertsRanRef.current) return;
+    if(!engineers.length||!entries.length) return;
+    alertsRanRef.current = true;
+    // Capture notifications snapshot NOW so checkTimesheetAlerts skips already-shown alerts
+    const notifSnapshot = notifications.slice();
+    setTimeout(()=>checkTimesheetAlerts(engineers,entries,staff,notifSnapshot),1500);
+  },[session,engineers.length,entries.length]); // eslint-disable-line
 
   /* ── FINANCE CRUD ── */
   const STAFF_DEPTS=["Engineering","Management","Finance","Operations","IT","Administration","Other"];
