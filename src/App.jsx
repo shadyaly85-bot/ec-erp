@@ -5506,13 +5506,12 @@ export default function App(){
   const [entries,setEntries]         = useState([]);
   const [notifications,setNotifications] = useState([]);
   const [notifPanelOpen,setNotifPanelOpen] = useState(false);
+  const notifPanelManuallyClosed = React.useRef(false);
   const prevNotifCount = React.useRef(0);
-  // Auto-open panel only when NEW notifications arrive
+  // Auto-open ONLY on first load from DB — never after that, so minimize stays minimized
   React.useEffect(()=>{
-    if(notifications.length > 0 && prevNotifCount.current === 0){
-      setNotifPanelOpen(true); // first time notifications load — open it
-    } else if(notifications.length > prevNotifCount.current && prevNotifCount.current > 0){
-      setNotifPanelOpen(true); // a new notification was added — re-open
+    if(notifications.length > 0 && prevNotifCount.current === 0 && !notifPanelManuallyClosed.current){
+      setNotifPanelOpen(true);
     }
     prevNotifCount.current = notifications.length;
   },[notifications.length]);
@@ -8545,7 +8544,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 <div style={{marginBottom:18,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:10,overflow:"hidden"}}>
                   {/* Panel header — always visible, click to toggle */}
                   <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",userSelect:"none"}}
-                    onClick={()=>setNotifPanelOpen(o=>!o)}>
+                    onClick={()=>{ const next=!notifPanelOpen; setNotifPanelOpen(next); if(!next) notifPanelManuallyClosed.current=true; }}>
                     <span style={{fontSize:15}}>🔔</span>
                     <span style={{fontSize:13,fontWeight:700,color:"var(--text1)"}}>Notifications</span>
                     <span style={{background:"#ef444420",color:"#f87171",fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,minWidth:20,textAlign:"center"}}>{totalCount}</span>
