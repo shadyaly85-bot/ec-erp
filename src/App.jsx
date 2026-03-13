@@ -426,10 +426,15 @@ function SignupScreen({onBack}){
         level:form.level,email:form.email,role_type:"engineer",
         weekend_days:JSON.stringify(DEFAULT_WEEKEND)
       });
-      await supabase.from("notifications").insert({
-        type:"new_signup",message:`New engineer signed up: ${form.name} (${form.role})`,
-        meta:JSON.stringify({email:form.email,role:form.role,level:form.level}),read:false
-      });
+      // Only insert signup notification if not already present (avoid duplicates on re-register attempts)
+      const {data:existingSignup}=await supabase.from("notifications").select("id")
+        .eq("type","new_signup").ilike("message",`%${form.email}%`).maybeSingle();
+      if(!existingSignup){
+        await supabase.from("notifications").insert({
+          type:"new_signup",message:`New engineer signed up: ${form.name} (${form.role})`,
+          meta:JSON.stringify({email:form.email,role:form.role,level:form.level}),read:false
+        });
+      }
     }
     setErr("✓ Account created! Check your email to confirm, then sign in.");
     setLoading(false);
@@ -5136,7 +5141,7 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
-function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, alertDay, setAlertDay}){
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, onDismissNotif, alertDay, setAlertDay}){
   const yearEntries = useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
   const engKPIs = useMemo(()=>{
 /* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
@@ -5265,10 +5270,7 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
         <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"#7f1d1d20",borderRadius:6,padding:"8px 12px"}}>
           <span style={{fontSize:12,color:"#f87171",flex:1}}>{n.message}</span>
           <span style={{fontSize:11,color:"var(--text3)"}}>{new Date(n.created_at).toLocaleDateString("en-GB")}</span>
-          <button className="bg" style={{fontSize:11,padding:"2px 6px"}} onClick={async()=>{
-            await supabase.from("notifications").update({read:true}).eq("id",n.id);
-            setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
-          }}>Dismiss</button>
+          <button className="bg" style={{fontSize:11,padding:"2px 6px"}} onClick={()=>onDismissNotif&&onDismissNotif(n.id)}>Dismiss</button>
         </div>
       ))}
     </div>
@@ -5503,6 +5505,7 @@ export default function App(){
   const [projects,setProjects]       = useState([]);
   const [entries,setEntries]         = useState([]);
   const [notifications,setNotifications] = useState([]);
+  const [notifPanelOpen,setNotifPanelOpen] = useState(true); // panel collapsed state — survives tab switches via ref
   const [myProfile,setMyProfile]     = useState(null);
   const [loading,setLoading]         = useState(false);
 
@@ -5774,10 +5777,48 @@ export default function App(){
   useEffect(()=>{ if(session&&!orgLoaded) loadOrgChart(); },[session,orgLoaded,loadOrgChart]);
 
 
+
   const unreadCount=notifications.filter(n=>!n.read).length;
+
+  // Dismiss = permanently delete from DB so they never come back on refresh
+  const dismissNotification=useCallback(async(id)=>{
+    const n=notifications.find(x=>x.id===id);
+    // For timesheet alerts, track in sessionStorage so they don't re-insert this session
+    if(n?.type==="timesheet_alert"){
+      try{
+        const meta=JSON.parse(n.meta||"{}");
+        if(meta.alert_key){
+          const prev=JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]");
+          sessionStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,meta.alert_key])]));
+        }
+      }catch(e){}
+    }
+    await supabase.from("notifications").delete().eq("id",id);
+    setNotifications(prev=>prev.filter(x=>x.id!==id));
+  },[notifications]);
+
+  const dismissAllOfType=useCallback(async(type)=>{
+    const toRemove=notifications.filter(n=>n.type===type);
+    if(!toRemove.length) return;
+    // For timesheet alerts track keys in sessionStorage
+    if(type==="timesheet_alert"){
+      try{
+        const keys=toRemove.map(n=>JSON.parse(n.meta||"{}").alert_key).filter(Boolean);
+        const prev=JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]");
+        sessionStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,...keys])]));
+      }catch(e){}
+    }
+    const ids=toRemove.map(n=>n.id);
+    await supabase.from("notifications").delete().in("id",ids);
+    setNotifications(prev=>prev.filter(n=>n.type!==type));
+  },[notifications]);
+
   const markAllRead=async()=>{
-    await supabase.from("notifications").update({read:true}).eq("read",false);
-    setNotifications(prev=>prev.map(n=>({...n,read:true})));
+    // Delete all read notifications to keep table clean
+    const ids=notifications.filter(n=>!n.read).map(n=>n.id);
+    if(!ids.length) return;
+    await supabase.from("notifications").delete().in("id",ids);
+    setNotifications(prev=>prev.filter(n=>n.read));
   };
 
   /* ── WEEKEND SAVE ── */
@@ -5954,7 +5995,12 @@ export default function App(){
     setEditEntry(null); showToast("Entry updated ✓");
     const _editEngName = engineers.find(e=>String(e.id)===String(editEntry?.engineer_id))?.name||"";
     const _editOnBehalf = editEntry?.engineer_id && String(editEntry.engineer_id)!==String(myProfile?.id) ? ` on behalf of ${_editEngName}` : "";
-    logAction("UPDATE","TimeEntry",`Updated time entry on ${editEntry?.date}${_editOnBehalf}`,{id:editEntry?.id,engineer_id:editEntry?.engineer_id,engineer_name:_editEngName,date:editEntry?.date});
+    const _prevEntry = entries.find(e=>e.id===editEntry?.id)||{};
+    const _entryChanges=[];
+    if(_prevEntry.hours!==payload.hours) _entryChanges.push(`hours: ${_prevEntry.hours}→${payload.hours}`);
+    if(_prevEntry.project_id!==payload.project_id) _entryChanges.push(`project: ${_prevEntry.project_id||"—"}→${payload.project_id||"—"}`);
+    if(payload.activity&&_prevEntry.activity!==payload.activity) _entryChanges.push(`note: "${payload.activity}"`);
+    logAction("UPDATE","TimeEntry",`Updated entry on ${editEntry?.date}${_editOnBehalf}${_entryChanges.length?" — "+_entryChanges.join(", "):""}`,{id:editEntry?.id,engineer_id:editEntry?.engineer_id,engineer_name:_editEngName,date:editEntry?.date,changes:_entryChanges});
   };
 
   const deleteEntry=async(id, engineerId)=>{
@@ -6035,13 +6081,22 @@ export default function App(){
       if(!hasWeekHours) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
     });
 
-    // Post notifications for new alerts
+    // Post notifications for new alerts — skip if already in DB or dismissed this session
+    const sessionDismissed = JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]");
     for(const{eng,type,label}of laggards){
       const key=`timesheet_alert_${eng.id}_${type}_${weekStartStr}`;
-      const {data:existing,error:chkErr}=await supabase
-        .from("notifications").select("id").eq("meta->>alert_key",key).maybeSingle();
-      if(chkErr){ console.warn("[Alert] Check failed:",chkErr.message); continue; }
-      if(existing) continue; // already exists — skip regardless of read status
+      if(sessionDismissed.includes(key)) continue; // dismissed this session — don't re-insert
+      // Check DB — try jsonb filter first, fall back to message match
+      let existing=null;
+      const {data:d1,error:e1}=await supabase.from("notifications").select("id").eq("meta->>alert_key",key).maybeSingle();
+      if(!e1) existing=d1;
+      else {
+        // meta column may not be jsonb — fall back to message content check
+        const msg=`⏰ ${eng.name}: No hours posted this week (Mon ${weekStartStr}`;
+        const {data:d2}=await supabase.from("notifications").select("id").ilike("message",`%${msg}%`).maybeSingle();
+        existing=d2;
+      }
+      if(existing) continue;
       await supabase.from("notifications").insert({
         type:"timesheet_alert",
         message:`⏰ ${eng.name}: ${label}`,
@@ -6085,7 +6140,14 @@ export default function App(){
         setEngineers(prev=>prev.map(e=>e.id===matchEng.id?{...e,...engSync}:e));
       }
       showToast("Staff updated ✓");setEditStaff(null);setShowStaffModal(false);
-      logAction("UPDATE","Staff",`Updated staff: ${data.name}`,{id:data.id,name:data.name,department:data.department,role:data.role});
+      const _sprev=staff.find(s=>s.id===editStaff.id)||{};
+      const _schanges=[];
+      if(_sprev.role!==data.role) _schanges.push(`role: "${_sprev.role||"—"}"→"${data.role||"—"}"`);
+      if(_sprev.department!==data.department) _schanges.push(`dept: ${_sprev.department}→${data.department}`);
+      if(String(_sprev.active)!==String(data.active)) _schanges.push(`active: ${_sprev.active}→${data.active}`);
+      if(_sprev.termination_date!==data.termination_date) _schanges.push(`termination: ${_sprev.termination_date||"none"}→${data.termination_date||"none"}`);
+      if(_sprev.salary_egp!==data.salary_egp) _schanges.push(`salary EGP: ${_sprev.salary_egp||0}→${data.salary_egp||0}`);
+      logAction("UPDATE","Staff",`Updated staff: ${data.name}${_schanges.length?" — "+_schanges.join(", "):""}`,{id:data.id,name:data.name,department:data.department,role:data.role,changes:_schanges});
     } else {
       // ── ADD staff ──
       const{data,error}=await supabase.from("staff").insert(staffPayload).select().single();
@@ -6147,11 +6209,20 @@ export default function App(){
     if(!payload.description.trim()){showToast("Description required",false);return;}
     if(editExp){
       const{data,error}=await supabase.from("expenses").update(payload).eq("id",editExp.id).select().single();
-      if(!error&&data){setExpenses(prev=>prev.map(e=>e.id===data.id?data:e));showToast("Expense updated");setEditExp(null);setShowExpModal(false);logAction("UPDATE","Expense",`Updated expense: ${data.description}`,{id:data.id,category:data.category,amount_usd:data.amount_usd,amount_egp:data.amount_egp});}
+      if(!error&&data){
+        const _prev=expenses.find(e=>e.id===data.id)||{};
+        const _expChanges=[];
+        if(_prev.description!==data.description) _expChanges.push(`desc: "${_prev.description}"→"${data.description}"`);
+        if(_prev.category!==data.category) _expChanges.push(`category: ${_prev.category}→${data.category}`);
+        if(_prev.amount_egp!==data.amount_egp) _expChanges.push(`EGP: ${_prev.amount_egp||0}→${data.amount_egp||0}`);
+        if(_prev.amount_usd!==data.amount_usd) _expChanges.push(`USD: ${_prev.amount_usd||0}→${data.amount_usd||0}`);
+        setExpenses(prev=>prev.map(e=>e.id===data.id?data:e));showToast("Expense updated");setEditExp(null);setShowExpModal(false);
+        logAction("UPDATE","Expense",`Updated expense: ${data.description}${_expChanges.length?" — "+_expChanges.join(", "):""}`,{id:data.id,category:data.category,amount_usd:data.amount_usd,amount_egp:data.amount_egp,changes:_expChanges});
+      }
       else showToast(error?.message||"Error",false);
     } else {
       const{data,error}=await supabase.from("expenses").insert(payload).select().single();
-      if(!error&&data){setExpenses(prev=>[data,...prev]);showToast("Expense added");setShowExpModal(false);setNewExp({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:egpRate,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});logAction("CREATE","Expense",`Added expense: ${payload.description}`,{category:payload.category,amount_usd:payload.amount_usd,amount_egp:payload.amount_egp});}
+      if(!error&&data){setExpenses(prev=>[data,...prev]);showToast("Expense added");setShowExpModal(false);setNewExp({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:egpRate,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});logAction("CREATE","Expense",`Added expense: "${payload.description}" — ${payload.category} · EGP ${payload.amount_egp||0} / USD ${payload.amount_usd||0}`,{category:payload.category,amount_usd:payload.amount_usd,amount_egp:payload.amount_egp,month:payload.month,year:payload.year});}
       else showToast(error?.message||"Error",false);
     }
   },[editExp,newExp,showToast]);
@@ -6586,7 +6657,13 @@ export default function App(){
         setProjects(prev=>prev.map(p=>p.id===data.id?{...data,assigned_engineers:fields.assigned_engineers||[]}:p));
       }
       setEditProjModal(null); showToast("Project updated ✓");
-      logAction("UPDATE","Project",`Updated project ${editProjModal?.id}`,{project_id:editProjModal?.id});
+      const _pprev=projects.find(p=>p.id===editProjModal?.id)||{};
+      const _pchanges=[];
+      if(_pprev.name!==rest.name) _pchanges.push(`name: "${_pprev.name}"→"${rest.name}"`);
+      if(_pprev.client!==rest.client) _pchanges.push(`client: "${_pprev.client||"—"}"→"${rest.client||"—"}"`);
+      if(_pprev.billable!==rest.billable) _pchanges.push(`billable: ${_pprev.billable}→${rest.billable}`);
+      if(_pprev.status!==rest.status) _pchanges.push(`status: ${_pprev.status||"—"}→${rest.status||"—"}`);
+      logAction("UPDATE","Project",`Updated project ${editProjModal?.id}${_pchanges.length?" — "+_pchanges.join(", "):""}`,{project_id:editProjModal?.id,changes:_pchanges});
     }
   };
   const deleteProject=async id=>{
@@ -6737,7 +6814,15 @@ export default function App(){
     setEngineers(prev=>prev.map(e=>e.id===id?merged:e));
     if(id===myProfile?.id) setMyProfile(merged);
     setEditEngModal(null); showToast("Updated ✓");
-    logAction("UPDATE","Engineer",`Updated engineer: ${merged.name}`,{id,name:merged.name,role_type:merged.role_type,is_active:merged.is_active,termination_date:merged.termination_date||null});
+    const _prev=engineers.find(e=>e.id===id)||{};
+    const _changes=[];
+    if(_prev.name!==merged.name) _changes.push(`name: "${_prev.name}"→"${merged.name}"`);
+    if(_prev.role!==merged.role) _changes.push(`job role: "${_prev.role||"—"}"→"${merged.role||"—"}"`);
+    if(_prev.role_type!==merged.role_type) _changes.push(`access: ${_prev.role_type}→${merged.role_type}`);
+    if(_prev.level!==merged.level) _changes.push(`level: "${_prev.level||"—"}"→"${merged.level||"—"}"`);
+    if(String(_prev.is_active)!==String(merged.is_active)) _changes.push(`active: ${_prev.is_active}→${merged.is_active}`);
+    if(_prev.termination_date!==merged.termination_date) _changes.push(`termination: ${_prev.termination_date||"none"}→${merged.termination_date||"none"}`);
+    logAction("UPDATE","Engineer",`Updated engineer: ${merged.name}${_changes.length?" — "+_changes.join(", "):""}`,{id,name:merged.name,role_type:merged.role_type,is_active:merged.is_active,termination_date:merged.termination_date||null,changes:_changes});
   };
   const deleteEngineer=async id=>{
     if(!window.confirm("Delete this engineer and all their entries?")) return;
@@ -8437,23 +8522,118 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>{isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":"Lead Panel"}</h1>
                   <p style={{color:"var(--text4)",fontSize:13,marginTop:3}}>{isAdmin?"Full control: engineers, projects, entries, settings":isSenior?"View-only access · full visibility across all data":isAcct?"Full access to Finance · View all data":"Edit engineer entries · Export individual timesheets"}</p>
                 </div>
-                {unreadCount>0&&isAdmin&&<button className="bg" onClick={markAllRead}>Mark {unreadCount} notifications read</button>}
+                {false&&unreadCount>0&&isAdmin&&<button className="bg" onClick={()=>{ notifications.forEach(n=>supabase.from("notifications").delete().eq("id",n.id)); setNotifications([]); }}>Dismiss all {notifications.length} notifications</button>}
               </div>
 
-              {/* Notifications (admin only) */}
-              {isAdmin&&notifications.filter(n=>!n.read).length>0&&(
-                <div style={{marginBottom:18}}>
-                  <h3 style={{fontSize:14,fontWeight:700,color:"#fb923c",marginBottom:10}}>🔔 New Signups ({unreadCount})</h3>
-                  {notifications.filter(n=>!n.read).map(n=>(
-                    <div key={n.id} style={{background:"#1a0a00",border:"1px solid #fb923c40",borderRadius:8,padding:"10px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <div>
-                        <div style={{fontSize:14,fontWeight:600,color:"#fb923c"}}>{n.message}</div>
-                        <div style={{fontSize:12,color:"var(--text4)",marginTop:3}}>{new Date(n.created_at).toLocaleString()} · <span style={{color:"var(--info)"}}>Go to Engineers tab → find them → set their role</span></div>
-                      </div>
+              {/* Notifications (admin only) — collapsible, state survives tab switches */}
+              {isAdmin&&notifications.length>0&&(()=>{
+                const signupNotifs  = notifications.filter(n=>n.type==="new_signup");
+                const alertNotifs2  = notifications.filter(n=>n.type==="timesheet_alert");
+                const otherNotifs   = notifications.filter(n=>n.type!=="new_signup"&&n.type!=="timesheet_alert");
+                const totalCount    = notifications.length;
+                return(
+                <div style={{marginBottom:18,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:10,overflow:"hidden"}}>
+                  {/* Panel header — always visible, click to toggle */}
+                  <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",userSelect:"none"}}
+                    onClick={()=>setNotifPanelOpen(o=>!o)}>
+                    <span style={{fontSize:15}}>🔔</span>
+                    <span style={{fontSize:13,fontWeight:700,color:"var(--text1)"}}>Notifications</span>
+                    <span style={{background:"#ef444420",color:"#f87171",fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,minWidth:20,textAlign:"center"}}>{totalCount}</span>
+                    <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
+                      <button style={{background:"#f8717110",border:"1px solid #f8717130",borderRadius:5,padding:"3px 10px",color:"#f87171",fontSize:11,cursor:"pointer"}}
+                        onClick={e=>{e.stopPropagation(); const ids=notifications.map(n=>n.id); supabase.from("notifications").delete().in("id",ids); setNotifications([]);}}>
+                        Dismiss All
+                      </button>
+                      <span style={{fontSize:14,color:"var(--text4)",fontWeight:700,transform:notifPanelOpen?"rotate(0)":"rotate(-90deg)",display:"inline-block",transition:"transform 0.2s"}}>▾</span>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Collapsible body */}
+                  {notifPanelOpen&&(
+                  <div style={{borderTop:"1px solid var(--border3)",padding:"12px 14px",display:"grid",gap:10}}>
+
+                    {/* 👤 New Signups */}
+                    {signupNotifs.length>0&&(
+                      <div>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
+                          <span style={{fontSize:12,fontWeight:700,color:"#fb923c",textTransform:"uppercase",letterSpacing:".05em"}}>👤 New Signups</span>
+                          <span style={{background:"#fb923c20",color:"#fb923c",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{signupNotifs.length}</span>
+                          <button style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--text4)",fontSize:11,cursor:"pointer",padding:"2px 6px"}}
+                            onClick={()=>dismissAllOfType("new_signup")}>Dismiss all</button>
+                        </div>
+                        <div style={{display:"grid",gap:5}}>
+                          {signupNotifs.map(n=>(
+                            <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg1)",borderRadius:7,padding:"9px 12px",border:"1px solid #fb923c18"}}>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:13,fontWeight:600,color:"var(--text0)"}}>{n.message}</div>
+                                <div style={{fontSize:11,color:"var(--text4)",marginTop:3}}>
+                                  {new Date(n.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}
+                                  {" · "}<span style={{color:"var(--info)"}}>Engineers tab → set role</span>
+                                </div>
+                              </div>
+                              <button style={{flexShrink:0,background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"3px 9px",color:"var(--text3)",fontSize:11,cursor:"pointer"}}
+                                onClick={()=>dismissNotification(n.id)}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ⏰ Timesheet Alerts */}
+                    {alertNotifs2.length>0&&(
+                      <div>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
+                          <span style={{fontSize:12,fontWeight:700,color:"#f87171",textTransform:"uppercase",letterSpacing:".05em"}}>⏰ Timesheet Alerts</span>
+                          <span style={{background:"#f8717120",color:"#f87171",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{alertNotifs2.length}</span>
+                          <button style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--text4)",fontSize:11,cursor:"pointer",padding:"2px 6px"}}
+                            onClick={()=>dismissAllOfType("timesheet_alert")}>Dismiss all</button>
+                        </div>
+                        <div style={{display:"grid",gap:5}}>
+                          {alertNotifs2.map(n=>(
+                            <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg1)",borderRadius:7,padding:"9px 12px",border:"1px solid #f8717118"}}>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:13,color:"var(--text0)"}}>{n.message}</div>
+                                <div style={{fontSize:11,color:"var(--text4)",marginTop:3}}>
+                                  {new Date(n.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}
+                                </div>
+                              </div>
+                              <button style={{flexShrink:0,background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"3px 9px",color:"var(--text3)",fontSize:11,cursor:"pointer"}}
+                                onClick={()=>dismissNotification(n.id)}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ℹ System */}
+                    {otherNotifs.length>0&&(
+                      <div>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
+                          <span style={{fontSize:12,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em"}}>ℹ System</span>
+                          <span style={{background:"var(--bg3)",color:"var(--text3)",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{otherNotifs.length}</span>
+                          <button style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--text4)",fontSize:11,cursor:"pointer",padding:"2px 6px"}}
+                            onClick={()=>{const ids=otherNotifs.map(n=>n.id);supabase.from("notifications").delete().in("id",ids);setNotifications(prev=>prev.filter(n=>n.type==="new_signup"||n.type==="timesheet_alert"));}}>Dismiss all</button>
+                        </div>
+                        <div style={{display:"grid",gap:5}}>
+                          {otherNotifs.map(n=>(
+                            <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg1)",borderRadius:7,padding:"9px 12px",border:"1px solid var(--border3)"}}>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:13,color:"var(--text0)"}}>{n.message}</div>
+                                <div style={{fontSize:11,color:"var(--text4)",marginTop:3}}>{new Date(n.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}</div>
+                              </div>
+                              <button style={{flexShrink:0,background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"3px 9px",color:"var(--text3)",fontSize:11,cursor:"pointer"}}
+                                onClick={()=>dismissNotification(n.id)}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+                  )}
                 </div>
-              )}
+                );
+              })()}
 
               {/* Tabs */}
               <div style={{display:"flex",gap:4,marginBottom:18,background:"var(--bg2)",borderRadius:8,padding:4,width:"fit-content"}}>
@@ -8686,6 +8866,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   kpiNotes={kpiNotes} setKpiNotes={setKpiNotes}
                   isAdmin={isAdmin} isLead={isLead} isAcct={isAcct} year={year}
                   notifications={notifications}
+                  onDismissNotif={dismissNotification}
                   alertDay={alertDay} setAlertDay={setAlertDay}
                 />
               )}
