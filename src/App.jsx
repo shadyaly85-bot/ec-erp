@@ -5505,7 +5505,17 @@ export default function App(){
   const [projects,setProjects]       = useState([]);
   const [entries,setEntries]         = useState([]);
   const [notifications,setNotifications] = useState([]);
-  const [notifPanelOpen,setNotifPanelOpen] = useState(true); // panel collapsed state — survives tab switches via ref
+  const [notifPanelOpen,setNotifPanelOpen] = useState(false);
+  const prevNotifCount = React.useRef(0);
+  // Auto-open panel only when NEW notifications arrive
+  React.useEffect(()=>{
+    if(notifications.length > 0 && prevNotifCount.current === 0){
+      setNotifPanelOpen(true); // first time notifications load — open it
+    } else if(notifications.length > prevNotifCount.current && prevNotifCount.current > 0){
+      setNotifPanelOpen(true); // a new notification was added — re-open
+    }
+    prevNotifCount.current = notifications.length;
+  },[notifications.length]);
   const [myProfile,setMyProfile]     = useState(null);
   const [loading,setLoading]         = useState(false);
 
