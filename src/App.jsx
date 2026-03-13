@@ -4185,7 +4185,7 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
    ACTIVITY LOG TAB — admin only
    ══════════════════════════════════════════════════════════ */
 function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading,
-  onRefresh, onArchive, onLoadArchive, retentionDays, setRetentionDays}) {
+  onRefresh, onArchive, onLoadArchive, onPruneArchive, retentionDays, setRetentionDays}) {
 
   const [tab,        setTab]       = React.useState("live");   // live | archive
   const [search,     setSearch]    = React.useState("");
@@ -4283,14 +4283,8 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading,
           <span style={{fontSize:11,color:"var(--text4)",marginLeft:"auto"}}>
             Archive keeps data forever · Live table stays fast · Export CSV to download either
           </span>
-          <button onClick={async()=>{
-            if(!window.confirm("Delete archive entries older than 1 year? This cannot be undone.")) return;
-            const {data,error} = await supabase.rpc("prune_activity_archive",{max_age_days:365});
-            if(error){alert("Prune error: "+error.message);return;}
-            showToast(`Pruned ${data||0} archive entries older than 1 year`);
-            logAction("DELETE","Auth",`Pruned activity archive — entries older than 365d`,{pruned:data});
-            setArchiveLog([]);
-          }} style={{background:"#f8711810",border:"1px solid #f8711830",borderRadius:6,padding:"5px 12px",color:"#f87171",cursor:"pointer",fontSize:12,opacity:0.8}}>
+          <button onClick={onPruneArchive}
+            style={{background:"#f8711810",border:"1px solid #f8711830",borderRadius:6,padding:"5px 12px",color:"#f87171",cursor:"pointer",fontSize:12,opacity:0.8}}>
             🗑 Prune Archive &gt;1yr
           </button>
         </div>
@@ -5605,7 +5599,7 @@ export default function App(){
       action,module,detail,
       meta:JSON.stringify(meta),
     };
-    supabase.from("activity_log").insert(entry)
+    supabase.from("activity_log").insert(entry).select()
       .then(({data,error})=>{
         if(!error&&data) setActivityLog(prev=>[{...entry,id:data[0]?.id,created_at:new Date().toISOString()},...prev].slice(0,2000));
       });
@@ -8698,7 +8692,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     </div>
                   </div>
                 </div>
-              )}
+              )
 
               {/* ACTIVITY LOG */}
               {adminTab==="actlog"&&isAdmin&&(
@@ -8732,6 +8726,14 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     setArchiveLoading(true);
                     supabase.from("activity_log_archive").select("*").order("created_at",{ascending:false}).limit(2000)
                       .then(({data})=>{ if(data) setArchiveLog(data); setArchiveLoading(false); });
+                  }}
+                  onPruneArchive={async()=>{
+                    if(!window.confirm("Delete archive entries older than 1 year? This cannot be undone.")) return;
+                    const {data,error} = await supabase.rpc("prune_activity_archive",{max_age_days:365});
+                    if(error){alert("Prune error: "+error.message);return;}
+                    showToast(`Pruned ${data||0} archive entries older than 1 year`);
+                    logAction("DELETE","Auth",`Pruned activity archive — entries older than 365d`,{pruned:data});
+                    setArchiveLog([]);
                   }}
                 />
               )}}
