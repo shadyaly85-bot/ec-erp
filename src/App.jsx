@@ -6030,15 +6030,16 @@ export default function App(){
     // Post notifications for new alerts
     for(const{eng,type,label}of laggards){
       const key=`timesheet_alert_${eng.id}_${type}_${weekStartStr}`;
-      const exists=await supabase.from("notifications").select("id").eq("meta->>alert_key",key).single();
-      if(exists.error){ // doesn't exist yet
-        await supabase.from("notifications").insert({
-          type:"timesheet_alert",
-          message:`⏰ ${eng.name}: ${label}`,
-          meta:JSON.stringify({engineer_id:eng.id,alert_key:key,alert_type:type}),
-          read:false
-        });
-      }
+      const {data:existing,error:chkErr}=await supabase
+        .from("notifications").select("id").eq("meta->>alert_key",key).maybeSingle();
+      if(chkErr){ console.warn("[Alert] Check failed:",chkErr.message); continue; }
+      if(existing) continue; // already exists — skip regardless of read status
+      await supabase.from("notifications").insert({
+        type:"timesheet_alert",
+        message:`⏰ ${eng.name}: ${label}`,
+        meta:JSON.stringify({engineer_id:eng.id,alert_key:key,alert_type:type}),
+        read:false
+      });
     }
   },[isAdmin,isLead,alertDay]);
 
