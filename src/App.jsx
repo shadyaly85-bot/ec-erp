@@ -5754,8 +5754,11 @@ export default function App(){
         supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
           .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
       }
-      // Trigger timesheet delay alerts after data loads
-      if(engsR.data&&entrR.data) setTimeout(()=>checkTimesheetAlerts(engsR.data,entrR.data,staffR.data||[]),1500);
+      // Trigger timesheet alerts once per session only (flag in sessionStorage)
+      if(engsR.data&&entrR.data&&!sessionStorage.getItem("ec_alerts_checked")){
+        sessionStorage.setItem("ec_alerts_checked","1");
+        setTimeout(()=>checkTimesheetAlerts(engsR.data,entrR.data,staffR.data||[]),1500);
+      }
     }catch(e){showToast("Error loading data",false);}
     setLoading(false);
   },[session]);
@@ -6121,24 +6124,19 @@ export default function App(){
     );
     const sessionDismissed = new Set(JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]"));
 
-    let inserted=0;
     for(const{eng,type,label}of laggards){
       const key=`timesheet_alert_${eng.id}_${type}_${weekStartStr}`;
       if(existingKeys.has(key)||sessionDismissed.has(key)) continue;
+      // Insert to DB only — never touch notifications state here
+      // State was set correctly by loadAll; touching it here would undo user dismissals
       await supabase.from("notifications").insert({
         type:"timesheet_alert",
         message:`⏰ ${eng.name}: ${label}`,
         meta:JSON.stringify({engineer_id:eng.id,alert_key:key,alert_type:type}),
         read:false
       });
-      inserted++;
     }
-    // Reload into state only if new alerts were inserted
-    if(inserted>0){
-      const {data:fresh}=await supabase.from("notifications").select("*").order("created_at",{ascending:false});
-      if(fresh) setNotifications(fresh.filter(n=>!n.read));
-    }
-  },[isAdmin,isLead,alertDay,setNotifications]);
+  },[isAdmin,isLead,alertDay]);
 
   /* ── FINANCE CRUD ── */
   const STAFF_DEPTS=["Engineering","Management","Finance","Operations","IT","Administration","Other"];
