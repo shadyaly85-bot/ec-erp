@@ -5505,16 +5505,19 @@ export default function App(){
   const [projects,setProjects]       = useState([]);
   const [entries,setEntries]         = useState([]);
   const [notifications,setNotifications] = useState([]);
-  const [notifPanelOpen,setNotifPanelOpen] = useState(false);
-  const notifPanelManuallyClosed = React.useRef(false);
-  const prevNotifCount = React.useRef(0);
-  // Auto-open ONLY on first load from DB — never after that, so minimize stays minimized
-  React.useEffect(()=>{
-    if(notifications.length > 0 && prevNotifCount.current === 0 && !notifPanelManuallyClosed.current){
-      setNotifPanelOpen(true);
-    }
-    prevNotifCount.current = notifications.length;
-  },[notifications.length]);
+  // Panel open state persisted in sessionStorage — survives loadAll re-runs and tab switches
+  const [notifPanelOpen,setNotifPanelOpen] = useState(()=>{
+    // Default open only if not previously closed this session
+    return sessionStorage.getItem("ec_notif_panel_closed") !== "1";
+  });
+  const toggleNotifPanel = React.useCallback(()=>{
+    setNotifPanelOpen(prev=>{
+      const next = !prev;
+      if(!next) sessionStorage.setItem("ec_notif_panel_closed","1");
+      else sessionStorage.removeItem("ec_notif_panel_closed");
+      return next;
+    });
+  },[]);
   const [myProfile,setMyProfile]     = useState(null);
   const [loading,setLoading]         = useState(false);
 
@@ -5699,7 +5702,7 @@ export default function App(){
         supabase.from("projects").select("*").order("id"),
         supabase.from("time_entries").select("*").order("date",{ascending:false}),
         supabase.from("engineers").select("*").eq("user_id",session.user.id).single(),
-        supabase.from("notifications").select("*").order("created_at",{ascending:false}).limit(50),
+        supabase.from("notifications").select("*").order("created_at",{ascending:false}),
         supabase.from("staff").select("*").order("name"),
         supabase.from("expenses").select("*").order("year",{ascending:false}).order("month",{ascending:false}),
         supabase.from("journal_entries").select("*").order("entry_date",{ascending:true}),
@@ -5710,7 +5713,13 @@ export default function App(){
       if(projR.data) setProjects(projR.data);
       if(entrR.data) setEntries(entrR.data);
       if(profR.data){ setMyProfile(profR.data); setBrowseEngId(profR.data.id); }
-      if(notifR.data) setNotifications(notifR.data);
+      if(notifR.data){
+        // Filter out already-read rows (legacy from before delete-on-dismiss), clean them up from DB
+        const unread = notifR.data.filter(n=>!n.read);
+        const staleIds = notifR.data.filter(n=>n.read).map(n=>n.id);
+        if(staleIds.length) supabase.from("notifications").delete().in("id",staleIds).then(()=>{});
+        setNotifications(unread);
+      }
       if(staffR.data){
         const sData=staffR.data;
         setStaff(sData);
@@ -5787,7 +5796,7 @@ export default function App(){
 
 
 
-  const unreadCount=notifications.filter(n=>!n.read).length;
+  const unreadCount=notifications.length; // all rows are unread (dismissed = deleted)
 
   // Dismiss = permanently delete from DB so they never come back on refresh
   const dismissNotification=useCallback(async(id)=>{
@@ -8544,7 +8553,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 <div style={{marginBottom:18,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:10,overflow:"hidden"}}>
                   {/* Panel header — always visible, click to toggle */}
                   <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",userSelect:"none"}}
-                    onClick={()=>{ const next=!notifPanelOpen; setNotifPanelOpen(next); if(!next) notifPanelManuallyClosed.current=true; }}>
+                    onClick={toggleNotifPanel}>
                     <span style={{fontSize:15}}>🔔</span>
                     <span style={{fontSize:13,fontWeight:700,color:"var(--text1)"}}>Notifications</span>
                     <span style={{background:"#ef444420",color:"#f87171",fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,minWidth:20,textAlign:"center"}}>{totalCount}</span>
