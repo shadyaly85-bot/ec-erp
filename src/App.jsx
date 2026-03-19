@@ -5713,14 +5713,17 @@ export default function App(){
         const all = notifR.data;
         const seenKeys = new Map(); // alert_key -> keep newest (highest id)
         const toDelete = [];
+        // Load dismissed keys from localStorage
+        const dismissedKeys = new Set(JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"));
         // First pass: group by alert_key for timesheet_alert type
         all.forEach(n=>{
           if(n.type==="timesheet_alert"){
             let key=null;
             try{ key=JSON.parse(n.meta||"{}").alert_key; }catch{}
             if(key){
+              // If already dismissed by user — delete from DB entirely
+              if(dismissedKeys.has(key)){ toDelete.push(n.id); return; }
               if(seenKeys.has(key)){
-                // Keep the one with higher id (newer), delete the other
                 const prev=seenKeys.get(key);
                 if(n.id>prev.id){ toDelete.push(prev.id); seenKeys.set(key,n); }
                 else { toDelete.push(n.id); }
@@ -8578,7 +8581,11 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     <span style={{background:"#ef444420",color:"#f87171",fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,minWidth:20,textAlign:"center"}}>{totalCount}</span>
                     <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
                       <button style={{background:"#f8717110",border:"1px solid #f8717130",borderRadius:5,padding:"3px 10px",color:"#f87171",fontSize:11,cursor:"pointer"}}
-                        onClick={e=>{e.stopPropagation(); const ids=notifications.map(n=>n.id); supabase.from("notifications").delete().in("id",ids); setNotifications([]);}}>
+                        onClick={e=>{e.stopPropagation();
+                          // Save timesheet alert keys to localStorage before deleting so they don't re-insert
+                          const alertKeys=notifications.filter(n=>n.type==="timesheet_alert").map(n=>{try{return JSON.parse(n.meta||"{}").alert_key;}catch{return null;}}).filter(Boolean);
+                          if(alertKeys.length){const prev=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,...alertKeys])]));}
+                          const ids=notifications.map(n=>n.id); supabase.from("notifications").delete().in("id",ids); setNotifications([]);}}>
                         Dismiss All
                       </button>
                       <span style={{fontSize:14,color:"var(--text4)",fontWeight:700,transform:notifPanelOpen?"rotate(0)":"rotate(-90deg)",display:"inline-block",transition:"transform 0.2s"}}>▾</span>
