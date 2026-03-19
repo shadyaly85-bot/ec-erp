@@ -813,6 +813,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
 
 /* ─── PROJECT TASKS ANALYSIS PDF ─── */
 function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurrency, isAdmin, isAcct, periodLabel){
+  try{
   const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
   const p=pm.proj;
   const pct=grandTotal?Math.round(pm.totalHrs/grandTotal*100):100;
@@ -1001,6 +1002,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url), 10000);
+  }catch(err){ alert("Export error: "+err.message); console.error(err); }
 }
 
 
