@@ -969,7 +969,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
   ${pdfFooter(`${p.id} — ${p.name}`, now)}
   <div class="cover">
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
-      <img src="${LOGO_B64}" alt="ENEVO Group" style="width:52px;height:52px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
+      <img src="${LOGO_SRC}" alt="ENEVO Group" style="width:52px;height:52px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
       <div>
         <div class="cl" style="margin-bottom:2px">ENEVO GROUP · Project Tasks Analysis</div>
         <div style="font-size:13px;color:#94a3b8">Industrial & Renewable Energy Automation</div>
