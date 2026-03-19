@@ -963,7 +963,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
     </div>`:"";
 
   // Build full PDF using shared PDF_STYLE + fixed header/footer
-  const blob = new Blob([`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Project Report — ${p.id}</title><style>${PDF_STYLE}</style></head><body>
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Project Report — ${p.id}</title><style>${PDF_STYLE}</style></head><body>
   ${pdfHeader(`Project Analysis · ${p.id}`, `${periodLabel||'All Time'}`, now)}
   ${pdfFooter(`${p.id} — ${p.name}`, now)}
   <div class="cover">
@@ -993,7 +993,8 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
   <div style="position:fixed;bottom:24px;right:24px;z-index:9999">
     <button onclick="window.print()" style="background:#0ea5e9;color:#fff;border:none;border-radius:8px;padding:12px 28px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px #0ea5e960">🖨 Print / Save PDF</button>
   </div>
-  </body></html>`], {type:"text/html"});
+  </body></html>`;
+  const blob = new Blob([html], {type:"text/html"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.target = "_blank"; a.rel = "noopener";
