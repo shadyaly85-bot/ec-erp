@@ -991,7 +991,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
     ${engSection}
     ${billSection}
   </div>
-  <div style="position:fixed;bottom:20px;right:20px;z-index:9999"><button onclick="window.print()" style="background:#0ea5e9;color:#fff;border:none;border-radius:8px;padding:12px 24px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px #0ea5e940">🖨 Print / Save PDF</button></div>
+  <script>window.onload=()=>window.print()<\/script>
   </body></html>`;
   if(win){win.document.write(html);win.document.close();}
   else{alert("Please allow popups for this site to export PDFs.");}
@@ -5800,8 +5800,8 @@ export default function App(){
       try{
         const meta=JSON.parse(n.meta||"{}");
         if(meta.alert_key){
-          const prev=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");
-          localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,meta.alert_key])]));
+          const prev=JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]");
+          sessionStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,meta.alert_key])]));
         }
       }catch(e){}
     }
@@ -5817,8 +5817,8 @@ export default function App(){
     if(type==="timesheet_alert"){
       try{
         const keys=toRemove.map(n=>JSON.parse(n.meta||"{}").alert_key).filter(Boolean);
-        const prev=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");
-        localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,...keys])]));
+        const prev=JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]");
+        sessionStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,...keys])]));
       }catch(e){}
     }
     const ids=toRemove.map(n=>n.id);
@@ -6066,17 +6066,8 @@ export default function App(){
   // Compute timesheet alerts in memory — no DB writes, no race conditions
   // Dismissed alerts tracked in state so they survive minimize/maximize
   const [dismissedAlertKeys, setDismissedAlertKeys] = React.useState(()=>{
-    try{
-      const all = JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");
-      // Keep only keys from current week (keys contain date like _2026-03-10)
-      const today = new Date();
-      const monday = new Date(today);
-      monday.setDate(today.getDate() + (today.getDay()===0?-6:1-today.getDay()));
-      const weekStr = monday.toISOString().slice(0,10);
-      const current = all.filter(k=>k.includes(weekStr));
-      if(current.length !== all.length) localStorage.setItem("ec_dismissed_alerts", JSON.stringify(current));
-      return new Set(current);
-    }catch{ return new Set(); }
+    try{ return new Set(JSON.parse(sessionStorage.getItem("ec_dismissed_alerts")||"[]")); }
+    catch{ return new Set(); }
   });
 
   const timesheetAlerts = React.useMemo(()=>{
@@ -6121,7 +6112,7 @@ export default function App(){
     setDismissedAlertKeys(prev=>{
       const next = new Set(prev);
       next.add(key);
-      localStorage.setItem("ec_dismissed_alerts", JSON.stringify([...next]));
+      sessionStorage.setItem("ec_dismissed_alerts", JSON.stringify([...next]));
       return next;
     });
   },[]);
@@ -6130,7 +6121,7 @@ export default function App(){
     const keys = timesheetAlerts.map(a=>a.key);
     setDismissedAlertKeys(prev=>{
       const next = new Set([...prev,...keys]);
-      localStorage.setItem("ec_dismissed_alerts", JSON.stringify([...next]));
+      sessionStorage.setItem("ec_dismissed_alerts", JSON.stringify([...next]));
       return next;
     });
   },[timesheetAlerts])
