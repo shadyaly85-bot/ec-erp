@@ -991,9 +991,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
     ${engSection}
     ${billSection}
   </div>
-  <div style="position:fixed;bottom:24px;right:24px;z-index:9999">
-    <button onclick="window.print()" style="background:#0ea5e9;color:#fff;border:none;border-radius:8px;padding:12px 28px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px #0ea5e960">🖨 Print / Save PDF</button>
-  </div>
+  <script>window.onload=()=>window.print()<\/script>
   </body></html>`;
   const blob = new Blob([html], {type:"text/html"});
   const url = URL.createObjectURL(blob);
