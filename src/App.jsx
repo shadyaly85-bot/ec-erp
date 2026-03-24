@@ -473,7 +473,7 @@ const Lbl=({children})=><div style={{fontSize:13,color:"var(--text3)",marginBott
 function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast}){
   const [aDraft, setADraft] = React.useState(null);
   const projActs = (activities||[]).filter(a=>a.project_id===projId);
-  const blank = {project_id:projId,group_name:"SCADA",category:"Templates",activity_name:"",status:"Not Started",progress:0,assigned_to:"",start_date:"",end_date:"",remarks:""};
+  const blank = {project_id:projId,group_name:"SCADA",category:"Templates",activity_name:(ACTIVITY_TAXONOMY["Templates"]||[])[0]||"",status:"Not Started",progress:0,assigned_to:"",start_date:"",end_date:"",remarks:""};
 
   const saveAct = async()=>{
     if(!aDraft?.activity_name?.trim()){if(showToast)showToast("Activity name required",false);return;}
@@ -520,23 +520,30 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
           <label style={{fontSize:12,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>GROUP</label>
           <select value={aDraft.group_name||"SCADA"} onChange={e=>{
             const g=e.target.value;
-            const cats={"SCADA":["Templates","Database","Displays","Reports","Dashboard","GIS","Symbols"],"RTU-PLC":["RTU Configuration","PLC Programming","PPC","Commissioning"],"Protection":["Protection Relays","Protection Testing"],"General":["Documentation","Project Management"]};
-            setADraft(p=>({...p,group_name:g,category:(cats[g]||[])[0]||""}));
+            const firstCat=(TAXONOMY_GROUPS[g]||[])[0]||"";
+            setADraft(p=>({...p,group_name:g,category:firstCat,activity_name:(ACTIVITY_TAXONOMY[firstCat]||[])[0]||p.activity_name}));
           }}>
             {["SCADA","RTU-PLC","Protection","General"].map(g=><option key={g}>{g}</option>)}
           </select>
         </div>
         <div>
           <label style={{fontSize:12,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>CATEGORY</label>
-          {(()=>{
-            const cats={"SCADA":["Templates","Database","Displays","Reports","Dashboard","GIS","Symbols"],"RTU-PLC":["RTU Configuration","PLC Programming","PPC","Commissioning"],"Protection":["Protection Relays","Protection Testing"],"General":["Documentation","Project Management"]};
-            const opts=cats[aDraft.group_name||"SCADA"]||[];
-            return <select value={aDraft.category||opts[0]||""} onChange={e=>setADraft(p=>({...p,category:e.target.value}))}>
-              {opts.map(cat=><option key={cat}>{cat}</option>)}
-            </select>;
-          })()}
+          <select value={aDraft.category||(TAXONOMY_GROUPS[aDraft.group_name||"SCADA"]||[])[0]||""} onChange={e=>{
+            const cat=e.target.value;
+            setADraft(p=>({...p,category:cat,activity_name:(ACTIVITY_TAXONOMY[cat]||[])[0]||p.activity_name}));
+          }}>
+            {(TAXONOMY_GROUPS[aDraft.group_name||"SCADA"]||[]).map(cat=><option key={cat}>{cat}</option>)}
+          </select>
         </div>
       </div>
+      {(ACTIVITY_TAXONOMY[aDraft.category]||[]).length>0&&(
+      <div>
+        <label style={{fontSize:12,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>ACTIVITY (from taxonomy)</label>
+        <select value={aDraft.activity_name||""} onChange={e=>setADraft(p=>({...p,activity_name:e.target.value==="Custom…"?p.activity_name:e.target.value}))}>
+          {(ACTIVITY_TAXONOMY[aDraft.category]||[]).map(a=><option key={a}>{a}</option>)}
+          <option value="Custom…">Custom…</option>
+        </select>
+      </div>)}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         <div>
           <label style={{fontSize:12,fontWeight:700,color:"var(--text3)",display:"block",marginBottom:4}}>STATUS</label>
@@ -2293,9 +2300,12 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   const confirmAdd = useCallback(async({category,activity_name,start_date,end_date,assigned_to})=>{
     if(!addModal) return;
     const {projId,subId}=addModal;
+    // group_name = the GROUP (SCADA/RTU-PLC/Protection/General)
+    // category   = the CATEGORY within the group (Displays, Templates, etc.)
+    const grp = CAT_TO_GROUP[category]||category||null;
     const {data,error}=await supabase.from("project_activities").insert({
       project_id:projId, subproject_id:subId||null,
-      group_name:category||null,
+      group_name:grp,
       category:category||null,
       activity_name,
       status:"Not Started", progress:0,
@@ -2392,8 +2402,28 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     ? projActs.filter(a=>String(a.subproject_id)===String(trackerSub))
     : projActs;
 
-  // Group by category (group_name in DB)
-  const catNames=[...new Set(visActs.map(a=>a.group_name||a.category).filter(Boolean))];
+  // Group by category — ordered by TAXONOMY_GROUPS definition so SCADA categories stay together
+  // Build ordered list: for each group in order, add its categories that have activities
+  const ORDERED_GROUPS = ["SCADA","RTU-PLC","Protection","General"];
+  const orderedCats = [];
+  ORDERED_GROUPS.forEach(grp=>{
+    (TAXONOMY_GROUPS[grp]||[]).forEach(cat=>{
+      if(visActs.some(a=>(a.category===cat)||(a.group_name===cat&&!a.category))){
+        orderedCats.push(cat);
+      }
+    });
+  });
+  // Also add any categories not in taxonomy (custom ones) at the end
+  const knownCats = new Set(orderedCats);
+  visActs.forEach(a=>{
+    const cat = a.category||(CAT_TO_GROUP[a.group_name]?null:a.group_name)||null;
+    if(cat&&!knownCats.has(cat)){ orderedCats.push(cat); knownCats.add(cat); }
+  });
+  const catNames = orderedCats;
+  // Activity belongs to a category if: a.category===cat OR (no category and group_name===cat)
+  const getActsForCat = cat => visActs.filter(a=>
+    a.category===cat || ((!a.category)&&(a.group_name===cat))
+  );
   const uncategorised=visActs.filter(a=>!a.group_name&&!a.category);
 
   const overallPct=projActs.length>0?Math.round(projActs.reduce((s,a)=>s+a.progress,0)/projActs.length*100):0;
@@ -2445,23 +2475,29 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       })}
     </div>)}
 
-    {/* Category accordion sections */}
+    {/* Category accordion sections — grouped by TAXONOMY order */}
     <div style={{display:"grid",gap:8}}>
       {catNames.map(cat=>{
-        const catActs=visActs.filter(a=>(a.group_name||a.category)===cat);
+        const catActs=getActsForCat(cat);
         const catPct=Math.round(catActs.reduce((s,a)=>s+a.progress,0)/catActs.length*100);
         const catDone=catActs.filter(a=>a.status==="Completed").length;
         const isOpen=expandedCats[cat]!==false; // default open
         const catColor=catPct>=90?"#34d399":catPct>=60?"var(--info)":catPct>=30?"#fb923c":"#f87171";
         return(
-        <div key={cat} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,overflow:"hidden"}}>
+        {(()=>{
+          const catGroup=CAT_TO_GROUP[cat]||null;
+          const GROUP_COLORS={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+          const catColor=GROUP_COLORS[catGroup]||"#a78bfa";
+          return(
+        <div key={cat} style={{background:"var(--bg2)",border:`1px solid ${catColor}30`,borderRadius:8,overflow:"hidden"}}>
           {/* Category header — clickable to collapse */}
           <div onClick={()=>toggleCat(cat)}
             style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",background:"var(--bg0)"}}
             onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
             onMouseLeave={e=>e.currentTarget.style.background="var(--bg0)"}>
             <span style={{fontSize:13,color:"var(--text4)",transition:"transform .2s",display:"inline-block",transform:isOpen?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
-            <span style={{fontSize:13,fontWeight:700,color:"#a78bfa",flex:1}}>{cat}</span>
+            {catGroup&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:3,background:catColor+"20",color:catColor,fontWeight:700,flexShrink:0}}>{catGroup}</span>}
+            <span style={{fontSize:13,fontWeight:700,color:catColor,flex:1}}>{cat}</span>
             {/* Mini progress bar */}
             <div style={{width:80,height:5,background:"var(--bg1)",borderRadius:3,overflow:"hidden"}}>
               <div style={{height:"100%",width:`${catPct}%`,background:catColor,borderRadius:3}}/>
@@ -2486,8 +2522,9 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
               ))}
             </tbody>
           </table>)}
-        </div>);
-      })}
+        </div>
+        );})()}
+      )}
 
       {/* Uncategorised activities */}
       {uncategorised.length>0&&(
