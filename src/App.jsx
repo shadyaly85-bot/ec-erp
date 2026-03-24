@@ -5598,6 +5598,9 @@ export default function App(){
   const [editStaff,setEditStaff]           = useState(null);
   const [showExpModal,setShowExpModal]     = useState(false);
   const [editExp,setEditExp]               = useState(null);
+  const [showPwdModal,setShowPwdModal]     = useState(false);
+  const [pwdForm,setPwdForm]               = useState({newPwd:"",confirmPwd:""});
+  const [pwdMsg,setPwdMsg]                 = useState(null); // {ok:bool, text:string}
   const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:null,termination_date:null,email:"",level:"Mid",role_type:"engineer",notes:""});
   const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:null,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
@@ -5796,6 +5799,19 @@ export default function App(){
     await supabase.auth.signOut();
     setSession(null);setEngineers([]);setProjects([]);setEntries([]);setMyProfile(null);setStaff([]);setExpenses([]);setJournalEntries([]);setFixedAssets([]);
     setAccounts([]);setActivityLog([]);setArchiveLog([]);
+  };
+  const handleChangePassword=async()=>{
+    setPwdMsg(null);
+    if(!pwdForm.newPwd||pwdForm.newPwd.length<6){setPwdMsg({ok:false,text:"Password must be at least 6 characters."});return;}
+    if(pwdForm.newPwd!==pwdForm.confirmPwd){setPwdMsg({ok:false,text:"Passwords do not match."});return;}
+    const{error}=await supabase.auth.updateUser({password:pwdForm.newPwd});
+    if(error){setPwdMsg({ok:false,text:error.message});}
+    else{
+      setPwdMsg({ok:true,text:"Password changed successfully!"});
+      logAction("UPDATE","Auth","User changed their password");
+      setPwdForm({newPwd:"",confirmPwd:""});
+      setTimeout(()=>{setShowPwdModal(false);setPwdMsg(null);},1500);
+    }
   };
 
   // Load tracker data: eagerly when session exists (not lazily)
@@ -7207,6 +7223,11 @@ export default function App(){
                 </div>
               </div>
               <div style={{display:"flex",gap:6,marginBottom:6}}>
+                <button onClick={()=>{setShowPwdModal(true);setPwdForm({newPwd:"",confirmPwd:""});setPwdMsg(null);}} style={{flex:1,background:"transparent",border:`1px solid var(--border)`,color:"var(--text2)",padding:"5px",borderRadius:5,cursor:"pointer",fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--info)";e.currentTarget.style.color="var(--info)"}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text2)"}}>
+                  🔑 Password
+                </button>
                 <button onClick={toggleTheme} title={isDark?"Switch to Light Mode":"Switch to Dark Mode"} style={{flex:1,background:"transparent",border:`1px solid var(--border)`,color:"var(--text2)",padding:"5px",borderRadius:5,cursor:"pointer",fontSize:15,fontFamily:"'IBM Plex Sans',sans-serif",transition:"all .2s"}}
                   onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--info)";e.currentTarget.style.color="var(--info)"}}
                   onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text2)"}}>
@@ -9957,6 +9978,40 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
               <button className="bg" onClick={()=>setShowFuncModal(false)}>Cancel</button>
               <button className="bp" onClick={addFunctionEntry}>Post Function Hours</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showPwdModal&&(
+        <div style={{position:"fixed",inset:0,background:"#00000080",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}
+          onClick={e=>{if(e.target===e.currentTarget){setShowPwdModal(false);setPwdMsg(null);}}}>
+          <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:12,padding:28,width:360,maxWidth:"95vw",boxShadow:"0 24px 60px #00000080"}}>
+            <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:4}}>🔑 Change Password</h3>
+            <p style={{fontSize:13,color:"var(--text4)",marginBottom:20}}>Choose a new password for your account.</p>
+            <div style={{display:"grid",gap:12}}>
+              <div>
+                <label style={{fontSize:12,color:"var(--text3)",fontWeight:600,display:"block",marginBottom:4}}>New Password</label>
+                <input type="password" value={pwdForm.newPwd} onChange={e=>setPwdForm(p=>({...p,newPwd:e.target.value}))}
+                  placeholder="Min. 6 characters" autoFocus
+                  onKeyDown={e=>e.key==="Enter"&&handleChangePassword()}/>
+              </div>
+              <div>
+                <label style={{fontSize:12,color:"var(--text3)",fontWeight:600,display:"block",marginBottom:4}}>Confirm Password</label>
+                <input type="password" value={pwdForm.confirmPwd} onChange={e=>setPwdForm(p=>({...p,confirmPwd:e.target.value}))}
+                  placeholder="Repeat new password"
+                  onKeyDown={e=>e.key==="Enter"&&handleChangePassword()}/>
+              </div>
+              {pwdMsg&&(
+                <div style={{fontSize:13,padding:"8px 12px",borderRadius:7,background:pwdMsg.ok?"#052e1620":"#450a0a",color:pwdMsg.ok?"#34d399":"#f87171",border:`1px solid ${pwdMsg.ok?"#34d39940":"#f8717140"}`}}>
+                  {pwdMsg.ok?"✓":"✕"} {pwdMsg.text}
+                </div>
+              )}
+              <div style={{display:"flex",gap:10,marginTop:4}}>
+                <button className="bg" style={{flex:1}} onClick={()=>{setShowPwdModal(false);setPwdMsg(null);}}>Cancel</button>
+                <button className="bp" style={{flex:1}} onClick={handleChangePassword}>Update Password</button>
+              </div>
             </div>
           </div>
         </div>
