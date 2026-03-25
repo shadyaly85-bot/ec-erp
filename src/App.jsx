@@ -472,7 +472,7 @@ const Lbl=({children})=><div style={{fontSize:13,color:"var(--text3)",marginBott
 /* ── Edit Project Activities (standalone component — hooks-safe) ── */
 function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setProjStatusFilter,
   monthEntries,projStats,isAdmin,isAcct,isLead,setShowProjModal,setEditProjModal,deleteProject,fmtCurrency,
-  activities,setActivities,engineers,supabase,showToast}){
+  activities,setActivities,engineers,supabase,showToast,setProjects}){
   const [pvActModal,setPvActModal] = React.useState(null);
   const [pvActDraft,setPvActDraft] = React.useState({});
   const canManage = isAdmin||isLead; // accountant: read-only, cannot add/edit/delete projects
@@ -503,7 +503,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
   // confirmPvAdd: called from AddActivityModal
   const confirmPvAdd=async({category,activity_name,start_date,end_date,assigned_to})=>{
     if(!pvActModal) return;
-    const grp=CAT_TO_GROUP[category]||"SCADA";
+    const grp=CAT_TO_GROUP[category]||"General";
     const{data,error}=await supabase.from("project_activities").insert({
       project_id:pvActModal.projId,
       group_name:grp, category:category||null,
@@ -513,6 +513,19 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
     }).select().single();
     if(error){if(showToast)showToast("Error: "+error.message,false);return;}
     if(setActivities)setActivities(prev=>[...prev,data]);
+    // Auto-assign engineer to project if not already assigned
+    if(assigned_to){
+      const eng=(engineers||[]).find(e=>e.name===assigned_to);
+      if(eng){
+        const proj=projects.find(p=>p.id===pvActModal.projId);
+        const ae=(proj?.assigned_engineers||[]).map(String);
+        if(!ae.includes(String(eng.id))){
+          const newAe=[...ae,String(eng.id)];
+          await supabase.from("projects").update({assigned_engineers:newAe}).eq("id",pvActModal.projId);
+          if(setProjects)setProjects(prev=>prev.map(p=>p.id===pvActModal.projId?{...p,assigned_engineers:newAe}:p));
+        }
+      }
+    }
     setPvActModal(null);
     if(showToast)showToast("Activity added ✓");
   };
@@ -2032,13 +2045,26 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
     </div>
   </div>);
 }
-function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast}){
+function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast, projects, setProjects}){
   const [addModal, setAddModal] = React.useState(false);
   const [editAct, setEditAct]  = React.useState(null);
   const projActs = (activities||[]).filter(a=>a.project_id===projId);
 
+  const autoAssignEngineer = async(assigned_to)=>{
+    if(!assigned_to||!engineers||!projects||!setProjects) return;
+    const eng=(engineers||[]).find(e=>e.name===assigned_to);
+    if(!eng) return;
+    const proj=(projects||[]).find(p=>p.id===projId);
+    const ae=(proj?.assigned_engineers||[]).map(String);
+    if(!ae.includes(String(eng.id))){
+      const newAe=[...ae,String(eng.id)];
+      await supabase.from("projects").update({assigned_engineers:newAe}).eq("id",projId);
+      if(setProjects)setProjects(prev=>prev.map(p=>p.id===projId?{...p,assigned_engineers:newAe}:p));
+    }
+  };
+
   const confirmAdd = async({category,activity_name,start_date,end_date,assigned_to})=>{
-    const grp = CAT_TO_GROUP[category]||"SCADA";
+    const grp = CAT_TO_GROUP[category]||"General";
     const{data,error}=await supabase.from("project_activities").insert({
       project_id:projId, group_name:grp, category:category||null,
       activity_name, status:"Not Started", progress:0,
@@ -2046,16 +2072,19 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
     }).select().single();
     if(error){if(showToast)showToast("Error: "+error.message,false);return;}
     if(setActivities)setActivities(prev=>[...prev,data]);
+    await autoAssignEngineer(assigned_to);
     setAddModal(false);
     if(showToast)showToast("Activity added ✓");
   };
 
   const saveAct = async(draft)=>{
     const{id,...fields}=draft;
-    const payload={...fields,group_name:CAT_TO_GROUP[fields.category]||fields.group_name||"SCADA"};
+    const grp = CAT_TO_GROUP[fields.category]||fields.group_name||"General";
+    const payload={...fields,group_name:grp,category:fields.category||null};
     const{data,error}=await supabase.from("project_activities").update(payload).eq("id",id).select().single();
     if(error){if(showToast)showToast("Error: "+error.message,false);return;}
     if(setActivities)setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
+    await autoAssignEngineer(fields.assigned_to);
     setEditAct(null);
     if(showToast)showToast("Activity saved ✓");
   };
@@ -2160,7 +2189,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete}){
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component
    ════════════════════════════════════════════════════════ */
-function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, showToast}){
+function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, showToast, logAction}){
   const canEdit = isAdmin || isLead;
   const [trackerProj,  setTrackerProj]  = useState(null);
   const [trackerSub,   setTrackerSub]   = useState(null);
@@ -2204,44 +2233,58 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   // ── Callbacks ──
   const saveActivity = useCallback(async(draft)=>{
     const {id,...fields}=draft;
-    // map category → group_name for DB compatibility
-    const payload={...fields, group_name: fields.category||fields.group_name, updated_at:new Date().toISOString()};
+    // group_name = parent group (SCADA/RTU-PLC/...), category = sub-category (Displays/Templates/...)
+    const grp = CAT_TO_GROUP[fields.category]||fields.group_name||"SCADA";
+    const payload={...fields, group_name:grp, category:fields.category||null, updated_at:new Date().toISOString()};
     const {data,error}=await supabase.from("project_activities").update(payload).eq("id",id).select().single();
     if(error){showToast("Error: "+error.message,false);return;}
     setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
     setEditActivity(null);
+    logAction("UPDATE","Tracker",`Updated activity: ${fields.activity_name} on ${fields.project_id}`,{id,project_id:fields.project_id,activity:fields.activity_name,status:fields.status,progress:fields.progress});
     showToast("Activity saved ✓");
-  },[setActivities,showToast]);
+  },[setActivities,showToast,logAction]);
 
   const confirmAdd = useCallback(async({category,activity_name,start_date,end_date,assigned_to})=>{
     if(!addModal) return;
     const {projId,subId}=addModal;
-    // group_name = the GROUP (SCADA/RTU-PLC/Protection/General)
-    // category   = the CATEGORY within the group (Displays, Templates, etc.)
-    const grp = CAT_TO_GROUP[category]||category||null;
+    const grp = CAT_TO_GROUP[category]||"General";
     const {data,error}=await supabase.from("project_activities").insert({
       project_id:projId, subproject_id:subId||null,
-      group_name:grp,
-      category:category||null,
-      activity_name,
-      status:"Not Started", progress:0,
-      start_date:start_date||null,
-      end_date:end_date||null,
+      group_name:grp, category:category||null,
+      activity_name, status:"Not Started", progress:0,
+      start_date:start_date||null, end_date:end_date||null,
       assigned_to:assigned_to||null,
       sort_order:(actsByProj[projId]||[]).length
     }).select().single();
     if(error){showToast("Error: "+error.message,false);return;}
     setActivities(prev=>[...prev,data]);
+    logAction("CREATE","Tracker",`Added activity: ${activity_name} on ${projId}`,{project_id:projId,category,activity:activity_name,assigned_to:assigned_to||null});
+    // Auto-assign engineer to project if not already assigned
+    if(assigned_to){
+      const eng=engineers.find(e=>e.name===assigned_to);
+      if(eng){
+        const proj=projects.find(p=>p.id===projId);
+        const ae=(proj?.assigned_engineers||[]).map(String);
+        if(!ae.includes(String(eng.id))){
+          const newAe=[...ae,String(eng.id)];
+          await supabase.from("projects").update({assigned_engineers:newAe}).eq("id",projId);
+          setProjects(prev=>prev.map(p=>p.id===projId?{...p,assigned_engineers:newAe}:p));
+          showToast(`${assigned_to} added to ${projId} team ✓`);
+        }
+      }
+    }
     setAddModal(null);
     showToast("Activity added ✓");
     if(category) setExpandedCats(p=>({...p,[category]:true}));
-  },[addModal,actsByProj,setActivities,showToast]);
+  },[addModal,actsByProj,setActivities,showToast,logAction,engineers,projects,setProjects]);
 
   const deleteActivity = useCallback(async(id)=>{
     if(!window.confirm("Delete this activity?")) return;
+    const act=activities.find(a=>a.id===id);
     await supabase.from("project_activities").delete().eq("id",id);
     setActivities(prev=>prev.filter(a=>a.id!==id));
-  },[setActivities]);
+    logAction("DELETE","Tracker",`Deleted activity: ${act?.activity_name||id} on ${act?.project_id||""}`,{id,project_id:act?.project_id,activity:act?.activity_name});
+  },[setActivities,activities,logAction]);
 
   // ── Loading ──
   if(!activitiesLoaded) return(
@@ -7610,6 +7653,7 @@ export default function App(){
             fmtCurrency={fmtCurrency}
             activities={activities} setActivities={setActivities}
             engineers={engineers} supabase={supabase} showToast={showToast}
+            setProjects={setProjects}
           />}
 
           {/* ════ TEAM ════ */}
@@ -8904,7 +8948,9 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   isAcct={isAcct}
                   activitiesLoaded={activitiesLoaded}
                   setActivities={setActivities}
+                  setProjects={setProjects}
                   showToast={showToast}
+                  logAction={logAction}
                 />
               )}
 
@@ -9102,6 +9148,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
         const filteredActs = projActs.filter(a=>{
           const matchSub = !newEntry._actSub || String(a.subproject_id)===String(newEntry._actSub);
           const matchCat = !newEntry._actCat || a.category===newEntry._actCat || a.group_name===newEntry._actCat;
+          // Show all activities for this project — not just ones assigned to the engineer
           return matchSub && matchCat;
         });
 
@@ -9315,7 +9362,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                         style={{...INP,borderColor:"var(--info)"+"60"}}>
                         <option value="">— General (no specific activity) —</option>
                         {filteredActs
-                          .filter(a=>!newEntry.taskCategory||a.category===newEntry.taskCategory)
+                          .filter(a=>!newEntry.taskCategory||(a.category===newEntry.taskCategory)||(a.group_name===newEntry.taskCategory)||(a.group_name===CAT_TO_GROUP[newEntry.taskCategory]))
                           .map(a=>(
                           <option key={a.id} value={a.id}>
                             {a.activity_name} · {Math.round((a.progress||0)*100)}%
@@ -9601,6 +9648,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               activities={activities} setActivities={setActivities}
               engineers={engineers} isEngActive={isEngActive}
               supabase={supabase} showToast={showToast}
+              projects={projects} setProjects={setProjects}
             />}
                         </div>
             {epTab!=="activities"&&<div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",borderTop:"1px solid var(--border3)",paddingTop:14}}>
