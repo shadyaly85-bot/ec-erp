@@ -1809,6 +1809,8 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
   const initGroup = CAT_TO_GROUP[act.category]||TAXONOMY_GROUP_NAMES[0];
   const [draft, setDraft] = useState({...act});
   const [group, setGroup] = useState(initGroup);
+  const [customName, setCustomName] = useState(""); // separate state so typing doesn't close the input
+  const isCustom = draft.activity_name==="Custom…";
   const catActs = ACTIVITY_TAXONOMY[draft.category]||[];
   const INP = {width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13,boxSizing:"border-box"};
   const LBL = {fontSize:12,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4};
@@ -1863,7 +1865,8 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
             <input value={draft.activity_name||""} onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))} style={INP}/>
           )}
           {draft.activity_name==="Custom…"&&(
-            <input placeholder="Type custom activity name…" onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))}
+            <input autoFocus value={customName} onChange={e=>setCustomName(e.target.value)}
+              placeholder="Type custom activity name…"
               style={{...INP,marginTop:6,border:"1px solid #38bdf8"}}/>
           )}
         </div>
@@ -1922,7 +1925,13 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
       </div>
       <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
         <button className="bg" onClick={onClose}>Cancel</button>
-        <button className="bp" onClick={()=>onSave(draft)}>Save Activity</button>
+        <button className="bp" onClick={()=>{
+          const finalDraft = isCustom&&customName.trim()
+            ? {...draft, activity_name: customName.trim()}
+            : draft;
+          if(!finalDraft.activity_name||finalDraft.activity_name==="Custom…") return;
+          onSave(finalDraft);
+        }}>Save Activity</button>
       </div>
     </div>
   </div>);
