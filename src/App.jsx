@@ -2481,14 +2481,11 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         const catActs=getActsForCat(cat);
         const catPct=Math.round(catActs.reduce((s,a)=>s+a.progress,0)/catActs.length*100);
         const catDone=catActs.filter(a=>a.status==="Completed").length;
-        const isOpen=expandedCats[cat]!==false; // default open
-        const catColor=catPct>=90?"#34d399":catPct>=60?"var(--info)":catPct>=30?"#fb923c":"#f87171";
+        const isOpen=expandedCats[cat]!==false;
+        const catGroup=CAT_TO_GROUP[cat]||null;
+        const GROUP_COLORS_MAP={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+        const catColor=GROUP_COLORS_MAP[catGroup]||(catPct>=90?"#34d399":catPct>=60?"var(--info)":catPct>=30?"#fb923c":"#f87171");
         return(
-        {(()=>{
-          const catGroup=CAT_TO_GROUP[cat]||null;
-          const GROUP_COLORS={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
-          const catColor=GROUP_COLORS[catGroup]||"#a78bfa";
-          return(
         <div key={cat} style={{background:"var(--bg2)",border:`1px solid ${catColor}30`,borderRadius:8,overflow:"hidden"}}>
           {/* Category header — clickable to collapse */}
           <div onClick={()=>toggleCat(cat)}
@@ -2523,8 +2520,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
             </tbody>
           </table>)}
         </div>
-        );})()}
-      )}
+        );
+      })}
 
       {/* Uncategorised activities */}
       {uncategorised.length>0&&(
