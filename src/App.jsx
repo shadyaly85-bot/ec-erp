@@ -5952,12 +5952,13 @@ export default function App(){
         return;
       }
     }
+    const selectedAct = actId ? activities.find(a=>String(a.id)===String(actId)) : null;
     const basePayload={
       engineer_id:engId,
       project_id: (isLeave||isFunc)?null:newEntry.projectId,
       date,
       task_category:(isLeave)?null:isFunc?"Function":(newEntry._group||newEntry.taskCategory),
-      task_type:   (isLeave)?null:isFunc?funcCat:(newEntry.taskCategory||newEntry.taskType),
+      task_type:   (isLeave)?null:isFunc?funcCat:selectedAct?(selectedAct.activity_name):(newEntry.taskType||newEntry.taskCategory),
       hours:       isLeave?8:+newEntry.hours,
       activity:    newEntry.activity,
       entry_type:  (newEntry.type==="function")?"work":newEntry.type,
