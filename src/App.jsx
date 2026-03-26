@@ -1806,8 +1806,15 @@ const STATUS_BG={"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started"
 
 /* ── Inline category/activity editor modal ── */
 function ActivityEditModal({act, onSave, onClose, engineers}){
-  const initGroup = CAT_TO_GROUP[act.category]||TAXONOMY_GROUP_NAMES[0];
-  const [draft, setDraft] = useState({...act});
+  // Derive the correct group: prefer act.group_name (stored group), fall back to CAT_TO_GROUP[category]
+  const initGroup = act.group_name && TAXONOMY_GROUP_NAMES.includes(act.group_name)
+    ? act.group_name
+    : (CAT_TO_GROUP[act.category]||TAXONOMY_GROUP_NAMES[0]);
+  // Derive the correct category: prefer act.category if it's a known category, else use group's first cat
+  const initCat = act.category && TAXONOMY_GROUPS[initGroup]?.includes(act.category)
+    ? act.category
+    : (TAXONOMY_GROUPS[initGroup]?.[0]||act.category||"");
+  const [draft, setDraft] = useState({...act, category: initCat});
   const [group, setGroup] = useState(initGroup);
   const [customName, setCustomName] = useState(""); // separate state so typing doesn't close the input
   const isCustom = draft.activity_name==="Custom…";
@@ -1857,17 +1864,25 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
         <div>
           <label style={LBL}>ACTIVITY NAME</label>
           {catActs.length>0?(
-            <select value={draft.activity_name||""} onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))} style={INP}>
+            <>
+            <select value={catActs.includes(draft.activity_name)?draft.activity_name:"Custom…"}
+              onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))} style={INP}>
               {catActs.map(a=><option key={a}>{a}</option>)}
               <option value="Custom…">Custom…</option>
             </select>
+            {/* Show custom input if activity_name is not in the taxonomy list */}
+            {!catActs.includes(draft.activity_name)&&(
+              <input autoFocus={isCustom} value={isCustom?customName:draft.activity_name}
+                onChange={e=>{
+                  if(isCustom) setCustomName(e.target.value);
+                  else setDraft(p=>({...p,activity_name:e.target.value}));
+                }}
+                placeholder="Type activity name…"
+                style={{...INP,marginTop:6,border:"1px solid #38bdf8"}}/>
+            )}
+            </>
           ):(
             <input value={draft.activity_name||""} onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))} style={INP}/>
-          )}
-          {draft.activity_name==="Custom…"&&(
-            <input autoFocus value={customName} onChange={e=>setCustomName(e.target.value)}
-              placeholder="Type custom activity name…"
-              style={{...INP,marginTop:6,border:"1px solid #38bdf8"}}/>
           )}
         </div>
 
@@ -1926,11 +1941,12 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
       <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
         <button className="bg" onClick={onClose}>Cancel</button>
         <button className="bp" onClick={()=>{
-          const finalDraft = isCustom&&customName.trim()
-            ? {...draft, activity_name: customName.trim()}
-            : draft;
-          if(!finalDraft.activity_name||finalDraft.activity_name==="Custom…") return;
-          onSave(finalDraft);
+          // Resolve final activity name: custom input takes priority when "Custom…" is selected
+          const finalName = isCustom&&customName.trim()
+            ? customName.trim()
+            : draft.activity_name==="Custom…" ? "" : draft.activity_name;
+          if(!finalName) return;
+          onSave({...draft, activity_name: finalName});
         }}>Save Activity</button>
       </div>
     </div>
@@ -2549,7 +2565,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   {/* Edit modal */}
   {editActivity&&(
     <ActivityEditModal
-      act={{...editActivity, category: editActivity.group_name||editActivity.category||""}}
+      act={{...editActivity, category: editActivity.category||editActivity.group_name||""}}
       onSave={saveActivity}
       onClose={()=>setEditActivity(null)}
       engineers={engineers}/>
