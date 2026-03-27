@@ -2848,7 +2848,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
     return g;
   },[filtered]);
 
-  return(
+  return(<>
     <div>
       {/* Toolbar */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
@@ -3178,7 +3178,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
         </div>
       </div>
     )}
-  );
+  </>);
 }
 
 /* ══════════════════════════════════════════════════════════
