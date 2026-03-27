@@ -2805,12 +2805,13 @@ const ENTRY_TYPES = ["Custody","Accrued Salaries","Revenue","Creditors","Opening
 /* ══════════════════════════════════════════════════════════
    1. JOURNAL LEDGER
    ══════════════════════════════════════════════════════════ */
-function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDelete, loading}) {
+function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDelete, onEdit, loading}) {
   const [filterType,  setFilterType]  = React.useState("ALL");
   const [filterMonth, setFilterMonth] = React.useState("ALL");
   const [search,      setSearch]      = React.useState("");
   const [showAdd,     setShowAdd]     = React.useState(false);
   const [voucherEntry, setVoucherEntry] = React.useState(null);
+  const [editLine,    setEditLine]    = React.useState(null);
   const blank = {entry_no:"",entry_date:"",month:"",entry_type:"Custody",account_name:"",
     statement_type:"Profit & Loss Sheet",main_account:"",debit:"",credit:"",
     description:"",usd_amount:"",exchange_rate:""};
@@ -2913,8 +2914,12 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                 <td style={{padding:"6px 10px",color:"var(--text3)",fontSize:12,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={e.description}>{e.description}</td>
                 <td style={{padding:"6px 10px"}}>
                   {canWrite && e.posted_by!=="migration" && (
-                    <button onClick={ev=>{ev.stopPropagation();onDelete(e.id);}}
-                      style={{background:"transparent",border:"none",color:"#f87171",cursor:"pointer",fontSize:13,padding:"2px 5px"}}>✕</button>
+                    <div style={{display:"flex",gap:2}}>
+                      <button onClick={ev=>{ev.stopPropagation();setEditLine({...e});}}
+                        style={{background:"transparent",border:"none",color:"var(--info)",cursor:"pointer",fontSize:13,padding:"2px 5px"}} title="Edit">✎</button>
+                      <button onClick={ev=>{ev.stopPropagation();if(window.confirm("Delete this journal line?"))onDelete(e.id);}}
+                        style={{background:"transparent",border:"none",color:"#f87171",cursor:"pointer",fontSize:13,padding:"2px 5px"}} title="Delete">✕</button>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -3120,6 +3125,59 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
         );
       })()}
     </div>
+
+    {/* Edit Journal Line Modal */}
+    {editLine&&(
+      <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100}}
+        onClick={()=>setEditLine(null)}>
+        <div className="card" style={{width:560,maxHeight:"92vh",overflowY:"auto",padding:24}} onClick={e=>e.stopPropagation()}>
+          <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:16}}>Edit Journal Line — #{editLine.entry_no}</h3>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            {[{label:"Entry No",key:"entry_no",type:"text"},{label:"Date",key:"entry_date",type:"date"},{label:"Month",key:"month",type:"number"},{label:"Entry Type",key:"entry_type",type:"text"}].map(({label,key,type})=>(
+              <div key={key}><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>{label}</label>
+                <input type={type} value={editLine[key]||""} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
+            ))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Account Name</label>
+              <input list="acct-edit-list" value={editLine.account_name||""} onChange={e=>setEditLine(p=>({...p,account_name:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/>
+              <datalist id="acct-edit-list">{acctNames.map(a=><option key={a} value={a}/>)}</datalist></div>
+            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Main Account</label>
+              <input value={editLine.main_account||""} onChange={e=>setEditLine(p=>({...p,main_account:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Statement Type</label>
+              <select value={editLine.statement_type||""} onChange={e=>setEditLine(p=>({...p,statement_type:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}>
+                <option value="Profit & Loss Sheet">Profit & Loss Sheet</option>
+                <option value="Balance Sheet">Balance Sheet</option>
+              </select></div>
+            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>BS/PL</label>
+              <select value={editLine.bs_pl||""} onChange={e=>setEditLine(p=>({...p,bs_pl:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}>
+                <option value="">—</option><option value="BS">Balance Sheet (BS)</option><option value="PL">Profit & Loss (PL)</option>
+              </select></div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+            {[{label:"Debit (EGP)",key:"debit"},{label:"Credit (EGP)",key:"credit"},{label:"USD Amount",key:"usd_amount"}].map(({label,key})=>(
+              <div key={key}><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>{label}</label>
+                <input type="number" step="0.01" value={editLine[key]||""} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
+            ))}
+          </div>
+          <div style={{marginBottom:10}}>
+            <label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Exchange Rate</label>
+            <input type="number" step="0.01" value={editLine.exchange_rate||""} onChange={e=>setEditLine(p=>({...p,exchange_rate:e.target.value}))} style={{width:"50%",boxSizing:"border-box"}}/>
+          </div>
+          <div style={{marginBottom:16}}>
+            <label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Description</label>
+            <textarea rows={2} value={editLine.description||""} onChange={e=>setEditLine(p=>({...p,description:e.target.value}))}
+              style={{width:"100%",boxSizing:"border-box",resize:"vertical",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 8px",fontFamily:"inherit",fontSize:13}}/>
+          </div>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <button className="bg" onClick={()=>setEditLine(null)}>Cancel</button>
+            <button className="bp" onClick={()=>{if(onEdit)onEdit({...editLine});setEditLine(null);}}>Save Changes</button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }
 
@@ -4637,6 +4695,15 @@ const projProfit=projects.map(p=>{
         setJournalEntries(prev=>prev.filter(e=>e.id!==id));
         logAction("DELETE","Journal",`Deleted journal entry line id:${id}`,{id});
       }}
+      onEdit={async(entry)=>{
+        if(!isAcct&&!isAdmin) return;
+        const{id,...fields}=entry;
+        const{data,error}=await supabase.from("journal_entries").update(fields).eq("id",id).select().single();
+        if(error){showToast("Error: "+error.message,false);return;}
+        setJournalEntries(prev=>prev.map(e=>e.id===data.id?data:e));
+        logAction("UPDATE","Journal",`Updated journal entry #${entry.entry_no} — ${entry.account_name}`,{id,entry_no:entry.entry_no,account:entry.account_name,debit:entry.debit,credit:entry.credit});
+        showToast("Journal entry updated ✓");
+      }}
     />
   )}
 
@@ -5165,7 +5232,7 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
-function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, onDismissNotif, alertDay, setAlertDay}){
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, onDismissNotif, alertDay, setAlertDay, showToast}){
   const yearEntries = useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
   const engKPIs = useMemo(()=>{
 /* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
@@ -5482,11 +5549,18 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
 
       {/* General manager note */}
       <div style={{marginBottom:14}}>
-        <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:6}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
+          <button className="bp" style={{fontSize:12,padding:"3px 12px"}} onClick={()=>{
+            const updated={...kpiNotes};
+            localStorage.setItem("ec_kpi_notes",JSON.stringify(updated));
+            showToast&&showToast("Notes saved ✓");
+          }}>💾 Save Notes</button>
+        </div>
         <textarea value={engNotes.general||""} onChange={e=>setNote("general",e.target.value)}
           rows={4} placeholder="Overall performance summary, key achievements, areas for improvement, next year goals…"
           style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,color:"var(--text2)",fontSize:13,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
-        <div style={{fontSize:11,color:"var(--text4)",marginTop:4}}>Notes saved in-session — to persist, copy to the head office review form.</div>
+        <div style={{fontSize:11,color:"var(--text4)",marginTop:4}}>Notes are saved to your browser. Click 💾 Save Notes to persist across sessions.</div>
       </div>
 
       {/* Improvement actions checklist */}
@@ -5585,7 +5659,7 @@ export default function App(){
   const [funcYear,setFuncYear]             = useState(new Date().getFullYear());
   const [funcEngId,setFuncEngId]           = useState("all");
   const [kpiEngId,setKpiEngId]            = useState(null);
-  const [kpiNotes,setKpiNotes]             = useState({}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
+  const [kpiNotes,setKpiNotes]             = useState(()=>{ try{return JSON.parse(localStorage.getItem("ec_kpi_notes")||"{}");}catch{return{};} }); // {engId: {A:"",B:"",C:"",D:"",general:""}}
   const [activities,setActivities]         = useState([]);
   const [subprojects,setSubprojects]       = useState([]);
   const [activitiesLoaded,setActivitiesLoaded] = useState(false);
@@ -7376,16 +7450,46 @@ export default function App(){
                 <div className="card">
                   <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Task Distribution</h3>
                   {taskStats.length===0&&<p style={{color:"var(--text4)",fontSize:14}}>No tasks logged.</p>}
-                  {taskStats.map(cat=>{const pct=totalWorkHrs?Math.round(cat.hours/totalWorkHrs*100):0;return(
-                    <div key={cat.category} style={{marginBottom:9}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-                        <span style={{fontSize:13}}>{cat.category}</span>
-                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)"}}>{cat.hours}h · {pct}%</span>
+                  {taskStats.map(grp=>{
+                    const pct=totalWorkHrs?Math.round(grp.hours/totalWorkHrs*100):0;
+                    const GC={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+                    const gc=GC[grp.category]||"var(--info)";
+                    return(
+                    <div key={grp.category} style={{marginBottom:12}}>
+                      {/* Group header */}
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                        <span style={{fontSize:13,fontWeight:700,color:gc}}>{grp.category}</span>
+                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:gc}}>{grp.hours}h · {pct}%</span>
                       </div>
-                      <div style={{background:"var(--bg3)",height:4,borderRadius:3,overflow:"hidden"}}>
-                        <div className="bar" style={{width:`${pct}%`}}/>
+                      <div style={{background:"var(--bg3)",height:5,borderRadius:3,overflow:"hidden",marginBottom:6}}>
+                        <div style={{height:"100%",width:`${pct}%`,background:gc,borderRadius:3}}/>
                       </div>
-                    </div>);})}
+                      {/* Sub-categories */}
+                      <div style={{display:"grid",gap:3,paddingLeft:8,borderLeft:`2px solid ${gc}40`}}>
+                        {Object.entries(grp.tasks).sort((a,b)=>b[1].hrs-a[1].hrs).map(([cat,catData])=>{
+                          const catPct=grp.hours?Math.round(catData.hrs/grp.hours*100):0;
+                          const topActs=Object.entries(catData.activities||{}).sort((a,b)=>b[1]-a[1]).slice(0,3);
+                          return(
+                          <div key={cat} style={{marginBottom:2}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                              <span style={{fontSize:12,color:"var(--text2)"}}>{cat}</span>
+                              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--text3)"}}>{catData.hrs}h · {catPct}%</span>
+                            </div>
+                            {topActs.length>0&&(
+                              <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:2}}>
+                                {topActs.map(([act,hrs])=>(
+                                  <span key={act} style={{fontSize:10,color:"var(--text4)",background:"var(--bg3)",borderRadius:3,padding:"1px 5px"}}>
+                                    {act.length>28?act.slice(0,26)+"…":act}
+                                    <span style={{color:gc,fontFamily:"'IBM Plex Mono',monospace",marginLeft:3}}>{hrs}h</span>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>);
+                        })}
+                      </div>
+                    </div>);
+                  })}
                 </div>
               </div>
               <div className="card">
@@ -8957,6 +9061,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   notifications={notifications}
                   onDismissNotif={dismissNotification}
                   alertDay={alertDay} setAlertDay={setAlertDay}
+                  showToast={showToast}
                 />
               )}
 
