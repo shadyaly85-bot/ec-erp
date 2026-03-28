@@ -2913,7 +2913,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                 <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text4)",textAlign:"right"}}>{e.exchange_rate>0?e.exchange_rate:""}</td>
                 <td style={{padding:"6px 10px",color:"var(--text3)",fontSize:12,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={e.description}>{e.description}</td>
                 <td style={{padding:"6px 10px"}}>
-                  {canWrite && e.posted_by!=="migration" && (
+                  {canWrite && (
                     <div style={{display:"flex",gap:2}}>
                       <button onClick={ev=>{ev.stopPropagation();setEditLine({...e});}}
                         style={{background:"transparent",border:"none",color:"var(--info)",cursor:"pointer",fontSize:13,padding:"2px 5px"}} title="Edit">✎</button>
@@ -7454,39 +7454,41 @@ export default function App(){
                     const pct=totalWorkHrs?Math.round(grp.hours/totalWorkHrs*100):0;
                     const GC={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
                     const gc=GC[grp.category]||"var(--info)";
+                    // Top 5 sub-categories by hours
+                    const topCats=Object.entries(grp.tasks).sort((a,b)=>b[1].hrs-a[1].hrs).slice(0,5);
                     return(
-                    <div key={grp.category} style={{marginBottom:12}}>
-                      {/* Group header */}
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                    <div key={grp.category} style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid var(--border3)"}}>
+                      {/* Group bar */}
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                         <span style={{fontSize:13,fontWeight:700,color:gc}}>{grp.category}</span>
-                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:gc}}>{grp.hours}h · {pct}%</span>
+                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:gc,fontWeight:700}}>{grp.hours}h <span style={{color:"var(--text4)",fontWeight:400}}>· {pct}%</span></span>
                       </div>
-                      <div style={{background:"var(--bg3)",height:5,borderRadius:3,overflow:"hidden",marginBottom:6}}>
+                      <div style={{background:"var(--bg3)",height:5,borderRadius:3,overflow:"hidden",marginBottom:8}}>
                         <div style={{height:"100%",width:`${pct}%`,background:gc,borderRadius:3}}/>
                       </div>
-                      {/* Sub-categories */}
-                      <div style={{display:"grid",gap:3,paddingLeft:8,borderLeft:`2px solid ${gc}40`}}>
-                        {Object.entries(grp.tasks).sort((a,b)=>b[1].hrs-a[1].hrs).map(([cat,catData])=>{
+                      {/* Top sub-categories with their top activity */}
+                      <div style={{display:"grid",gap:4}}>
+                        {topCats.map(([cat,catData])=>{
                           const catPct=grp.hours?Math.round(catData.hrs/grp.hours*100):0;
-                          const topActs=Object.entries(catData.activities||{}).sort((a,b)=>b[1]-a[1]).slice(0,3);
+                          // Top 1 activity for this category
+                          const topAct=Object.entries(catData.activities||{}).sort((a,b)=>b[1]-a[1])[0];
                           return(
-                          <div key={cat} style={{marginBottom:2}}>
-                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                              <span style={{fontSize:12,color:"var(--text2)"}}>{cat}</span>
-                              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--text3)"}}>{catData.hrs}h · {catPct}%</span>
-                            </div>
-                            {topActs.length>0&&(
-                              <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:2}}>
-                                {topActs.map(([act,hrs])=>(
-                                  <span key={act} style={{fontSize:10,color:"var(--text4)",background:"var(--bg3)",borderRadius:3,padding:"1px 5px"}}>
-                                    {act.length>28?act.slice(0,26)+"…":act}
-                                    <span style={{color:gc,fontFamily:"'IBM Plex Mono',monospace",marginLeft:3}}>{hrs}h</span>
-                                  </span>
-                                ))}
+                          <div key={cat} style={{display:"flex",alignItems:"center",gap:8}}>
+                            <div style={{width:3,height:28,background:gc+"60",borderRadius:2,flexShrink:0}}/>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:"flex",justifyContent:"space-between"}}>
+                                <span style={{fontSize:12,color:"var(--text1)",fontWeight:600}}>{cat}</span>
+                                <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--text3)"}}>{catData.hrs}h · {catPct}%</span>
                               </div>
-                            )}
+                              {topAct&&<div style={{fontSize:11,color:"var(--text4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                ↳ {topAct[0].length>35?topAct[0].slice(0,33)+"…":topAct[0]} <span style={{color:gc,fontFamily:"'IBM Plex Mono',monospace"}}>{topAct[1]}h</span>
+                              </div>}
+                            </div>
                           </div>);
                         })}
+                        {Object.keys(grp.tasks).length>5&&(
+                          <div style={{fontSize:11,color:"var(--text4)",paddingLeft:11}}>+{Object.keys(grp.tasks).length-5} more categories</div>
+                        )}
                       </div>
                     </div>);
                   })}
