@@ -2803,15 +2803,276 @@ const MAIN_ACCOUNTS = [
 const ENTRY_TYPES = ["Custody","Accrued Salaries","Revenue","Creditors","Opening","Shareholders","project in process"];
 
 /* ══════════════════════════════════════════════════════════
+   TRACKER PROGRESS REPORT
+   ══════════════════════════════════════════════════════════ */
+function TrackerProgressReport({activities, projects, subprojects, engineers, entries, MONTHS}){
+  const [period, setPeriod]   = React.useState("weekly");   // daily | weekly | monthly | full
+  const [projId,  setProjId]  = React.useState("ALL");
+  const [statusF, setStatusF] = React.useState("ALL");      // ALL | Not Started | In Progress | On Hold | Completed
+
+  const today = new Date();
+  const fmtD  = d=>new Date(d+"T12:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+
+  // Date range for "changed recently" badge
+  const cutoff = React.useMemo(()=>{
+    const d=new Date();
+    if(period==="daily")  { d.setDate(d.getDate()-1); }
+    else if(period==="weekly") { d.setDate(d.getDate()-7); }
+    else if(period==="monthly"){ d.setMonth(d.getMonth()-1); }
+    else { d.setFullYear(2000); } // full = all time
+    return d;
+  },[period]);
+
+  const filteredActs = React.useMemo(()=>{
+    return activities.filter(a=>{
+      if(projId!=="ALL" && a.project_id!==projId) return false;
+      if(statusF!=="ALL" && a.status!==statusF) return false;
+      return true;
+    });
+  },[activities, projId, statusF]);
+
+  // Group activities by project then by category
+  const grouped = React.useMemo(()=>{
+    const map={};
+    filteredActs.forEach(a=>{
+      const k=a.project_id;
+      if(!map[k]) map[k]={projId:k, cats:{}};
+      const cat=a.category||a.group_name||"General";
+      if(!map[k].cats[cat]) map[k].cats[cat]=[];
+      map[k].cats[cat].push(a);
+    });
+    return Object.values(map).sort((a,b)=>a.projId.localeCompare(b.projId));
+  },[filteredActs]);
+
+  const STATUS_COLOR={"Completed":"#34d399","In Progress":"var(--info)","Not Started":"var(--text3)","On Hold":"#fb923c"};
+  const STATUS_BG   ={"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started":"#1e293b40","On Hold":"#78350f30"};
+  const GROUP_COLOR ={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+
+  const buildPDF=()=>{
+    const periodLabel={daily:"Last 24 Hours",weekly:"Last 7 Days",monthly:"Last 30 Days",full:"Complete Project"}[period];
+    const now=today.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+    const rows=grouped.map(g=>{
+      const proj=projects.find(p=>p.id===g.projId);
+      const totalActs=Object.values(g.cats).flat().length;
+      const doneActs =Object.values(g.cats).flat().filter(a=>a.status==="Completed").length;
+      const inProg   =Object.values(g.cats).flat().filter(a=>a.status==="In Progress").length;
+      const avgProg  =totalActs?Math.round(Object.values(g.cats).flat().reduce((s,a)=>s+(a.progress||0),0)/totalActs*100):0;
+      const catRows  =Object.entries(g.cats).map(([cat,acts])=>{
+        const actRows=acts.map(a=>{
+          const eng=engineers.find(e=>e.name===a.assigned_to);
+          const pct=Math.round((a.progress||0)*100);
+          const dateRange=[a.start_date?fmtD(a.start_date):"",a.end_date?fmtD(a.end_date):""].filter(Boolean).join(" → ");
+          return `<tr>
+            <td style="padding:5px 8px;font-size:12px;color:#1e293b;padding-left:32px">${a.activity_name}</td>
+            <td style="padding:5px 8px;font-size:11px"><span style="background:${{"Completed":"#dcfce7","In Progress":"#dbeafe","Not Started":"#f1f5f9","On Hold":"#fff7ed"}[a.status]||"#f1f5f9"};color:${{"Completed":"#166534","In Progress":"#1d4ed8","Not Started":"#64748b","On Hold":"#9a3412"}[a.status]||"#64748b"};padding:2px 8px;border-radius:4px;font-weight:600">${a.status}</span></td>
+            <td style="padding:5px 8px;font-size:12px;text-align:center;font-weight:700;color:${pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b"}">${pct}%</td>
+            <td style="padding:5px 8px;font-size:11px;color:#64748b">${a.assigned_to||"—"}</td>
+            <td style="padding:5px 8px;font-size:11px;color:#64748b">${dateRange||"—"}</td>
+            <td style="padding:5px 8px;font-size:11px;color:#64748b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.remarks||""}</td>
+          </tr>`;}).join("");
+        return `<tr style="background:#f8fafc"><td colspan="6" style="padding:4px 8px 4px 16px;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.06em">${cat}</td></tr>${actRows}`;
+      }).join("");
+      return `
+        <div style="margin-bottom:24px;page-break-inside:avoid">
+          <div style="background:#1e3a5f;color:#fff;padding:10px 14px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#93c5fd">${g.projId}</div>
+              <div style="font-size:15px;font-weight:700">${proj?.name||g.projId}</div>
+            </div>
+            <div style="text-align:right;font-size:12px">
+              <div>${doneActs}/${totalActs} completed &nbsp;·&nbsp; ${inProg} in progress</div>
+              <div style="font-size:18px;font-weight:700;color:${avgProg===100?"#34d399":avgProg>=50?"#60a5fa":"#fb923c"}">${avgProg}% avg progress</div>
+            </div>
+          </div>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none">
+            <thead><tr style="background:#f1f5f9">
+              <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Activity</th>
+              <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Status</th>
+              <th style="padding:6px 8px;text-align:center;font-size:11px;color:#64748b">Progress</th>
+              <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Assigned To</th>
+              <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Dates</th>
+              <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Remarks</th>
+            </tr></thead>
+            <tbody>${catRows}</tbody>
+          </table>
+        </div>`;
+    }).join("");
+
+    const html=`<!DOCTYPE html><html><head><title>Tracker Report — ${periodLabel}</title>
+    <style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:24px;color:#1e293b;font-size:13px}
+    @media print{body{padding:0}}</style></head><body>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #1e3a5f">
+      <div>
+        <div style="font-size:22px;font-weight:800;color:#1e3a5f">ENEVO GROUP</div>
+        <div style="font-size:16px;font-weight:700;margin-top:2px">Activity Tracker Report — ${periodLabel}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:3px">Generated: ${now} · ${filteredActs.length} activities · ${grouped.length} projects</div>
+      </div>
+    </div>
+    ${rows}
+    </body></html>`;
+    const blob=new Blob([html],{type:"text/html"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url; a.target="_blank"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),3000);
+  };
+
+  const PERIOD_OPTS=[
+    {v:"daily",  l:"Daily (Last 24h)"},
+    {v:"weekly", l:"Weekly (Last 7 days)"},
+    {v:"monthly",l:"Monthly (Last 30 days)"},
+    {v:"full",   l:"Full Project (All time)"},
+  ];
+
+  const totalActs   = filteredActs.length;
+  const doneCount   = filteredActs.filter(a=>a.status==="Completed").length;
+  const inProgCount = filteredActs.filter(a=>a.status==="In Progress").length;
+  const notStarted  = filteredActs.filter(a=>a.status==="Not Started").length;
+  const onHold      = filteredActs.filter(a=>a.status==="On Hold").length;
+  const avgProgress = totalActs?Math.round(filteredActs.reduce((s,a)=>s+(a.progress||0),0)/totalActs*100):0;
+
+  return(
+  <div>
+    {/* Controls */}
+    <div className="card" style={{marginBottom:14}}>
+      <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",justifyContent:"space-between"}}>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:4}}>PERIOD</div>
+            <div style={{display:"flex",gap:6}}>
+              {PERIOD_OPTS.map(o=>(
+                <button key={o.v} onClick={()=>setPeriod(o.v)}
+                  style={{padding:"5px 10px",borderRadius:5,border:`1px solid ${period===o.v?"var(--info)":"var(--border3)"}`,
+                    background:period===o.v?"var(--info)15":"var(--bg2)",color:period===o.v?"var(--info)":"var(--text2)",
+                    fontSize:12,fontWeight:period===o.v?700:400,cursor:"pointer"}}>{o.l}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:4}}>PROJECT</div>
+            <select value={projId} onChange={e=>setProjId(e.target.value)}
+              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13}}>
+              <option value="ALL">All Projects</option>
+              {[...new Set(activities.map(a=>a.project_id))].sort().map(id=>{
+                const p=projects.find(x=>x.id===id);
+                return <option key={id} value={id}>{id}{p&&p.name!==id?` — ${p.name}`:""}</option>;
+              })}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:4}}>STATUS</div>
+            <select value={statusF} onChange={e=>setStatusF(e.target.value)}
+              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13}}>
+              <option value="ALL">All Statuses</option>
+              {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <button className="bp" onClick={buildPDF} style={{height:34,padding:"0 16px",fontSize:13}}>⬇ Export PDF</button>
+      </div>
+    </div>
+
+    {/* KPI Summary */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
+      {[
+        {l:"Total Activities",v:totalActs,            c:"var(--info)"},
+        {l:"Completed",       v:doneCount,            c:"#34d399"},
+        {l:"In Progress",     v:inProgCount,          c:"var(--info)"},
+        {l:"Not Started",     v:notStarted,           c:"var(--text3)"},
+        {l:"Avg Progress",    v:avgProgress+"%",      c:avgProgress>=75?"#34d399":avgProgress>=40?"#fb923c":"#f87171"},
+      ].map(k=>(
+        <div key={k.l} className="card" style={{textAlign:"center",padding:"10px 8px"}}>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:k.c,lineHeight:1}}>{k.v}</div>
+          <div style={{fontSize:11,color:"var(--text4)",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{k.l}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* On Hold alert */}
+    {onHold>0&&(
+      <div style={{background:"#78350f20",border:"1px solid #fb923c50",borderRadius:6,padding:"8px 12px",marginBottom:14,fontSize:13,color:"#fb923c"}}>
+        ⚠ {onHold} {onHold===1?"activity is":"activities are"} On Hold — requires attention
+      </div>
+    )}
+
+    {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No activities match the selected filters.</div>}
+
+    {/* Project groups */}
+    {grouped.map(g=>{
+      const proj=projects.find(p=>p.id===g.projId);
+      const allActs=Object.values(g.cats).flat();
+      const pDone=allActs.filter(a=>a.status==="Completed").length;
+      const pProg=allActs.length?Math.round(allActs.reduce((s,a)=>s+(a.progress||0),0)/allActs.length*100):0;
+      return(
+      <div key={g.projId} className="card" style={{marginBottom:12}}>
+        {/* Project header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,paddingBottom:10,borderBottom:"1px solid var(--border3)"}}>
+          <div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",marginBottom:2}}>{g.projId}</div>
+            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>{proj?.name||g.projId}</div>
+            {proj?.phase&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span></div>}
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:pProg===100?"#34d399":pProg>=50?"var(--info)":"#fb923c"}}>{pProg}%</div>
+            <div style={{fontSize:11,color:"var(--text4)"}}>{pDone}/{allActs.length} completed</div>
+          </div>
+        </div>
+
+        {/* Categories */}
+        {Object.entries(g.cats).map(([cat,acts])=>{
+          const gc=GROUP_COLOR[acts[0]?.group_name]||"var(--info)";
+          return(
+          <div key={cat} style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:gc,textTransform:"uppercase",letterSpacing:".07em",marginBottom:5,display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:8,height:8,borderRadius:2,background:gc,flexShrink:0}}/>
+              {cat}
+            </div>
+            <div style={{display:"grid",gap:4}}>
+              {acts.map(a=>{
+                const pct=Math.round((a.progress||0)*100);
+                const sc=STATUS_COLOR[a.status]||"var(--text3)";
+                const sb=STATUS_BG[a.status]||"var(--bg3)";
+                return(
+                <div key={a.id} style={{background:"var(--bg2)",borderRadius:6,padding:"8px 12px",border:"1px solid var(--border3)"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:4}}>{a.activity_name}</div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center"}}>
+                        <span style={{fontSize:11,padding:"2px 7px",borderRadius:3,background:sb,color:sc,fontWeight:600}}>{a.status}</span>
+                        {a.assigned_to&&<span style={{fontSize:11,color:"var(--text3)"}}>👤 {a.assigned_to}</span>}
+                        {a.start_date&&<span style={{fontSize:11,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
+                        {a.end_date&&<span style={{fontSize:11,color:new Date(a.end_date)<today&&a.status!=="Completed"?"#f87171":"var(--text4)"}}>⏎ {fmtD(a.end_date)}</span>}
+                      </div>
+                      {a.remarks&&<div style={{fontSize:11,color:"var(--text4)",marginTop:4,fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.remarks}</div>}
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0,minWidth:48}}>
+                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text2)"}}>{pct}%</div>
+                    </div>
+                  </div>
+                  {pct>0&&<div style={{marginTop:6,background:"var(--bg3)",borderRadius:3,height:4,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:3}}/>
+                  </div>}
+                </div>);
+              })}
+            </div>
+          </div>);
+        })}
+      </div>);
+    })}
+  </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
    1. JOURNAL LEDGER
    ══════════════════════════════════════════════════════════ */
 function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDelete, onEdit, loading}) {
   const [filterType,  setFilterType]  = React.useState("ALL");
   const [filterMonth, setFilterMonth] = React.useState("ALL");
   const [search,      setSearch]      = React.useState("");
+  const [editLine,    setEditLine]    = React.useState(null);
   const [showAdd,     setShowAdd]     = React.useState(false);
   const [voucherEntry, setVoucherEntry] = React.useState(null);
-  const [editLine,    setEditLine]    = React.useState(null);
   const blank = {entry_no:"",entry_date:"",month:"",entry_type:"Custody",account_name:"",
     statement_type:"Profit & Loss Sheet",main_account:"",debit:"",credit:"",
     description:"",usd_amount:"",exchange_rate:""};
@@ -2914,11 +3175,11 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                 <td style={{padding:"6px 10px",color:"var(--text3)",fontSize:12,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={e.description}>{e.description}</td>
                 <td style={{padding:"6px 10px"}}>
                   {canWrite && (
-                    <div style={{display:"flex",gap:2}}>
-                      <button onClick={ev=>{ev.stopPropagation();setEditLine({...e});}}
-                        style={{background:"transparent",border:"none",color:"var(--info)",cursor:"pointer",fontSize:13,padding:"2px 5px"}} title="Edit">✎</button>
-                      <button onClick={ev=>{ev.stopPropagation();if(window.confirm("Delete this journal line?"))onDelete(e.id);}}
-                        style={{background:"transparent",border:"none",color:"#f87171",cursor:"pointer",fontSize:13,padding:"2px 5px"}} title="Delete">✕</button>
+                    <div style={{display:"flex",gap:3,alignItems:"center"}}>
+                      <button onClick={ev=>{ev.stopPropagation();setEditLine({...e});}} title="Edit"
+                        style={{background:"transparent",border:"none",color:"var(--info)",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✎</button>
+                      <button onClick={ev=>{ev.stopPropagation();if(window.confirm("Delete this journal line?"))onDelete(e.id);}} title="Delete"
+                        style={{background:"transparent",border:"none",color:"#f87171",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✕</button>
                     </div>
                   )}
                 </td>
@@ -3126,45 +3387,53 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
       })()}
     </div>
 
-    {/* Edit Journal Line Modal */}
+    {/* ── Edit Journal Line Modal ── */}
     {editLine&&(
       <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100}}
         onClick={()=>setEditLine(null)}>
         <div className="card" style={{width:560,maxHeight:"92vh",overflowY:"auto",padding:24}} onClick={e=>e.stopPropagation()}>
           <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:16}}>Edit Journal Line — #{editLine.entry_no}</h3>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            {[{label:"Entry No",key:"entry_no",type:"text"},{label:"Date",key:"entry_date",type:"date"},{label:"Month",key:"month",type:"number"},{label:"Entry Type",key:"entry_type",type:"text"}].map(({label,key,type})=>(
+            {[{label:"Entry No",key:"entry_no",type:"text"},{label:"Date",key:"entry_date",type:"date"},
+              {label:"Month",key:"month",type:"number"},{label:"Entry Type",key:"entry_type",type:"text"}].map(({label,key,type})=>(
               <div key={key}><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>{label}</label>
-                <input type={type} value={editLine[key]||""} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
+                <input type={type} value={editLine[key]||""} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))}
+                  style={{width:"100%",boxSizing:"border-box",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13}}/></div>
             ))}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
             <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Account Name</label>
-              <input list="acct-edit-list" value={editLine.account_name||""} onChange={e=>setEditLine(p=>({...p,account_name:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/>
+              <input list="acct-edit-list" value={editLine.account_name||""} onChange={e=>setEditLine(p=>({...p,account_name:e.target.value}))}
+                style={{width:"100%",boxSizing:"border-box",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13}}/>
               <datalist id="acct-edit-list">{acctNames.map(a=><option key={a} value={a}/>)}</datalist></div>
             <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Main Account</label>
-              <input value={editLine.main_account||""} onChange={e=>setEditLine(p=>({...p,main_account:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
+              <input value={editLine.main_account||""} onChange={e=>setEditLine(p=>({...p,main_account:e.target.value}))}
+                style={{width:"100%",boxSizing:"border-box",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13}}/></div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
             <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Statement Type</label>
-              <select value={editLine.statement_type||""} onChange={e=>setEditLine(p=>({...p,statement_type:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}>
-                <option value="Profit & Loss Sheet">Profit & Loss Sheet</option>
+              <select value={editLine.statement_type||""} onChange={e=>setEditLine(p=>({...p,statement_type:e.target.value}))}
+                style={{width:"100%",boxSizing:"border-box",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13}}>
+                <option value="Profit & Loss Sheet">Profit &amp; Loss Sheet</option>
                 <option value="Balance Sheet">Balance Sheet</option>
               </select></div>
             <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>BS/PL</label>
-              <select value={editLine.bs_pl||""} onChange={e=>setEditLine(p=>({...p,bs_pl:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}>
-                <option value="">—</option><option value="BS">Balance Sheet (BS)</option><option value="PL">Profit & Loss (PL)</option>
+              <select value={editLine.bs_pl||""} onChange={e=>setEditLine(p=>({...p,bs_pl:e.target.value}))}
+                style={{width:"100%",boxSizing:"border-box",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13}}>
+                <option value="">—</option><option value="BS">Balance Sheet (BS)</option><option value="PL">Profit &amp; Loss (PL)</option>
               </select></div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
             {[{label:"Debit (EGP)",key:"debit"},{label:"Credit (EGP)",key:"credit"},{label:"USD Amount",key:"usd_amount"}].map(({label,key})=>(
               <div key={key}><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>{label}</label>
-                <input type="number" step="0.01" value={editLine[key]||""} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
+                <input type="number" step="0.01" value={editLine[key]||""} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))}
+                  style={{width:"100%",boxSizing:"border-box",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13}}/></div>
             ))}
           </div>
-          <div style={{marginBottom:10}}>
-            <label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Exchange Rate</label>
-            <input type="number" step="0.01" value={editLine.exchange_rate||""} onChange={e=>setEditLine(p=>({...p,exchange_rate:e.target.value}))} style={{width:"50%",boxSizing:"border-box"}}/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Exchange Rate</label>
+              <input type="number" step="0.01" value={editLine.exchange_rate||""} onChange={e=>setEditLine(p=>({...p,exchange_rate:e.target.value}))}
+                style={{width:"100%",boxSizing:"border-box",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13}}/></div>
           </div>
           <div style={{marginBottom:16}}>
             <label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Description</label>
@@ -4698,11 +4967,19 @@ const projProfit=projects.map(p=>{
       onEdit={async(entry)=>{
         if(!isAcct&&!isAdmin) return;
         const{id,...fields}=entry;
-        const{data,error}=await supabase.from("journal_entries").update(fields).eq("id",id).select().single();
-        if(error){showToast("Error: "+error.message,false);return;}
-        setJournalEntries(prev=>prev.map(e=>e.id===data.id?data:e));
-        logAction("UPDATE","Journal",`Updated journal entry #${entry.entry_no} — ${entry.account_name}`,{id,entry_no:entry.entry_no,account:entry.account_name,debit:entry.debit,credit:entry.credit});
-        showToast("Journal entry updated ✓");
+        const payload={
+          ...fields,
+          debit:        +fields.debit||0,
+          credit:       +fields.credit||0,
+          usd_amount:   fields.usd_amount===""||fields.usd_amount===null?null:(+fields.usd_amount||null),
+          exchange_rate:fields.exchange_rate===""||fields.exchange_rate===null?null:(+fields.exchange_rate||null),
+          month:        fields.month===""||fields.month===null?null:(+fields.month||null),
+        };
+        const{data,error}=await supabase.from("journal_entries").update(payload).eq("id",id).select().maybeSingle();
+        if(error){showToast("Error saving: "+error.message,false);console.error("Journal update error:",error);return;}
+        if(data) setJournalEntries(prev=>prev.map(e=>e.id===data.id?data:e));
+        logAction("UPDATE","Journal",`Updated journal entry #${entry.entry_no} — ${entry.account_name}`,{id,entry_no:entry.entry_no,account:entry.account_name});
+        showToast("Journal entry updated \u2713");
       }}
     />
   )}
@@ -5232,7 +5509,7 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
-function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, onDismissNotif, alertDay, setAlertDay, showToast}){
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, onDismissNotif, alertDay, setAlertDay}){
   const yearEntries = useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
   const engKPIs = useMemo(()=>{
 /* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
@@ -5549,18 +5826,11 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
 
       {/* General manager note */}
       <div style={{marginBottom:14}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
-          <button className="bp" style={{fontSize:12,padding:"3px 12px"}} onClick={()=>{
-            const updated={...kpiNotes};
-            localStorage.setItem("ec_kpi_notes",JSON.stringify(updated));
-            showToast&&showToast("Notes saved ✓");
-          }}>💾 Save Notes</button>
-        </div>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:6}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
         <textarea value={engNotes.general||""} onChange={e=>setNote("general",e.target.value)}
           rows={4} placeholder="Overall performance summary, key achievements, areas for improvement, next year goals…"
           style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,color:"var(--text2)",fontSize:13,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
-        <div style={{fontSize:11,color:"var(--text4)",marginTop:4}}>Notes are saved to your browser. Click 💾 Save Notes to persist across sessions.</div>
+        <div style={{fontSize:11,color:"var(--text4)",marginTop:4}}>Notes saved in-session — to persist, copy to the head office review form.</div>
       </div>
 
       {/* Improvement actions checklist */}
@@ -5659,7 +5929,7 @@ export default function App(){
   const [funcYear,setFuncYear]             = useState(new Date().getFullYear());
   const [funcEngId,setFuncEngId]           = useState("all");
   const [kpiEngId,setKpiEngId]            = useState(null);
-  const [kpiNotes,setKpiNotes]             = useState(()=>{ try{return JSON.parse(localStorage.getItem("ec_kpi_notes")||"{}");}catch{return{};} }); // {engId: {A:"",B:"",C:"",D:"",general:""}}
+  const [kpiNotes,setKpiNotes]             = useState({}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
   const [activities,setActivities]         = useState([]);
   const [subprojects,setSubprojects]       = useState([]);
   const [activitiesLoaded,setActivitiesLoaded] = useState(false);
@@ -5833,7 +6103,12 @@ export default function App(){
         // Also delete read rows (legacy)
         all.filter(n=>n.read).forEach(n=>toDelete.push(n.id));
         if(toDelete.length) supabase.from("notifications").delete().in("id",[...new Set(toDelete)]).then(()=>{});
-        const deduped = all.filter(n=>!n.read && !toDelete.includes(n.id));
+        // Also filter dismissed signup notifications
+        const dismissedSignups=new Set(JSON.parse(localStorage.getItem("ec_dismissed_signups")||"[]"));
+        const deduped = all.filter(n=>!n.read && !toDelete.includes(n.id) && !(n.type==="new_signup"&&dismissedSignups.has(n.id)));
+        // Delete dismissed signups from DB so they stay gone
+        const signupsToDelete=all.filter(n=>n.type==="new_signup"&&dismissedSignups.has(n.id)).map(n=>n.id);
+        if(signupsToDelete.length) supabase.from("notifications").delete().in("id",signupsToDelete).then(()=>{});
         setNotifications(deduped);
       }
       if(staffR.data){
@@ -5929,7 +6204,6 @@ export default function App(){
   // Dismiss = permanently delete from DB so they never come back on refresh
   const dismissNotification=useCallback(async(id)=>{
     const n=notifications.find(x=>x.id===id);
-    // For timesheet alerts, track in sessionStorage so they don't re-insert this session
     if(n?.type==="timesheet_alert"){
       try{
         const meta=JSON.parse(n.meta||"{}");
@@ -5938,6 +6212,11 @@ export default function App(){
           localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,meta.alert_key])]));
         }
       }catch(e){}
+    }
+    // Track dismissed signup IDs so they don't re-appear on refresh
+    if(n?.type==="new_signup"){
+      const prev=JSON.parse(localStorage.getItem("ec_dismissed_signups")||"[]");
+      localStorage.setItem("ec_dismissed_signups",JSON.stringify([...new Set([...prev,id])]));
     }
     await supabase.from("notifications").delete().eq("id",id);
     setNotifications(prev=>prev.filter(x=>x.id!==id));
@@ -5955,6 +6234,10 @@ export default function App(){
       }catch(e){}
     }
     const ids=toRemove.map(n=>n.id);
+    if(type==="new_signup"){
+      const prev=JSON.parse(localStorage.getItem("ec_dismissed_signups")||"[]");
+      localStorage.setItem("ec_dismissed_signups",JSON.stringify([...new Set([...prev,...ids])]));
+    }
     await supabase.from("notifications").delete().in("id",ids);
     setNotifications(prev=>prev.filter(n=>n.type!==type));
   },[notifications]);
@@ -7450,48 +7733,46 @@ export default function App(){
                 <div className="card">
                   <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Task Distribution</h3>
                   {taskStats.length===0&&<p style={{color:"var(--text4)",fontSize:14}}>No tasks logged.</p>}
-                  {taskStats.map(grp=>{
-                    const pct=totalWorkHrs?Math.round(grp.hours/totalWorkHrs*100):0;
+                  {(()=>{
                     const GC={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
-                    const gc=GC[grp.category]||"var(--info)";
-                    // Top 5 sub-categories by hours
-                    const topCats=Object.entries(grp.tasks).sort((a,b)=>b[1].hrs-a[1].hrs).slice(0,5);
-                    return(
-                    <div key={grp.category} style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid var(--border3)"}}>
-                      {/* Group bar */}
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                        <span style={{fontSize:13,fontWeight:700,color:gc}}>{grp.category}</span>
-                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:gc,fontWeight:700}}>{grp.hours}h <span style={{color:"var(--text4)",fontWeight:400}}>· {pct}%</span></span>
-                      </div>
-                      <div style={{background:"var(--bg3)",height:5,borderRadius:3,overflow:"hidden",marginBottom:8}}>
-                        <div style={{height:"100%",width:`${pct}%`,background:gc,borderRadius:3}}/>
-                      </div>
-                      {/* Top sub-categories with their top activity */}
-                      <div style={{display:"grid",gap:4}}>
-                        {topCats.map(([cat,catData])=>{
-                          const catPct=grp.hours?Math.round(catData.hrs/grp.hours*100):0;
-                          // Top 1 activity for this category
-                          const topAct=Object.entries(catData.activities||{}).sort((a,b)=>b[1]-a[1])[0];
-                          return(
-                          <div key={cat} style={{display:"flex",alignItems:"center",gap:8}}>
-                            <div style={{width:3,height:28,background:gc+"60",borderRadius:2,flexShrink:0}}/>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{display:"flex",justifyContent:"space-between"}}>
-                                <span style={{fontSize:12,color:"var(--text1)",fontWeight:600}}>{cat}</span>
-                                <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--text3)"}}>{catData.hrs}h · {catPct}%</span>
+                    return taskStats.map(grp=>{
+                      const pct=totalWorkHrs?Math.round(grp.hours/totalWorkHrs*100):0;
+                      const gc=GC[grp.category]||"var(--info)";
+                      const topCats=Object.entries(grp.tasks).sort((a,b)=>b[1].hrs-a[1].hrs).slice(0,5);
+                      return(
+                      <div key={grp.category} style={{marginBottom:14,paddingBottom:12,borderBottom:"1px solid var(--border3)"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                          <span style={{fontSize:13,fontWeight:700,color:gc}}>{grp.category}</span>
+                          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:700,color:gc}}>{grp.hours}h <span style={{color:"var(--text4)",fontWeight:400}}>· {pct}%</span></span>
+                        </div>
+                        <div style={{background:"var(--bg3)",height:5,borderRadius:3,overflow:"hidden",marginBottom:7}}>
+                          <div style={{height:"100%",width:`${pct}%`,background:gc,borderRadius:3}}/>
+                        </div>
+                        <div style={{display:"grid",gap:5}}>
+                          {topCats.map(([cat,catData])=>{
+                            const catPct=grp.hours?Math.round(catData.hrs/grp.hours*100):0;
+                            const topAct=Object.entries(catData.activities||{}).sort((a,b)=>b[1]-a[1])[0];
+                            return(
+                            <div key={cat} style={{display:"flex",alignItems:"flex-start",gap:7}}>
+                              <div style={{width:3,minHeight:20,background:gc+"50",borderRadius:2,flexShrink:0,marginTop:3}}/>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                  <span style={{fontSize:12,fontWeight:600,color:"var(--text1)"}}>{cat}</span>
+                                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--text3)",flexShrink:0,marginLeft:6}}>{catData.hrs}h · {catPct}%</span>
+                                </div>
+                                {topAct&&<div style={{fontSize:11,color:"var(--text4)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                  ↳ {topAct[0].length>34?topAct[0].slice(0,32)+"…":topAct[0]} <span style={{color:gc,fontFamily:"'IBM Plex Mono',monospace"}}>{topAct[1]}h</span>
+                                </div>}
                               </div>
-                              {topAct&&<div style={{fontSize:11,color:"var(--text4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                                ↳ {topAct[0].length>35?topAct[0].slice(0,33)+"…":topAct[0]} <span style={{color:gc,fontFamily:"'IBM Plex Mono',monospace"}}>{topAct[1]}h</span>
-                              </div>}
-                            </div>
-                          </div>);
-                        })}
-                        {Object.keys(grp.tasks).length>5&&(
-                          <div style={{fontSize:11,color:"var(--text4)",paddingLeft:11}}>+{Object.keys(grp.tasks).length-5} more categories</div>
-                        )}
-                      </div>
-                    </div>);
-                  })}
+                            </div>);
+                          })}
+                          {Object.keys(grp.tasks).length>5&&(
+                            <div style={{fontSize:11,color:"var(--text4)",paddingLeft:10}}>+{Object.keys(grp.tasks).length-5} more categories</div>
+                          )}
+                        </div>
+                      </div>);
+                    });
+                  })()}
                 </div>
               </div>
               <div className="card">
@@ -8370,6 +8651,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   {id:"individual",icon:"👤",label:"Individual Timesheet",desc:"One engineer — full monthly timesheet PDF",show:true},
                   {id:"task",icon:"⊟",label:"Task Analysis",desc:"Task categories & activity log",show:true},
                   {id:"projtasks",icon:"◈",label:"Project Analysis",desc:"Per-project hours, tasks & engineer breakdown",show:isAdmin||isAcct||isLead||isSenior},
+                  {id:"tracker",icon:"📋",label:"Tracker Report",desc:"Activity progress, status & updates — daily/weekly/monthly/full",show:isAdmin||isLead||isSenior},
                   {id:"vacation",icon:"✈",label:"Vacation Report",desc:"Leave & absence summary per engineer",show:true},
                   {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct||isSenior},
                   {id:"invoice",icon:"🧾",label:"Invoice Export",desc:"Billable invoice per month",show:canInvoice},
@@ -8572,6 +8854,12 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 
               {/* ════ PROJECT TASKS ANALYSIS ════ */}
               {activeRpt==="projtasks"&&<ProjectTasksReport allEntries={entries} projects={projects} engineers={engineers} MONTHS={MONTHS} fmtCurrency={fmtCurrency} fmtPct={fmtPct} isAdmin={isAdmin} isAcct={isAcct}/>}
+
+              {/* ════ TRACKER PROGRESS REPORT ════ */}
+              {activeRpt==="tracker"&&<TrackerProgressReport
+                activities={activities} projects={projects} subprojects={subprojects}
+                engineers={engineers} entries={entries} MONTHS={MONTHS}
+              />}
 
            {/* Vacation Report */}
               {activeRpt==="vacation"&&<VacationReport
@@ -9063,7 +9351,6 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   notifications={notifications}
                   onDismissNotif={dismissNotification}
                   alertDay={alertDay} setAlertDay={setAlertDay}
-                  showToast={showToast}
                 />
               )}
 
