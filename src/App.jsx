@@ -2915,8 +2915,8 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                 <td style={{padding:"6px 10px"}}>
                   {canWrite && (
                     <div style={{display:"flex",gap:2}}>
-                      <button onClick={ev=>{ev.stopPropagation();setEditLine({...e});}} title="Edit" style={{background:"transparent",border:"none",color:"var(--info)",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✎</button>
-                      <button onClick={ev=>{ev.stopPropagation();if(window.confirm("Delete this line?"))onDelete(e.id);}} title="Delete" style={{background:"transparent",border:"none",color:"#f87171",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✕</button>
+                      <button onClick={ev=>{ev.stopPropagation();setEditLine({...e});}} style={{background:"transparent",border:"none",color:"var(--info)",cursor:"pointer",fontSize:14,padding:"2px 4px"}} title="Edit">✎</button>
+                      <button onClick={ev=>{ev.stopPropagation();if(window.confirm("Delete this line?"))onDelete(e.id);}} style={{background:"transparent",border:"none",color:"#f87171",cursor:"pointer",fontSize:14,padding:"2px 4px"}} title="Delete">✕</button>
                     </div>
                   )}
                 </td>
@@ -3124,51 +3124,51 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
       })()}
     </div>
 
-    {/* ── Edit Journal Line Modal ── */}
+    {/* Edit Journal Entry */}
     {editLine&&(
-      <div style={{position:'fixed',inset:0,background:'#00000090',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1100}} onClick={()=>setEditLine(null)}>
-        <div className='card' style={{width:560,maxHeight:'92vh',overflowY:'auto',padding:24}} onClick={e=>e.stopPropagation()}>
-          <h3 style={{fontSize:16,fontWeight:700,color:'var(--text0)',marginBottom:16}}>Edit Journal Line — #{editLine.entry_no}</h3>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-            {[{label:'Entry No',key:'entry_no',type:'text'},{label:'Date',key:'entry_date',type:'date'},{label:'Month',key:'month',type:'number'},{label:'Entry Type',key:'entry_type',type:'text'}].map(({label,key,type})=>(
-              <div key={key}><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>{label}</label>
-                <input type={type} value={editLine[key]||''} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}/></div>
+      <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100}} onClick={()=>setEditLine(null)}>
+        <div className="card" style={{width:560,maxHeight:"92vh",overflowY:"auto",padding:24}} onClick={e=>e.stopPropagation()}>
+          <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:16}}>Edit Journal Entry — #{editLine.entry_no}</h3>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            {[{l:"Entry No",k:"entry_no",t:"text"},{l:"Date",k:"entry_date",t:"date"},{l:"Month",k:"month",t:"number"},{l:"Entry Type",k:"entry_type",t:"text"}].map(({l,k,t})=>(
+              <div key={k}><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>{l}</label>
+                <input type={t} value={editLine[k]||""} onChange={e=>setEditLine(p=>({...p,[k]:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
             ))}
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-            <div><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>Account Name</label>
-              <input list='je-acct-dl' value={editLine.account_name||''} onChange={e=>setEditLine(p=>({...p,account_name:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}/>
-              <datalist id='je-acct-dl'>{acctNames.map(a=><option key={a} value={a}/>)}</datalist></div>
-            <div><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>Main Account</label>
-              <input value={editLine.main_account||''} onChange={e=>setEditLine(p=>({...p,main_account:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}/></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Account Name</label>
+              <input list="je-accts" value={editLine.account_name||""} onChange={e=>setEditLine(p=>({...p,account_name:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/>
+              <datalist id="je-accts">{acctNames.map(a=><option key={a} value={a}/>)}</datalist></div>
+            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Main Account</label>
+              <input value={editLine.main_account||""} onChange={e=>setEditLine(p=>({...p,main_account:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-            <div><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>Statement Type</label>
-              <select value={editLine.statement_type||''} onChange={e=>setEditLine(p=>({...p,statement_type:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}>
-                <option value='Profit & Loss Sheet'>Profit &amp; Loss Sheet</option>
-                <option value='Balance Sheet'>Balance Sheet</option>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Statement Type</label>
+              <select value={editLine.statement_type||""} onChange={e=>setEditLine(p=>({...p,statement_type:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}>
+                <option value="Profit & Loss Sheet">Profit &amp; Loss Sheet</option>
+                <option value="Balance Sheet">Balance Sheet</option>
               </select></div>
-            <div><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>BS/PL</label>
-              <select value={editLine.bs_pl||''} onChange={e=>setEditLine(p=>({...p,bs_pl:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}>
-                <option value=''>—</option><option value='BS'>Balance Sheet (BS)</option><option value='PL'>Profit &amp; Loss (PL)</option>
+            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>BS/PL</label>
+              <select value={editLine.bs_pl||""} onChange={e=>setEditLine(p=>({...p,bs_pl:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}>
+                <option value="">—</option><option value="BS">BS</option><option value="PL">PL</option>
               </select></div>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:10}}>
-            {[{label:'Debit (EGP)',key:'debit'},{label:'Credit (EGP)',key:'credit'},{label:'USD Amount',key:'usd_amount'}].map(({label,key})=>(
-              <div key={key}><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>{label}</label>
-                <input type='number' step='0.01' value={editLine[key]||''} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}/></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+            {[{l:"Debit (EGP)",k:"debit"},{l:"Credit (EGP)",k:"credit"},{l:"USD Amount",k:"usd_amount"}].map(({l,k})=>(
+              <div key={k}><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>{l}</label>
+                <input type="number" step="0.01" value={editLine[k]||""} onChange={e=>setEditLine(p=>({...p,[k]:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
             ))}
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-            <div><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>Exchange Rate</label>
-              <input type='number' step='0.01' value={editLine.exchange_rate||''} onChange={e=>setEditLine(p=>({...p,exchange_rate:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}/></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Exchange Rate</label>
+              <input type="number" step="0.01" value={editLine.exchange_rate||""} onChange={e=>setEditLine(p=>({...p,exchange_rate:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}/></div>
           </div>
-          <div style={{marginBottom:16}}><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>Description</label>
-            <textarea rows={2} value={editLine.description||''} onChange={e=>setEditLine(p=>({...p,description:e.target.value}))}
-              style={{width:'100%',boxSizing:'border-box',resize:'vertical',background:'var(--bg2)',border:'1px solid var(--border3)',borderRadius:5,color:'var(--text0)',padding:'6px 8px',fontFamily:'inherit',fontSize:13}}/></div>
-          <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
-            <button className='bg' onClick={()=>setEditLine(null)}>Cancel</button>
-            <button className='bp' onClick={()=>{if(onEdit)onEdit({...editLine});setEditLine(null);}}>Save Changes</button>
+          <div style={{marginBottom:16}}><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Description</label>
+            <textarea rows={2} value={editLine.description||""} onChange={e=>setEditLine(p=>({...p,description:e.target.value}))}
+              style={{width:"100%",boxSizing:"border-box",resize:"vertical",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 8px",fontFamily:"inherit",fontSize:13}}/></div>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <button className="bg" onClick={()=>setEditLine(null)}>Cancel</button>
+            <button className="bp" onClick={()=>{if(onEdit)onEdit({...editLine});setEditLine(null);}}>Save Changes</button>
           </div>
         </div>
       </div>
@@ -4695,11 +4695,11 @@ const projProfit=projects.map(p=>{
         const{id,...fields}=entry;
         const payload={
           ...fields,
-          debit:        +fields.debit||0,
-          credit:       +fields.credit||0,
-          usd_amount:   (fields.usd_amount===''||fields.usd_amount===null)?null:(+fields.usd_amount||null),
+          debit:+fields.debit||0,
+          credit:+fields.credit||0,
+          usd_amount:(fields.usd_amount===''||fields.usd_amount===null)?null:(+fields.usd_amount||null),
           exchange_rate:(fields.exchange_rate===''||fields.exchange_rate===null)?null:(+fields.exchange_rate||null),
-          month:        (fields.month===''||fields.month===null)?null:(+fields.month||null),
+          month:(fields.month===''||fields.month===null)?null:(+fields.month||null),
         };
         const{data,error}=await supabase
           .from("journal_entries")
@@ -4707,10 +4707,10 @@ const projProfit=projects.map(p=>{
           .eq("id",id)
           .select()
           .maybeSingle();
-        if(error){showToast("Error: "+error.message,false);console.error(error);return;}
+        if(error){showToast("Error: "+error.message,false);return;}
         if(data) setJournalEntries(prev=>prev.map(e=>e.id===data.id?data:e));
         logAction("UPDATE","Journal",`Updated journal entry #${entry.entry_no}`,{id});
-        showToast("Saved \u2713");
+        showToast("Saved ✓");
       }}
     />
   )}
