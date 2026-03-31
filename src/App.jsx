@@ -817,7 +817,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
   // Build full PDF using shared PDF_STYLE + fixed header/footer
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Project Report — ${p.id}</title><style>${PDF_STYLE}</style></head><body>
   ${pdfHeader(`Project Analysis · ${p.id}`, `${periodLabel||'All Time'}`, now)}
-  ${pdfFooter(`${p.name} — ${p.id}`, now)}
+  ${pdfFooter(`${p.id} — ${p.name}`, now)}
   <div class="cover">
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
       <img src="${LOGO_SRC}" alt="ENEVO Group" style="width:52px;height:52px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
@@ -970,7 +970,7 @@ function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDef
         const margin=p.rev>0?Math.round(p.net/p.rev*100):0;
         const c=p.net>=0?"#16a34a":"#dc2626";
         return`<tr>
-          <td style="font-weight:600">${p.name} — ${p.id}</td>
+          <td style="font-weight:600">${p.id} — ${p.name}</td>
           <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#16a34a;font-weight:700">${fmtCurrency(p.rev)}</td>
           <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#dc2626">${fmtCurrency(Math.round(p.allocatedCost))}</td>
           <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${c}">${p.net>=0?"+":""}${fmtCurrency(Math.round(p.net))}</td>
@@ -1349,7 +1349,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
           <select value={selProj} onChange={e=>setSelProj(e.target.value)}
             style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif"}}>
             <option value="ALL">All Projects</option>
-            {projList.map(x=><option key={x.proj.id} value={x.proj.id}>{x.proj.name} — {x.proj.id} ({x.totalHrs}h)</option>)}
+            {projList.map(x=><option key={x.proj.id} value={x.proj.id}>{x.proj.id} — {x.proj.name} ({x.totalHrs}h)</option>)}
           </select>
           {/* Export buttons */}
           {selProj==="ALL"
@@ -2220,8 +2220,6 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   const [trackerSub,   setTrackerSub]   = useState(null);
   const [editActivity, setEditActivity] = useState(null);  // activity being edited (modal)
   const [addModal,     setAddModal]     = useState(null);  // {projId, subId} for add modal
-  const [trackerSearch_, setTrackerSearch_] = useState("");
-  const [trackerStatusF, setTrackerStatusF] = useState("ALL");
   const [expandedCats, setExpandedCats] = useState({});    // {catName: bool}
 
   // ── Memoised lookups ──
@@ -2320,36 +2318,14 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
 
   // ── OVERVIEW ──
   if(!trackerProj){
-    const baseProjects=(canEdit||isAcct)
-      ? projects
+    const allTrackerProjects=(canEdit||isAcct)
+      ? projects.filter(p=>p.status!=="Completed")
       : projects.filter(p=>(actsByProj[p.id]||[]).length>0);
-    const allTrackerProjects=baseProjects.filter(p=>{
-      if(trackerStatusF!=="ALL" && p.status!==trackerStatusF) return false;
-      if(trackerSearch_){
-        const q=trackerSearch_.toLowerCase();
-        if(!p.id.toLowerCase().includes(q)&&!(p.name||"").toLowerCase().includes(q)&&!(p.client||"").toLowerCase().includes(q)) return false;
-      }
-      return true;
-    });
     return(<>
     <div style={{display:"grid",gap:14}}>
-      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}}>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <span style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Project Tracker</span>
-          <span style={{fontSize:13,color:"var(--text4)"}}>{allTrackerProjects.length} projects · {activities.length} activities</span>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <input value={trackerSearch_} onChange={e=>setTrackerSearch_(e.target.value)}
-            placeholder="🔍 Search projects…"
-            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,width:190}}/>
-          <select value={trackerStatusF} onChange={e=>setTrackerStatusF(e.target.value)}
-            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
-            <option value="ALL">All Statuses</option>
-            <option value="Active">Active</option>
-            <option value="On Hold">On Hold</option>
-            <option value="Completed">Completed</option>
-          </select>
-        </div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <span style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Project Tracker</span>
+        <span style={{fontSize:13,color:"var(--text4)"}}>{activities.length} activities · {Object.keys(actsByProj).length} projects</span>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
         {allTrackerProjects.map(p=>{
@@ -2939,10 +2915,8 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                 <td style={{padding:"6px 10px"}}>
                   {canWrite && (
                     <div style={{display:"flex",gap:2}}>
-                      <button onClick={ev=>{ev.stopPropagation();setEditLine({...e});}} title="Edit"
-                        style={{background:"transparent",border:"none",color:"var(--info)",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✎</button>
-                      <button onClick={ev=>{ev.stopPropagation();if(window.confirm("Delete this line?"))onDelete(e.id);}} title="Delete"
-                        style={{background:"transparent",border:"none",color:"#f87171",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✕</button>
+                      <button onClick={ev=>{ev.stopPropagation();setEditLine({...e});}} title="Edit" style={{background:"transparent",border:"none",color:"var(--info)",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✎</button>
+                      <button onClick={ev=>{ev.stopPropagation();if(window.confirm("Delete this line?"))onDelete(e.id);}} title="Delete" style={{background:"transparent",border:"none",color:"#f87171",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✕</button>
                     </div>
                   )}
                 </td>
@@ -3150,59 +3124,51 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
       })()}
     </div>
 
-    {/* Edit Journal Line Modal */}
+    {/* ── Edit Journal Line Modal ── */}
     {editLine&&(
-      <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100}}
-        onClick={()=>setEditLine(null)}>
-        <div className="card" style={{width:560,maxHeight:"92vh",overflowY:"auto",padding:24}} onClick={e=>e.stopPropagation()}>
-          <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:16}}>Edit Journal Line — #{editLine.entry_no}</h3>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            {[{label:"Entry No",key:"entry_no",type:"text"},{label:"Date",key:"entry_date",type:"date"},
-              {label:"Month",key:"month",type:"number"},{label:"Entry Type",key:"entry_type",type:"text"}].map(({label,key,type})=>(
-              <div key={key}><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>{label}</label>
-                <input type={type} value={editLine[key]||""} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))}
-                  style={{width:"100%",boxSizing:"border-box"}}/></div>
+      <div style={{position:'fixed',inset:0,background:'#00000090',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1100}} onClick={()=>setEditLine(null)}>
+        <div className='card' style={{width:560,maxHeight:'92vh',overflowY:'auto',padding:24}} onClick={e=>e.stopPropagation()}>
+          <h3 style={{fontSize:16,fontWeight:700,color:'var(--text0)',marginBottom:16}}>Edit Journal Line — #{editLine.entry_no}</h3>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+            {[{label:'Entry No',key:'entry_no',type:'text'},{label:'Date',key:'entry_date',type:'date'},{label:'Month',key:'month',type:'number'},{label:'Entry Type',key:'entry_type',type:'text'}].map(({label,key,type})=>(
+              <div key={key}><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>{label}</label>
+                <input type={type} value={editLine[key]||''} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}/></div>
             ))}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Account Name</label>
-              <input list="acct-edit-dl" value={editLine.account_name||""} onChange={e=>setEditLine(p=>({...p,account_name:e.target.value}))}
-                style={{width:"100%",boxSizing:"border-box"}}/>
-              <datalist id="acct-edit-dl">{acctNames.map(a=><option key={a} value={a}/>)}</datalist></div>
-            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Main Account</label>
-              <input value={editLine.main_account||""} onChange={e=>setEditLine(p=>({...p,main_account:e.target.value}))}
-                style={{width:"100%",boxSizing:"border-box"}}/></div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+            <div><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>Account Name</label>
+              <input list='je-acct-dl' value={editLine.account_name||''} onChange={e=>setEditLine(p=>({...p,account_name:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}/>
+              <datalist id='je-acct-dl'>{acctNames.map(a=><option key={a} value={a}/>)}</datalist></div>
+            <div><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>Main Account</label>
+              <input value={editLine.main_account||''} onChange={e=>setEditLine(p=>({...p,main_account:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}/></div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Statement Type</label>
-              <select value={editLine.statement_type||""} onChange={e=>setEditLine(p=>({...p,statement_type:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}>
-                <option value="Profit & Loss Sheet">Profit &amp; Loss Sheet</option>
-                <option value="Balance Sheet">Balance Sheet</option>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+            <div><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>Statement Type</label>
+              <select value={editLine.statement_type||''} onChange={e=>setEditLine(p=>({...p,statement_type:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}>
+                <option value='Profit & Loss Sheet'>Profit &amp; Loss Sheet</option>
+                <option value='Balance Sheet'>Balance Sheet</option>
               </select></div>
-            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>BS/PL</label>
-              <select value={editLine.bs_pl||""} onChange={e=>setEditLine(p=>({...p,bs_pl:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}>
-                <option value="">—</option><option value="BS">Balance Sheet (BS)</option><option value="PL">Profit &amp; Loss (PL)</option>
+            <div><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>BS/PL</label>
+              <select value={editLine.bs_pl||''} onChange={e=>setEditLine(p=>({...p,bs_pl:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}>
+                <option value=''>—</option><option value='BS'>Balance Sheet (BS)</option><option value='PL'>Profit &amp; Loss (PL)</option>
               </select></div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-            {[{label:"Debit (EGP)",key:"debit"},{label:"Credit (EGP)",key:"credit"},{label:"USD Amount",key:"usd_amount"}].map(({label,key})=>(
-              <div key={key}><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>{label}</label>
-                <input type="number" step="0.01" value={editLine[key]||""} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))}
-                  style={{width:"100%",boxSizing:"border-box"}}/></div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:10}}>
+            {[{label:'Debit (EGP)',key:'debit'},{label:'Credit (EGP)',key:'credit'},{label:'USD Amount',key:'usd_amount'}].map(({label,key})=>(
+              <div key={key}><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>{label}</label>
+                <input type='number' step='0.01' value={editLine[key]||''} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}/></div>
             ))}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            <div><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Exchange Rate</label>
-              <input type="number" step="0.01" value={editLine.exchange_rate||""} onChange={e=>setEditLine(p=>({...p,exchange_rate:e.target.value}))}
-                style={{width:"100%",boxSizing:"border-box"}}/></div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+            <div><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>Exchange Rate</label>
+              <input type='number' step='0.01' value={editLine.exchange_rate||''} onChange={e=>setEditLine(p=>({...p,exchange_rate:e.target.value}))} style={{width:'100%',boxSizing:'border-box'}}/></div>
           </div>
-          <div style={{marginBottom:16}}><label style={{fontSize:11,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Description</label>
-            <textarea rows={2} value={editLine.description||""} onChange={e=>setEditLine(p=>({...p,description:e.target.value}))}
-              style={{width:"100%",boxSizing:"border-box",resize:"vertical",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 8px",fontFamily:"inherit",fontSize:13}}/>
-          </div>
-          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-            <button className="bg" onClick={()=>setEditLine(null)}>Cancel</button>
-            <button className="bp" onClick={()=>{if(onEdit)onEdit({...editLine});setEditLine(null);}}>Save Changes</button>
+          <div style={{marginBottom:16}}><label style={{fontSize:11,color:'var(--text3)',fontWeight:700,display:'block',marginBottom:3}}>Description</label>
+            <textarea rows={2} value={editLine.description||''} onChange={e=>setEditLine(p=>({...p,description:e.target.value}))}
+              style={{width:'100%',boxSizing:'border-box',resize:'vertical',background:'var(--bg2)',border:'1px solid var(--border3)',borderRadius:5,color:'var(--text0)',padding:'6px 8px',fontFamily:'inherit',fontSize:13}}/></div>
+          <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+            <button className='bg' onClick={()=>setEditLine(null)}>Cancel</button>
+            <button className='bp' onClick={()=>{if(onEdit)onEdit({...editLine});setEditLine(null);}}>Save Changes</button>
           </div>
         </div>
       </div>
@@ -4729,17 +4695,22 @@ const projProfit=projects.map(p=>{
         const{id,...fields}=entry;
         const payload={
           ...fields,
-          debit:+fields.debit||0,
-          credit:+fields.credit||0,
-          usd_amount:fields.usd_amount===""||fields.usd_amount===null?null:(+fields.usd_amount||null),
-          exchange_rate:fields.exchange_rate===""||fields.exchange_rate===null?null:(+fields.exchange_rate||null),
-          month:fields.month===""||fields.month===null?null:(+fields.month||null),
+          debit:        +fields.debit||0,
+          credit:       +fields.credit||0,
+          usd_amount:   (fields.usd_amount===''||fields.usd_amount===null)?null:(+fields.usd_amount||null),
+          exchange_rate:(fields.exchange_rate===''||fields.exchange_rate===null)?null:(+fields.exchange_rate||null),
+          month:        (fields.month===''||fields.month===null)?null:(+fields.month||null),
         };
-        const{data,error}=await supabase.from("journal_entries").update(payload).eq("id",id).select().maybeSingle();
-        if(error){showToast("Error: "+error.message,false);console.error("Journal update error:",error);return;}
+        const{data,error}=await supabase
+          .from("journal_entries")
+          .update(payload)
+          .eq("id",id)
+          .select()
+          .maybeSingle();
+        if(error){showToast("Error: "+error.message,false);console.error(error);return;}
         if(data) setJournalEntries(prev=>prev.map(e=>e.id===data.id?data:e));
-        logAction("UPDATE","Journal",`Updated journal entry #${entry.entry_no} — ${entry.account_name}`,{id,entry_no:entry.entry_no,account:entry.account_name});
-        showToast("Journal entry saved \u2713");
+        logAction("UPDATE","Journal",`Updated journal entry #${entry.entry_no}`,{id});
+        showToast("Saved \u2713");
       }}
     />
   )}
@@ -6819,8 +6790,6 @@ export default function App(){
       }
       if(e1){showToast("Error renaming: "+e1.message,false);return;}
       await supabase.from("time_entries").update({project_id:newId}).eq("project_id",origId);
-      await supabase.from("project_activities").update({project_id:newId}).eq("project_id",origId);
-      await supabase.from("project_subprojects").update({project_id:newId}).eq("project_id",origId);
       await supabase.from("projects").delete().eq("id",origId);
       setProjects(prev=>prev.map(p=>p.id===origId?{...rest,id:newId}:p));
       setEntries(prev=>prev.map(e=>e.project_id===origId?{...e,project_id:newId}:e));
@@ -7432,7 +7401,7 @@ export default function App(){
                   <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,marginBottom:4}}>PROJECT FILTER</div>
                   <select value={dashProjFilter} onChange={e=>setDashProjFilter(e.target.value)} style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 10px",color:"var(--text0)",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif",width:220}}>
                     <option value="ALL">All Projects</option>
-                    {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
+                    {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
                   </select>
                 </div>
                 {dashProjFilter!=="ALL"&&<button style={{background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text2)",cursor:"pointer",fontSize:12}} onClick={()=>setDashProjFilter("ALL")}>✕ All</button>}
@@ -7732,7 +7701,7 @@ export default function App(){
                     {selectedEntries.size>0&&<button style={{background:"#ef4444",border:"none",borderRadius:5,padding:"4px 10px",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}} onClick={bulkDeleteEntries}>🗑 Delete {selectedEntries.size} selected</button>}
                     <select style={{fontSize:13,padding:"4px 8px",width:"auto",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",fontFamily:"'IBM Plex Sans',sans-serif"}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
                       <option value="ALL">All Projects</option>
-                      {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
+                      {projects.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
                     </select>
                     {filterProject!=="ALL"&&<button style={{background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text2)",cursor:"pointer",fontSize:12}} onClick={()=>setFilterProject("ALL")}>✕</button>}
                     <span style={{fontSize:12,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{visEntries.reduce((s,e)=>s+e.hours,0)}h</span>
@@ -7811,7 +7780,7 @@ export default function App(){
                   <div><Lbl>Project</Lbl>
                     <select style={{width:160}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
                       <option value="ALL">All Projects</option>
-                      {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
+                      {projects.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
                     </select>
                   </div>
                   {(filterEngineer!=="ALL"||filterProject!=="ALL")&&
@@ -8623,7 +8592,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                       <div><Lbl>Invoice Scope</Lbl>
                         <select value={invoiceProjId} onChange={e=>setInvoiceProjId(e.target.value)}>
                           <option value="ALL">📋 All Billable Projects (Combined Invoice)</option>
-                          {allWithHours.filter(p=>p.billable).map(p=><option key={p.id} value={p.id}>{p.name} ({p.id}) · {p.hours}h · {fmtCurrency(p.revenue)}</option>)}
+                          {allWithHours.filter(p=>p.billable).map(p=><option key={p.id} value={p.id}>{p.id} — {p.name} · {p.hours}h · {fmtCurrency(p.revenue)}</option>)}
                         </select>
                       </div>
                       <button className="bp" style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)",whiteSpace:"nowrap"}}
@@ -8942,7 +8911,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                       <div><Lbl>Project</Lbl>
                         <select value={entryFilter.project} onChange={e=>setEntryFilter(p=>({...p,project:e.target.value}))}>
                           <option value="ALL">All Projects</option>
-                          {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
+                          {projects.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
                         </select>
                       </div>
                       <div><Lbl>Month</Lbl>
@@ -9424,7 +9393,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                           style={{...INP,borderColor:!newEntry.projectId?"#f87171":"var(--border)"}}>
                           <option value="">— Select Project —</option>
                           {_availProjs.map(p=>(
-                            <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+                            <option key={p.id} value={p.id}>{p.id} — {p.name}</option>
                           ))}
                         </select>
                       )}
@@ -9604,7 +9573,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 <div><Lbl>Project</Lbl>
                   <select value={editEntry.projectId||""} onChange={e=>setEditEntry(p=>({...p,projectId:e.target.value}))}>
                     <option value="">— Select —</option>
-                    {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
+                    {projects.map(p=><option key={p.id} value={p.id}>{p.id} — {p.name}</option>)}
                   </select>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
