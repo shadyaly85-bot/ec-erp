@@ -2827,227 +2827,6 @@ const MAIN_ACCOUNTS = [
 const ENTRY_TYPES = ["Custody","Accrued Salaries","Revenue","Creditors","Opening","Shareholders","project in process"];
 
 /* ══════════════════════════════════════════════════════════
-   TRACKER PROGRESS REPORT
-   ══════════════════════════════════════════════════════════ */
-function TrackerProgressReport({activities,projects,subprojects,engineers,entries,MONTHS}){
-  const [period,   setPeriod]   = React.useState("weekly");
-  const [projId,   setProjId]   = React.useState("ALL");
-  const [statusF,  setStatusF]  = React.useState("ALL");
-  const today = new Date();
-  const fmtD = d=>new Date(d+"T12:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-
-  const filteredActs = React.useMemo(()=>{
-    return activities.filter(a=>{
-      if(projId!=="ALL"&&a.project_id!==projId) return false;
-      if(statusF!=="ALL"&&a.status!==statusF) return false;
-      return true;
-    });
-  },[activities,projId,statusF]);
-
-  const grouped = React.useMemo(()=>{
-    const map={};
-    filteredActs.forEach(a=>{
-      const k=a.project_id;
-      if(!map[k]) map[k]={projId:k,cats:{}};
-      const cat=a.category||a.group_name||"General";
-      if(!map[k].cats[cat]) map[k].cats[cat]=[];
-      map[k].cats[cat].push(a);
-    });
-    return Object.values(map).sort((a,b)=>a.projId.localeCompare(b.projId));
-  },[filteredActs]);
-
-  const GRP_COLOR={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
-  const ST_COLOR={"Completed":"#34d399","In Progress":"var(--info)","Not Started":"var(--text3)","On Hold":"#fb923c"};
-  const ST_BG={"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started":"#1e293b40","On Hold":"#78350f30"};
-
-  const totalActs   = filteredActs.length;
-  const doneCount   = filteredActs.filter(a=>a.status==="Completed").length;
-  const inProgCount = filteredActs.filter(a=>a.status==="In Progress").length;
-  const onHoldCount = filteredActs.filter(a=>a.status==="On Hold").length;
-  const avgProg     = totalActs?Math.round(filteredActs.reduce((s,a)=>s+(a.progress||0),0)/totalActs*100):0;
-
-  const buildPDF=()=>{
-    const periodLabel={daily:"Daily",weekly:"Weekly",monthly:"Monthly",full:"Full Project"}[period];
-    const now=today.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-    const projBlocks=grouped.map(g=>{
-      const proj=projects.find(p=>p.id===g.projId);
-      const allActs=Object.values(g.cats).flat();
-      const pDone=allActs.filter(a=>a.status==="Completed").length;
-      const pProg=allActs.length?Math.round(allActs.reduce((s,a)=>s+(a.progress||0),0)/allActs.length*100):0;
-      const pInProg=allActs.filter(a=>a.status==="In Progress").length;
-      const catRows=Object.entries(g.cats).map(([cat,acts])=>{
-        const aRows=acts.map(a=>{
-          const pct=Math.round((a.progress||0)*100);
-          const stBg={"Completed":"#dcfce7","In Progress":"#dbeafe","Not Started":"#f1f5f9","On Hold":"#fff7ed"}[a.status]||"#f1f5f9";
-          const stColor={"Completed":"#166534","In Progress":"#1d4ed8","Not Started":"#64748b","On Hold":"#9a3412"}[a.status]||"#64748b";
-          const dates=[a.start_date?fmtD(a.start_date):"",a.end_date?fmtD(a.end_date):""].filter(Boolean).join(" → ");
-          return `<tr>
-            <td style="padding:5px 10px 5px 28px;font-size:12px;color:#1e293b">${a.activity_name}</td>
-            <td style="padding:5px 8px;font-size:11px"><span style="background:${stBg};color:${stColor};padding:2px 7px;border-radius:4px;font-weight:600">${a.status}</span></td>
-            <td style="padding:5px 8px;text-align:center;font-weight:700;font-size:13px;color:${pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b"}">${pct}%</td>
-            <td style="padding:5px 8px;font-size:11px;color:#64748b">${a.assigned_to||"—"}</td>
-            <td style="padding:5px 8px;font-size:11px;color:#64748b">${dates||"—"}</td>
-            <td style="padding:5px 8px;font-size:11px;color:#64748b;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.remarks||""}</td>
-          </tr>`;}).join("");
-        return `<tr style="background:#f8fafc"><td colspan="6" style="padding:4px 10px 4px 14px;font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.06em">${cat}</td></tr>${aRows}`;
-      }).join("");
-      return `<div style="margin-bottom:22px;page-break-inside:avoid">
-        <div style="background:#1e3a5f;color:#fff;padding:10px 14px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div style="font-size:11px;color:#93c5fd;font-family:monospace">${g.projId}</div>
-            <div style="font-size:15px;font-weight:700">${proj?.name||g.projId}</div>
-            ${proj?.phase?`<div style="font-size:11px;color:#bfdbfe">Phase: ${proj.phase}</div>`:""}
-          </div>
-          <div style="text-align:right">
-            <div style="font-size:20px;font-weight:800;color:${pProg===100?"#34d399":pProg>=50?"#60a5fa":"#fb923c"}">${pProg}%</div>
-            <div style="font-size:11px;color:#93c5fd">${pDone}/${allActs.length} completed · ${pInProg} in progress</div>
-          </div>
-        </div>
-        <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none">
-          <thead><tr style="background:#f1f5f9">
-            <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b;font-weight:600">Activity</th>
-            <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b;font-weight:600">Status</th>
-            <th style="padding:6px 8px;text-align:center;font-size:11px;color:#64748b;font-weight:600">Progress</th>
-            <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b;font-weight:600">Assigned To</th>
-            <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b;font-weight:600">Dates</th>
-            <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b;font-weight:600">Remarks</th>
-          </tr></thead>
-          <tbody>${catRows}</tbody>
-        </table>
-      </div>`;
-    }).join("");
-    const html=`<!DOCTYPE html><html><head><title>Tracker Report</title>
-    <style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#1e293b;font-size:13px}@media print{body{padding:0}}</style></head><body>
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #1e3a5f">
-      <div><div style="font-size:22px;font-weight:800;color:#1e3a5f">ENEVO GROUP</div>
-        <div style="font-size:16px;font-weight:700;margin-top:2px">Activity Tracker Report — ${periodLabel}</div>
-        <div style="font-size:11px;color:#64748b;margin-top:3px">Generated: ${now} · ${filteredActs.length} activities · ${grouped.length} projects</div></div>
-    </div>${projBlocks}</body></html>`;
-    const blob=new Blob([html],{type:"text/html"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");a.href=url;a.target="_blank";a.click();
-    setTimeout(()=>URL.revokeObjectURL(url),3000);
-  };
-
-  const PERIOD_OPTS=[{v:"daily",l:"Daily"},{v:"weekly",l:"Weekly"},{v:"monthly",l:"Monthly"},{v:"full",l:"Full Project"}];
-
-  return(
-  <div>
-    <div className="card" style={{marginBottom:14}}>
-      <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",justifyContent:"space-between"}}>
-        <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>PERIOD</div>
-            <div style={{display:"flex",gap:5}}>
-              {PERIOD_OPTS.map(o=>(
-                <button key={o.v} onClick={()=>setPeriod(o.v)}
-                  style={{padding:"5px 11px",borderRadius:5,border:`1px solid ${period===o.v?"var(--info)":"var(--border3)"}`,
-                    background:period===o.v?"var(--info)15":"var(--bg2)",color:period===o.v?"var(--info)":"var(--text2)",
-                    fontSize:12,fontWeight:period===o.v?700:400,cursor:"pointer"}}>{o.l}</button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>PROJECT</div>
-            <select value={projId} onChange={e=>setProjId(e.target.value)}
-              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13}}>
-              <option value="ALL">All Projects</option>
-              {[...new Set(activities.map(a=>a.project_id))].sort().map(pid=>{
-                const p=projects.find(x=>x.id===pid);
-                return <option key={pid} value={pid}>{p?.name||pid} ({pid})</option>;
-              })}
-            </select>
-          </div>
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>STATUS</div>
-            <select value={statusF} onChange={e=>setStatusF(e.target.value)}
-              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13}}>
-              <option value="ALL">All Statuses</option>
-              {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
-            </select>
-          </div>
-        </div>
-        <button className="bp" onClick={buildPDF} style={{height:34,padding:"0 16px",fontSize:13}}>⬇ Export PDF</button>
-      </div>
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
-      {[{l:"Total",v:totalActs,c:"var(--info)"},{l:"Completed",v:doneCount,c:"#34d399"},
-        {l:"In Progress",v:inProgCount,c:"var(--info)"},{l:"On Hold",v:onHoldCount,c:"#fb923c"},
-        {l:"Avg Progress",v:avgProg+"%",c:avgProg>=75?"#34d399":avgProg>=40?"#fb923c":"#f87171"}
-      ].map(k=>(
-        <div key={k.l} className="card" style={{textAlign:"center",padding:"10px 8px"}}>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:k.c,lineHeight:1}}>{k.v}</div>
-          <div style={{fontSize:11,color:"var(--text4)",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{k.l}</div>
-        </div>
-      ))}
-    </div>
-    {onHoldCount>0&&<div style={{background:"#78350f20",border:"1px solid #fb923c50",borderRadius:6,padding:"8px 12px",marginBottom:14,fontSize:13,color:"#fb923c"}}>
-      ⚠ {onHoldCount} {onHoldCount===1?"activity is":"activities are"} On Hold
-    </div>}
-    {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No activities match the selected filters.</div>}
-    {grouped.map(g=>{
-      const proj=projects.find(p=>p.id===g.projId);
-      const allActs=Object.values(g.cats).flat();
-      const pDone=allActs.filter(a=>a.status==="Completed").length;
-      const pProg=allActs.length?Math.round(allActs.reduce((s,a)=>s+(a.progress||0),0)/allActs.length*100):0;
-      return(
-      <div key={g.projId} className="card" style={{marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--border3)"}}>
-          <div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",marginBottom:1}}>{g.projId}</div>
-            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>{proj?.name||g.projId}</div>
-            {proj?.phase&&<div style={{fontSize:12,color:"var(--text3)",marginTop:1}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span></div>}
-          </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:pProg===100?"#34d399":pProg>=50?"var(--info)":"#fb923c"}}>{pProg}%</div>
-            <div style={{fontSize:11,color:"var(--text4)"}}>{pDone}/{allActs.length} completed</div>
-          </div>
-        </div>
-        {Object.entries(g.cats).map(([cat,acts])=>{
-          const gc=GRP_COLOR[acts[0]?.group_name]||"var(--info)";
-          return(
-          <div key={cat} style={{marginBottom:10}}>
-            <div style={{fontSize:11,fontWeight:700,color:gc,textTransform:"uppercase",letterSpacing:".07em",marginBottom:5,display:"flex",gap:6,alignItems:"center"}}>
-              <div style={{width:8,height:8,borderRadius:2,background:gc}}/>
-              {cat}
-            </div>
-            <div style={{display:"grid",gap:4}}>
-              {acts.map(a=>{
-                const pct=Math.round((a.progress||0)*100);
-                return(
-                <div key={a.id} style={{background:"var(--bg2)",borderRadius:6,padding:"8px 12px",border:"1px solid var(--border3)"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:4}}>{a.activity_name}</div>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center"}}>
-                        <span style={{fontSize:11,padding:"2px 7px",borderRadius:3,background:ST_BG[a.status]||"var(--bg3)",color:ST_COLOR[a.status]||"var(--text3)",fontWeight:600}}>{a.status}</span>
-                        {a.assigned_to&&<span style={{fontSize:11,color:"var(--text3)"}}>👤 {a.assigned_to}</span>}
-                        {a.start_date&&<span style={{fontSize:11,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
-                        {a.end_date&&<span style={{fontSize:11,color:new Date(a.end_date)<today&&a.status!=="Completed"?"#f87171":"var(--text4)"}}>⏎ {fmtD(a.end_date)}</span>}
-                      </div>
-                      {a.remarks&&<div style={{fontSize:11,color:"var(--text4)",marginTop:3,fontStyle:"italic"}}>{a.remarks}</div>}
-                    </div>
-                    <div style={{textAlign:"right",flexShrink:0}}>
-                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text3)"}}>{pct}%</div>
-                    </div>
-                  </div>
-                  {pct>0&&<div style={{marginTop:6,background:"var(--bg3)",borderRadius:3,height:4,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:3}}/>
-                  </div>}
-                </div>);
-              })}
-            </div>
-          </div>);
-        })}
-      </div>);
-    })}
-  </div>
-  );
-}
-
-
-
-/* ══════════════════════════════════════════════════════════
    1. JOURNAL LEDGER
    ══════════════════════════════════════════════════════════ */
 function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDelete, onEdit, loading}) {
@@ -4948,32 +4727,27 @@ const projProfit=projects.map(p=>{
       onEdit={async(entry)=>{
         if(!isAcct&&!isAdmin) return;
         const{id}=entry;
-        if(!id){showToast("Error: missing entry id",false);return;}
-        // Only send editable columns — never spread the full row (created_at, posted_by etc. cause errors)
+        if(!id){showToast("Error: no entry ID",false);return;}
+        // Whitelist only known writable columns — never spread full row
         const payload={
-          entry_no:      entry.entry_no||null,
-          entry_date:    entry.entry_date||null,
-          month:         entry.month===''||entry.month===null?null:+entry.month,
-          entry_type:    entry.entry_type||null,
-          account_name:  entry.account_name||null,
-          main_account:  entry.main_account||null,
+          entry_no:entry.entry_no||null,
+          entry_date:entry.entry_date||null,
+          month:(entry.month===''||entry.month===null)?null:+entry.month,
+          entry_type:entry.entry_type||null,
+          account_name:entry.account_name||null,
+          main_account:entry.main_account||null,
           statement_type:entry.statement_type||null,
-          bs_pl:         entry.bs_pl||null,
-          description:   entry.description||null,
-          debit:         +entry.debit||0,
-          credit:        +entry.credit||0,
-          usd_amount:    entry.usd_amount===''||entry.usd_amount===null?null:(+entry.usd_amount||null),
-          exchange_rate: entry.exchange_rate===''||entry.exchange_rate===null?null:(+entry.exchange_rate||null),
+          bs_pl:entry.bs_pl||null,
+          description:entry.description||null,
+          debit:+entry.debit||0,
+          credit:+entry.credit||0,
+          usd_amount:(entry.usd_amount===''||entry.usd_amount===null)?null:(+entry.usd_amount||null),
+          exchange_rate:(entry.exchange_rate===''||entry.exchange_rate===null)?null:(+entry.exchange_rate||null),
         };
-        const{data,error}=await supabase
-          .from("journal_entries")
-          .update(payload)
-          .eq("id",id)
-          .select()
-          .maybeSingle();
-        if(error){showToast("Error: "+error.message,false);console.error("Journal update error:",error,payload);return;}
-        if(data) setJournalEntries(prev=>prev.map(e=>e.id===data.id?data:e));
-        else setJournalEntries(prev=>prev.map(e=>e.id===id?{...e,...payload}:e));
+        const{error}=await supabase.from("journal_entries").update(payload).eq("id",id);
+        if(error){showToast("Error: "+error.message,false);console.error("Journal update error:",error);return;}
+        // Always update local state directly — don't rely on .select() which may be blocked by RLS
+        setJournalEntries(prev=>prev.map(e=>e.id===id?{...e,...payload,id}:e));
         logAction("UPDATE","Journal",`Updated journal entry #${entry.entry_no} — ${entry.account_name}`,{id,entry_no:entry.entry_no});
         showToast("Journal entry saved \u2713");
       }}
@@ -8808,12 +8582,6 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 
               {/* ════ PROJECT TASKS ANALYSIS ════ */}
               {activeRpt==="projtasks"&&<ProjectTasksReport allEntries={entries} projects={projects} engineers={engineers} MONTHS={MONTHS} fmtCurrency={fmtCurrency} fmtPct={fmtPct} isAdmin={isAdmin} isAcct={isAcct}/>}
-
-              {/* ════ TRACKER PROGRESS REPORT ════ */}
-              {activeRpt==="tracker"&&<TrackerProgressReport
-                activities={activities} projects={projects} subprojects={subprojects}
-                engineers={engineers} entries={entries} MONTHS={MONTHS}
-              />}
 
            {/* Vacation Report */}
               {activeRpt==="vacation"&&<VacationReport
