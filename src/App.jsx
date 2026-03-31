@@ -578,8 +578,8 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
             <div key={p.id} style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:10,padding:16,borderLeft:`3px solid ${p.type==="Renewable Energy"?"#34d399":"#818cf8"}`}}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
                 <div>
-                  <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.id}</div>
-                  <div style={{fontSize:15,fontWeight:600,marginTop:2,lineHeight:1.3,color:"var(--text0)"}}>{p.name||p.id}</div>
+                  <div style={{fontSize:15,fontWeight:700,lineHeight:1.3,color:"var(--text0)"}}>{p.name||p.id}</div>
+                  <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)",marginTop:1}}>{p.id}</div>
                 </div>
                 <div style={{display:"flex",gap:5,alignItems:"flex-start"}}>
                   <span style={{fontSize:11,padding:"2px 7px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,
@@ -2824,127 +2824,112 @@ const MAIN_ACCOUNTS = [
   "Tax and Social Insurance Authority","Capital","Share holders",
   "Revenue","Administrative expenses","Operating Costs"
 ];
-const ENTRY_TYPES = ["Custody","Accrued Salaries","Revenue","Creditors","Opening","Shareholders","project in process"];
 
-/* ══════════════════════════════════════════════════════════
-   TRACKER PROGRESS REPORT
-   ══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   TRACKER PROGRESS REPORT COMPONENT
+   ═══════════════════════════════════════════════════════════ */
 function TrackerProgressReport({activities,projects,subprojects,engineers}){
   const [period,  setPeriod]  = React.useState("weekly");
-  const [projId,  setProjId]  = React.useState("ALL");
-  const [statusF, setStatusF] = React.useState("ALL");
+  const [selProj, setSelProj] = React.useState("ALL");
+  const [selStat, setSelStat] = React.useState("ALL");
   const today = new Date();
+  const fmtD = d => d ? new Date(d+"T12:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}) : "—";
+  const PERIOD_LABEL = {daily:"Daily (Last 24h)",weekly:"Weekly (Last 7 days)",monthly:"Monthly (Last 30 days)",full:"Full Project"};
+  const GC = {"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+  const SC = {"Completed":"#34d399","In Progress":"var(--info)","Not Started":"var(--text3)","On Hold":"#fb923c"};
+  const SB = {"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started":"#1e293b40","On Hold":"#78350f30"};
 
-  const fmtD=d=>{
-    if(!d) return "—";
-    return new Date(d+"T12:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-  };
-
-  const filteredActs=React.useMemo(()=>activities.filter(a=>{
-    if(projId!=="ALL"&&a.project_id!==projId) return false;
-    if(statusF!=="ALL"&&a.status!==statusF) return false;
+  const acts = React.useMemo(()=>activities.filter(a=>{
+    if(selProj!=="ALL"&&a.project_id!==selProj) return false;
+    if(selStat!=="ALL"&&a.status!==selStat) return false;
     return true;
-  }),[activities,projId,statusF]);
+  }),[activities,selProj,selStat]);
 
-  const grouped=React.useMemo(()=>{
+  const grouped = React.useMemo(()=>{
     const map={};
-    filteredActs.forEach(a=>{
-      if(!map[a.project_id]) map[a.project_id]={projId:a.project_id,cats:{}};
+    acts.forEach(a=>{
+      if(!map[a.project_id]) map[a.project_id]={pid:a.project_id,cats:{}};
       const cat=a.category||a.group_name||"General";
       if(!map[a.project_id].cats[cat]) map[a.project_id].cats[cat]=[];
       map[a.project_id].cats[cat].push(a);
     });
-    return Object.values(map).sort((a,b)=>a.projId.localeCompare(b.projId));
-  },[filteredActs]);
+    return Object.values(map).sort((a,b)=>{
+      const pa=projects.find(p=>p.id===a.pid)?.name||a.pid;
+      const pb=projects.find(p=>p.id===b.pid)?.name||b.pid;
+      return pa.localeCompare(pb);
+    });
+  },[acts,projects]);
 
-  const GC={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
-  const SC={"Completed":"#34d399","In Progress":"var(--info)","Not Started":"var(--text3)","On Hold":"#fb923c"};
-  const SB={"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started":"#1e293b40","On Hold":"#78350f30"};
-
-  const totalActs   =filteredActs.length;
-  const doneCount   =filteredActs.filter(a=>a.status==="Completed").length;
-  const inProgCount =filteredActs.filter(a=>a.status==="In Progress").length;
-  const onHoldCount =filteredActs.filter(a=>a.status==="On Hold").length;
-  const avgProg     =totalActs?Math.round(filteredActs.reduce((s,a)=>s+(a.progress||0),0)/totalActs*100):0;
-
-  const PERIOD_LABEL={daily:"Daily (Last 24h)",weekly:"Weekly (Last 7 days)",monthly:"Monthly (Last 30 days)",full:"Full Project (All Time)"};
+  const total=acts.length, done=acts.filter(a=>a.status==="Completed").length,
+    inprog=acts.filter(a=>a.status==="In Progress").length,
+    onhold=acts.filter(a=>a.status==="On Hold").length,
+    avg=total?Math.round(acts.reduce((s,a)=>s+(a.progress||0),0)/total*100):0;
 
   const buildPDF=()=>{
     const now=today.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
     const label=PERIOD_LABEL[period];
-    const projBlocks=grouped.map(g=>{
-      const proj=projects.find(p=>p.id===g.projId);
-      const allActs=Object.values(g.cats).flat();
-      const pDone=allActs.filter(a=>a.status==="Completed").length;
-      const pInProg=allActs.filter(a=>a.status==="In Progress").length;
-      const pHold=allActs.filter(a=>a.status==="On Hold").length;
-      const pProg=allActs.length?Math.round(allActs.reduce((s,a)=>s+(a.progress||0),0)/allActs.length*100):0;
-      const barCol=pProg===100?"#22c55e":pProg>=50?"#3b82f6":"#f97316";
-      const catRows=Object.entries(g.cats).map(([cat,acts])=>{
-        const aRows=acts.map(a=>{
+    const projHTML=grouped.map(g=>{
+      const proj=projects.find(p=>p.id===g.pid);
+      const all=Object.values(g.cats).flat();
+      const pd=all.filter(a=>a.status==="Completed").length;
+      const pp=all.length?Math.round(all.reduce((s,a)=>s+(a.progress||0),0)/all.length*100):0;
+      const bc=pp===100?"#22c55e":pp>=50?"#3b82f6":"#f97316";
+      const rows=Object.entries(g.cats).map(([cat,catActs])=>{
+        const aRows=catActs.map(a=>{
           const pct=Math.round((a.progress||0)*100);
+          const ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
           const stBg={"Completed":"#dcfce7","In Progress":"#dbeafe","Not Started":"#f1f5f9","On Hold":"#fff7ed"}[a.status]||"#f1f5f9";
-          const stColor={"Completed":"#166534","In Progress":"#1d4ed8","Not Started":"#64748b","On Hold":"#9a3412"}[a.status]||"#64748b";
-          const overdue=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
-          const bar=`<div style="display:inline-block;vertical-align:middle;width:70px;height:5px;background:#e2e8f0;border-radius:3px;margin-left:5px"><div style="width:${pct}%;height:100%;background:${pct===100?"#22c55e":pct>=50?"#3b82f6":"#f97316"};border-radius:3px"></div></div>`;
-          return `<tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:6px 8px 6px 26px;font-size:12px;color:#1e293b">${a.activity_name}</td>
-            <td style="padding:6px 8px;white-space:nowrap"><span style="background:${stBg};color:${stColor};padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600">${a.status}</span></td>
-            <td style="padding:6px 8px;white-space:nowrap"><span style="font-weight:700;font-size:12px;color:${pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b"}">${pct}%</span>${bar}</td>
-            <td style="padding:6px 8px;font-size:11px;color:#475569">${a.assigned_to||"—"}</td>
-            <td style="padding:6px 8px;font-size:11px;color:#475569;white-space:nowrap">${fmtD(a.start_date)}</td>
-            <td style="padding:6px 8px;font-size:11px;color:${overdue?"#dc2626":"#475569"};white-space:nowrap;font-weight:${overdue?"700":"400"}">${fmtD(a.end_date)}${overdue?" ⚠":""}</td>
-            <td style="padding:6px 8px;font-size:11px;color:#64748b">${a.remarks||""}</td>
-          </tr>`;
+          const stC={"Completed":"#166534","In Progress":"#1d4ed8","Not Started":"#64748b","On Hold":"#9a3412"}[a.status]||"#64748b";
+          const bar=`<div style="display:inline-block;vertical-align:middle;width:60px;height:4px;background:#e2e8f0;border-radius:2px;margin-left:4px"><div style="width:${pct}%;height:100%;background:${pct===100?"#22c55e":pct>=50?"#3b82f6":"#f97316"};border-radius:2px"></div></div>`;
+          return `<tr><td style="padding:5px 6px 5px 22px;font-size:11px">${a.activity_name}</td>
+            <td style="padding:5px 6px"><span style="background:${stBg};color:${stC};padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">${a.status}</span></td>
+            <td style="padding:5px 6px;white-space:nowrap"><b style="font-size:11px;color:${pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b"}">${pct}%</b>${bar}</td>
+            <td style="padding:5px 6px;font-size:10px;color:#475569">${a.assigned_to||"—"}</td>
+            <td style="padding:5px 6px;font-size:10px;color:#475569;white-space:nowrap">${fmtD(a.start_date)}</td>
+            <td style="padding:5px 6px;font-size:10px;color:${ov?"#dc2626":"#475569"};white-space:nowrap;font-weight:${ov?"700":"400"}">${fmtD(a.end_date)}${ov?" ⚠":""}</td>
+            <td style="padding:5px 6px;font-size:10px;color:#64748b;max-width:140px">${a.remarks||""}</td></tr>`;
         }).join("");
-        return `<tr style="background:#f8fafc"><td colspan="7" style="padding:4px 8px 4px 14px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em;border-top:1px solid #e2e8f0">${cat}</td></tr>${aRows}`;
+        return `<tr style="background:#f8fafc"><td colspan="7" style="padding:3px 6px 3px 12px;font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em;border-top:1px solid #e2e8f0">${cat}</td></tr>${aRows}`;
       }).join("");
-      return `<div style="margin-bottom:22px;page-break-inside:avoid">
-        <div style="background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:12px 16px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:flex-start">
+      return `<div style="margin-bottom:20px;page-break-inside:avoid">
+        <div style="background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:10px 14px;border-radius:7px 7px 0 0;display:flex;justify-content:space-between;align-items:center">
           <div>
-            <div style="font-size:16px;font-weight:700">${proj?.name||g.projId}</div>
-            <div style="font-size:11px;color:#93c5fd;font-family:monospace;margin-top:1px">${g.projId}</div>
-            ${proj?.phase?`<div style="font-size:11px;color:#bfdbfe;margin-top:3px">Phase: ${proj.phase} &nbsp;·&nbsp; Status: ${proj.status||"—"}</div>`:""}
+            <div style="font-size:15px;font-weight:700">${proj?.name||g.pid}</div>
+            <div style="font-size:10px;color:#93c5fd;margin-top:1px">${g.pid}${proj?.phase?" · Phase: "+proj.phase:""}</div>
           </div>
           <div style="text-align:right">
-            <div style="font-size:26px;font-weight:800;color:${barCol}">${pProg}%</div>
-            <div style="font-size:11px;color:#93c5fd">${pDone}/${allActs.length} completed</div>
-            ${pInProg?`<div style="font-size:11px;color:#bfdbfe">${pInProg} in progress</div>`:""}
-            ${pHold?`<div style="font-size:11px;color:#fca5a5">${pHold} on hold</div>`:""}
+            <div style="font-size:22px;font-weight:800;color:${bc}">${pp}%</div>
+            <div style="font-size:10px;color:#93c5fd">${pd}/${all.length} done</div>
           </div>
         </div>
-        <div style="height:5px;background:#e2e8f0"><div style="width:${pProg}%;height:100%;background:${barCol}"></div></div>
-        <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none;font-family:Arial,sans-serif;font-size:12px">
+        <div style="height:4px;background:#e2e8f0"><div style="width:${pp}%;height:100%;background:${bc}"></div></div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none;font-family:Arial,sans-serif">
           <thead><tr style="background:#f1f5f9">
-            <th style="padding:6px 8px 6px 26px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">ACTIVITY</th>
-            <th style="padding:6px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">STATUS</th>
-            <th style="padding:6px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">PROGRESS</th>
-            <th style="padding:6px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">ASSIGNED TO</th>
-            <th style="padding:6px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">START</th>
-            <th style="padding:6px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">DEADLINE</th>
-            <th style="padding:6px 8px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">NOTES / REMARKS</th>
-          </tr></thead>
-          <tbody>${catRows}</tbody>
-        </table>
-      </div>`;
+            <th style="padding:5px 6px 5px 22px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ACTIVITY</th>
+            <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">STATUS</th>
+            <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">PROGRESS</th>
+            <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ASSIGNED TO</th>
+            <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">START</th>
+            <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">DEADLINE</th>
+            <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">NOTES</th>
+          </tr></thead><tbody>${rows}</tbody>
+        </table></div>`;
     }).join("");
     const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tracker Report</title>
-    <style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:22px;color:#1e293b}@media print{body{padding:0}@page{margin:12mm}}</style>
+    <style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}@media print{body{padding:0}@page{margin:10mm}}</style>
     </head><body>
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;padding-bottom:14px;border-bottom:3px solid #1e3a5f">
-      <div>
-        <div style="font-size:22px;font-weight:800;color:#1e3a5f">ENEVO GROUP</div>
-        <div style="font-size:16px;font-weight:700;color:#334155;margin-top:3px">Activity Tracker Progress Report</div>
-        <div style="font-size:12px;color:#64748b;margin-top:4px">Period: <strong>${label}</strong> &nbsp;·&nbsp; Generated: ${now}</div>
-      </div>
-      <div style="text-align:right;font-size:12px;color:#64748b;line-height:1.7">
-        <div>${filteredActs.length} activities · ${grouped.length} projects</div>
-        <div>Completed: <strong style="color:#16a34a">${doneCount}</strong> &nbsp; In Progress: <strong style="color:#2563eb">${inProgCount}</strong> &nbsp; On Hold: <strong style="color:#ea580c">${onHoldCount}</strong></div>
-        <div>Overall Avg: <strong style="font-size:16px">${avgProg}%</strong></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f">
+      <div><div style="font-size:20px;font-weight:800;color:#1e3a5f">ENEVO GROUP</div>
+        <div style="font-size:15px;font-weight:700;color:#334155;margin-top:2px">Activity Tracker Progress Report</div>
+        <div style="font-size:11px;color:#64748b;margin-top:3px">Period: <b>${label}</b> · Generated: ${now}</div></div>
+      <div style="text-align:right;font-size:11px;color:#64748b;line-height:1.8">
+        <div>${acts.length} activities · ${grouped.length} projects</div>
+        <div>✅ Completed: <b style="color:#16a34a">${done}</b> &nbsp; 🔵 In Progress: <b style="color:#2563eb">${inprog}</b> &nbsp; ⚠ On Hold: <b style="color:#ea580c">${onhold}</b></div>
+        <div>Avg Progress: <b style="font-size:14px">${avg}%</b></div>
       </div>
     </div>
-    ${grouped.length===0?"<p style='color:#94a3b8;text-align:center;padding:40px'>No activities found.</p>":projBlocks}
-    <div style="margin-top:28px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;text-align:center">ENEVO GROUP — Internal Report — ${now}</div>
+    ${grouped.length===0?'<p style="color:#94a3b8;text-align:center;padding:30px">No activities found.</p>':projHTML}
+    <div style="margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP — Internal Report — ${now}</div>
     </body></html>`;
     const blob=new Blob([html],{type:"text/html"});
     const url=URL.createObjectURL(blob);
@@ -2954,17 +2939,19 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
 
   return(
   <div>
+    {/* Controls bar */}
     <div className="card" style={{marginBottom:14}}>
       <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",justifyContent:"space-between"}}>
         <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
           <div>
-            <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5,letterSpacing:".05em"}}>PERIOD</div>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>PERIOD</div>
             <div style={{display:"flex",gap:5}}>
               {[{v:"daily",l:"Daily"},{v:"weekly",l:"Weekly"},{v:"monthly",l:"Monthly"},{v:"full",l:"Full Project"}].map(o=>(
                 <button key={o.v} onClick={()=>setPeriod(o.v)}
-                  style={{padding:"6px 12px",borderRadius:5,border:`1px solid ${period===o.v?"var(--info)":"var(--border3)"}`,
-                    background:period===o.v?"var(--info)20":"var(--bg2)",color:period===o.v?"var(--info)":"var(--text2)",
-                    fontSize:12,fontWeight:period===o.v?700:400,cursor:"pointer"}}>
+                  style={{padding:"6px 12px",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:period===o.v?700:400,
+                    border:`1px solid ${period===o.v?"var(--info)":"var(--border3)"}`,
+                    background:period===o.v?"var(--info)20":"var(--bg2)",
+                    color:period===o.v?"var(--info)":"var(--text2)"}}>
                   {o.l}
                 </button>
               ))}
@@ -2972,18 +2959,22 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
           </div>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>PROJECT</div>
-            <select value={projId} onChange={e=>setProjId(e.target.value)}
-              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:180}}>
+            <select value={selProj} onChange={e=>setSelProj(e.target.value)}
+              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:190}}>
               <option value="ALL">All Projects</option>
-              {[...new Set(activities.map(a=>a.project_id))].sort().map(pid=>{
+              {[...new Set(activities.map(a=>a.project_id))].sort((a,b)=>{
+                const na=projects.find(p=>p.id===a)?.name||a;
+                const nb=projects.find(p=>p.id===b)?.name||b;
+                return na.localeCompare(nb);
+              }).map(pid=>{
                 const p=projects.find(x=>x.id===pid);
-                return <option key={pid} value={pid}>{p?.name||pid} ({pid})</option>;
+                return <option key={pid} value={pid}>{p?.name||pid}</option>;
               })}
             </select>
           </div>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>STATUS</div>
-            <select value={statusF} onChange={e=>setStatusF(e.target.value)}
+            <select value={selStat} onChange={e=>setSelStat(e.target.value)}
               style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13}}>
               <option value="ALL">All Statuses</option>
               {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
@@ -2993,73 +2984,79 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
         <button className="bp" onClick={buildPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>⬇ Export PDF</button>
       </div>
     </div>
+
+    {/* KPI cards */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
-      {[{l:"Total",v:totalActs,c:"var(--info)"},{l:"Completed",v:doneCount,c:"#34d399"},
-        {l:"In Progress",v:inProgCount,c:"var(--info)"},{l:"On Hold",v:onHoldCount,c:"#fb923c"},
-        {l:"Avg Progress",v:avgProg+"%",c:avgProg>=75?"#34d399":avgProg>=40?"#fb923c":"#f87171"}
+      {[{l:"Total",v:total,c:"var(--info)"},{l:"Completed",v:done,c:"#34d399"},
+        {l:"In Progress",v:inprog,c:"var(--info)"},{l:"On Hold",v:onhold,c:"#fb923c"},
+        {l:"Avg Progress",v:avg+"%",c:avg>=75?"#34d399":avg>=40?"#fb923c":"#f87171"}
       ].map(k=>(
         <div key={k.l} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:24,fontWeight:700,color:k.c,lineHeight:1}}>{k.v}</div>
-          <div style={{fontSize:11,color:"var(--text4)",marginTop:5,textTransform:"uppercase",letterSpacing:".05em"}}>{k.l}</div>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:k.c,lineHeight:1}}>{k.v}</div>
+          <div style={{fontSize:11,color:"var(--text4)",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{k.l}</div>
         </div>
       ))}
     </div>
-    {onHoldCount>0&&<div style={{background:"#78350f15",border:"1px solid #fb923c60",borderRadius:6,padding:"9px 14px",marginBottom:14,fontSize:13,color:"#fb923c"}}>
-      ⚠ {onHoldCount} {onHoldCount===1?"activity":"activities"} On Hold — review required
+
+    {onhold>0&&<div style={{background:"#78350f15",border:"1px solid #fb923c60",borderRadius:6,padding:"9px 14px",marginBottom:12,fontSize:13,color:"#fb923c"}}>
+      ⚠ {onhold} {onhold===1?"activity":"activities"} On Hold — review required
     </div>}
-    {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No activities match the filters.</div>}
+
+    {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)",fontSize:14}}>No activities match the selected filters.</div>}
+
+    {/* Project blocks */}
     {grouped.map(g=>{
-      const proj=projects.find(p=>p.id===g.projId);
-      const allActs=Object.values(g.cats).flat();
-      const pDone=allActs.filter(a=>a.status==="Completed").length;
-      const pProg=allActs.length?Math.round(allActs.reduce((s,a)=>s+(a.progress||0),0)/allActs.length*100):0;
-      const barCol=pProg===100?"#34d399":pProg>=50?"var(--info)":"#fb923c";
+      const proj=projects.find(p=>p.id===g.pid);
+      const all=Object.values(g.cats).flat();
+      const pd=all.filter(a=>a.status==="Completed").length;
+      const pp=all.length?Math.round(all.reduce((s,a)=>s+(a.progress||0),0)/all.length*100):0;
+      const bc=pp===100?"#34d399":pp>=50?"var(--info)":"#fb923c";
       return(
-      <div key={g.projId} className="card" style={{marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,paddingBottom:12,borderBottom:"1px solid var(--border3)"}}>
+      <div key={g.pid} className="card" style={{marginBottom:12}}>
+        {/* Project header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,paddingBottom:10,borderBottom:"1px solid var(--border3)"}}>
           <div>
-            <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{proj?.name||g.projId}</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",marginTop:1}}>{g.projId}</div>
-            {proj?.phase&&<div style={{fontSize:12,color:"var(--text3)",marginTop:3}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span>{proj.status&&<span> · Status: <span style={{color:proj.status==="Active"?"#34d399":"var(--text3)"}}>{proj.status}</span></span>}</div>}
+            <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{proj?.name||g.pid}</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)",marginTop:1}}>{g.pid}</div>
+            {proj?.phase&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span>{proj.status&&<span> · <span style={{color:proj.status==="Active"?"#34d399":"var(--text3)"}}>{proj.status}</span></span>}</div>}
           </div>
           <div style={{textAlign:"right"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:26,fontWeight:700,color:barCol}}>{pProg}%</div>
-            <div style={{fontSize:12,color:"var(--text4)"}}>{pDone}/{allActs.length} completed</div>
-            <div style={{marginTop:5,background:"var(--bg3)",borderRadius:4,height:6,width:110,overflow:"hidden",marginLeft:"auto"}}>
-              <div style={{height:"100%",width:pProg+"%",background:barCol,borderRadius:4}}/>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:24,fontWeight:700,color:bc}}>{pp}%</div>
+            <div style={{fontSize:11,color:"var(--text4)"}}>{pd}/{all.length} completed</div>
+            <div style={{marginTop:5,background:"var(--bg3)",borderRadius:4,height:5,width:100,overflow:"hidden",marginLeft:"auto"}}>
+              <div style={{height:"100%",width:pp+"%",background:bc,borderRadius:4}}/>
             </div>
           </div>
         </div>
-        {Object.entries(g.cats).map(([cat,acts])=>{
-          const gc=GC[acts[0]?.group_name]||"var(--info)";
+        {/* Category groups */}
+        {Object.entries(g.cats).map(([cat,catActs])=>{
+          const gc=GC[catActs[0]?.group_name]||"var(--info)";
           return(
-          <div key={cat} style={{marginBottom:12}}>
-            <div style={{fontSize:11,fontWeight:700,color:gc,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>
-              <div style={{width:8,height:8,borderRadius:2,background:gc}}/>{cat}
+          <div key={cat} style={{marginBottom:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:gc,textTransform:"uppercase",letterSpacing:".07em",marginBottom:5,display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:7,height:7,borderRadius:2,background:gc}}/>{cat}
             </div>
-            <div style={{display:"grid",gap:5}}>
-              {acts.map(a=>{
+            <div style={{display:"grid",gap:4}}>
+              {catActs.map(a=>{
                 const pct=Math.round((a.progress||0)*100);
-                const overdue=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
+                const ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
                 return(
-                <div key={a.id} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:7,padding:"9px 12px"}}>
+                <div key={a.id} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 12px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:5}}>{a.activity_name}</div>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:5,alignItems:"center"}}>
-                        <span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:SB[a.status]||"var(--bg3)",color:SC[a.status]||"var(--text3)",fontWeight:600}}>{a.status}</span>
+                      <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:4}}>{a.activity_name}</div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}}>
+                        <span style={{fontSize:11,padding:"2px 7px",borderRadius:3,background:SB[a.status]||"var(--bg3)",color:SC[a.status]||"var(--text3)",fontWeight:600}}>{a.status}</span>
                         {a.assigned_to&&<span style={{fontSize:11,color:"var(--text3)"}}>👤 {a.assigned_to}</span>}
                         {a.start_date&&<span style={{fontSize:11,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
-                        {a.end_date&&<span style={{fontSize:11,color:overdue?"#f87171":"var(--text4)",fontWeight:overdue?700:400}}>{overdue?"⚠ ":""}⏎ {fmtD(a.end_date)}{overdue?" (overdue)":""}</span>}
+                        {a.end_date&&<span style={{fontSize:11,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"⚠ ":""}⏎ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
                       </div>
-                      {a.remarks&&<div style={{fontSize:11,color:"var(--text4)",marginTop:5,fontStyle:"italic",padding:"4px 8px",background:"var(--bg3)",borderRadius:4,borderLeft:"2px solid var(--border3)"}}>📝 {a.remarks}</div>}
+                      {a.remarks&&<div style={{fontSize:11,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>📝 {a.remarks}</div>}
                     </div>
-                    <div style={{textAlign:"right",flexShrink:0}}>
-                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text3)"}}>{pct}%</div>
-                    </div>
+                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,flexShrink:0,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text3)"}}>{pct}%</div>
                   </div>
-                  {pct>0&&<div style={{marginTop:7,background:"var(--bg3)",borderRadius:3,height:4,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:3}}/>
+                  {pct>0&&<div style={{marginTop:6,background:"var(--bg3)",borderRadius:2,height:3,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:2}}/>
                   </div>}
                 </div>);
               })}
@@ -3072,7 +3069,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
   );
 }
 
-
+const ENTRY_TYPES = ["Custody","Accrued Salaries","Revenue","Creditors","Opening","Shareholders","project in process"];
 
 /* ══════════════════════════════════════════════════════════
    1. JOURNAL LEDGER
@@ -4986,13 +4983,13 @@ const projProfit=projects.map(p=>{
           statement_type:entry.statement_type??null,
           bs_pl:         entry.bs_pl         ??null,
           description:   entry.description   ??null,
-          debit:         +entry.debit        ||0,
-          credit:        +entry.credit       ||0,
-          usd_amount:    (entry.usd_amount   ===''||entry.usd_amount   ==null)?null:(+entry.usd_amount   ||null),
+          debit:         +entry.debit||0,
+          credit:        +entry.credit||0,
+          usd_amount:    (entry.usd_amount===''||entry.usd_amount==null)?null:(+entry.usd_amount||null),
           exchange_rate: (entry.exchange_rate===''||entry.exchange_rate==null)?null:(+entry.exchange_rate||null),
         };
         const{error}=await supabase.from("journal_entries").update(payload).eq("id",id);
-        if(error){showToast("Error: "+error.message,false);console.error("Journal update error:",error);return;}
+        if(error){showToast("Error: "+error.message,false);console.error(error);return;}
         setJournalEntries(prev=>prev.map(e=>e.id===id?{...e,...payload,id}:e));
         logAction("UPDATE","Journal",`Updated entry #${entry.entry_no}`,{id});
         showToast("Journal entry saved ✓");
@@ -7756,7 +7753,7 @@ export default function App(){
                   <thead><tr><th>Name</th><th>No.</th><th>Phase</th><th>Hours</th>{(isAdmin||isAcct)&&<><th>Billing</th><th>Revenue</th></>}</tr></thead>
                   <tbody>{projStats.filter(p=>p.hours>0&&(dashProjFilter==="ALL"||p.id===dashProjFilter)).map(p=>(
                     <tr key={p.id}>
-                      <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
+                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.name||p.id}</td>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)"}}>{p.id}</td>
                       <td style={{color:"var(--text2)",fontSize:13}}>{p.phase}</td>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.hours}h</td>
@@ -8596,8 +8593,9 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                           {myProjs.slice(0,4).map(p=>(
                             <span key={p.id} style={{fontSize:10,padding:"1px 5px",borderRadius:3,
                               background:"var(--bg2)",border:"1px solid var(--border3)",color:"var(--info)",
-                              whiteSpace:"nowrap",maxWidth:70,overflow:"hidden",textOverflow:"ellipsis"}}>
-                              {p.id}
+                              whiteSpace:"nowrap",maxWidth:90,overflow:"hidden",textOverflow:"ellipsis"}}
+                              title={`${p.name||p.id} (${p.id})`}>
+                              {p.name||p.id}
                             </span>
                           ))}
                           {myProjs.length>4&&<span style={{fontSize:10,color:"var(--text4)"}}>+{myProjs.length-4}</span>}
@@ -8829,7 +8827,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               {/* ════ PROJECT TASKS ANALYSIS ════ */}
               {activeRpt==="projtasks"&&<ProjectTasksReport allEntries={entries} projects={projects} engineers={engineers} MONTHS={MONTHS} fmtCurrency={fmtCurrency} fmtPct={fmtPct} isAdmin={isAdmin} isAcct={isAcct}/>}
 
-              {/* ════ TRACKER PROGRESS REPORT ════ */}
+              {/* Tracker Progress Report */}
               {activeRpt==="tracker"&&(
                 <TrackerProgressReport
                   activities={activities} projects={projects}
@@ -8928,8 +8926,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                           const rowStyle={cursor:"pointer",opacity:notBillable?0.45:1,background:notBillable?"var(--bg0)":"inherit"};
                           return(
                           <tr key={p.id} style={rowStyle} onClick={()=>setInvoiceProjId(p.id)}>
-                            <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:notBillable?"var(--text3)":"var(--info)"}}>{p.id}</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:notBillable?"var(--text3)":"var(--info)"}}>{p.id}</td>
                             <td style={{fontSize:13,fontWeight:500,color:notBillable?"var(--text3)":"var(--text0)"}}>{p.name}</td>
                             <td style={{fontSize:13,color:"var(--text2)"}}>{p.client}</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"var(--text3)":"var(--text0)"}}>{p.hours}h</td>
