@@ -2824,9 +2824,8 @@ const MAIN_ACCOUNTS = [
   "Tax and Social Insurance Authority","Capital","Share holders",
   "Revenue","Administrative expenses","Operating Costs"
 ];
-
 /* ═══════════════════════════════════════════════════════════
-   TRACKER PROGRESS REPORT COMPONENT
+   TRACKER PROGRESS REPORT
    ═══════════════════════════════════════════════════════════ */
 function TrackerProgressReport({activities,projects,subprojects,engineers}){
   const [period,  setPeriod]  = React.useState("weekly");
@@ -2854,13 +2853,13 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
       map[a.project_id].cats[cat].push(a);
     });
     return Object.values(map).sort((a,b)=>{
-      const pa=projects.find(p=>p.id===a.pid)?.name||a.pid;
-      const pb=projects.find(p=>p.id===b.pid)?.name||b.pid;
-      return pa.localeCompare(pb);
+      const na=projects.find(p=>p.id===a.pid)?.name||a.pid;
+      const nb=projects.find(p=>p.id===b.pid)?.name||b.pid;
+      return na.localeCompare(nb);
     });
   },[acts,projects]);
 
-  const total=acts.length, done=acts.filter(a=>a.status==="Completed").length,
+  const total=acts.length,done=acts.filter(a=>a.status==="Completed").length,
     inprog=acts.filter(a=>a.status==="In Progress").length,
     onhold=acts.filter(a=>a.status==="On Hold").length,
     avg=total?Math.round(acts.reduce((s,a)=>s+(a.progress||0),0)/total*100):0;
@@ -2874,63 +2873,63 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
       const pd=all.filter(a=>a.status==="Completed").length;
       const pp=all.length?Math.round(all.reduce((s,a)=>s+(a.progress||0),0)/all.length*100):0;
       const bc=pp===100?"#22c55e":pp>=50?"#3b82f6":"#f97316";
-      const rows=Object.entries(g.cats).map(([cat,catActs])=>{
+      const catRows=Object.entries(g.cats).map(([cat,catActs])=>{
         const aRows=catActs.map(a=>{
           const pct=Math.round((a.progress||0)*100);
           const ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
           const stBg={"Completed":"#dcfce7","In Progress":"#dbeafe","Not Started":"#f1f5f9","On Hold":"#fff7ed"}[a.status]||"#f1f5f9";
           const stC={"Completed":"#166534","In Progress":"#1d4ed8","Not Started":"#64748b","On Hold":"#9a3412"}[a.status]||"#64748b";
-          const bar=`<div style="display:inline-block;vertical-align:middle;width:60px;height:4px;background:#e2e8f0;border-radius:2px;margin-left:4px"><div style="width:${pct}%;height:100%;background:${pct===100?"#22c55e":pct>=50?"#3b82f6":"#f97316"};border-radius:2px"></div></div>`;
-          return `<tr><td style="padding:5px 6px 5px 22px;font-size:11px">${a.activity_name}</td>
-            <td style="padding:5px 6px"><span style="background:${stBg};color:${stC};padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">${a.status}</span></td>
-            <td style="padding:5px 6px;white-space:nowrap"><b style="font-size:11px;color:${pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b"}">${pct}%</b>${bar}</td>
-            <td style="padding:5px 6px;font-size:10px;color:#475569">${a.assigned_to||"—"}</td>
-            <td style="padding:5px 6px;font-size:10px;color:#475569;white-space:nowrap">${fmtD(a.start_date)}</td>
-            <td style="padding:5px 6px;font-size:10px;color:${ov?"#dc2626":"#475569"};white-space:nowrap;font-weight:${ov?"700":"400"}">${fmtD(a.end_date)}${ov?" ⚠":""}</td>
-            <td style="padding:5px 6px;font-size:10px;color:#64748b;max-width:140px">${a.remarks||""}</td></tr>`;
+          const bar=\`<div style="display:inline-block;vertical-align:middle;width:60px;height:4px;background:#e2e8f0;border-radius:2px;margin-left:4px"><div style="width:\${pct}%;height:100%;background:\${pct===100?"#22c55e":pct>=50?"#3b82f6":"#f97316"};border-radius:2px"></div></div>\`;
+          return \`<tr><td style="padding:5px 6px 5px 22px;font-size:11px">\${a.activity_name}</td>
+            <td style="padding:5px 6px"><span style="background:\${stBg};color:\${stC};padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">\${a.status}</span></td>
+            <td style="padding:5px 6px;white-space:nowrap"><b style="font-size:11px;color:\${pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b"}">\${pct}%</b>\${bar}</td>
+            <td style="padding:5px 6px;font-size:10px;color:#475569">\${a.assigned_to||"—"}</td>
+            <td style="padding:5px 6px;font-size:10px;white-space:nowrap">\${fmtD(a.start_date)}</td>
+            <td style="padding:5px 6px;font-size:10px;white-space:nowrap;color:\${ov?"#dc2626":"#475569"};font-weight:\${ov?"700":"400"}">\${fmtD(a.end_date)}\${ov?" ⚠":""}</td>
+            <td style="padding:5px 6px;font-size:10px;color:#64748b">\${a.remarks||""}</td></tr>\`;
         }).join("");
-        return `<tr style="background:#f8fafc"><td colspan="7" style="padding:3px 6px 3px 12px;font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em;border-top:1px solid #e2e8f0">${cat}</td></tr>${aRows}`;
+        return \`<tr style="background:#f8fafc"><td colspan="7" style="padding:3px 6px 3px 12px;font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em;border-top:1px solid #e2e8f0">\${cat}</td></tr>\${aRows}\`;
       }).join("");
-      return `<div style="margin-bottom:20px;page-break-inside:avoid">
+      return \`<div style="margin-bottom:20px;page-break-inside:avoid">
         <div style="background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:10px 14px;border-radius:7px 7px 0 0;display:flex;justify-content:space-between;align-items:center">
           <div>
-            <div style="font-size:15px;font-weight:700">${proj?.name||g.pid}</div>
-            <div style="font-size:10px;color:#93c5fd;margin-top:1px">${g.pid}${proj?.phase?" · Phase: "+proj.phase:""}</div>
+            <div style="font-size:15px;font-weight:700">\${proj?.name||g.pid}</div>
+            <div style="font-size:10px;color:#93c5fd;margin-top:1px">\${g.pid}\${proj?.phase?" · Phase: "+proj.phase:""}</div>
           </div>
           <div style="text-align:right">
-            <div style="font-size:22px;font-weight:800;color:${bc}">${pp}%</div>
-            <div style="font-size:10px;color:#93c5fd">${pd}/${all.length} done</div>
+            <div style="font-size:22px;font-weight:800;color:\${bc}">\${pp}%</div>
+            <div style="font-size:10px;color:#93c5fd">\${pd}/\${all.length} done</div>
           </div>
         </div>
-        <div style="height:4px;background:#e2e8f0"><div style="width:${pp}%;height:100%;background:${bc}"></div></div>
-        <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none;font-family:Arial,sans-serif">
+        <div style="height:4px;background:#e2e8f0"><div style="width:\${pp}%;height:100%;background:\${bc}"></div></div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none">
           <thead><tr style="background:#f1f5f9">
             <th style="padding:5px 6px 5px 22px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ACTIVITY</th>
             <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">STATUS</th>
             <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">PROGRESS</th>
-            <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ASSIGNED TO</th>
+            <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ASSIGNED</th>
             <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">START</th>
             <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">DEADLINE</th>
             <th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">NOTES</th>
-          </tr></thead><tbody>${rows}</tbody>
-        </table></div>`;
+          </tr></thead><tbody>\${catRows}</tbody>
+        </table></div>\`;
     }).join("");
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tracker Report</title>
+    const html=\`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tracker Report</title>
     <style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}@media print{body{padding:0}@page{margin:10mm}}</style>
     </head><body>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f">
       <div><div style="font-size:20px;font-weight:800;color:#1e3a5f">ENEVO GROUP</div>
         <div style="font-size:15px;font-weight:700;color:#334155;margin-top:2px">Activity Tracker Progress Report</div>
-        <div style="font-size:11px;color:#64748b;margin-top:3px">Period: <b>${label}</b> · Generated: ${now}</div></div>
+        <div style="font-size:11px;color:#64748b;margin-top:3px">Period: <b>\${label}</b> · Generated: \${now}</div></div>
       <div style="text-align:right;font-size:11px;color:#64748b;line-height:1.8">
-        <div>${acts.length} activities · ${grouped.length} projects</div>
-        <div>✅ Completed: <b style="color:#16a34a">${done}</b> &nbsp; 🔵 In Progress: <b style="color:#2563eb">${inprog}</b> &nbsp; ⚠ On Hold: <b style="color:#ea580c">${onhold}</b></div>
-        <div>Avg Progress: <b style="font-size:14px">${avg}%</b></div>
+        <div>\${acts.length} activities · \${grouped.length} projects</div>
+        <div>Completed: <b style="color:#16a34a">\${done}</b> &nbsp; In Progress: <b style="color:#2563eb">\${inprog}</b> &nbsp; On Hold: <b style="color:#ea580c">\${onhold}</b></div>
+        <div>Avg Progress: <b style="font-size:14px">\${avg}%</b></div>
       </div>
     </div>
-    ${grouped.length===0?'<p style="color:#94a3b8;text-align:center;padding:30px">No activities found.</p>':projHTML}
-    <div style="margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP — Internal Report — ${now}</div>
-    </body></html>`;
+    \${grouped.length===0?'<p style="text-align:center;padding:30px;color:#94a3b8">No activities found.</p>':projHTML}
+    <div style="margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP — Internal Report — \${now}</div>
+    </body></html>\`;
     const blob=new Blob([html],{type:"text/html"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");a.href=url;a.target="_blank";a.click();
@@ -2939,7 +2938,6 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
 
   return(
   <div>
-    {/* Controls bar */}
     <div className="card" style={{marginBottom:14}}>
       <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",justifyContent:"space-between"}}>
         <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
@@ -2948,8 +2946,9 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
             <div style={{display:"flex",gap:5}}>
               {[{v:"daily",l:"Daily"},{v:"weekly",l:"Weekly"},{v:"monthly",l:"Monthly"},{v:"full",l:"Full Project"}].map(o=>(
                 <button key={o.v} onClick={()=>setPeriod(o.v)}
-                  style={{padding:"6px 12px",borderRadius:5,cursor:"pointer",fontSize:12,fontWeight:period===o.v?700:400,
-                    border:`1px solid ${period===o.v?"var(--info)":"var(--border3)"}`,
+                  style={{padding:"6px 12px",borderRadius:5,cursor:"pointer",fontSize:12,
+                    fontWeight:period===o.v?700:400,
+                    border:\`1px solid \${period===o.v?"var(--info)":"var(--border3)"}\`,
                     background:period===o.v?"var(--info)20":"var(--bg2)",
                     color:period===o.v?"var(--info)":"var(--text2)"}}>
                   {o.l}
@@ -2981,11 +2980,9 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
             </select>
           </div>
         </div>
-        <button className="bp" onClick={buildPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>⬇ Export PDF</button>
+        <button className="bp" onClick={buildPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>&#11015; Export PDF</button>
       </div>
     </div>
-
-    {/* KPI cards */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
       {[{l:"Total",v:total,c:"var(--info)"},{l:"Completed",v:done,c:"#34d399"},
         {l:"In Progress",v:inprog,c:"var(--info)"},{l:"On Hold",v:onhold,c:"#fb923c"},
@@ -2997,14 +2994,10 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
         </div>
       ))}
     </div>
-
     {onhold>0&&<div style={{background:"#78350f15",border:"1px solid #fb923c60",borderRadius:6,padding:"9px 14px",marginBottom:12,fontSize:13,color:"#fb923c"}}>
       ⚠ {onhold} {onhold===1?"activity":"activities"} On Hold — review required
     </div>}
-
     {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)",fontSize:14}}>No activities match the selected filters.</div>}
-
-    {/* Project blocks */}
     {grouped.map(g=>{
       const proj=projects.find(p=>p.id===g.pid);
       const all=Object.values(g.cats).flat();
@@ -3013,7 +3006,6 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
       const bc=pp===100?"#34d399":pp>=50?"var(--info)":"#fb923c";
       return(
       <div key={g.pid} className="card" style={{marginBottom:12}}>
-        {/* Project header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,paddingBottom:10,borderBottom:"1px solid var(--border3)"}}>
           <div>
             <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{proj?.name||g.pid}</div>
@@ -3028,7 +3020,6 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
             </div>
           </div>
         </div>
-        {/* Category groups */}
         {Object.entries(g.cats).map(([cat,catActs])=>{
           const gc=GC[catActs[0]?.group_name]||"var(--info)";
           return(
@@ -3047,11 +3038,11 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
                       <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:4}}>{a.activity_name}</div>
                       <div style={{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}}>
                         <span style={{fontSize:11,padding:"2px 7px",borderRadius:3,background:SB[a.status]||"var(--bg3)",color:SC[a.status]||"var(--text3)",fontWeight:600}}>{a.status}</span>
-                        {a.assigned_to&&<span style={{fontSize:11,color:"var(--text3)"}}>👤 {a.assigned_to}</span>}
-                        {a.start_date&&<span style={{fontSize:11,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
-                        {a.end_date&&<span style={{fontSize:11,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"⚠ ":""}⏎ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
+                        {a.assigned_to&&<span style={{fontSize:11,color:"var(--text3)"}}>&#128100; {a.assigned_to}</span>}
+                        {a.start_date&&<span style={{fontSize:11,color:"var(--text4)"}}>&#9654; {fmtD(a.start_date)}</span>}
+                        {a.end_date&&<span style={{fontSize:11,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"⚠ ":""}↵ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
                       </div>
-                      {a.remarks&&<div style={{fontSize:11,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>📝 {a.remarks}</div>}
+                      {a.remarks&&<div style={{fontSize:11,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>&#128221; {a.remarks}</div>}
                     </div>
                     <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,flexShrink:0,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text3)"}}>{pct}%</div>
                   </div>
@@ -7750,11 +7741,11 @@ export default function App(){
               <div className="card">
                 <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Projects — {MONTHS[month]} {year}{dashProjFilter!=="ALL"&&` · Filtered`}</h3>
                 <table>
-                  <thead><tr><th>Name</th><th>No.</th><th>Phase</th><th>Hours</th>{(isAdmin||isAcct)&&<><th>Billing</th><th>Revenue</th></>}</tr></thead>
+                  <thead><tr><th>No.</th><th>Name</th><th>Phase</th><th>Hours</th>{(isAdmin||isAcct)&&<><th>Billing</th><th>Revenue</th></>}</tr></thead>
                   <tbody>{projStats.filter(p=>p.hours>0&&(dashProjFilter==="ALL"||p.id===dashProjFilter)).map(p=>(
                     <tr key={p.id}>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.name||p.id}</td>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)"}}>{p.id}</td>
+                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.id}</td>
+                      <td style={{fontSize:13}}>{p.name}</td>
                       <td style={{color:"var(--text2)",fontSize:13}}>{p.phase}</td>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.hours}h</td>
                       {(isAdmin||isAcct)&&<><td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"var(--bg3)":"#1a0a00",color:p.billable?"var(--info)":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
@@ -8591,10 +8582,9 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                       return(
                         <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:3,justifyContent:"center"}}>
                           {myProjs.slice(0,4).map(p=>(
-                            <span key={p.id} style={{fontSize:10,padding:"1px 5px",borderRadius:3,
+                            <span key={p.id} title={`${p.name||p.id} (${p.id})`} style={{fontSize:10,padding:"1px 5px",borderRadius:3,
                               background:"var(--bg2)",border:"1px solid var(--border3)",color:"var(--info)",
-                              whiteSpace:"nowrap",maxWidth:90,overflow:"hidden",textOverflow:"ellipsis"}}
-                              title={`${p.name||p.id} (${p.id})`}>
+                              whiteSpace:"nowrap",maxWidth:90,overflow:"hidden",textOverflow:"ellipsis"}}>
                               {p.name||p.id}
                             </span>
                           ))}
@@ -8827,12 +8817,8 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               {/* ════ PROJECT TASKS ANALYSIS ════ */}
               {activeRpt==="projtasks"&&<ProjectTasksReport allEntries={entries} projects={projects} engineers={engineers} MONTHS={MONTHS} fmtCurrency={fmtCurrency} fmtPct={fmtPct} isAdmin={isAdmin} isAcct={isAcct}/>}
 
-              {/* Tracker Progress Report */}
               {activeRpt==="tracker"&&(
-                <TrackerProgressReport
-                  activities={activities} projects={projects}
-                  subprojects={subprojects} engineers={engineers}
-                />
+                <TrackerProgressReport activities={activities} projects={projects} subprojects={subprojects} engineers={engineers}/>
               )}
 
            {/* Vacation Report */}
