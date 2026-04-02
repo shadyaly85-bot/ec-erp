@@ -7743,18 +7743,251 @@ export default function App(){
       </tbody></table></div>`]);
   };
   const buildTaskPDF=()=>{
-    const actRows=entries.filter(e=>e.entry_type==="work"&&e.activity&&new Date(e.date).getMonth()===month&&new Date(e.date).getFullYear()===year).slice(0,30).map(e=>{
-      const eng=engineers.find(x=>x.id===e.engineer_id);const proj=projects.find(x=>x.id===e.project_id);
-      return`<tr><td style="font-size:11px">${e.date}</td><td>${eng?.name||""}</td>
-      <td style="color:#0ea5e9;font-size:11px">${proj?.id||""}</td>
-      <td style="font-size:11px">${e.task_type||""}</td><td style="font-style:italic">${e.activity||""}</td><td>${e.hours}h</td></tr>`;}).join("");
-    generatePDF(`Task Analysis — ${MONTHS[month]} ${year}`,[
-      `<div class="section"><div class="st">Categories</div><table><thead><tr><th>Category</th><th>Hrs</th><th>Billable Hrs</th><th>Share</th><th>Tasks</th></tr></thead>
-      <tbody>${taskStats.map(cat=>{const pct=totalWorkHrs?Math.round(cat.hours/totalWorkHrs*100):0;
-        return`<tr><td><strong>${cat.category}</strong></td><td>${cat.hours}h</td><td>${cat.billable}h</td><td>${pct}%</td>
-        <td style="font-size:11px">${Object.keys(cat.tasks).join(", ")}</td></tr>`;}).join("")}</tbody></table></div>`,
-      `<div class="section"><div class="st">Activity Log</div><table><thead><tr><th>Date</th><th>Engineer</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th></tr></thead>
-      <tbody>${actRows}</tbody></table></div>`]);
+    const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+    const period=`${MONTHS[month]} ${year}`;
+
+    // ── DERIVED METRICS ──
+    const nonBillableHrs=totalWorkHrs-totalBillable;
+    const nonBillablePct=totalWorkHrs?Math.round(nonBillableHrs/totalWorkHrs*100):0;
+    const avgRate=totalBillable>0?totalRevenue/totalBillable:0;
+    const costOfNonBillable=Math.round(nonBillableHrs*avgRate);
+    const uniqueTaskTypes=[...new Set(workEntries.map(e=>e.task_type).filter(Boolean))].length;
+    const uniqueEngineers=[...new Set(workEntries.map(e=>e.engineer_id))].length;
+    const avgHrsPerEntry=workEntries.length?(totalWorkHrs/workEntries.length).toFixed(1):0;
+
+    // ── PREVIOUS MONTH COMPARISON ──
+    const prevMonth=month===0?11:month-1;
+    const prevYear=month===0?year-1:year;
+    const prevWE=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===prevYear&&d.getMonth()===prevMonth&&e.entry_type==="work";});
+    const prevTotalHrs=prevWE.reduce((s,e)=>s+e.hours,0);
+    const prevCatMap={};
+    prevWE.forEach(e=>{const g=e.task_category||CAT_TO_GROUP[e.task_type]||"General";prevCatMap[g]=(prevCatMap[g]||0)+e.hours;});
+
+    // ── TOP ACTIVITIES ──
+    const actMap={};
+    workEntries.forEach(e=>{
+      if(!e.activity)return;
+      const k=`${e.task_type||""}|||${e.activity}`;
+      if(!actMap[k])actMap[k]={task:e.task_type||"—",activity:e.activity,hrs:0,count:0,billable:0};
+      actMap[k].hrs+=e.hours; actMap[k].count++;
+      const p=projects.find(x=>x.id===e.project_id);
+      if(p&&p.billable)actMap[k].billable+=e.hours;
+    });
+    const topActivities=Object.values(actMap).sort((a,b)=>b.hrs-a.hrs).slice(0,12);
+
+    // ── ENGINEER × CATEGORY MATRIX ──
+    const activeEngs=engStats.filter(e=>e.workHrs>0);
+    const allCats=taskStats.map(t=>t.category);
+    const engCatMatrix=activeEngs.map(eng=>{
+      const catHrs={};
+      workEntries.filter(e=>String(e.engineer_id)===String(eng.id)).forEach(e=>{
+        const g=e.task_category||CAT_TO_GROUP[e.task_type]||"General";
+        catHrs[g]=(catHrs[g]||0)+e.hours;
+      });
+      const topCat=Object.entries(catHrs).sort((a,b)=>b[1]-a[1])[0];
+      return{...eng,catHrs,topCat};
+    });
+
+    // ── COLORS ──
+    const CLRS=["#0ea5e9","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#4ade80","#f472b6","#60a5fa","#2dd4bf","#f97316"];
+    const ccm={};taskStats.forEach((t,i)=>{ccm[t.category]=CLRS[i%CLRS.length];});
+
+    // ── SECTION 1: EXECUTIVE KPIs ──
+    const hrsVsPrev=prevTotalHrs>0?totalWorkHrs-prevTotalHrs:null;
+    const s1=`<div class="section"><div class="st">Executive Summary — ${period}</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px">
+        ${[
+          {l:"Total Hours",    v:totalWorkHrs+"h",          c:"#0ea5e9", sub:uniqueEngineers+" engineers · "+workEntries.length+" entries"},
+          {l:"Billable Hours", v:totalBillable+"h",         c:"#34d399", sub:fmtPct(billabilityPct)+" of total"},
+          {l:"Non-Billable",   v:nonBillableHrs+"h",        c:"#fb923c", sub:fmtPct(nonBillablePct)+" of total"},
+          {l:"Utilization",    v:fmtPct(overallUtil),       c:overallUtil>=70?"#34d399":"#f87171", sub:"Benchmark ≥ 70%"},
+          {l:"Revenue",        v:fmtCurrency(totalRevenue), c:"#38bdf8", sub:avgRate>0?"$"+Math.round(avgRate)+"/h avg rate":"—"},
+        ].map(k=>`<div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;text-align:center">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
+          <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-top:4px;font-weight:600">${k.l}</div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:3px">${k.sub}</div>
+        </div>`).join("")}
+      </div>
+      <div style="background:#f8fafc;border-radius:6px;padding:8px 14px;display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#64748b;align-items:center">
+        <span>📋 Avg ${avgHrsPerEntry}h per entry</span>
+        <span>·</span><span>🗂 ${uniqueTaskTypes} task types across ${taskStats.length} categories</span>
+        ${hrsVsPrev!==null?`<span style="margin-left:auto;font-weight:700;color:${hrsVsPrev>=0?"#16a34a":"#dc2626"}">${hrsVsPrev>=0?"▲ +":"▼ "}${hrsVsPrev}h vs ${MONTHS[prevMonth]} ${prevYear}</span>`:""}
+      </div>
+    </div>`;
+
+    // ── SECTION 2: CATEGORY VISUAL DISTRIBUTION ──
+    const s2=`<div class="section"><div class="st">Task Category Distribution</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:10px;padding:6px 10px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:0 4px 4px 0">
+        ⚡ Industry benchmarks for engineering firms: Billable ≥ 70% · Internal overhead ≤ 20% · Training / R&D ≤ 10%
+      </div>
+      ${taskStats.map((cat,i)=>{
+        const pct=totalWorkHrs?Math.round(cat.hours/totalWorkHrs*100):0;
+        const billPct=cat.hours?Math.round(cat.billable/cat.hours*100):0;
+        const col=ccm[cat.category]||"#0ea5e9";
+        const delta=prevCatMap[cat.category]!=null?cat.hours-(prevCatMap[cat.category]||0):null;
+        const topTasks=Object.entries(cat.tasks).sort((a,b)=>b[1].hrs-a[1].hrs).slice(0,3).map(([k,v])=>`${k} (${v.hrs}h)`).join("  ·  ");
+        return`<div style="margin-bottom:10px;padding:10px 12px;background:${i%2===0?"#f8fafc":"#ffffff"};border-radius:6px;border-left:3px solid ${col}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px">
+            <div>
+              <span style="font-weight:700;color:#0f172a;font-size:13px">${cat.category}</span>
+              <span style="margin-left:10px;font-size:10px;color:#94a3b8">${topTasks}</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap">
+              <span style="color:${col};font-weight:700">${cat.hours}h</span>
+              <span style="background:${col}22;color:${col};padding:1px 6px;border-radius:3px;font-weight:700">${pct}%</span>
+              ${delta!==null?`<span style="font-size:10px;color:${delta>=0?"#16a34a":"#dc2626"}">${delta>=0?"▲+":"▼"}${delta}h</span>`:""}
+            </div>
+          </div>
+          <div style="background:#e2e8f0;height:9px;border-radius:5px;overflow:hidden;display:flex">
+            <div style="width:${pct}%;display:flex;overflow:hidden;border-radius:5px 0 0 5px">
+              <div style="width:${billPct}%;background:#34d399;min-width:${cat.billable>0?2:0}px"></div>
+              <div style="flex:1;background:${col}"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:4px;font-size:10px;color:#94a3b8">
+            <span style="color:#16a34a;font-weight:600">✓ Billable ${cat.billable}h (${billPct}%)</span>
+            <span>◻ Non-bill ${cat.hours-cat.billable}h (${100-billPct}%)</span>
+            <span style="margin-left:auto">${Object.keys(cat.tasks).length} task type${Object.keys(cat.tasks).length!==1?"s":""}</span>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+
+    // ── SECTION 3: BILLABILITY & EFFICIENCY ──
+    const s3=`<div class="section"><div class="st">Billability &amp; Efficiency Analysis</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#0e4880;text-transform:uppercase;letter-spacing:.1em;padding-bottom:5px;border-bottom:2px solid #0ea5e9;margin-bottom:10px">Hours Allocation</div>
+          ${[
+            {l:"Billable Hours",     h:totalBillable,    c:"#34d399"},
+            {l:"Non-Billable Hours", h:nonBillableHrs,   c:"#fb923c"},
+          ].map(r=>{
+            const w=totalWorkHrs?Math.round(r.h/totalWorkHrs*100):0;
+            return`<div style="margin-bottom:10px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px">
+                <span style="font-weight:600;color:#334155">${r.l}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;color:${r.c};font-weight:700">${r.h}h — ${w}%</span>
+              </div>
+              <div style="background:#e2e8f0;height:7px;border-radius:4px;overflow:hidden">
+                <div style="height:100%;width:${w}%;background:${r.c};border-radius:4px"></div>
+              </div>
+            </div>`;
+          }).join("")}
+          ${avgRate>0&&costOfNonBillable>0?`<div style="margin-top:12px;padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;font-size:11px;color:#9a3412">
+            <div style="font-weight:700;margin-bottom:3px">💰 Non-Billable Opportunity Cost</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#c2410c;font-weight:700">${fmtCurrency(costOfNonBillable)}</div>
+            <div style="color:#b45309;margin-top:2px">${nonBillableHrs}h × $${Math.round(avgRate)}/h blended rate</div>
+          </div>`:""}
+          <div style="margin-top:12px;padding:10px 12px;background:${billabilityPct>=70?"#f0fdf4":"#fff7ed"};border:1px solid ${billabilityPct>=70?"#bbf7d0":"#fed7aa"};border-radius:6px;font-size:11px">
+            <span style="font-weight:700;color:${billabilityPct>=70?"#166534":"#92400e"}">
+              ${billabilityPct>=70?"✅ Billability target met":"⚠ Below 70% billability target"}
+            </span>
+            <div style="color:#64748b;margin-top:2px">Current: ${fmtPct(billabilityPct)} · Target: ≥ 70% · Gap: ${billabilityPct>=70?"None":"+"+(70-billabilityPct)+"% needed"}</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#4c1d95;text-transform:uppercase;letter-spacing:.1em;padding-bottom:5px;border-bottom:2px solid #a78bfa;margin-bottom:10px">Billability Rate by Category</div>
+          <table style="font-size:11px;width:100%">
+            <thead><tr>
+              <th style="background:#f5f3ff;color:#4c1d95;padding:5px 8px;text-align:left;border-radius:3px 0 0 0">Category</th>
+              <th style="background:#f5f3ff;color:#4c1d95;padding:5px 8px;text-align:right">Bill%</th>
+              <th style="background:#f5f3ff;color:#4c1d95;padding:5px 8px;text-align:right">Hours</th>
+              <th style="background:#f5f3ff;color:#4c1d95;padding:5px 8px;text-align:right">Rating</th>
+            </tr></thead>
+            <tbody>${taskStats.map((cat,i)=>{
+              const bp=cat.hours?Math.round(cat.billable/cat.hours*100):0;
+              const rating=bp>=70?"✅ Good":bp>=40?"⚡ Fair":"⚠ Low";
+              const rc=bp>=70?"#166534":bp>=40?"#92400e":"#991b1b";
+              return`<tr style="background:${i%2===0?"#f8fafc":"#fff"}">
+                <td style="padding:5px 8px;font-weight:600">${cat.category}</td>
+                <td style="text-align:right;padding:5px 8px;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${rc}">${bp}%</td>
+                <td style="text-align:right;padding:5px 8px;font-family:'IBM Plex Mono',monospace;color:#64748b">${cat.hours}h</td>
+                <td style="text-align:right;padding:5px 8px;font-size:10px;color:${rc}">${rating}</td>
+              </tr>`;
+            }).join("")}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+
+    // ── SECTION 4: TASK TYPE DEEP DIVE ──
+    const s4=`<div class="section"><div class="st">Task Type Detail — Within Each Category</div>
+      ${taskStats.map(cat=>{
+        const col=ccm[cat.category]||"#0ea5e9";
+        const subs=Object.entries(cat.tasks).sort((a,b)=>b[1].hrs-a[1].hrs);
+        const cols=Math.min(subs.length,3);
+        return`<div style="margin-bottom:14px">
+          <div style="font-size:12px;font-weight:700;color:#0f172a;padding:6px 10px;background:#f1f5f9;border-left:4px solid ${col};border-radius:0 5px 5px 0;margin-bottom:6px;display:flex;justify-content:space-between">
+            <span>${cat.category}</span>
+            <span style="font-family:'IBM Plex Mono',monospace;color:${col}">${cat.hours}h total · ${subs.length} type${subs.length!==1?"s":""}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:6px;padding-left:6px">
+            ${subs.map(([taskType,data])=>{
+              const tpct=cat.hours?Math.round(data.hrs/cat.hours*100):0;
+              const topAct=Object.entries(data.activities).sort((a,b)=>b[1]-a[1])[0];
+              return`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-top:2px solid ${col};border-radius:0 0 5px 5px;padding:7px 9px">
+                <div style="font-weight:600;color:#334155;font-size:11px;margin-bottom:2px">${taskType}</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:${col}">${data.hrs}h <span style="font-size:10px;color:#94a3b8;font-weight:400">${tpct}%</span></div>
+                ${topAct?`<div style="font-size:9px;color:#94a3b8;font-style:italic;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">↳ ${topAct[0]}</div>`:""}
+              </div>`;
+            }).join("")}
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+
+    // ── SECTION 5: ENGINEER × CATEGORY MATRIX ──
+    const s5=engCatMatrix.length>0?`<div class="section"><div class="st">Engineer × Task Category Matrix</div>
+      <div style="overflow-x:auto">
+      <table style="font-size:11px;width:100%">
+        <thead><tr>
+          <th style="text-align:left;white-space:nowrap;padding:5px 8px">Engineer</th>
+          <th style="text-align:right;padding:5px 6px">Total</th>
+          <th style="text-align:right;padding:5px 6px">Bill%</th>
+          ${allCats.map(c=>`<th style="text-align:right;padding:5px 5px;font-size:10px;max-width:55px;overflow:hidden;white-space:nowrap" title="${c}">${c.length>9?c.slice(0,9)+"…":c}</th>`).join("")}
+          <th style="text-align:left;padding:5px 8px;font-size:10px">Top Focus</th>
+        </tr></thead>
+        <tbody>${engCatMatrix.map((eng,ri)=>`<tr style="background:${ri%2===0?"#f8fafc":"#fff"}">
+          <td style="padding:5px 8px;font-weight:600;white-space:nowrap">${eng.name}<br><span style="font-size:10px;color:#94a3b8;font-weight:400">${eng.role||""}</span></td>
+          <td style="text-align:right;padding:5px 6px;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700">${eng.workHrs}h</td>
+          <td style="text-align:right;padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${eng.billability>=70?"#16a34a":eng.billability>=40?"#d97706":"#dc2626"}">${eng.billability}%</td>
+          ${allCats.map(c=>{const h=eng.catHrs[c]||0;const col=ccm[c]||"#0ea5e9";
+            return`<td style="text-align:right;padding:5px 5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:${h>0?col:"#cbd5e1"}">${h>0?h+"h":"—"}</td>`;
+          }).join("")}
+          <td style="padding:5px 8px;font-size:10px;color:#64748b">${eng.topCat?eng.topCat[0]+" ("+eng.topCat[1]+"h)":"—"}</td>
+        </tr>`).join("")}</tbody>
+      </table>
+      </div>
+    </div>`:"";
+
+    // ── SECTION 6: TOP ACTIVITIES ──
+    const s6=topActivities.length>0?`<div class="section"><div class="st">Top Activities by Hours — What the Team Is Actually Working On</div>
+      <table>
+        <thead><tr>
+          <th style="text-align:left">Task Type</th><th style="text-align:left">Activity Description</th>
+          <th style="text-align:right">Hours</th><th style="text-align:right">Entries</th>
+          <th style="text-align:right">Bill%</th><th style="text-align:right">Share</th>
+        </tr></thead>
+        <tbody>${topActivities.map((a,i)=>{
+          const pct=totalWorkHrs?Math.round(a.hrs/totalWorkHrs*100):0;
+          const bp=a.hrs?Math.round(a.billable/a.hrs*100):0;
+          return`<tr>
+            <td style="font-size:10px;color:#64748b;white-space:nowrap">${a.task}</td>
+            <td style="font-weight:600;color:#0f172a">${a.activity}</td>
+            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700">${a.hrs}h</td>
+            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8">${a.count}×</td>
+            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${bp>=70?"#16a34a":bp>=40?"#d97706":"#94a3b8"}">${a.hrs>0?bp+"%":"—"}</td>
+            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8">${pct}%</td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table>
+    </div>`:"";
+
+    generatePDF(
+      `Task Analysis Report — ${period}`,
+      [s1,s2,s3,s4,s5,s6],
+      `Task &amp; Productivity Analysis · ${period} · Confidential`
+    );
   };
   const buildMonthlyPDF=()=>{
     generatePDF(`Monthly Management Report — ${MONTHS[month]} ${year}`,[
