@@ -1429,7 +1429,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{fontWeight:700,color:"var(--text0)"}}>{pm.proj.name||pm.proj.id}</span><br/><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{pm.proj.id}</span>
+                  <span style={{fontWeight:700,color:"var(--text0)"}}>{pm.proj.name||pm.proj.id}</span> <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{pm.proj.id}</span>
                   <span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:pm.proj.status==="Active"?"#024b36":"var(--border)",color:pm.proj.status==="Active"?"#34d399":"var(--text2)"}}>{pm.proj.status}</span>
                   {pm.proj.billable&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)"}}>BILLABLE</span>}
                 </div>
@@ -4630,20 +4630,20 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
           <span style={{fontSize:12,color:"var(--text4)"}}>Move entries older than</span>
           <select value={retentionDays} onChange={e=>setRetentionDays(+e.target.value)}
             style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:13}}>
-            {[7,14,30,60,90,180].map(d=><option key={d} value={d}>{d} days</option>)}
+            {[30,60,90,180].map(d=><option key={d} value={d}>{d} days</option>)}
           </select>
           <span style={{fontSize:12,color:"var(--text4)"}}>to archive</span>
           <button onClick={onArchive}
             style={{background:"#f8711820",border:"1px solid #f8711840",borderRadius:6,padding:"5px 14px",color:"#f87171",cursor:"pointer",fontSize:13,fontWeight:600}}>
             ⬆ Archive Now
           </button>
+          <span style={{fontSize:11,color:"var(--text4)",marginLeft:"auto"}}>
+            Archive keeps data forever · Live table stays fast · Export CSV to download either
+          </span>
           <button onClick={onPruneArchive}
             style={{background:"#f8711810",border:"1px solid #f8711830",borderRadius:6,padding:"5px 12px",color:"#f87171",cursor:"pointer",fontSize:12,opacity:0.8}}>
             🗑 Prune Archive &gt;1yr
           </button>
-          <span style={{fontSize:11,color:"var(--text4)",marginLeft:"auto"}}>
-            Live log shows up to 2,000 entries · Archive unlimited · Export CSV anytime
-          </span>
         </div>
       )}
 
@@ -5513,7 +5513,7 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
-function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, onDismissNotif, alertDay, setAlertDay}){
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, onDismissNotif, alertDay, setAlertDay, showToast}){
   const yearEntries = useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
   const engKPIs = useMemo(()=>{
 /* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
@@ -5830,7 +5830,13 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
 
       {/* General manager note */}
       <div style={{marginBottom:14}}>
-        <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:6}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
+          <button className="bp" style={{fontSize:12,padding:"4px 14px"}} onClick={()=>{
+            try{localStorage.setItem("ec_kpi_notes",JSON.stringify(kpiNotes));}catch(err){}
+            showToast&&showToast("Notes saved ✓");
+          }}>&#128190; Save Notes</button>
+        </div>
         <textarea value={engNotes.general||""} onChange={e=>setNote("general",e.target.value)}
           rows={4} placeholder="Overall performance summary, key achievements, areas for improvement, next year goals…"
           style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,color:"var(--text2)",fontSize:13,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
@@ -5933,7 +5939,7 @@ export default function App(){
   const [funcYear,setFuncYear]             = useState(new Date().getFullYear());
   const [funcEngId,setFuncEngId]           = useState("all");
   const [kpiEngId,setKpiEngId]            = useState(null);
-  const [kpiNotes,setKpiNotes]             = useState({}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
+  const [kpiNotes,setKpiNotes]             = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_kpi_notes')||'{}');}catch{return{};}}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
   const [activities,setActivities]         = useState([]);
   const [subprojects,setSubprojects]       = useState([]);
   const [activitiesLoaded,setActivitiesLoaded] = useState(false);
@@ -9312,6 +9318,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   notifications={notifications}
                   onDismissNotif={dismissNotification}
                   alertDay={alertDay} setAlertDay={setAlertDay}
+                  showToast={showToast}
                 />
               )}
 
