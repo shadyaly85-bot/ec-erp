@@ -590,7 +590,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,fontSize:13,marginBottom:10,color:"var(--text1)"}}>
-                {p.pm&&<div><span style={{color:"var(--text4)"}}>PM: </span><span style={{color:"#60a5fa",fontWeight:600}}>{p.pm}</span></div>}
+                {p.pm&&<div><span style={{color:"var(--text4)"}}>PM: </span><span style={{color:"#a78bfa",fontWeight:600}}>{p.pm}</span></div>}
                 {p.client&&<div><span style={{color:"var(--text4)"}}>Client: </span>{p.client}</div>}
                 {p.origin&&<div><span style={{color:"var(--text4)"}}>Origin: </span>{p.origin}</div>}
                 <div><span style={{color:"var(--text4)"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase||"—"}</span></div>
@@ -2750,7 +2750,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
                       transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>▶</button>
                 )}
               </td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.id}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.name||p.id}</td>
               <td style={{fontSize:13,fontWeight:500}}>{p.name}</td>
               <td style={{fontSize:13,color:"#a78bfa"}}>{p.pm||"—"}</td>
               <td style={{color:"var(--text2)",fontSize:13}}>{p.client}</td>
@@ -3066,6 +3066,157 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
     })}
   </div>
   );
+}
+
+
+/* ═══ ASSIGNMENT REPORT ═══ */
+function AssignmentReport({entries,projects,engineers,month,year}){
+  const [selProj,setSelProj]=React.useState("ALL");
+  const [selEng,setSelEng]=React.useState("ALL");
+  const MN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const workE=React.useMemo(()=>entries.filter(function(e){
+    var d=new Date(e.date+"T12:00:00");
+    if(d.getFullYear()!==year||d.getMonth()+1!==month||e.entry_type!=="work") return false;
+    if(selProj!=="ALL"&&e.project_id!==selProj) return false;
+    if(selEng!=="ALL"&&String(e.engineer_id)!==String(selEng)) return false;
+    return true;
+  }),[entries,year,month,selProj,selEng]);
+
+  const grouped=React.useMemo(()=>{
+    var map={};
+    workE.forEach(function(e){
+      var pid=e.project_id||"?";
+      if(!map[pid]) map[pid]={};
+      var eid=String(e.engineer_id);
+      if(!map[pid][eid]) map[pid][eid]={hours:0,tasks:{}};
+      map[pid][eid].hours+=e.hours;
+      var t=e.task_type||"General";
+      map[pid][eid].tasks[t]=(map[pid][eid].tasks[t]||0)+e.hours;
+    });
+    return Object.entries(map).map(function(kv){
+      var tot=Object.values(kv[1]).reduce(function(s,x){return s+x.hours;},0);
+      return {pid:kv[0],engs:kv[1],tot:tot};
+    }).sort(function(a,b){return b.tot-a.tot;});
+  },[workE]);
+
+  var totHrs=workE.reduce(function(s,e){return s+e.hours;},0);
+  var totEngs=new Set(workE.map(function(e){return e.engineer_id;})).size;
+
+  var buildPDF=function(){
+    var now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+    var period=(MN[month-1]||"")+" "+year;
+    var blocks=grouped.map(function(g){
+      var proj=projects.find(function(p){return p.id===g.pid;});
+      var rows=Object.entries(g.engs).sort(function(a,b){return b[1].hours-a[1].hours;}).map(function(kv){
+        var eng=engineers.find(function(e){return String(e.id)===kv[0];});
+        var tasks=Object.entries(kv[1].tasks).map(function(t){return t[0]+": "+t[1]+"h";}).join(", ");
+        return "<tr><td style='padding:5px 8px 5px 20px;font-size:12px'>"+(eng?eng.name:kv[0])+"</td>"
+          +"<td style='padding:5px 8px;font-size:11px;color:#64748b'>"+(eng?eng.role||"":"")+"</td>"
+          +"<td style='padding:5px 8px;font-size:11px;color:#64748b'>"+tasks+"</td>"
+          +"<td style='padding:5px 8px;text-align:right;font-family:monospace;font-weight:700;color:#1d4ed8'>"+kv[1].hours+"h</td></tr>";
+      }).join("");
+      return "<div style='margin-bottom:16px;page-break-inside:avoid'>"
+        +"<div style='background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:9px 14px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between'>"
+        +"<div><div style='font-size:14px;font-weight:700'>"+(proj?proj.name:g.pid)+"</div>"
+        +"<div style='font-size:10px;color:#93c5fd'>"+g.pid+(proj&&proj.pm?" · PM: "+proj.pm:"")+(proj&&proj.phase?" · "+proj.phase:"")+"</div></div>"
+        +"<div style='text-align:right'><div style='font-size:20px;font-weight:800;color:#60a5fa'>"+g.tot+"h</div>"
+        +"<div style='font-size:10px;color:#93c5fd'>"+Object.keys(g.engs).length+" engineer(s)</div></div></div>"
+        +"<table style='width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none'>"
+        +"<thead><tr style='background:#f1f5f9'>"
+        +"<th style='padding:5px 8px 5px 20px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>ENGINEER</th>"
+        +"<th style='padding:5px 8px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>ROLE</th>"
+        +"<th style='padding:5px 8px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>TASKS</th>"
+        +"<th style='padding:5px 8px;text-align:right;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>HRS</th>"
+        +"</tr></thead><tbody>"+rows+"</tbody></table></div>";
+    }).join("");
+    var html="<!DOCTYPE html><html><head><meta charset='utf-8'><title>Assignment Report</title>"
+      +"<style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}@media print{body{padding:0}@page{margin:10mm}}</style>"
+      +"</head><body>"
+      +"<div style='display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f'>"
+      +"<div><div style='font-size:20px;font-weight:800;color:#1e3a5f'>ENEVO GROUP</div>"
+      +"<div style='font-size:15px;font-weight:700;color:#334155;margin-top:2px'>Assignment Report</div>"
+      +"<div style='font-size:11px;color:#64748b;margin-top:3px'>Period: <b>"+period+"</b> · Generated: "+now+"</div></div>"
+      +"<div style='text-align:right;font-size:11px;color:#64748b;line-height:1.9'>"
+      +"<div>"+grouped.length+" projects · "+totEngs+" engineers</div>"
+      +"<div>Total: <b style='font-size:14px'>"+totHrs+"h</b></div></div></div>"
+      +(grouped.length===0?"<p style='text-align:center;color:#94a3b8'>No work entries found.</p>":blocks)
+      +"<div style='margin-top:22px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center'>ENEVO GROUP — "+now+"</div>"
+      +"</body></html>";
+    var blob=new Blob([html],{type:"text/html"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");a.href=url;a.target="_blank";a.click();
+    setTimeout(function(){URL.revokeObjectURL(url);},5000);
+  };
+
+  return(<div>
+    <div className="card" style={{marginBottom:14}}>
+      <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",justifyContent:"space-between"}}>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+          <div><div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>PROJECT</div>
+            <select value={selProj} onChange={function(e){setSelProj(e.target.value);}}
+              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:180}}>
+              <option value="ALL">All Projects</option>
+              {[...new Set(workE.map(function(e){return e.project_id;}).filter(Boolean))].sort(function(a,b){
+                var pa=projects.find(function(p){return p.id===a;}); var pb=projects.find(function(p){return p.id===b;});
+                return (pa?pa.name:a).localeCompare(pb?pb.name:b);
+              }).map(function(pid){
+                var p=projects.find(function(x){return x.id===pid;});
+                return <option key={pid} value={pid}>{p?p.name:pid}</option>;
+              })}
+            </select></div>
+          <div><div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>ENGINEER</div>
+            <select value={selEng} onChange={function(e){setSelEng(e.target.value);}}
+              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:160}}>
+              <option value="ALL">All Engineers</option>
+              {engineers.filter(function(e){return workE.some(function(x){return String(x.engineer_id)===String(e.id);});}).map(function(e){
+                return <option key={e.id} value={String(e.id)}>{e.name}</option>;
+              })}
+            </select></div>
+        </div>
+        <button className="bp" onClick={buildPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>⬇ Export PDF</button>
+      </div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+      {[{l:"Projects",v:grouped.length,c:"var(--info)"},{l:"Engineers",v:totEngs,c:"#34d399"},{l:"Total Hours",v:totHrs+"h",c:"#a78bfa"}].map(function(k){return(
+        <div key={k.l} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:k.c,lineHeight:1}}>{k.v}</div>
+          <div style={{fontSize:11,color:"var(--text4)",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{k.l}</div>
+        </div>);})}
+    </div>
+    {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No work entries for {MN[month-1]} {year}.</div>}
+    {grouped.map(function(g){
+      var proj=projects.find(function(p){return p.id===g.pid;});
+      return(<div key={g.pid} className="card" style={{marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,paddingBottom:10,borderBottom:"1px solid var(--border3)"}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>{proj?proj.name:g.pid}</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)",marginTop:1}}>{g.pid}</div>
+            {proj&&proj.pm&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{proj.pm}</span></div>}
+            {proj&&proj.phase&&<div style={{fontSize:12,color:"var(--text3)",marginTop:1}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span></div>}
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:"var(--info)"}}>{g.tot}h</div>
+            <div style={{fontSize:11,color:"var(--text4)"}}>{Object.keys(g.engs).length} engineer(s)</div>
+          </div>
+        </div>
+        {Object.entries(g.engs).sort(function(a,b){return b[1].hours-a[1].hours;}).map(function(kv){
+          var eng=engineers.find(function(e){return String(e.id)===kv[0];});
+          return(<div key={kv[0]} style={{marginBottom:8,background:"var(--bg2)",borderRadius:6,padding:"8px 12px",border:"1px solid var(--border3)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+              <div><span style={{fontSize:13,fontWeight:600,color:"var(--text0)"}}>{eng?eng.name:kv[0]}</span>
+                {eng&&<span style={{fontSize:11,color:"var(--text4)",marginLeft:8}}>{eng.role}</span>}</div>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:"var(--info)"}}>{kv[1].hours}h</span>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+              {Object.entries(kv[1].tasks).map(function(t){return(
+                <span key={t[0]} style={{background:"var(--bg3)",borderRadius:4,padding:"2px 7px",fontSize:11}}>
+                  <span style={{color:"var(--text2)",fontWeight:600}}>{t[0]}</span>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",marginLeft:4}}>{t[1]}h</span>
+                </span>);})}
+            </div>
+          </div>);})}
+      </div>);})}
+  </div>);
 }
 
 const ENTRY_TYPES = ["Custody","Accrued Salaries","Revenue","Creditors","Opening","Shareholders","project in process"];
@@ -4798,7 +4949,7 @@ function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, set
   setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
   deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior, isAcct,
   journalEntries, setJournalEntries, fixedAssets, journalLoading, assetsLoading,
-  finSubTab, setFinSubTab, accounts}){
+  finSubTab, setFinSubTab, accounts, showToast, logAction, supabase}){
 
   const derived = useMemo(()=>{
     const activeStaff=staff.filter(s=>s.active!==false);
@@ -6010,7 +6161,7 @@ export default function App(){
         if(error){
           console.error("[ActivityLog] Insert failed:",error.message,"| payload:",entry);
         } else if(data){
-          setActivityLog(prev=>[{...entry,id:data[0]?.id,created_at:new Date().toISOString()},...prev].slice(0,2000));
+          setActivityLog(prev=>[{...entry,id:data[0]?.id,created_at:new Date().toISOString()},...prev].slice(0,5000));
         }
       });
   },[session,myProfile]);
@@ -6148,7 +6299,7 @@ export default function App(){
       // Load activity log for admin — use profR.data directly (myProfile state is stale here)
       if(profR.data?.role_type==="admin"){
         setLogLoading(true);
-        supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
+        supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(5000)
           .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
       }
       // Timesheet alerts: checked via checkTimesheetAlerts called from useEffect below
@@ -8017,7 +8168,7 @@ export default function App(){
                           <tr key={e.id} style={{background:checked?"#0d1e3440":"transparent"}}>
                             <td><input type="checkbox" checked={checked} onChange={()=>setSelectedEntries(prev=>{const n=new Set(prev);checked?n.delete(e.id):n.add(e.id);return n;})} style={{cursor:"pointer"}}/></td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                            <td style={{fontSize:13,color:"var(--info)"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
+                            <td style={{fontSize:13,color:"var(--info)"}}>{proj?<><span style={{fontWeight:600}}>{proj.name||proj.id}</span><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"var(--info)",marginLeft:4}}>({proj.id})</span></>:<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
                             <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type||"—"}</td>
                             <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
@@ -8347,8 +8498,8 @@ export default function App(){
                             const kids = children(node.id);
                             return (
                               <td key={node.id} style={{
-                                verticalAlign:"top", padding:"0 8px",
-                                textAlign:"center", minWidth:180,
+                                verticalAlign:"top", padding:"0 8px", minWidth:180,
+                                textAlign:"center",
                                 borderTop: (!solo && depth>0) ? `2px solid ${CONN}` : "none",
                               }}>
                                 {/* vertical stub from top border down to card */}
@@ -8480,7 +8631,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     {/* Chart */}
                     {orgNodes.length>0&&(
                       <div style={{overflowX:"auto",paddingBottom:20}}>
-                        <div style={{minWidth:600,overflowX:"auto",display:"flex",flexDirection:"column",alignItems:"center",gap:0,paddingTop:8,paddingBottom:10}}>
+                        <div style={{minWidth:600,display:"flex",flexDirection:"column",alignItems:"center",gap:0,paddingTop:8}}>
                           {/* Top-level drop zone */}
                           {orgEditing&&(
                             <div onDragOver={e=>e.preventDefault()}
@@ -8635,6 +8786,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   {id:"task",icon:"⊟",label:"Task Analysis",desc:"Task categories & activity log",show:true},
                   {id:"projtasks",icon:"◈",label:"Project Analysis",desc:"Per-project hours, tasks & engineer breakdown",show:isAdmin||isAcct||isLead||isSenior},
                   {id:"tracker",icon:"📊",label:"Tracker Report",desc:"Activity progress — status, notes & phases by project",show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"assignment",icon:"👥",label:"Assignment Report",desc:"Who is working on what — current month assignments",show:isAdmin||isLead||isAcct||isSenior},
                   {id:"vacation",icon:"✈",label:"Vacation Report",desc:"Leave & absence summary per engineer",show:true},
                   {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct||isSenior},
                   {id:"invoice",icon:"🧾",label:"Invoice Export",desc:"Billable invoice per month",show:canInvoice},
@@ -8840,6 +8992,10 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 
               {activeRpt==="tracker"&&(
                 <TrackerProgressReport activities={activities} projects={projects} subprojects={subprojects} engineers={engineers}/>
+              )}
+
+              {activeRpt==="assignment"&&(
+                <AssignmentReport entries={entries} projects={projects} engineers={engineers} month={month} year={year}/>
               )}
 
            {/* Vacation Report */}
@@ -9308,7 +9464,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   journalEntries={journalEntries} setJournalEntries={setJournalEntries}
                   fixedAssets={fixedAssets} journalLoading={journalLoading}
                   assetsLoading={assetsLoading} finSubTab={finSubTab} setFinSubTab={setFinSubTab}
-                  accounts={accounts}/>
+                  accounts={accounts} showToast={showToast} logAction={logAction} supabase={supabase}/>
               )}
 
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
@@ -9395,7 +9551,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   setRetentionDays={setRetentionDays}
                   onRefresh={()=>{
                     setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
+                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(5000)
                       .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
                   }}
                   onArchive={async()=>{
@@ -9407,7 +9563,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:r.archived_count,deleted:r.deleted_count});
                     // Reload live log after archive
                     setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
+                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(5000)
                       .then(({data:liveData})=>{ if(liveData) setActivityLog(liveData); setLogLoading(false); });
                     // Reset archive cache so next "Load Archive" gets fresh data
                     setArchiveLog([]); setArchiveLoaded(false);
