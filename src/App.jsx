@@ -2939,11 +2939,8 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
       +(grouped.length===0?'<p style="text-align:center;padding:30px;color:#94a3b8">No activities found.</p>':projHTML)
       +'<div style="margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP — Internal Report — '+now+'</div>'
       +'</body></html>';
-    const blob=new Blob([html],{type:"text/html"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;a.target="_blank";a.click();
-    setTimeout(function(){URL.revokeObjectURL(url);},5000);
+    var w=window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
+    if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
   };
 
   return(
