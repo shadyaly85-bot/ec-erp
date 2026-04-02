@@ -1397,7 +1397,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
           <div style={{display:"flex",height:28,borderRadius:6,overflow:"hidden",marginBottom:10}}>
             {projList.map((pm,i)=>{
               const pct=grandTotal?pm.totalHrs/grandTotal*100:0;
-              return pct>0&&<div key={pm.proj.id} title={`${pm.proj.id}: ${pm.totalHrs}h (${Math.round(pct)}%)`}
+              return pct>0&&<div key={pm.proj.id} title={`${pm.proj.name||pm.proj.id} (${pm.proj.id}): ${pm.totalHrs}h (${Math.round(pct)}%)`}
                 style={{width:`${pct}%`,background:PROJ_COLORS[i%PROJ_COLORS.length],display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",overflow:"hidden",whiteSpace:"nowrap",padding:"0 4px"}}>
                 {pct>4?pm.proj.id:""}
               </div>;
@@ -4979,8 +4979,10 @@ const projProfit=projects.map(p=>{
           usd_amount:(entry.usd_amount===''||entry.usd_amount==null)?null:(+entry.usd_amount||null),
           exchange_rate:(entry.exchange_rate===''||entry.exchange_rate==null)?null:(+entry.exchange_rate||null),
         };
-        const{error}=await supabase.from("journal_entries").update(payload).eq("id",id);
-        if(error){showToast("Error: "+error.message,false);console.error(error);return;}
+        console.log("[Journal Save] id:", id, "payload:", JSON.stringify(payload));
+        const{error,data,status,statusText}=await supabase.from("journal_entries").update(payload).eq("id",id).select();
+        console.log("[Journal Save] response status:", status, statusText, "data:", data, "error:", error);
+        if(error){showToast("Error: "+error.message,false);console.error("[Journal Save] RLS/update error:", error);return;}
         setJournalEntries(prev=>prev.map(e=>e.id===id?{...e,...payload,id}:e));
         logAction("UPDATE","Journal","Updated entry #"+entry.entry_no,{id});
         showToast("Journal entry saved ✓");
@@ -6357,12 +6359,13 @@ export default function App(){
       if(e.entry_type==="work"&&e.project_id){
         const proj=projects.find(p=>p.id===e.project_id);
         if(!proj||(proj.status||"").trim()!=="Active"){
-          showToast(`Cannot paste — project ${e.project_id} is no longer active`,false);return;
+          showToast(`Cannot paste — project ${proj?.name||e.project_id} (${e.project_id}) is no longer active`,false);return;
         }
         const ae=(proj.assigned_engineers||[]).map(String);
         if(!ae.includes(String(engId))){
           const nm=engineers.find(x=>String(x.id)===String(engId))?.name||"Engineer";
-          showToast(`Cannot paste — ${nm} is not assigned to ${e.project_id}`,false);return;
+          const projName=proj?.name||e.project_id;
+          showToast(`Cannot paste — ${nm} is not assigned to ${projName} (${e.project_id})`,false);return;
         }
       }
     }
@@ -8703,7 +8706,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                             const proj=projects.find(p=>p.id===e.project_id);
                             return<tr key={e.id}>
                               <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                              <td style={{fontSize:13,color:"var(--info)"}}>{proj?.id}</td>
+                              <td style={{fontSize:13,color:"var(--info)"}}>{proj?.name||proj?.id} ({proj?.id})</td>
                               <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type}</td>
                               <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                               <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
