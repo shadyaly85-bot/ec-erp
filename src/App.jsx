@@ -2749,8 +2749,8 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
                       transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>▶</button>
                 )}
               </td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.id}</td>
-              <td style={{fontSize:13,fontWeight:500}}>{p.name}</td>
+              <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</td>
               <td style={{color:"var(--text2)",fontSize:13}}>{p.client}</td>
               <td style={{color:"#60a5fa",fontSize:13}}>{p.phase}</td>
               <td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontWeight:700,
@@ -3443,7 +3443,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
           </div>
           <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
             <button className="bg" onClick={()=>setEditLine(null)}>Cancel</button>
-            <button className="bp" onClick={async()=>{if(onEdit)await onEdit({...editLine});setEditLine(null);}}>Save Changes</button>
+            <button className="bp" onClick={()=>{ const snap={...editLine}; setEditLine(null); if(onEdit) onEdit(snap); }}>Save Changes</button>
           </div>
         </div>
       </div>
@@ -8015,7 +8015,7 @@ export default function App(){
                           <tr key={e.id} style={{background:checked?"#0d1e3440":"transparent"}}>
                             <td><input type="checkbox" checked={checked} onChange={()=>setSelectedEntries(prev=>{const n=new Set(prev);checked?n.delete(e.id):n.add(e.id);return n;})} style={{cursor:"pointer"}}/></td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                            <td style={{fontSize:13,color:"var(--info)"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
+                            <td style={{fontSize:13}}>{proj?<><span style={{fontWeight:600,color:"var(--text0)"}}>{proj.name}</span><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"var(--info)",marginLeft:4}}>({proj.id})</span></>:<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
                             <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type||"—"}</td>
                             <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
