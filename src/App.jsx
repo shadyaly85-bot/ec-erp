@@ -2732,9 +2732,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
         <h3 style={{fontSize:15,fontWeight:600,color:"var(--text2)"}}>Projects ({projects.length})</h3>
         {canEdit&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
       </div>
-      <div style={{marginBottom:10}}>
-        <input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="Search projects by name or ID..." style={{width:"100%",boxSizing:"border-box",padding:"7px 12px",borderRadius:6,border:"1px solid var(--border3)",background:"var(--bg2)",color:"var(--text0)",fontSize:13}}/>
-      </div>
+      <div style={{marginBottom:10}}><input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="Search projects by name or ID..." style={{width:"100%",boxSizing:"border-box",padding:"7px 12px",borderRadius:6,border:"1px solid var(--border3)",background:"var(--bg2)",color:"var(--text0)",fontSize:13}}/></div>
       <table>
         <thead><tr>
           <th style={{width:28}}></th>
@@ -8811,7 +8809,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                       <button className="bp" onClick={()=>{
                         if(!rptEngId){
                           // Export all engineers one by one
-                          engineers.forEach((eng,i)=>setTimeout(()=>buildTimesheetPDF(eng,monthEntries,projects,month,year),i*600));
+                          engineers.forEach((eng,i)=>setTimeout(()=>buildTimesheetPDF(eng,monthEntries,projects,month,year),i*1200));
                           showToast(`Exporting ${engineers.length} timesheets — check your browser tabs`);
                         } else {
                           const eng=engineers.find(e=>e.id===rptEngId);
@@ -9280,7 +9278,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   <div style={{background:"var(--bg2)",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:13,color:"var(--info)",marginBottom:12}}>
                     ℹ New registrations default to <strong>Engineer</strong> role. Update their role here after they sign up.
                   </div>
-                  <div style={{marginBottom:10}}><input value={engSearch} onChange={e=>setEngSearch(e.target.value)} placeholder="Search engineers by name or role..." style={{width:"100%",boxSizing:"border-box",padding:"7px 12px",borderRadius:6,border:"1px solid var(--border3)",background:"var(--bg2)",color:"var(--text0)",fontSize:13}}/></div>
+                  <div style={{marginBottom:10}}><input value={engSearch} onChange={e=>setEngSearch(e.target.value)} placeholder="Search engineers..." style={{width:"100%",boxSizing:"border-box",padding:"7px 12px",borderRadius:6,border:"1px solid var(--border3)",background:"var(--bg2)",color:"var(--text0)",fontSize:13}}/></div>
                   <table>
                     <thead><tr><th>Name</th><th>Job Role</th><th>Level</th><th>Email</th><th>Access Role</th><th>Weekend</th><th>Month Hrs</th><th style={{width:110}}>Actions</th></tr></thead>
                     <tbody>{engineers.map(eng=>{
