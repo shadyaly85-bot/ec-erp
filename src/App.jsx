@@ -145,9 +145,10 @@ const PDF_STYLE = `
   .footer{display:none}
   @media print{
     body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    @page{margin:38px 0 28px 0}
-    .pdf-hdr{position:running(header)}
-    .pdf-ftr{position:running(footer)}
+    @page{margin:50px 14mm 42px 14mm}
+    .section{page-break-inside:auto}
+    table{page-break-inside:auto}
+    tr{page-break-inside:avoid;page-break-after:auto}
   }`;
 
 /* Shared logo base64 ref for PDFs */
@@ -2923,7 +2924,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
     });
     const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tracker Report</title>'
       +'<style>body{font-family:\'Segoe UI\',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}'
-      +'@media print{body{padding:0}@page{margin:10mm}}</style></head><body>'
+      +'@media print{body{padding:0}@page{margin:14mm}.proj-block{page-break-inside:auto}table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f">'
       +'<div><div style="font-size:20px;font-weight:800;color:#1e3a5f">ENEVO GROUP</div>'
       +'<div style="font-size:15px;font-weight:700;color:#334155;margin-top:2px">Activity Tracker Progress Report</div>'
@@ -3125,7 +3126,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
         +"</tr></thead><tbody>"+rows+"</tbody></table></div>";
     }).join("");
     var html="<!DOCTYPE html><html><head><meta charset='utf-8'><title>Assignment Report</title>"
-      +"<style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}@media print{body{padding:0}@page{margin:10mm}}div[style*='page-break-inside:avoid']{page-break-inside:avoid}.proj-block{page-break-inside:avoid}</style>"
+      +"<style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}@media print{body{padding:0}@page{margin:14mm}.proj-block{page-break-inside:auto}table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}}</style>"
       +"</head><body>"
       +"<div style='display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f'>"
       +"<div><div style='font-size:20px;font-weight:800;color:#1e3a5f'>ENEVO GROUP</div>"
@@ -4233,9 +4234,183 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
     color:reportType===id?"#fff":"var(--text2)"
   });
 
+  const handleExport = () => {
+    const now = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+    const mo = MONTHS_[repMonth-1];
+
+    if(reportType==="pl"){
+      const expRows = ["Operating Costs","Administrative expenses"].map(cat=>{
+        const items = plReport.expenses.filter(e=>e.cat===cat);
+        if(!items.length) return "";
+        return `<tr style="background:#f8fafc"><td colspan="2" style="padding:6px 16px 6px 20px;color:#64748b;font-size:12px;font-style:italic">${cat}</td></tr>`
+          +items.map(e=>`<tr><td style="padding:6px 16px 6px 32px">${e.name}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#fb923c">${fmtEGP(e.total)}</td></tr>`).join("");
+      }).join("");
+      generatePDF(
+        `P&L Statement — Year to Date ${repYear}`,
+        [`<div class="section"><div class="st">Profit & Loss Statement — Year to Date (EGP)</div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:12px;text-align:center">Enevo Egypt LLC — All periods up to ${now}</div>
+          <table><tbody>
+            <tr style="background:#f0fdf4"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#16a34a;font-size:13px">REVENUE</td></tr>
+            <tr><td style="padding:7px 16px 7px 28px">Service Revenue — Enevo Group S.R.L.</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:600">${fmtEGP(plReport.rev)}</td></tr>
+            <tr style="background:#f0fdf4"><td style="padding:8px 16px;font-weight:700;color:#16a34a">TOTAL REVENUE</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#34d399">${fmtEGP(plReport.rev)}</td></tr>
+            <tr style="background:#fff7f0"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#dc2626;font-size:13px">EXPENSES</td></tr>
+            ${expRows}
+            <tr style="background:#fff7f0"><td style="padding:8px 16px;font-weight:700;color:#dc2626">TOTAL EXPENSES</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171">${fmtEGP(plReport.totExp)}</td></tr>
+            <tr style="background:${plReport.net>=0?"#f0fdf4":"#fff0f0"}">
+              <td style="padding:12px 16px;font-weight:700;font-size:14px;color:${plReport.net>=0?"#16a34a":"#dc2626"}">NET ${plReport.net>=0?"PROFIT":"LOSS"}</td>
+              <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:15px;color:${plReport.net>=0?"#16a34a":"#dc2626"}">${fmtEGP(plReport.net)}</td>
+            </tr>
+          </tbody></table></div>`],
+        `Financial Report · P&L Statement · ${now} · CONFIDENTIAL`
+      );
+    } else if(reportType==="payroll"){
+      const accrualSection = payrollReport.grossCost+payrollReport.grossAdmin > 0
+        ? `<div class="section"><div class="st">Payroll Accrual Summary — ${mo} ${repYear}</div>
+           <table><tbody>
+             <tr style="background:#f8f0ff"><td colspan="2" style="padding:8px 16px;font-weight:700;font-size:13px">GROSS PAYROLL</td></tr>
+             <tr><td style="padding:7px 16px 7px 28px">Cost of Work Staff (Salaries-Cost)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#fb923c">${fmtEGP(payrollReport.grossCost)}</td></tr>
+             <tr><td style="padding:7px 16px 7px 28px">Administrative Staff (Salaries-Admin)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#fb923c">${fmtEGP(payrollReport.grossAdmin)}</td></tr>
+             <tr style="background:#f8f0ff"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#dc2626;font-size:13px">DEDUCTIONS (Government)</td></tr>
+             <tr><td style="padding:7px 16px 7px 28px">Payroll Tax</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${fmtEGP(payrollReport.taxLine)}</td></tr>
+             <tr><td style="padding:7px 16px 7px 28px">Social Insurance Authority</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${fmtEGP(payrollReport.siLine)}</td></tr>
+             <tr><td style="padding:7px 16px 7px 28px">Martyrs Families Fund</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${fmtEGP(payrollReport.mfLine)}</td></tr>
+             <tr style="background:#f0fdf4">
+               <td style="padding:10px 16px;font-weight:700;color:#16a34a;font-size:13px">NET SALARY PAYABLE (Accrued)</td>
+               <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px;color:#34d399">${fmtEGP(payrollReport.netSalary)}</td>
+             </tr>
+           </tbody></table></div>`
+        : `<div class="section"><p style="color:#94a3b8;padding:20px 0;text-align:center">No payroll accrual posted for ${mo} ${repYear}. Post a salary journal entry first.</p></div>`;
+      const staffSection = payrollReport.activeThisMonth.length > 0
+        ? `<div class="section"><div class="st">Staff Roster — ${mo} ${repYear} (${payrollReport.activeThisMonth.length} active)</div>
+           <table>
+             <thead><tr><th>Name</th><th>Department</th><th>Role</th><th style="text-align:right">USD Salary</th><th style="text-align:right">EGP Salary</th></tr></thead>
+             <tbody>${payrollReport.activeThisMonth.map((s,i)=>`
+               <tr style="${i%2!==0?"background:#f8fafc":""}">
+                 <td style="padding:6px 12px;font-weight:600">${s.name||""}</td>
+                 <td style="padding:6px 12px;color:#64748b;font-size:12px">${s.department||""}</td>
+                 <td style="padding:6px 12px;color:#64748b;font-size:12px">${s.role||""}</td>
+                 <td style="text-align:right;padding:6px 12px;font-family:'IBM Plex Mono',monospace;color:#38bdf8;font-size:12px">${s.salary_usd>0?`$${(+s.salary_usd).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"}</td>
+                 <td style="text-align:right;padding:6px 12px;font-family:'IBM Plex Mono',monospace;color:#fb923c;font-size:12px">${s.salary_egp>0?fmtEGP(+s.salary_egp):"—"}</td>
+               </tr>`).join("")}
+             </tbody>
+           </table></div>`
+        : "";
+      generatePDF(
+        `Payroll Summary — ${mo} ${repYear}`,
+        [accrualSection, staffSection],
+        `Payroll Report · ${mo} ${repYear} · CONFIDENTIAL`
+      );
+    } else if(reportType==="cashflow"){
+      generatePDF(
+        `Cash Flow Statement — ${now}`,
+        [`<div class="section"><div class="st">Cash Flow Statement (Simplified)</div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:12px">Enevo Egypt LLC — Based on all journal entries</div>
+          <table><tbody>
+            <tr style="background:#f0fdf4"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#16a34a;font-size:13px">A. OPERATING ACTIVITIES</td></tr>
+            <tr><td style="padding:7px 16px 7px 28px">Revenue Accrued (Invoice)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399">${fmtEGP(cashFlow.revenue)}</td></tr>
+            <tr><td style="padding:7px 16px 7px 28px">Operating Expenses Paid</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">(${fmtEGP(cashFlow.cashPaid)})</td></tr>
+            <tr><td style="padding:7px 16px 7px 28px">Taxes Outstanding (not yet paid)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">(${fmtEGP(cashFlow.taxOwed)})</td></tr>
+            <tr style="background:#f0fdf4"><td style="padding:8px 16px;font-weight:700;color:#16a34a">Net Operating Cash Flow</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#34d399">${fmtEGP(cashFlow.netOpCash)}</td></tr>
+            <tr style="background:#fff7f0"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#ea580c;font-size:13px">B. INVESTING ACTIVITIES</td></tr>
+            <tr><td style="padding:7px 16px 7px 28px">Fixed Asset Purchases</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">(${fmtEGP(cashFlow.fixedAssetCost)})</td></tr>
+            <tr style="background:#fff7f0"><td style="padding:8px 16px;font-weight:700;color:#ea580c">Net Investing Cash Flow</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171">(${fmtEGP(cashFlow.fixedAssetCost)})</td></tr>
+            <tr style="background:#eff6ff"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#1d4ed8;font-size:13px">C. CASH BALANCES</td></tr>
+            <tr><td style="padding:7px 16px 7px 28px">Cash at Bank (Credit Agricole)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#38bdf8">${fmtEGP(cashFlow.cashInBank)}</td></tr>
+            <tr><td style="padding:7px 16px 7px 28px">Cash in Custody (all custodians)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#38bdf8">${fmtEGP(cashFlow.cashInCustody)}</td></tr>
+            <tr style="background:#eff6ff"><td style="padding:8px 16px;font-weight:700;color:#1d4ed8">TOTAL CASH POSITION</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#38bdf8;font-size:14px">${fmtEGP(cashFlow.cashInBank+cashFlow.cashInCustody)}</td></tr>
+          </tbody></table></div>`],
+        `Cash Flow Statement · ${now} · CONFIDENTIAL`
+      );
+    } else if(reportType==="custody"){
+      const custodyMap={};
+      journalEntries.filter(e=>e.main_account==="Cash Custody").forEach(e=>{
+        const n=e.account_name.trim();
+        if(!custodyMap[n]) custodyMap[n]={name:n,lines:[],totalOut:0,totalBack:0};
+        custodyMap[n].lines.push(e);
+        custodyMap[n].totalOut += +e.credit||0;
+        custodyMap[n].totalBack += +e.debit||0;
+      });
+      const custodySections = Object.values(custodyMap).map(p=>{
+        let runBal=0;
+        const rows=p.lines.sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date))).map((e,i)=>{
+          runBal += (+e.credit||0)-(+e.debit||0);
+          return `<tr style="${i%2!==0?"background:#f8fafc":""}">
+            <td style="padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#64748b">${String(e.entry_date||"").slice(0,10)}</td>
+            <td style="padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#94a3b8">${e.entry_no||""}</td>
+            <td style="padding:5px 10px;font-size:11px">${e.description||""}</td>
+            <td style="text-align:right;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#f87171">${+e.credit>0.01?fmtEGP(+e.credit):""}</td>
+            <td style="text-align:right;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#34d399">${+e.debit>0.01?fmtEGP(+e.debit):""}</td>
+            <td style="text-align:right;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:${runBal>0?"#34d399":"#64748b"}">${fmtEGP(runBal)}</td>
+          </tr>`;
+        }).join("");
+        return `<div class="section"><div class="st">💵 ${p.name} — Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div>
+          <table>
+            <thead><tr><th>Date</th><th>Entry#</th><th>Description</th><th style="text-align:right">Cash Out</th><th style="text-align:right">Back/Spent</th><th style="text-align:right">Running Bal.</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>`;
+      });
+      if(custodySections.length===0) custodySections.push(`<div class="section"><p style="color:#94a3b8;text-align:center;padding:20px 0">No custody entries found in journal.</p></div>`);
+      generatePDF(`Custody Ledger Report`, custodySections, `Cash Custody · ${now} · CONFIDENTIAL`);
+    } else if(reportType==="assets"){
+      const TODAY=new Date();
+      const rows=fixedAssets.map((a,i)=>{
+        const purchased=new Date(a.purchase_date+"T12:00:00");
+        const yrs=Math.max(0,(TODAY-purchased)/(365.25*24*3600*1000));
+        const annual=+a.cost_egp/+a.useful_life_years;
+        const acc=Math.min(+a.cost_egp,annual*yrs);
+        const net=Math.max(0,+a.cost_egp-acc);
+        const fullyDepr=new Date(purchased.getTime()+a.useful_life_years*365.25*24*3600*1000);
+        const done=net<=1;
+        return `<tr style="${i%2!==0?"background:#f8fafc":""}">
+          <td style="padding:6px 10px;font-weight:600;font-size:12px">${a.asset_name||""}</td>
+          <td style="padding:6px 10px;font-size:11px;color:#64748b">${a.category||""}</td>
+          <td style="padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#94a3b8">${a.purchase_date||""}</td>
+          <td style="text-align:right;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:12px">${fmtEGP(+a.cost_egp)}</td>
+          <td style="text-align:center;padding:6px 10px;font-size:11px">${a.useful_life_years}y</td>
+          <td style="text-align:right;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#fb923c">${fmtEGP(annual)}</td>
+          <td style="text-align:right;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#f87171">${fmtEGP(acc)}</td>
+          <td style="text-align:right;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:${done?"400":"600"};color:${done?"#94a3b8":"#34d399"}">${fmtEGP(net)}</td>
+          <td style="text-align:center;padding:6px 10px;font-size:11px;color:${done?"#f87171":"#64748b"}">${done?"✓ FULLY":fullyDepr.toLocaleDateString("en-GB",{year:"numeric",month:"short"})}</td>
+        </tr>`;
+      }).join("");
+      const totalCost=fixedAssets.reduce((s,a)=>s+(+a.cost_egp),0);
+      const totalAcc=fixedAssets.reduce((s,a)=>{
+        const p=new Date(a.purchase_date+"T12:00:00");
+        const y2=Math.max(0,(TODAY-p)/(365.25*24*3600*1000));
+        return s+Math.min(+a.cost_egp,(+a.cost_egp/+a.useful_life_years)*y2);
+      },0);
+      const totalNet=Math.max(0,totalCost-totalAcc);
+      generatePDF(
+        `Fixed Assets Schedule — ${now}`,
+        [`<div class="section"><div class="st">Fixed Assets Depreciation Schedule — Straight-Line Method</div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:10px">Enevo Egypt LLC · As of ${now}</div>
+          <table>
+            <thead><tr>
+              <th>Asset</th><th>Category</th><th>Purchased</th>
+              <th style="text-align:right">Cost (EGP)</th><th style="text-align:center">Life</th>
+              <th style="text-align:right">Annual Depr.</th><th style="text-align:right">Acc. Depr.</th>
+              <th style="text-align:right">Net Book Value</th><th style="text-align:center">Fully Depr.</th>
+            </tr></thead>
+            <tbody>
+              ${rows}
+              <tr style="background:#f0f7ff;border-top:2px solid #bfdbfe">
+                <td colspan="3" style="padding:7px 10px;font-weight:700">TOTAL (${fixedAssets.length} assets)</td>
+                <td style="text-align:right;padding:7px 10px;font-family:'IBM Plex Mono',monospace;font-weight:700">${fmtEGP(totalCost)}</td>
+                <td colspan="2"></td>
+                <td style="text-align:right;padding:7px 10px;font-family:'IBM Plex Mono',monospace;color:#f87171;font-weight:700">${fmtEGP(totalAcc)}</td>
+                <td style="text-align:right;padding:7px 10px;font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:700;font-size:13px">${fmtEGP(totalNet)}</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table></div>`],
+        `Asset Depreciation Report · ${now} · CONFIDENTIAL`
+      );
+    }
+  };
+
   return(
     <div style={{display:"grid",gap:14}}>
-      {/* Report selector */}
+      {/* Report selector + filter + export */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
         <button style={btnStyle("pl")}     onClick={()=>setReportType("pl")}>📊 P&L Statement</button>
         <button style={btnStyle("payroll")}onClick={()=>setReportType("payroll")}>👥 Payroll Summary</button>
@@ -4243,6 +4418,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
         <button style={btnStyle("custody")}onClick={()=>setReportType("custody")}>💵 Custody Ledger</button>
         <button style={btnStyle("assets")} onClick={()=>setReportType("assets")}>🏗 Asset Schedule</button>
         <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
+          <span style={{fontSize:12,color:"var(--text4)"}}>Filter:</span>
           <select value={repMonth} onChange={e=>setRepMonth(+e.target.value)}
             style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 8px",color:"var(--text0)",fontSize:13}}>
             {MONTHS_.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
@@ -4251,6 +4427,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
             style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 8px",color:"var(--text0)",fontSize:13}}>
             {[2025,2026,2027].map(y=><option key={y}>{y}</option>)}
           </select>
+          <button className="bp" onClick={handleExport} style={{padding:"6px 14px",fontSize:13,marginLeft:4}}>⬇ Export PDF</button>
         </div>
       </div>
 
@@ -5063,8 +5240,8 @@ const projProfit=projects.map(p=>{
     ))}
   </div>
 
-  {/* EGP rate + PDF — only for Operations/Salaries tabs */}
-  {(finSubTab==="pl"||finSubTab==="salaries"||finSubTab==="journal"||finSubTab==="balance"||finSubTab==="expenses"||finSubTab==="custody")&&(
+  {/* EGP rate + PDF — only for P&L / Salaries tabs */}
+  {(finSubTab==="pl"||finSubTab==="salaries")&&(
   <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
     <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,padding:"6px 12px",display:"flex",alignItems:"center",gap:8}}>
       <span style={{fontSize:12,color:"var(--text4)"}}>EGP/$ rate (salaries only)</span>
