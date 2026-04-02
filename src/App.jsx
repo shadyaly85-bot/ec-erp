@@ -2859,17 +2859,27 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
   const grouped = React.useMemo(function(){
     const map={};
     acts.forEach(function(a){
-      if(!map[a.project_id]) map[a.project_id]={pid:a.project_id,cats:{}};
+      if(!map[a.project_id]) map[a.project_id]={pid:a.project_id,cats:{},subs:{}};
       const cat=a.category||a.group_name||"General";
-      if(!map[a.project_id].cats[cat]) map[a.project_id].cats[cat]=[];
-      map[a.project_id].cats[cat].push(a);
+      const subId=a.subproject_id?String(a.subproject_id):null;
+      if(subId){
+        if(!map[a.project_id].subs[subId]){
+          const sp=subprojects.find(function(s){return String(s.id)===subId;});
+          map[a.project_id].subs[subId]={subId:subId,subName:sp?sp.name:"Sub-site",cats:{}};
+        }
+        if(!map[a.project_id].subs[subId].cats[cat]) map[a.project_id].subs[subId].cats[cat]=[];
+        map[a.project_id].subs[subId].cats[cat].push(a);
+      } else {
+        if(!map[a.project_id].cats[cat]) map[a.project_id].cats[cat]=[];
+        map[a.project_id].cats[cat].push(a);
+      }
     });
     return Object.values(map).sort(function(a,b){
-      const na=projects.find(function(p){return p.id===a.pid;}); 
+      const na=projects.find(function(p){return p.id===a.pid;});
       const nb=projects.find(function(p){return p.id===b.pid;});
       return (na?na.name:a.pid).localeCompare(nb?nb.name:b.pid);
     });
-  },[acts,projects]);
+  },[acts,projects,subprojects]);
 
   const total=acts.length;
   const done=acts.filter(function(a){return a.status==="Completed";}).length;
@@ -2882,26 +2892,22 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
     const label=PERIOD_LABEL[period];
     const stBgMap={"Completed":"#dcfce7","In Progress":"#dbeafe","Not Started":"#f1f5f9","On Hold":"#fff7ed"};
     const stCMap={"Completed":"#166534","In Progress":"#1d4ed8","Not Started":"#64748b","On Hold":"#9a3412"};
-    let projHTML="";
-    grouped.forEach(function(g){
-      const proj=projects.find(function(p){return p.id===g.pid;});
-      const all=Object.values(g.cats).flat();
-      const pd=all.filter(function(a){return a.status==="Completed";}).length;
-      const pp=all.length?Math.round(all.reduce(function(s,a){return s+(a.progress||0);},0)/all.length*100):0;
-      const bc=pp===100?"#22c55e":pp>=50?"#3b82f6":"#f97316";
-      let catRows="";
-      Object.entries(g.cats).forEach(function(entry){
-        const cat=entry[0]; const catActs=entry[1];
-        catRows+='<tr style="background:#f8fafc"><td colspan="7" style="padding:3px 6px 3px 12px;font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;border-top:1px solid #e2e8f0">'+cat+'</td></tr>';
+
+    // Helper: renders activity rows for a given cats object, with optional indent level
+    function buildCatRows(cats, indentPx){
+      var rows="";
+      Object.entries(cats).forEach(function(entry){
+        var cat=entry[0]; var catActs=entry[1];
+        rows+='<tr style="background:#f0f4f8"><td colspan="7" style="padding:4px 6px 4px '+indentPx+'px;font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.08em;border-top:1px solid #e2e8f0">'+cat+'</td></tr>';
         catActs.forEach(function(a){
-          const pct=Math.round((a.progress||0)*100);
-          const ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
-          const stBg=stBgMap[a.status]||"#f1f5f9";
-          const stC=stCMap[a.status]||"#64748b";
-          const pctCol=pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b";
-          const barCol=pct===100?"#22c55e":pct>=50?"#3b82f6":"#f97316";
-          const bar='<div style="display:inline-block;vertical-align:middle;width:60px;height:4px;background:#e2e8f0;border-radius:2px;margin-left:4px"><div style="width:'+pct+'%;height:100%;background:'+barCol+';border-radius:2px"></div></div>';
-          catRows+='<tr><td style="padding:5px 6px 5px 22px;font-size:11px">'+a.activity_name+'</td>'
+          var pct=Math.round((a.progress||0)*100);
+          var ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
+          var stBg=stBgMap[a.status]||"#f1f5f9";
+          var stC=stCMap[a.status]||"#64748b";
+          var pctCol=pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b";
+          var barCol=pct===100?"#22c55e":pct>=50?"#3b82f6":"#f97316";
+          var bar='<div style="display:inline-block;vertical-align:middle;width:55px;height:4px;background:#e2e8f0;border-radius:2px;margin-left:4px"><div style="width:'+pct+'%;height:100%;background:'+barCol+';border-radius:2px"></div></div>';
+          rows+='<tr><td style="padding:5px 6px 5px '+(indentPx+10)+'px;font-size:11px">'+a.activity_name+'</td>'
             +'<td style="padding:5px 6px"><span style="background:'+stBg+';color:'+stC+';padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">'+a.status+'</span></td>'
             +'<td style="padding:5px 6px;white-space:nowrap"><b style="font-size:11px;color:'+pctCol+'">'+pct+'%</b>'+bar+'</td>'
             +'<td style="padding:5px 6px;font-size:10px;color:#475569">'+(a.assigned_to||"—")+'</td>'
@@ -2910,23 +2916,102 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
             +'<td style="padding:5px 6px;font-size:10px;color:#64748b">'+(a.remarks||"")+'</td></tr>';
         });
       });
-      projHTML+='<div style="margin-bottom:20px;page-break-inside:avoid">'
-        +'<div style="background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:10px 14px;border-radius:7px 7px 0 0;display:flex;justify-content:space-between;align-items:center">'
-        +'<div><div style="font-size:15px;font-weight:700">'+(proj?proj.name:g.pid)+'</div>'
-        +'<div style="font-size:10px;color:#93c5fd;margin-top:1px">'+g.pid+(proj&&proj.phase?" · Phase: "+proj.phase:"")+'</div></div>'
-        +'<div style="text-align:right"><div style="font-size:22px;font-weight:800;color:'+bc+'">'+pp+'%</div>'
-        +'<div style="font-size:10px;color:#93c5fd">'+pd+'/'+all.length+' done</div></div></div>'
-        +'<div style="height:4px;background:#e2e8f0"><div style="width:'+pp+'%;height:100%;background:'+bc+'"></div></div>'
-        +'<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none">'
-        +'<thead><tr style="background:#f1f5f9">'
-        +'<th style="padding:5px 6px 5px 22px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ACTIVITY</th>'
-        +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">STATUS</th>'
-        +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">PROGRESS</th>'
-        +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ASSIGNED</th>'
-        +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">START</th>'
-        +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">DEADLINE</th>'
-        +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">NOTES</th>'
-        +'</tr></thead><tbody>'+catRows+'</tbody></table></div>';
+      return rows;
+    }
+
+    var tableHead='<thead><tr style="background:#f1f5f9">'
+      +'<th style="padding:5px 6px 5px 22px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ACTIVITY</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">STATUS</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">PROGRESS</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ASSIGNED</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">START</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">DEADLINE</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">NOTES</th>'
+      +'</tr></thead>';
+
+    var projHTML="";
+    var SUB_COLORS=["#7c3aed","#0369a1","#047857","#b45309","#be123c","#0f766e","#6d28d9","#0284c7"];
+    grouped.forEach(function(g){
+      var proj=projects.find(function(p){return p.id===g.pid;});
+      var subList=Object.values(g.subs);
+      var hasSubs=subList.length>0;
+      // All acts: sub-site acts + unassigned acts
+      var allActs=[].concat(
+        Object.values(g.cats).flat(),
+        subList.flatMap(function(s){return Object.values(s.cats).flat();})
+      );
+      var pd=allActs.filter(function(a){return a.status==="Completed";}).length;
+      var pp=allActs.length?Math.round(allActs.reduce(function(s,a){return s+(a.progress||0);},0)/allActs.length*100):0;
+      var bc=pp===100?"#22c55e":pp>=50?"#3b82f6":"#f97316";
+
+      // Project banner
+      var banner='<div style="background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:10px 14px;border-radius:7px 7px 0 0;display:flex;justify-content:space-between;align-items:center">'
+        +'<div>'
+        +'<div style="font-size:15px;font-weight:700">'+(proj?proj.name:g.pid)+'</div>'
+        +'<div style="font-size:10px;color:#93c5fd;margin-top:2px">'+g.pid
+          +(proj&&proj.pm?' · PM: '+proj.pm:'')
+          +(proj&&proj.phase?' · Phase: '+proj.phase:'')
+          +(proj&&proj.client?' · '+proj.client:'')
+        +'</div>'
+        +(hasSubs?'<div style="font-size:10px;color:#a5b4fc;margin-top:3px">'+subList.length+' sub-site'+(subList.length!==1?'s':'')+': '+subList.map(function(s){return s.subName;}).join(' · ')+'</div>':'')
+        +'</div>'
+        +'<div style="text-align:right">'
+        +'<div style="font-size:22px;font-weight:800;color:'+bc+'">'+pp+'%</div>'
+        +'<div style="font-size:10px;color:#93c5fd">'+pd+'/'+allActs.length+' done</div>'
+        +'</div></div>';
+
+      // Overall progress bar
+      var progBar='<div style="height:5px;background:#e2e8f0"><div style="width:'+pp+'%;height:100%;background:'+bc+'"></div></div>';
+
+      var body="";
+
+      if(hasSubs){
+        // Sub-site summary strip
+        var summaryRow='<div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0">';
+        subList.forEach(function(s,si){
+          var sActs=Object.values(s.cats).flat();
+          var sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
+          var sd=sActs.filter(function(a){return a.status==="Completed";}).length;
+          var sc2=sp2===100?"#22c55e":sp2>=50?"#3b82f6":"#f97316";
+          summaryRow+='<span style="padding:3px 10px;border-radius:12px;border:1px solid '+sc2+';font-size:10px;background:'+sc2+'18;color:'+sc2+';font-weight:700">'+s.subName+': '+sp2+'% ('+sd+'/'+sActs.length+')</span>';
+        });
+        // Unassigned count
+        var unassgActs=Object.values(g.cats).flat();
+        if(unassgActs.length) summaryRow+='<span style="padding:3px 10px;border-radius:12px;border:1px solid #94a3b8;font-size:10px;color:#64748b">No Sub-site: '+unassgActs.length+' act.</span>';
+        summaryRow+='</div>';
+
+        // Per sub-site sections
+        var subSections="";
+        subList.forEach(function(s,si){
+          var sActs=Object.values(s.cats).flat();
+          var sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
+          var sd=sActs.filter(function(a){return a.status==="Completed";}).length;
+          var sc2=SUB_COLORS[si%SUB_COLORS.length];
+          var catRows=buildCatRows(s.cats,22);
+          subSections+='<tr style="background:'+sc2+'15"><td colspan="7" style="padding:6px 10px;font-weight:700;color:'+sc2+';font-size:11px;border-top:2px solid '+sc2+'">'
+            +'📍 '+s.subName
+            +' <span style="font-weight:400;color:#64748b;font-size:10px">'
+            +sp2+'% · '+sd+'/'+sActs.length+' done'
+            +'</span></td></tr>'
+            +catRows;
+        });
+
+        // Activities not assigned to any sub-site
+        var unRows=Object.keys(g.cats).length>0?
+          '<tr style="background:#f9fafb"><td colspan="7" style="padding:6px 10px;font-weight:700;color:#64748b;font-size:11px;border-top:2px solid #cbd5e1">📋 No Sub-site Assigned</td></tr>'
+          +buildCatRows(g.cats,22):"";
+
+        body=summaryRow
+          +'<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none">'
+          +tableHead+'<tbody>'+subSections+unRows+'</tbody></table>';
+      } else {
+        // No sub-sites — original flat layout
+        var catRows=buildCatRows(g.cats,22);
+        body='<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none">'
+          +tableHead+'<tbody>'+catRows+'</tbody></table>';
+      }
+
+      projHTML+='<div style="margin-bottom:22px">'+banner+progBar+body+'</div>';
     });
     const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tracker Report</title>'
       +'<style>body{font-family:\'Segoe UI\',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}'
@@ -3010,62 +3095,139 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
     {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)",fontSize:14}}>No activities match filters.</div>}
     {grouped.map(function(g){
       const proj=projects.find(function(p){return p.id===g.pid;});
-      const all=Object.values(g.cats).flat();
-      const pd=all.filter(function(a){return a.status==="Completed";}).length;
-      const pp=all.length?Math.round(all.reduce(function(s,a){return s+(a.progress||0);},0)/all.length*100):0;
+      const subList=Object.values(g.subs);
+      const hasSubs=subList.length>0;
+      const allActs=[].concat(
+        Object.values(g.cats).flat(),
+        subList.flatMap(function(s){return Object.values(s.cats).flat();})
+      );
+      const pd=allActs.filter(function(a){return a.status==="Completed";}).length;
+      const pp=allActs.length?Math.round(allActs.reduce(function(s,a){return s+(a.progress||0);},0)/allActs.length*100):0;
       const bc=pp===100?"#34d399":pp>=50?"var(--info)":"#fb923c";
+      const SUB_COLORS=["#7c3aed","#0369a1","#047857","#b45309","#be123c","#0f766e","#6d28d9","#0284c7"];
       return(
       <div key={g.pid} className="card" style={{marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,paddingBottom:10,borderBottom:"1px solid var(--border3)"}}>
+        {/* Project header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--border3)"}}>
           <div>
             <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{proj?proj.name:g.pid}</div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)",marginTop:1}}>{g.pid}</div>
             {proj&&proj.pm&&<div style={{fontSize:12,color:"var(--text3)",marginTop:1}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{proj.pm}</span></div>}
             {proj&&proj.phase&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span>{proj.status&&<span> · <span style={{color:proj.status==="Active"?"#34d399":"var(--text3)"}}>{proj.status}</span></span>}</div>}
+            {hasSubs&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>
+              {subList.map(function(s,si){
+                const sActs=Object.values(s.cats).flat();
+                const sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
+                const sd=sActs.filter(function(a){return a.status==="Completed";}).length;
+                const sc2=SUB_COLORS[si%SUB_COLORS.length];
+                const spColor=sp2===100?"#34d399":sp2>=50?"var(--info)":"#fb923c";
+                return <span key={s.subId} style={{fontSize:11,padding:"2px 9px",borderRadius:12,border:"1px solid "+sc2+"60",background:sc2+"18",color:sc2,fontWeight:600}}>
+                  📍 {s.subName}: <span style={{color:spColor}}>{sp2}%</span> <span style={{color:"var(--text4)",fontWeight:400}}>({sd}/{sActs.length})</span>
+                </span>;
+              })}
+            </div>}
           </div>
           <div style={{textAlign:"right"}}>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:24,fontWeight:700,color:bc}}>{pp}%</div>
-            <div style={{fontSize:11,color:"var(--text4)"}}>{pd}/{all.length} completed</div>
+            <div style={{fontSize:11,color:"var(--text4)"}}>{pd}/{allActs.length} completed</div>
             <div style={{marginTop:5,background:"var(--bg3)",borderRadius:4,height:5,width:100,overflow:"hidden",marginLeft:"auto"}}>
               <div style={{height:"100%",width:pp+"%",background:bc,borderRadius:4}}/>
             </div>
           </div>
         </div>
-        {Object.entries(g.cats).map(function(entry){
-          const cat=entry[0]; const catActs=entry[1];
-          const gc=GC[catActs[0]?catActs[0].group_name:""]||"var(--info)";
+
+        {/* Sub-site sections (if any) */}
+        {hasSubs&&subList.map(function(s,si){
+          const sc2=SUB_COLORS[si%SUB_COLORS.length];
+          const sActs=Object.values(s.cats).flat();
+          const sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
+          const sd=sActs.filter(function(a){return a.status==="Completed";}).length;
+          const sbColor=sp2===100?"#34d399":sp2>=50?"var(--info)":"#fb923c";
           return(
-          <div key={cat} style={{marginBottom:10}}>
-            <div style={{fontSize:11,fontWeight:700,color:gc,textTransform:"uppercase",letterSpacing:".07em",marginBottom:5,display:"flex",alignItems:"center",gap:6}}>
-              <div style={{width:7,height:7,borderRadius:2,background:gc}}/>{cat}
+          <div key={s.subId} style={{marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:sc2+"18",borderRadius:6,border:"1px solid "+sc2+"40",marginBottom:6}}>
+              <span style={{fontSize:13,fontWeight:700,color:sc2}}>📍 {s.subName}</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:sbColor}}>{sp2}% <span style={{fontSize:11,color:"var(--text4)",fontWeight:400}}>({sd}/{sActs.length})</span></span>
             </div>
-            <div style={{display:"grid",gap:4}}>
-              {catActs.map(function(a){
-                const pct=Math.round((a.progress||0)*100);
-                const ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
-                return(
-                <div key={a.id} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 12px"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:4}}>{a.activity_name}</div>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}}>
-                        <span style={{fontSize:11,padding:"2px 7px",borderRadius:3,background:SB[a.status]||"var(--bg3)",color:SC[a.status]||"var(--text3)",fontWeight:600}}>{a.status}</span>
-                        {a.assigned_to&&<span style={{fontSize:11,color:"var(--text3)"}}>👤 {a.assigned_to}</span>}
-                        {a.start_date&&<span style={{fontSize:11,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
-                        {a.end_date&&<span style={{fontSize:11,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"⚠ ":""}⏎ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
+            {Object.entries(s.cats).map(function(entry){
+              const cat=entry[0]; const catActs=entry[1];
+              const gc=GC[catActs[0]?catActs[0].group_name:""]||sc2;
+              return(
+              <div key={cat} style={{marginBottom:8,paddingLeft:8}}>
+                <div style={{fontSize:11,fontWeight:700,color:gc,textTransform:"uppercase",letterSpacing:".07em",marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
+                  <div style={{width:6,height:6,borderRadius:2,background:gc}}/>{cat}
+                </div>
+                <div style={{display:"grid",gap:4}}>
+                  {catActs.map(function(a){
+                    const pct=Math.round((a.progress||0)*100);
+                    const ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
+                    return(
+                    <div key={a.id} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 12px"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:4}}>{a.activity_name}</div>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}}>
+                            <span style={{fontSize:11,padding:"2px 7px",borderRadius:3,background:SB[a.status]||"var(--bg3)",color:SC[a.status]||"var(--text3)",fontWeight:600}}>{a.status}</span>
+                            {a.assigned_to&&<span style={{fontSize:11,color:"var(--text3)"}}>👤 {a.assigned_to}</span>}
+                            {a.start_date&&<span style={{fontSize:11,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
+                            {a.end_date&&<span style={{fontSize:11,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"⚠ ":""}⏎ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
+                          </div>
+                          {a.remarks&&<div style={{fontSize:11,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>📝 {a.remarks}</div>}
+                        </div>
+                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,flexShrink:0,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text3)"}}>{pct}%</div>
                       </div>
-                      {a.remarks&&<div style={{fontSize:11,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>📝 {a.remarks}</div>}
-                    </div>
-                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,flexShrink:0,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text3)"}}>{pct}%</div>
-                  </div>
-                  {pct>0&&<div style={{marginTop:6,background:"var(--bg3)",borderRadius:2,height:3,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:2}}/>
-                  </div>}
-                </div>);
-              })}
-            </div>
+                      {pct>0&&<div style={{marginTop:6,background:"var(--bg3)",borderRadius:2,height:3,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:2}}/>
+                      </div>}
+                    </div>);
+                  })}
+                </div>
+              </div>);
+            })}
           </div>);
         })}
+
+        {/* Activities not assigned to any sub-site */}
+        {Object.keys(g.cats).length>0&&(
+          <div>
+            {hasSubs&&<div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,padding:"4px 8px",background:"var(--bg2)",borderRadius:4}}>📋 No Sub-site Assigned</div>}
+            {Object.entries(g.cats).map(function(entry){
+              const cat=entry[0]; const catActs=entry[1];
+              const gc=GC[catActs[0]?catActs[0].group_name:""]||"var(--info)";
+              return(
+              <div key={cat} style={{marginBottom:10,paddingLeft:hasSubs?8:0}}>
+                <div style={{fontSize:11,fontWeight:700,color:gc,textTransform:"uppercase",letterSpacing:".07em",marginBottom:5,display:"flex",alignItems:"center",gap:6}}>
+                  <div style={{width:7,height:7,borderRadius:2,background:gc}}/>{cat}
+                </div>
+                <div style={{display:"grid",gap:4}}>
+                  {catActs.map(function(a){
+                    const pct=Math.round((a.progress||0)*100);
+                    const ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
+                    return(
+                    <div key={a.id} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 12px"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:4}}>{a.activity_name}</div>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}}>
+                            <span style={{fontSize:11,padding:"2px 7px",borderRadius:3,background:SB[a.status]||"var(--bg3)",color:SC[a.status]||"var(--text3)",fontWeight:600}}>{a.status}</span>
+                            {a.assigned_to&&<span style={{fontSize:11,color:"var(--text3)"}}>👤 {a.assigned_to}</span>}
+                            {a.start_date&&<span style={{fontSize:11,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
+                            {a.end_date&&<span style={{fontSize:11,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"⚠ ":""}⏎ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
+                          </div>
+                          {a.remarks&&<div style={{fontSize:11,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>📝 {a.remarks}</div>}
+                        </div>
+                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,flexShrink:0,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text3)"}}>{pct}%</div>
+                      </div>
+                      {pct>0&&<div style={{marginTop:6,background:"var(--bg3)",borderRadius:2,height:3,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:2}}/>
+                      </div>}
+                    </div>);
+                  })}
+                </div>
+              </div>);
+            })}
+          </div>
+        )}
       </div>);
     })}
   </div>
