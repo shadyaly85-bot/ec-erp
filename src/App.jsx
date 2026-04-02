@@ -1397,7 +1397,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
           <div style={{display:"flex",height:28,borderRadius:6,overflow:"hidden",marginBottom:10}}>
             {projList.map((pm,i)=>{
               const pct=grandTotal?pm.totalHrs/grandTotal*100:0;
-              return pct>0&&<div key={pm.proj.id} title={`${pm.proj.name||pm.proj.id} (${pm.proj.id}): ${pm.totalHrs}h (${Math.round(pct)}%)`}
+              return pct>0&&<div key={pm.proj.id} title={`${pm.proj.id}: ${pm.totalHrs}h (${Math.round(pct)}%)`}
                 style={{width:`${pct}%`,background:PROJ_COLORS[i%PROJ_COLORS.length],display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",overflow:"hidden",whiteSpace:"nowrap",padding:"0 4px"}}>
                 {pct>4?pm.proj.id:""}
               </div>;
@@ -1408,7 +1408,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
               const pct=grandTotal?Math.round(pm.totalHrs/grandTotal*100):0;
               return<div key={pm.proj.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:12}}>
                 <div style={{width:8,height:8,borderRadius:2,background:PROJ_COLORS[i%PROJ_COLORS.length],flexShrink:0}}/>
-                <span style={{color:"var(--text0)",fontWeight:600}}>{pm.proj.name||pm.proj.id}</span> <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{pm.proj.id}</span>
+                <span style={{color:"var(--text2)"}}>{pm.proj.id}</span>
                 <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--text0)",fontWeight:600}}>{pm.totalHrs}h</span>
                 <span style={{color:"var(--text4)"}}>({pct}%)</span>
               </div>;
@@ -1429,7 +1429,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{fontWeight:700,color:"var(--text0)"}}>{pm.proj.name||pm.proj.id}</span> <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{pm.proj.id}</span>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)",fontWeight:700}}>{pm.proj.id}</span>
                   <span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:pm.proj.status==="Active"?"#024b36":"var(--border)",color:pm.proj.status==="Active"?"#34d399":"var(--text2)"}}>{pm.proj.status}</span>
                   {pm.proj.billable&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)"}}>BILLABLE</span>}
                 </div>
@@ -2731,7 +2731,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
       <table>
         <thead><tr>
           <th style={{width:28}}></th>
-          <th>Name</th><th>No.</th><th>Client</th><th>Phase</th>
+          <th>ID</th><th>Name</th><th>Client</th><th>Phase</th>
           <th>Status</th><th>Billing</th><th>Hours</th>
           <th>Sub-sites</th>
           <th style={{width:110}}>Actions</th>
@@ -2749,8 +2749,8 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
                       transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>▶</button>
                 )}
               </td>
-              <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.id}</td>
+              <td style={{fontSize:13,fontWeight:500}}>{p.name}</td>
               <td style={{color:"var(--text2)",fontSize:13}}>{p.client}</td>
               <td style={{color:"#60a5fa",fontSize:13}}>{p.phase}</td>
               <td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontWeight:700,
@@ -4967,34 +4967,23 @@ const projProfit=projects.map(p=>{
       }}
       onEdit={async(entry)=>{
         if(!isAcct&&!isAdmin) return;
-        var id = entry.id;
-        if(!id){ showToast("Error: no entry ID",false); return; }
-        function toNum(v){ return (v==='' || v===null || v===undefined) ? null : (Number(v)||null); }
-        var payload = {
-          entry_no:       entry.entry_no       || null,
-          entry_date:     entry.entry_date      || null,
-          month:          toNum(entry.month),
-          entry_type:     entry.entry_type      || null,
-          account_name:   entry.account_name    || null,
-          main_account:   entry.main_account    || null,
-          statement_type: entry.statement_type  || null,
-          bs_pl:          entry.bs_pl           || null,
-          description:    entry.description     || null,
-          debit:          Number(entry.debit)   || 0,
-          credit:         Number(entry.credit)  || 0,
-          usd_amount:     toNum(entry.usd_amount),
-          exchange_rate:  toNum(entry.exchange_rate),
+        const{id}=entry;
+        if(!id){showToast("Error: missing ID",false);return;}
+        const payload={
+          entry_no:entry.entry_no??null, entry_date:entry.entry_date??null,
+          month:(entry.month===''||entry.month===null||entry.month===undefined)?null:+entry.month,
+          entry_type:entry.entry_type??null, account_name:entry.account_name??null,
+          main_account:entry.main_account??null, statement_type:entry.statement_type??null,
+          bs_pl:entry.bs_pl??null, description:entry.description??null,
+          debit:+entry.debit||0, credit:+entry.credit||0,
+          usd_amount:(entry.usd_amount===''||entry.usd_amount==null)?null:(+entry.usd_amount||null),
+          exchange_rate:(entry.exchange_rate===''||entry.exchange_rate==null)?null:(+entry.exchange_rate||null),
         };
-        try {
-          var res = await supabase.from("journal_entries").update(payload).eq("id", id);
-          if(res.error){ showToast("Save failed: " + res.error.message, false); return; }
-          setJournalEntries(function(prev){ return prev.map(function(e){ return e.id===id ? Object.assign({},e,payload,{id:id}) : e; }); });
-          logAction("UPDATE","Journal","Updated entry #"+entry.entry_no,{id:id});
-          showToast("Journal entry saved ✓");
-        } catch(err) {
-          showToast("Error: " + err.message, false);
-          console.error("[Journal]", err);
-        }
+        const{error}=await supabase.from("journal_entries").update(payload).eq("id",id);
+        if(error){showToast("Error: "+error.message,false);console.error(error);return;}
+        setJournalEntries(prev=>prev.map(e=>e.id===id?{...e,...payload,id}:e));
+        logAction("UPDATE","Journal","Updated entry #"+entry.entry_no,{id});
+        showToast("Journal entry saved ✓");
       }}
     />
   )}
@@ -5524,7 +5513,7 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
-function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, onDismissNotif, alertDay, setAlertDay, showToast}){
+function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, onDismissNotif, alertDay, setAlertDay}){
   const yearEntries = useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
   const engKPIs = useMemo(()=>{
 /* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
@@ -5841,13 +5830,7 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
 
       {/* General manager note */}
       <div style={{marginBottom:14}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
-          <button className="bp" style={{fontSize:12,padding:"4px 14px"}} onClick={()=>{
-            try{localStorage.setItem("ec_kpi_notes",JSON.stringify(kpiNotes));}catch(err){}
-            showToast&&showToast("Notes saved ✓");
-          }}>&#128190; Save Notes</button>
-        </div>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:6}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
         <textarea value={engNotes.general||""} onChange={e=>setNote("general",e.target.value)}
           rows={4} placeholder="Overall performance summary, key achievements, areas for improvement, next year goals…"
           style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,color:"var(--text2)",fontSize:13,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
@@ -5950,7 +5933,7 @@ export default function App(){
   const [funcYear,setFuncYear]             = useState(new Date().getFullYear());
   const [funcEngId,setFuncEngId]           = useState("all");
   const [kpiEngId,setKpiEngId]            = useState(null);
-  const [kpiNotes,setKpiNotes]             = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_kpi_notes')||'{}');}catch{return{};}}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
+  const [kpiNotes,setKpiNotes]             = useState({}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
   const [activities,setActivities]         = useState([]);
   const [subprojects,setSubprojects]       = useState([]);
   const [activitiesLoaded,setActivitiesLoaded] = useState(false);
@@ -6146,7 +6129,7 @@ export default function App(){
       // Load activity log for admin — use profR.data directly (myProfile state is stale here)
       if(profR.data?.role_type==="admin"){
         setLogLoading(true);
-        supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
+        supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
           .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
       }
       // Timesheet alerts: checked via checkTimesheetAlerts called from useEffect below
@@ -6368,13 +6351,12 @@ export default function App(){
       if(e.entry_type==="work"&&e.project_id){
         const proj=projects.find(p=>p.id===e.project_id);
         if(!proj||(proj.status||"").trim()!=="Active"){
-          showToast(`Cannot paste — project ${proj?.name||e.project_id} (${e.project_id}) is no longer active`,false);return;
+          showToast(`Cannot paste — project ${e.project_id} is no longer active`,false);return;
         }
         const ae=(proj.assigned_engineers||[]).map(String);
         if(!ae.includes(String(engId))){
           const nm=engineers.find(x=>String(x.id)===String(engId))?.name||"Engineer";
-          const projName=proj?.name||e.project_id;
-          showToast(`Cannot paste — ${nm} is not assigned to ${projName} (${e.project_id})`,false);return;
+          showToast(`Cannot paste — ${nm} is not assigned to ${e.project_id}`,false);return;
         }
       }
     }
@@ -7418,7 +7400,7 @@ export default function App(){
     const actRows=entries.filter(e=>e.entry_type==="work"&&e.activity&&new Date(e.date).getMonth()===month&&new Date(e.date).getFullYear()===year).slice(0,30).map(e=>{
       const eng=engineers.find(x=>x.id===e.engineer_id);const proj=projects.find(x=>x.id===e.project_id);
       return`<tr><td style="font-size:11px">${e.date}</td><td>${eng?.name||""}</td>
-      <td style="font-size:11px;font-weight:600">${proj?proj.name:""} <span style="color:#0ea5e9;font-size:10px">(${proj?.id||""})</span></td>
+      <td style="color:#0ea5e9;font-size:11px">${proj?.id||""}</td>
       <td style="font-size:11px">${e.task_type||""}</td><td style="font-style:italic">${e.activity||""}</td><td>${e.hours}h</td></tr>`;}).join("");
     generatePDF(`Task Analysis — ${MONTHS[month]} ${year}`,[
       `<div class="section"><div class="st">Categories</div><table><thead><tr><th>Category</th><th>Hrs</th><th>Billable Hrs</th><th>Share</th><th>Tasks</th></tr></thead>
@@ -7759,11 +7741,11 @@ export default function App(){
               <div className="card">
                 <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Projects — {MONTHS[month]} {year}{dashProjFilter!=="ALL"&&` · Filtered`}</h3>
                 <table>
-                  <thead><tr><th>Name</th><th>No.</th><th>Phase</th><th>Hours</th>{(isAdmin||isAcct)&&<><th>Billing</th><th>Revenue</th></>}</tr></thead>
+                  <thead><tr><th>No.</th><th>Name</th><th>Phase</th><th>Hours</th>{(isAdmin||isAcct)&&<><th>Billing</th><th>Revenue</th></>}</tr></thead>
                   <tbody>{projStats.filter(p=>p.hours>0&&(dashProjFilter==="ALL"||p.id===dashProjFilter)).map(p=>(
                     <tr key={p.id}>
-                      <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</td>
+                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.id}</td>
+                      <td style={{fontSize:13}}>{p.name}</td>
                       <td style={{color:"var(--text2)",fontSize:13}}>{p.phase}</td>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.hours}h</td>
                       {(isAdmin||isAcct)&&<><td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"var(--bg3)":"#1a0a00",color:p.billable?"var(--info)":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
@@ -7954,7 +7936,7 @@ export default function App(){
                               <div style={{flex:1,minWidth:0}}>
                                 {e.entry_type==="leave"
                                   ?<span style={{color:"#fb923c",fontWeight:600}}>✈ {e.leave_type}</span>
-                                  :<><span style={{color:"#0ea5e9",fontSize:10,fontWeight:600}}>{proj?.name||proj?.id||e.project_id}</span>
+                                  :<><span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#0ea5e9",fontSize:10}}>{proj?.id}</span>
                                     <div style={{color:"var(--text2)",fontSize:10,marginTop:1}}>{e.task_type}</div>
                                     {e.activity&&<div style={{color:"var(--text3)",fontSize:10,marginTop:1,fontStyle:"italic",lineHeight:1.3}}>{e.activity.substring(0,35)}{e.activity.length>35?"…":""}</div>}
                                   </>}
@@ -8015,7 +7997,7 @@ export default function App(){
                           <tr key={e.id} style={{background:checked?"#0d1e3440":"transparent"}}>
                             <td><input type="checkbox" checked={checked} onChange={()=>setSelectedEntries(prev=>{const n=new Set(prev);checked?n.delete(e.id):n.add(e.id);return n;})} style={{cursor:"pointer"}}/></td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                            <td style={{fontSize:13}}>{proj?<><span style={{fontWeight:600}}>{proj.name||proj.id}</span><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"var(--info)",marginLeft:4}}>({proj.id})</span></>:<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
+                            <td style={{fontSize:13,color:"var(--info)"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
                             <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type||"—"}</td>
                             <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
@@ -8632,6 +8614,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   {id:"individual",icon:"👤",label:"Individual Timesheet",desc:"One engineer — full monthly timesheet PDF",show:true},
                   {id:"task",icon:"⊟",label:"Task Analysis",desc:"Task categories & activity log",show:true},
                   {id:"projtasks",icon:"◈",label:"Project Analysis",desc:"Per-project hours, tasks & engineer breakdown",show:isAdmin||isAcct||isLead||isSenior},
+                  {id:"tracker",icon:"📊",label:"Tracker Report",desc:"Activity progress by project — status, notes, phases",show:isAdmin||isLead||isAcct||isSenior},
                   {id:"vacation",icon:"✈",label:"Vacation Report",desc:"Leave & absence summary per engineer",show:true},
                   {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct||isSenior},
                   {id:"invoice",icon:"🧾",label:"Invoice Export",desc:"Billable invoice per month",show:canInvoice},
@@ -8715,7 +8698,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                             const proj=projects.find(p=>p.id===e.project_id);
                             return<tr key={e.id}>
                               <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                              <td style={{fontSize:13,color:"var(--info)"}}>{proj?.name||proj?.id} ({proj?.id})</td>
+                              <td style={{fontSize:13,color:"var(--info)"}}>{proj?.id}</td>
                               <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type}</td>
                               <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                               <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
@@ -8922,7 +8905,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                       )}
                     </div>
                     <table>
-                      <thead><tr><th>Name</th><th>No.</th><th>Client</th><th>Hours</th><th>Rate</th><th>Amount</th><th>Status</th></tr></thead>
+                      <thead><tr><th>Project No.</th><th>Name</th><th>Client</th><th>Hours</th><th>Rate</th><th>Amount</th><th>Status</th></tr></thead>
                       <tbody>
                         {filteredProjs.map(p=>{
                           const needsRate=p.billable&&p.rate_per_hour===0;
@@ -8930,9 +8913,8 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                           const rowStyle={cursor:"pointer",opacity:notBillable?0.45:1,background:notBillable?"var(--bg0)":"inherit"};
                           return(
                           <tr key={p.id} style={rowStyle} onClick={()=>setInvoiceProjId(p.id)}>
-                            <td style={{fontSize:13,fontWeight:600,color:notBillable?"var(--text3)":"var(--text0)"}}>{p.name||p.id}</td>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:notBillable?"var(--text3)":"var(--info)"}}>{p.id}</td>
-
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:notBillable?"var(--text3)":"var(--info)"}}>{p.id}</td>
+                            <td style={{fontSize:13,fontWeight:500,color:notBillable?"var(--text3)":"var(--text0)"}}>{p.name}</td>
                             <td style={{fontSize:13,color:"var(--text2)"}}>{p.client}</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"var(--text3)":"var(--text0)"}}>{p.hours}h</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:needsRate?"#fb923c":notBillable?"var(--text3)":"var(--text2)"}}>
@@ -9268,7 +9250,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                               <tr key={e.id}>
                                 <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
                                 <td style={{fontSize:13}}>{eng?.name||"—"}</td>
-                                <td style={{fontSize:13}}>{proj?<span style={{color:"var(--info)"}}>{proj.name} <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--text3)"}}>({proj.id})</span></span>:<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
+                                <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
                                 <td style={{fontSize:12,color:"var(--text2)"}}>{e.task_type||"—"}</td>
                                 <td style={{fontSize:12,color:"var(--text3)",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                                 <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
@@ -9330,7 +9312,6 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   notifications={notifications}
                   onDismissNotif={dismissNotification}
                   alertDay={alertDay} setAlertDay={setAlertDay}
-                  showToast={showToast}
                 />
               )}
 
@@ -9392,7 +9373,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   setRetentionDays={setRetentionDays}
                   onRefresh={()=>{
                     setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
+                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
                       .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
                   }}
                   onArchive={async()=>{
@@ -9404,7 +9385,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:r.archived_count,deleted:r.deleted_count});
                     // Reload live log after archive
                     setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
+                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
                       .then(({data:liveData})=>{ if(liveData) setActivityLog(liveData); setLogLoading(false); });
                     // Reset archive cache so next "Load Archive" gets fresh data
                     setArchiveLog([]); setArchiveLoaded(false);
