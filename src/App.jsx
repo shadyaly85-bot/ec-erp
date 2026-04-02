@@ -145,7 +145,12 @@ const PDF_STYLE = `
   .footer{display:none}
   @media print{
     body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    @page{margin:50px 14mm 42px 14mm}
+    @page{margin:14mm}
+    .pdf-hdr{display:none !important}
+    .pdf-ftr{display:none !important}
+    .pdf-body{padding-top:0 !important;padding-bottom:0 !important}
+    .cover{margin-top:0 !important}
+    .body{padding-top:16px}
     .section{page-break-inside:auto}
     table{page-break-inside:auto}
     tr{page-break-inside:avoid;page-break-after:auto}
