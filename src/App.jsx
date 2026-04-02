@@ -1408,7 +1408,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
               const pct=grandTotal?Math.round(pm.totalHrs/grandTotal*100):0;
               return<div key={pm.proj.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:12}}>
                 <div style={{width:8,height:8,borderRadius:2,background:PROJ_COLORS[i%PROJ_COLORS.length],flexShrink:0}}/>
-                <span style={{color:"var(--text2)"}}>{pm.proj.id}</span>
+                <span style={{color:"var(--text0)",fontWeight:600}}>{pm.proj.name||pm.proj.id}</span> <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{pm.proj.id}</span>
                 <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--text0)",fontWeight:600}}>{pm.totalHrs}h</span>
                 <span style={{color:"var(--text4)"}}>({pct}%)</span>
               </div>;
@@ -1429,7 +1429,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)",fontWeight:700}}>{pm.proj.id}</span>
+                  <span style={{fontWeight:700,color:"var(--text0)"}}>{pm.proj.name||pm.proj.id}</span><br/><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{pm.proj.id}</span>
                   <span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:pm.proj.status==="Active"?"#024b36":"var(--border)",color:pm.proj.status==="Active"?"#34d399":"var(--text2)"}}>{pm.proj.status}</span>
                   {pm.proj.billable&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)"}}>BILLABLE</span>}
                 </div>
@@ -2731,7 +2731,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
       <table>
         <thead><tr>
           <th style={{width:28}}></th>
-          <th>ID</th><th>Name</th><th>Client</th><th>Phase</th>
+          <th>Name</th><th>No.</th><th>Client</th><th>Phase</th>
           <th>Status</th><th>Billing</th><th>Hours</th>
           <th>Sub-sites</th>
           <th style={{width:110}}>Actions</th>
@@ -4630,20 +4630,20 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
           <span style={{fontSize:12,color:"var(--text4)"}}>Move entries older than</span>
           <select value={retentionDays} onChange={e=>setRetentionDays(+e.target.value)}
             style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:13}}>
-            {[30,60,90,180].map(d=><option key={d} value={d}>{d} days</option>)}
+            {[7,14,30,60,90,180].map(d=><option key={d} value={d}>{d} days</option>)}
           </select>
           <span style={{fontSize:12,color:"var(--text4)"}}>to archive</span>
           <button onClick={onArchive}
             style={{background:"#f8711820",border:"1px solid #f8711840",borderRadius:6,padding:"5px 14px",color:"#f87171",cursor:"pointer",fontSize:13,fontWeight:600}}>
             ⬆ Archive Now
           </button>
-          <span style={{fontSize:11,color:"var(--text4)",marginLeft:"auto"}}>
-            Archive keeps data forever · Live table stays fast · Export CSV to download either
-          </span>
           <button onClick={onPruneArchive}
             style={{background:"#f8711810",border:"1px solid #f8711830",borderRadius:6,padding:"5px 12px",color:"#f87171",cursor:"pointer",fontSize:12,opacity:0.8}}>
             🗑 Prune Archive &gt;1yr
           </button>
+          <span style={{fontSize:11,color:"var(--text4)",marginLeft:"auto"}}>
+            Live log shows up to 2,000 entries · Archive unlimited · Export CSV anytime
+          </span>
         </div>
       )}
 
@@ -6129,7 +6129,7 @@ export default function App(){
       // Load activity log for admin — use profR.data directly (myProfile state is stale here)
       if(profR.data?.role_type==="admin"){
         setLogLoading(true);
-        supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
+        supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
           .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
       }
       // Timesheet alerts: checked via checkTimesheetAlerts called from useEffect below
@@ -7741,11 +7741,11 @@ export default function App(){
               <div className="card">
                 <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Projects — {MONTHS[month]} {year}{dashProjFilter!=="ALL"&&` · Filtered`}</h3>
                 <table>
-                  <thead><tr><th>No.</th><th>Name</th><th>Phase</th><th>Hours</th>{(isAdmin||isAcct)&&<><th>Billing</th><th>Revenue</th></>}</tr></thead>
+                  <thead><tr><th>Name</th><th>No.</th><th>Phase</th><th>Hours</th>{(isAdmin||isAcct)&&<><th>Billing</th><th>Revenue</th></>}</tr></thead>
                   <tbody>{projStats.filter(p=>p.hours>0&&(dashProjFilter==="ALL"||p.id===dashProjFilter)).map(p=>(
                     <tr key={p.id}>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.id}</td>
-                      <td style={{fontSize:13}}>{p.name}</td>
+                      <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
+                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</td>
                       <td style={{color:"var(--text2)",fontSize:13}}>{p.phase}</td>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.hours}h</td>
                       {(isAdmin||isAcct)&&<><td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"var(--bg3)":"#1a0a00",color:p.billable?"var(--info)":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
@@ -7936,7 +7936,7 @@ export default function App(){
                               <div style={{flex:1,minWidth:0}}>
                                 {e.entry_type==="leave"
                                   ?<span style={{color:"#fb923c",fontWeight:600}}>✈ {e.leave_type}</span>
-                                  :<><span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#0ea5e9",fontSize:10}}>{proj?.id}</span>
+                                  :<><span style={{color:"#0ea5e9",fontSize:10,fontWeight:600}}>{proj?.name||proj?.id||e.project_id}</span>
                                     <div style={{color:"var(--text2)",fontSize:10,marginTop:1}}>{e.task_type}</div>
                                     {e.activity&&<div style={{color:"var(--text3)",fontSize:10,marginTop:1,fontStyle:"italic",lineHeight:1.3}}>{e.activity.substring(0,35)}{e.activity.length>35?"…":""}</div>}
                                   </>}
@@ -8904,7 +8904,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                       )}
                     </div>
                     <table>
-                      <thead><tr><th>Project No.</th><th>Name</th><th>Client</th><th>Hours</th><th>Rate</th><th>Amount</th><th>Status</th></tr></thead>
+                      <thead><tr><th>Name</th><th>No.</th><th>Client</th><th>Hours</th><th>Rate</th><th>Amount</th><th>Status</th></tr></thead>
                       <tbody>
                         {filteredProjs.map(p=>{
                           const needsRate=p.billable&&p.rate_per_hour===0;
@@ -8912,7 +8912,8 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                           const rowStyle={cursor:"pointer",opacity:notBillable?0.45:1,background:notBillable?"var(--bg0)":"inherit"};
                           return(
                           <tr key={p.id} style={rowStyle} onClick={()=>setInvoiceProjId(p.id)}>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:notBillable?"var(--text3)":"var(--info)"}}>{p.id}</td>
+                            <td style={{fontSize:13,fontWeight:600,color:notBillable?"var(--text3)":"var(--text0)"}}>{p.name||p.id}</td>
+                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:notBillable?"var(--text3)":"var(--info)"}}>{p.id}</td>
                             <td style={{fontSize:13,fontWeight:500,color:notBillable?"var(--text3)":"var(--text0)"}}>{p.name}</td>
                             <td style={{fontSize:13,color:"var(--text2)"}}>{p.client}</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"var(--text3)":"var(--text0)"}}>{p.hours}h</td>
@@ -9249,7 +9250,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                               <tr key={e.id}>
                                 <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
                                 <td style={{fontSize:13}}>{eng?.name||"—"}</td>
-                                <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
+                                <td style={{fontSize:13}}>{proj?<span style={{color:"var(--info)"}}>{proj.name} <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--text3)"}}>({proj.id})</span></span>:<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
                                 <td style={{fontSize:12,color:"var(--text2)"}}>{e.task_type||"—"}</td>
                                 <td style={{fontSize:12,color:"var(--text3)",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                                 <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
@@ -9372,7 +9373,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   setRetentionDays={setRetentionDays}
                   onRefresh={()=>{
                     setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
+                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
                       .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
                   }}
                   onArchive={async()=>{
@@ -9384,7 +9385,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:r.archived_count,deleted:r.deleted_count});
                     // Reload live log after archive
                     setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(500)
+                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
                       .then(({data:liveData})=>{ if(liveData) setActivityLog(liveData); setLogLoading(false); });
                     // Reset archive cache so next "Load Archive" gets fresh data
                     setArchiveLog([]); setArchiveLoaded(false);
