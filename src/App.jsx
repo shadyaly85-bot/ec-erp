@@ -123,13 +123,13 @@ const PDF_STYLE = `
   .pdf-ftr-dot{width:4px;height:4px;border-radius:50%;background:#0ea5e9}
   /* ── Content area (pushed below header, above footer) ── */
   .pdf-body{padding-top:50px;padding-bottom:38px}
-  .cover{background:linear-gradient(135deg,#0a1628,#0f2a50 60%,#153d6e);color:#fff;padding:44px 44px 44px;position:relative;overflow:hidden;margin-top:38px}
+  .cover{background:linear-gradient(135deg,#0a1628,#0f2a50 60%,#153d6e);color:#fff;padding:44px 44px 44px;position:relative;overflow:hidden;margin-top:38px;page-break-after:always}
   .cover::before{content:'';position:absolute;right:-60px;top:-60px;width:280px;height:280px;border:2px solid rgba(56,189,248,0.15);border-radius:50%}
   .cl{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;color:#38bdf8;text-transform:uppercase;margin-bottom:8px}
   .ct{font-size:22px;font-weight:700;line-height:1.2;margin-bottom:6px}.cs{font-size:13px;color:#94a3b8}
   .cm{display:flex;gap:36px;margin-top:14px}.cm label{font-size:11px;color:#64748b;letter-spacing:.1em;text-transform:uppercase;display:block}
   .cm span{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#e2e8f0}
-  .body{padding:24px 32px}.section{margin-bottom:22px;page-break-inside:avoid}
+  .body{padding:24px 32px;padding-top:28px}.section{margin-bottom:22px;page-break-inside:avoid}
   .st{font-size:13px;font-weight:700;color:#0f2a50;text-transform:uppercase;letter-spacing:.08em;padding-bottom:6px;border-bottom:2px solid #0ea5e9;margin-bottom:10px}
   .kg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:4px}
   .kp{background:#f0f7ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px}
@@ -845,13 +845,9 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
   </div>
   <script>window.onload=()=>window.print()<\/script>
   </body></html>`;
-  const blob = new Blob([html], {type:"text/html"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.target = "_blank"; a.rel = "noopener";
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url), 10000);
+  const w=window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
+  if(w){w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),600);}
+  else{alert("Please allow popups to export PDFs.");}
   }catch(err){ alert("Export error: "+err.message); console.error(err); }
 }
 
@@ -1264,8 +1260,8 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
     <script>window.onload=()=>window.print()<\/script>
   </body></html>`;
 
-  const win=window.open("","_blank");
-  if(win){win.document.write(html);win.document.close();}
+  const win=window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
+  if(win){win.document.write(html);win.document.close();win.focus();setTimeout(()=>win.print(),600);}
   else{alert("Please allow popups for this site to export PDFs.");}
 }
 
@@ -3129,7 +3125,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
         +"</tr></thead><tbody>"+rows+"</tbody></table></div>";
     }).join("");
     var html="<!DOCTYPE html><html><head><meta charset='utf-8'><title>Assignment Report</title>"
-      +"<style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}@media print{body{padding:0}@page{margin:10mm}}</style>"
+      +"<style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}@media print{body{padding:0}@page{margin:10mm}}div[style*='page-break-inside:avoid']{page-break-inside:avoid}.proj-block{page-break-inside:avoid}</style>"
       +"</head><body>"
       +"<div style='display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f'>"
       +"<div><div style='font-size:20px;font-weight:800;color:#1e3a5f'>ENEVO GROUP</div>"
@@ -3141,7 +3137,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
       +(grouped.length===0?"<p style='text-align:center;color:#94a3b8'>No entries found.</p>":blocks)
       +"<div style='margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center'>ENEVO GROUP — "+now+"</div>"
       +"</body></html>";
-    var w=window.open("","_blank");
+    var w=window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
     if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
   };
   return(<div>
@@ -5068,7 +5064,7 @@ const projProfit=projects.map(p=>{
   </div>
 
   {/* EGP rate + PDF — only for Operations/Salaries tabs */}
-  {(finSubTab==="pl"||finSubTab==="salaries")&&(
+  {(finSubTab==="pl"||finSubTab==="salaries"||finSubTab==="journal"||finSubTab==="balance"||finSubTab==="expenses"||finSubTab==="custody")&&(
   <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
     <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,padding:"6px 12px",display:"flex",alignItems:"center",gap:8}}>
       <span style={{fontSize:12,color:"var(--text4)"}}>EGP/$ rate (salaries only)</span>
@@ -5087,8 +5083,12 @@ const projProfit=projects.map(p=>{
       </select>
     </div>
     <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
-      buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
-      logAction("EXPORT","Finance",`Exported Finance PDF — ${MONTHS_[finMonth]} ${finYear}`,{month:finMonth,year:finYear});
+      if(finSubTab==="pl"||finSubTab==="salaries"){
+        buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
+      } else {
+        buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
+      }
+      logAction("EXPORT","Finance",`Exported Finance PDF — ${MONTHS_[finMonth]} ${finYear}`,{month:finMonth,year:finYear,tab:finSubTab});
     }}>⬇ Export PDF</button>
   </div>
   )}
@@ -8582,7 +8582,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 <div style="display:flex;justify-content:center;">${buildTable(rts, true)}</div>
 <script>window.onload=()=>setTimeout(()=>{window.print();},500);</script>
 </body></html>`;
-                  const w = window.open("","_blank");
+                  const w = window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
                   if(w){w.document.write(html);w.document.close();logAction("EXPORT","OrgChart",`Exported org chart PDF`,{nodes:orgNodes.length});}
                   else showToast("Allow popups to export PDF",false);
                 };
