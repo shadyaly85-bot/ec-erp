@@ -176,12 +176,12 @@ function pdfFooter(leftText, now){
 }
 
 function generatePDF(title, sections, subtitle="ENEVO Group"){
-  const win=window.open("","_blank");
+  const win=window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
   const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
   let html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${PDF_STYLE}</style></head><body>
   ${pdfHeader(title, subtitle, now)}
   ${pdfFooter(subtitle, now)}
-  <div class="cover">
+  <div class="cover" style="page-break-after:always">
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
     <img src="data:image/jpeg;base64,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" alt="ENEVO Group" style="width:52px;height:52px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
     <div>
@@ -281,7 +281,7 @@ function buildTimesheetPDF(eng, monthEntries, projects, m, y){
     projMap[e.project_id].hours+=e.hours;
   });
   const projRows=Object.values(projMap).sort((a,b)=>b.hours-a.hours).map(p=>`<tr>
-    <td style="font-weight:600">${p.name||p.id}${p.pm?"<br><span style='font-size:10px;color:#8b5cf6'>PM: "+p.pm+"</span>":""}</td>
+    <td style="font-weight:600">${p.name||p.id}</td>
     <td style="font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-size:11px">${p.id}</td>
     <td style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#0ea5e9">${p.hours}h</td>
     <td>${totalW?Math.round(p.hours/totalW*100):0}%</td></tr>`).join("");
@@ -354,7 +354,7 @@ function buildInvoicePDF(projects, entries, engineers, m, y, filterId){
       return`<tr style="background:#f8fafc"><td style="padding-left:20px;font-size:11px;color:#64748b">↳ ${eng?.name||"Unknown"}</td><td></td><td style="font-size:11px;color:#64748b">${eh}h</td><td></td></tr>`;
     }).join("");
     return{p,hrs,rev,rows:`<tr style="background:#f0f7ff">
-      <td style="font-weight:600">${p.name||p.id}<br>${p.pm?"<span style='font-size:10px;color:#8b5cf6'>PM: "+p.pm+"</span><br>":""}<span style="font-size:11px;color:#64748b">${p.client||""}</span></td>
+      <td style="font-weight:600">${p.name||p.id}<br><span style="font-size:11px;color:#64748b">${p.client||""}</span></td>
       <td style="font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700;font-size:11px">${p.id}</td>
       <td style="font-family:'IBM Plex Mono',monospace;font-weight:700">${hrs}h</td>
       <td style="font-family:'IBM Plex Mono',monospace">$${p.rate_per_hour}/h</td>
@@ -590,7 +590,6 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,fontSize:13,marginBottom:10,color:"var(--text1)"}}>
-                {p.pm&&<div><span style={{color:"var(--text4)"}}>PM: </span><span style={{color:"#a78bfa",fontWeight:600}}>{p.pm}</span></div>}
                 {p.client&&<div><span style={{color:"var(--text4)"}}>Client: </span>{p.client}</div>}
                 {p.origin&&<div><span style={{color:"var(--text4)"}}>Origin: </span>{p.origin}</div>}
                 <div><span style={{color:"var(--text4)"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase||"—"}</span></div>
@@ -1435,7 +1434,6 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                   {pm.proj.billable&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)"}}>BILLABLE</span>}
                 </div>
                 <div style={{fontSize:17,fontWeight:700,color:"var(--text0)"}}>{pm.proj.name}</div>
-                {pm.proj.pm&&<div style={{fontSize:13,color:"var(--text3)",marginTop:1}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{pm.proj.pm}</span></div>}
                 {pm.proj.client&&<div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Client: {pm.proj.client} · Phase: {pm.proj.phase||"—"}</div>}
               </div>
               <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
@@ -2372,7 +2370,6 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
               <div>
                 <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>{p.name||p.id}</div>
                 <div style={{fontSize:12,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{p.id}</div>
-                {p.pm&&<div style={{fontSize:11,color:"#a78bfa",marginTop:2}}>PM: <span style={{fontWeight:600}}>{p.pm}</span></div>}
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:barColor}}>{overallPct}%</div>
@@ -2734,7 +2731,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
       <table>
         <thead><tr>
           <th style={{width:28}}></th>
-          <th>Name</th><th>No.</th><th>PM</th><th>Client</th><th>Phase</th>
+          <th>Name</th><th>No.</th><th>Client</th><th>Phase</th>
           <th>Status</th><th>Billing</th><th>Hours</th>
           <th>Sub-sites</th>
           <th style={{width:110}}>Actions</th>
@@ -2752,9 +2749,8 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
                       transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>▶</button>
                 )}
               </td>
-              <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</td>
-              <td style={{fontSize:13,color:"#a78bfa"}}>{p.pm||"—"}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.id}</td>
+              <td style={{fontSize:13,fontWeight:500}}>{p.name}</td>
               <td style={{color:"var(--text2)",fontSize:13}}>{p.client}</td>
               <td style={{color:"#60a5fa",fontSize:13}}>{p.phase}</td>
               <td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontWeight:700,
@@ -3018,7 +3014,6 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
           <div>
             <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{proj?proj.name:g.pid}</div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)",marginTop:1}}>{g.pid}</div>
-            {proj&&proj.pm&&<div style={{fontSize:12,color:"var(--text3)",marginTop:1}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{proj.pm}</span></div>}
             {proj&&proj.phase&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span>{proj.status&&<span> · <span style={{color:proj.status==="Active"?"#34d399":"var(--text3)"}}>{proj.status}</span></span>}</div>}
           </div>
           <div style={{textAlign:"right"}}>
@@ -3068,149 +3063,6 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
     })}
   </div>
   );
-}
-
-/* ═══ ASSIGNMENT REPORT ═══ */
-function AssignmentReport({entries,projects,engineers,month,year}){
-  const [selProj,setSelProj]=React.useState("ALL");
-  const [selEng,setSelEng]=React.useState("ALL");
-  const MN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const workE=React.useMemo(function(){
-    return entries.filter(function(e){
-      var d=new Date(e.date+"T12:00:00");
-      if(d.getFullYear()!==year||d.getMonth()+1!==month||e.entry_type!=="work") return false;
-      if(selProj!=="ALL"&&e.project_id!==selProj) return false;
-      if(selEng!=="ALL"&&String(e.engineer_id)!==String(selEng)) return false;
-      return true;
-    });
-  },[entries,year,month,selProj,selEng]);
-  const grouped=React.useMemo(function(){
-    var map={};
-    workE.forEach(function(e){
-      var pid=e.project_id||"?";
-      if(!map[pid]) map[pid]={};
-      var eid=String(e.engineer_id);
-      if(!map[pid][eid]) map[pid][eid]={hours:0,tasks:{}};
-      map[pid][eid].hours+=e.hours;
-      var t=e.task_type||"General";
-      map[pid][eid].tasks[t]=(map[pid][eid].tasks[t]||0)+e.hours;
-    });
-    return Object.entries(map).map(function(kv){
-      var tot=Object.values(kv[1]).reduce(function(s,x){return s+x.hours;},0);
-      return {pid:kv[0],engs:kv[1],tot:tot};
-    }).sort(function(a,b){return b.tot-a.tot;});
-  },[workE]);
-  var totHrs=workE.reduce(function(s,e){return s+e.hours;},0);
-  var totEngs=new Set(workE.map(function(e){return e.engineer_id;})).size;
-  var exportPDF=function(){
-    var now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-    var period=(MN[month-1]||"")+" "+year;
-    var blocks=grouped.map(function(g){
-      var proj=projects.find(function(p){return p.id===g.pid;});
-      var rows=Object.entries(g.engs).sort(function(a,b){return b[1].hours-a[1].hours;}).map(function(kv){
-        var eng=engineers.find(function(e){return String(e.id)===kv[0];});
-        var tasks=Object.entries(kv[1].tasks).map(function(t){return t[0]+": "+t[1]+"h";}).join(", ");
-        return "<tr><td style='padding:5px 8px 5px 20px;font-size:12px'>"+(eng?eng.name:kv[0])+"</td>"
-          +"<td style='padding:5px 8px;font-size:11px;color:#64748b'>"+(eng?eng.role||"":"")+"</td>"
-          +"<td style='padding:5px 8px;font-size:11px;color:#64748b'>"+tasks+"</td>"
-          +"<td style='padding:5px 8px;text-align:right;font-family:monospace;font-weight:700;color:#1d4ed8'>"+kv[1].hours+"h</td></tr>";
-      }).join("");
-      return "<div style='margin-bottom:16px;page-break-inside:avoid'>"
-        +"<div style='background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:9px 14px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between'>"
-        +"<div><div style='font-size:14px;font-weight:700'>"+(proj?proj.name:g.pid)+"</div>"
-        +"<div style='font-size:10px;color:#93c5fd'>"+g.pid+(proj&&proj.pm?" · PM: "+proj.pm:"")+(proj&&proj.phase?" · "+proj.phase:"")+"</div></div>"
-        +"<div style='text-align:right'><div style='font-size:20px;font-weight:800;color:#60a5fa'>"+g.tot+"h</div>"
-        +"<div style='font-size:10px;color:#93c5fd'>"+Object.keys(g.engs).length+" eng</div></div></div>"
-        +"<table style='width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none'>"
-        +"<thead><tr style='background:#f1f5f9'>"
-        +"<th style='padding:5px 8px 5px 20px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>ENGINEER</th>"
-        +"<th style='padding:5px 8px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>ROLE</th>"
-        +"<th style='padding:5px 8px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>TASKS</th>"
-        +"<th style='padding:5px 8px;text-align:right;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>HRS</th>"
-        +"</tr></thead><tbody>"+rows+"</tbody></table></div>";
-    }).join("");
-    var html="<!DOCTYPE html><html><head><meta charset='utf-8'><title>Assignment Report</title>"
-      +"<style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}@media print{body{padding:0}@page{margin:10mm}}</style>"
-      +"</head><body>"
-      +"<div style='display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f'>"
-      +"<div><div style='font-size:20px;font-weight:800;color:#1e3a5f'>ENEVO GROUP</div>"
-      +"<div style='font-size:15px;font-weight:700;color:#334155;margin-top:2px'>Assignment Report — "+period+"</div>"
-      +"<div style='font-size:11px;color:#64748b;margin-top:3px'>Generated: "+now+"</div></div>"
-      +"<div style='text-align:right;font-size:11px;color:#64748b;line-height:1.9'>"
-      +"<div>"+grouped.length+" projects · "+totEngs+" engineers</div>"
-      +"<div>Total: <b>"+totHrs+"h</b></div></div></div>"
-      +(grouped.length===0?"<p style='text-align:center;color:#94a3b8'>No entries found.</p>":blocks)
-      +"<div style='margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center'>ENEVO GROUP — "+now+"</div>"
-      +"</body></html>";
-    var w=window.open("","_blank");
-    if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
-  };
-  return(<div>
-    <div className="card" style={{marginBottom:14}}>
-      <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",justifyContent:"space-between"}}>
-        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-          <div><div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>PROJECT</div>
-            <select value={selProj} onChange={function(e){setSelProj(e.target.value);}}
-              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:190}}>
-              <option value="ALL">All Projects</option>
-              {[...new Set(workE.map(function(e){return e.project_id;}).filter(Boolean))].sort(function(a,b){
-                var pa=projects.find(function(p){return p.id===a;}); var pb=projects.find(function(p){return p.id===b;});
-                return (pa?pa.name:a).localeCompare(pb?pb.name:b);
-              }).map(function(pid){var p=projects.find(function(x){return x.id===pid;});
-                return <option key={pid} value={pid}>{p?p.name:pid}</option>;})}
-            </select></div>
-          <div><div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>ENGINEER</div>
-            <select value={selEng} onChange={function(e){setSelEng(e.target.value);}}
-              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:160}}>
-              <option value="ALL">All Engineers</option>
-              {engineers.filter(function(e){return workE.some(function(x){return String(x.engineer_id)===String(e.id);});}).map(function(e){
-                return <option key={e.id} value={String(e.id)}>{e.name}</option>;})}
-            </select></div>
-        </div>
-        <button className="bp" onClick={exportPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>&#11015; Export PDF</button>
-      </div>
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-      {[{l:"Projects",v:grouped.length,c:"var(--info)"},{l:"Engineers",v:totEngs,c:"#34d399"},{l:"Total Hours",v:totHrs+"h",c:"#a78bfa"}].map(function(k){return(
-        <div key={k.l} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:k.c,lineHeight:1}}>{k.v}</div>
-          <div style={{fontSize:11,color:"var(--text4)",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{k.l}</div>
-        </div>);})}
-    </div>
-    {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No work entries for {MN[month-1]} {year}.</div>}
-    {grouped.map(function(g){
-      var proj=projects.find(function(p){return p.id===g.pid;});
-      return(<div key={g.pid} className="card" style={{marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,paddingBottom:10,borderBottom:"1px solid var(--border3)"}}>
-          <div>
-            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>{proj?proj.name:g.pid}</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)",marginTop:1}}>{g.pid}</div>
-            {proj&&proj.pm&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{proj.pm}</span></div>}
-            {proj&&proj.phase&&<div style={{fontSize:12,color:"var(--text3)",marginTop:1}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span></div>}
-          </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:"var(--info)"}}>{g.tot}h</div>
-            <div style={{fontSize:11,color:"var(--text4)"}}>{Object.keys(g.engs).length} eng</div>
-          </div>
-        </div>
-        {Object.entries(g.engs).sort(function(a,b){return b[1].hours-a[1].hours;}).map(function(kv){
-          var eng=engineers.find(function(e){return String(e.id)===kv[0];});
-          return(<div key={kv[0]} style={{marginBottom:8,background:"var(--bg2)",borderRadius:6,padding:"8px 12px",border:"1px solid var(--border3)"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-              <div><span style={{fontSize:13,fontWeight:600,color:"var(--text0)"}}>{eng?eng.name:kv[0]}</span>
-                {eng&&<span style={{fontSize:11,color:"var(--text4)",marginLeft:8}}>{eng.role}</span>}</div>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:"var(--info)"}}>{kv[1].hours}h</span>
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-              {Object.entries(kv[1].tasks).map(function(t){return(
-                <span key={t[0]} style={{background:"var(--bg3)",borderRadius:4,padding:"2px 7px",fontSize:11}}>
-                  <span style={{color:"var(--text2)",fontWeight:600}}>{t[0]}</span>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",marginLeft:4}}>{t[1]}h</span>
-                </span>);})}
-            </div>
-          </div>);})}
-      </div>);})}
-  </div>);
 }
 
 const ENTRY_TYPES = ["Custody","Accrued Salaries","Revenue","Creditors","Opening","Shareholders","project in process"];
@@ -4943,7 +4795,7 @@ function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, set
   setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
   deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior, isAcct,
   journalEntries, setJournalEntries, fixedAssets, journalLoading, assetsLoading,
-  finSubTab, setFinSubTab, accounts, showToast, logAction, supabase}){
+  finSubTab, setFinSubTab, accounts}){
 
   const derived = useMemo(()=>{
     const activeStaff=staff.filter(s=>s.active!==false);
@@ -5626,7 +5478,7 @@ engineers.forEach(eng=>{
         <th style={{textAlign:"right"}}>Total</th>
         {FUNCTION_CATS.map(c=><th key={c} style={{textAlign:"right",fontSize:10,maxWidth:70,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:FUNC_COLORS[c]}} title={c}>{c.split("—")[0].split("&")[0].trim().slice(0,11)}</th>)}
       </tr></thead>
-      <tbody>{engineers.map(eng=>{
+      <tbody>{engineers.filter(eng=>!engSearch||(eng.name||"").toLowerCase().includes(engSearch.toLowerCase())||(eng.role||"").toLowerCase().includes(engSearch.toLowerCase())).map(eng=>{
         const em=engFuncMap[eng.id]||{total:0,cats:{}};
         return(<tr key={eng.id}>
           <td style={{fontWeight:600,minWidth:120}}>{eng.name}<br/><span style={{fontSize:11,color:"var(--text4)"}}>{eng.role}</span></td>
@@ -6090,6 +5942,7 @@ export default function App(){
   const [showEngModal,setShowEngModal]     = useState(false);
   const [editEngModal,setEditEngModal]     = useState(null);
   const [adminTab,setAdminTab]             = useState("engineers"); // will be overridden by role redirect
+  const [engSearch, setEngSearch] = useState("");
   const [kpiYear,setKpiYear]               = useState(new Date().getFullYear());
   const [alertDay,setAlertDay]             = useState(5); // 1=Mon,2=Tue,3=Wed,4=Thu,5=Fri
   const [funcYear,setFuncYear]             = useState(new Date().getFullYear());
@@ -8490,7 +8343,7 @@ export default function App(){
                             const kids = children(node.id);
                             return (
                               <td key={node.id} style={{
-                                verticalAlign:"top", padding:"0 12px",
+                                verticalAlign:"top", padding:"0 8px", minWidth:180,
                                 textAlign:"center",
                                 borderTop: (!solo && depth>0) ? `2px solid ${CONN}` : "none",
                               }}>
@@ -8780,7 +8633,6 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   {id:"tracker",icon:"📊",label:"Tracker Report",desc:"Activity progress — status, notes & phases by project",show:isAdmin||isLead||isAcct||isSenior},
                   {id:"vacation",icon:"✈",label:"Vacation Report",desc:"Leave & absence summary per engineer",show:true},
                   {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct||isSenior},
-                  {id:"assignment",icon:"👥",label:"Assignment Report",desc:"Who is working on what this month",show:isAdmin||isLead||isAcct||isSenior},
                   {id:"invoice",icon:"🧾",label:"Invoice Export",desc:"Billable invoice per month",show:canInvoice},
                 ].filter(r=>r.show).map(r=>(
                   <div key={r.id} className={`rpt-card ${activeRpt===r.id?"sel":""}`} onClick={()=>setActiveRpt(r.id)}>
@@ -8984,10 +8836,6 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 
               {activeRpt==="tracker"&&(
                 <TrackerProgressReport activities={activities} projects={projects} subprojects={subprojects} engineers={engineers}/>
-              )}
-
-              {activeRpt==="assignment"&&(
-                <AssignmentReport entries={entries} projects={projects} engineers={engineers} month={month} year={year}/>
               )}
 
            {/* Vacation Report */}
@@ -9275,6 +9123,10 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   <div style={{background:"var(--bg2)",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:13,color:"var(--info)",marginBottom:12}}>
                     ℹ New registrations default to <strong>Engineer</strong> role. Update their role here after they sign up.
                   </div>
+                  <div style={{marginBottom:10}}>
+                    <input value={engSearch} onChange={e=>setEngSearch(e.target.value)} placeholder="Search engineers..." 
+                      style={{width:"100%",boxSizing:"border-box",padding:"7px 12px",borderRadius:6,border:"1px solid var(--border3)",background:"var(--bg2)",color:"var(--text0)",fontSize:13}}/>
+                  </div>
                   <table>
                     <thead><tr><th>Name</th><th>Job Role</th><th>Level</th><th>Email</th><th>Access Role</th><th>Weekend</th><th>Month Hrs</th><th style={{width:110}}>Actions</th></tr></thead>
                     <tbody>{engineers.map(eng=>{
@@ -9456,7 +9308,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   journalEntries={journalEntries} setJournalEntries={setJournalEntries}
                   fixedAssets={fixedAssets} journalLoading={journalLoading}
                   assetsLoading={assetsLoading} finSubTab={finSubTab} setFinSubTab={setFinSubTab}
-                  accounts={accounts} showToast={showToast} logAction={logAction} supabase={supabase}/>
+                  accounts={accounts}/>
               )}
 
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
@@ -10149,8 +10001,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 <div><Lbl>Phase</Lbl><select value={editProjModal.phase} onChange={e=>setEditProjModal(p=>({...p,phase:e.target.value}))}>{PHASES.map(ph=><option key={ph}>{ph}</option>)}</select></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Project Manager (PM)</Lbl><input value={editProjModal.pm||""} onChange={e=>setEditProjModal(p=>({...p,pm:e.target.value}))} placeholder="e.g. Ahmed Farahat" style={{width:"100%",boxSizing:"border-box"}}/></div>
-              <div><Lbl>Client</Lbl><input value={editProjModal.client||""} onChange={e=>setEditProjModal(p=>({...p,client:e.target.value}))}/></div>
+                <div><Lbl>Client</Lbl><input value={editProjModal.client||""} onChange={e=>setEditProjModal(p=>({...p,client:e.target.value}))}/></div>
                 <div><Lbl>Origin</Lbl><input value={editProjModal.origin||""} onChange={e=>setEditProjModal(p=>({...p,origin:e.target.value}))}/></div>
               </div>
               {isAdmin&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
