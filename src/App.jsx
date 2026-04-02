@@ -2749,8 +2749,8 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
                       transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>▶</button>
                 )}
               </td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.id}</td>
-              <td style={{fontSize:13,fontWeight:500}}>{p.name}</td>
+              <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</td>
               <td style={{color:"var(--text2)",fontSize:13}}>{p.client}</td>
               <td style={{color:"#60a5fa",fontSize:13}}>{p.phase}</td>
               <td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontWeight:700,
@@ -4967,25 +4967,34 @@ const projProfit=projects.map(p=>{
       }}
       onEdit={async(entry)=>{
         if(!isAcct&&!isAdmin) return;
-        const{id}=entry;
-        if(!id){showToast("Error: missing ID",false);return;}
-        const payload={
-          entry_no:entry.entry_no??null, entry_date:entry.entry_date??null,
-          month:(entry.month===''||entry.month===null||entry.month===undefined)?null:+entry.month,
-          entry_type:entry.entry_type??null, account_name:entry.account_name??null,
-          main_account:entry.main_account??null, statement_type:entry.statement_type??null,
-          bs_pl:entry.bs_pl??null, description:entry.description??null,
-          debit:+entry.debit||0, credit:+entry.credit||0,
-          usd_amount:(entry.usd_amount===''||entry.usd_amount==null)?null:(+entry.usd_amount||null),
-          exchange_rate:(entry.exchange_rate===''||entry.exchange_rate==null)?null:(+entry.exchange_rate||null),
+        var id = entry.id;
+        if(!id){ showToast("Error: no entry ID",false); return; }
+        function toNum(v){ return (v==='' || v===null || v===undefined) ? null : (Number(v)||null); }
+        var payload = {
+          entry_no:       entry.entry_no       || null,
+          entry_date:     entry.entry_date      || null,
+          month:          toNum(entry.month),
+          entry_type:     entry.entry_type      || null,
+          account_name:   entry.account_name    || null,
+          main_account:   entry.main_account    || null,
+          statement_type: entry.statement_type  || null,
+          bs_pl:          entry.bs_pl           || null,
+          description:    entry.description     || null,
+          debit:          Number(entry.debit)   || 0,
+          credit:         Number(entry.credit)  || 0,
+          usd_amount:     toNum(entry.usd_amount),
+          exchange_rate:  toNum(entry.exchange_rate),
         };
-        console.log("[Journal Save] id:", id, "payload:", JSON.stringify(payload));
-        const{error,data,status,statusText}=await supabase.from("journal_entries").update(payload).eq("id",id).select();
-        console.log("[Journal Save] response status:", status, statusText, "data:", data, "error:", error);
-        if(error){showToast("Error: "+error.message,false);console.error("[Journal Save] RLS/update error:", error);return;}
-        setJournalEntries(prev=>prev.map(e=>e.id===id?{...e,...payload,id}:e));
-        logAction("UPDATE","Journal","Updated entry #"+entry.entry_no,{id});
-        showToast("Journal entry saved ✓");
+        try {
+          var res = await supabase.from("journal_entries").update(payload).eq("id", id);
+          if(res.error){ showToast("Save failed: " + res.error.message, false); return; }
+          setJournalEntries(function(prev){ return prev.map(function(e){ return e.id===id ? Object.assign({},e,payload,{id:id}) : e; }); });
+          logAction("UPDATE","Journal","Updated entry #"+entry.entry_no,{id:id});
+          showToast("Journal entry saved ✓");
+        } catch(err) {
+          showToast("Error: " + err.message, false);
+          console.error("[Journal]", err);
+        }
       }}
     />
   )}
@@ -7409,7 +7418,7 @@ export default function App(){
     const actRows=entries.filter(e=>e.entry_type==="work"&&e.activity&&new Date(e.date).getMonth()===month&&new Date(e.date).getFullYear()===year).slice(0,30).map(e=>{
       const eng=engineers.find(x=>x.id===e.engineer_id);const proj=projects.find(x=>x.id===e.project_id);
       return`<tr><td style="font-size:11px">${e.date}</td><td>${eng?.name||""}</td>
-      <td style="color:#0ea5e9;font-size:11px">${proj?.id||""}</td>
+      <td style="font-size:11px;font-weight:600">${proj?proj.name:""} <span style="color:#0ea5e9;font-size:10px">(${proj?.id||""})</span></td>
       <td style="font-size:11px">${e.task_type||""}</td><td style="font-style:italic">${e.activity||""}</td><td>${e.hours}h</td></tr>`;}).join("");
     generatePDF(`Task Analysis — ${MONTHS[month]} ${year}`,[
       `<div class="section"><div class="st">Categories</div><table><thead><tr><th>Category</th><th>Hrs</th><th>Billable Hrs</th><th>Share</th><th>Tasks</th></tr></thead>
@@ -8006,7 +8015,7 @@ export default function App(){
                           <tr key={e.id} style={{background:checked?"#0d1e3440":"transparent"}}>
                             <td><input type="checkbox" checked={checked} onChange={()=>setSelectedEntries(prev=>{const n=new Set(prev);checked?n.delete(e.id):n.add(e.id);return n;})} style={{cursor:"pointer"}}/></td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                            <td style={{fontSize:13,color:"var(--info)"}}>{proj?.id||<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
+                            <td style={{fontSize:13}}>{proj?<><span style={{fontWeight:600}}>{proj.name||proj.id}</span><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:"var(--info)",marginLeft:4}}>({proj.id})</span></>:<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
                             <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type||"—"}</td>
                             <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
@@ -8923,7 +8932,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                           <tr key={p.id} style={rowStyle} onClick={()=>setInvoiceProjId(p.id)}>
                             <td style={{fontSize:13,fontWeight:600,color:notBillable?"var(--text3)":"var(--text0)"}}>{p.name||p.id}</td>
                       <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:notBillable?"var(--text3)":"var(--info)"}}>{p.id}</td>
-                            <td style={{fontSize:13,fontWeight:500,color:notBillable?"var(--text3)":"var(--text0)"}}>{p.name}</td>
+
                             <td style={{fontSize:13,color:"var(--text2)"}}>{p.client}</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"var(--text3)":"var(--text0)"}}>{p.hours}h</td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:needsRate?"#fb923c":notBillable?"var(--text3)":"var(--text2)"}}>
