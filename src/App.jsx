@@ -281,7 +281,7 @@ function buildTimesheetPDF(eng, monthEntries, projects, m, y){
     projMap[e.project_id].hours+=e.hours;
   });
   const projRows=Object.values(projMap).sort((a,b)=>b.hours-a.hours).map(p=>`<tr>
-    <td style="font-weight:600">${p.name||p.id}</td>
+    <td style="font-weight:600">${p.name||p.id}${p.pm?"<br><span style='font-size:10px;color:#8b5cf6'>PM: "+p.pm+"</span>":""}</td>
     <td style="font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-size:11px">${p.id}</td>
     <td style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#0ea5e9">${p.hours}h</td>
     <td>${totalW?Math.round(p.hours/totalW*100):0}%</td></tr>`).join("");
@@ -289,8 +289,8 @@ function buildTimesheetPDF(eng, monthEntries, projects, m, y){
     const p=projects.find(x=>x.id===e.project_id);
     return`<tr>
       <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${e.date}</td>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#0ea5e9">${p?.name||e.project_id||""}</td>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#94a3b8">${e.project_id||""}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#0ea5e9">${e.project_id||""}</td>
+      <td style="font-size:11px">${p?.name||""}</td>
       <td style="font-size:11px">${e.task_category||""}</td>
       <td style="font-size:11px">${e.task_type||""}</td>
       <td style="font-style:italic;font-size:11px;max-width:200px">${e.activity||""}</td>
@@ -313,7 +313,7 @@ function buildTimesheetPDF(eng, monthEntries, projects, m, y){
       <table><thead><tr><th>Project No.</th><th>Project Name</th><th>Hours</th><th>Share %</th></tr></thead>
       <tbody>${projRows||`<tr><td colspan="4" style="color:#94a3b8;text-align:center;padding:12px">No work entries for ${MONTHS[m]} ${y}</td></tr>`}</tbody></table></div>`,
       `<div class="section"><div class="st">Daily Work Log — ${MONTHS[m]} ${y}</div>
-      <table><thead><tr><th>Date</th><th>Project Name</th><th>Project No.</th><th>Category</th><th>Task</th><th>Activity Description</th><th>Hours</th></tr></thead>
+      <table><thead><tr><th>Date</th><th>Project No.</th><th>Project Name</th><th>Category</th><th>Task</th><th>Activity Description</th><th>Hours</th></tr></thead>
       <tbody>${entryRows||`<tr><td colspan="7" style="color:#94a3b8;text-align:center;padding:12px">No entries</td></tr>`}</tbody></table></div>`,
       leaveE.length>0?`<div class="section"><div class="st">Leave / Absence Log</div>
       <table><thead><tr><th>Date</th><th>Leave Type</th><th>Duration</th></tr></thead>
@@ -354,7 +354,7 @@ function buildInvoicePDF(projects, entries, engineers, m, y, filterId){
       return`<tr style="background:#f8fafc"><td style="padding-left:20px;font-size:11px;color:#64748b">↳ ${eng?.name||"Unknown"}</td><td></td><td style="font-size:11px;color:#64748b">${eh}h</td><td></td></tr>`;
     }).join("");
     return{p,hrs,rev,rows:`<tr style="background:#f0f7ff">
-      <td style="font-weight:600">${p.name||p.id}<br><span style="font-size:11px;color:#64748b">${p.client||""}</span></td>
+      <td style="font-weight:600">${p.name||p.id}<br>${p.pm?"<span style='font-size:10px;color:#8b5cf6'>PM: "+p.pm+"</span><br>":""}<span style="font-size:11px;color:#64748b">${p.client||""}</span></td>
       <td style="font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700;font-size:11px">${p.id}</td>
       <td style="font-family:'IBM Plex Mono',monospace;font-weight:700">${hrs}h</td>
       <td style="font-family:'IBM Plex Mono',monospace">$${p.rate_per_hour}/h</td>
@@ -1435,6 +1435,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                   {pm.proj.billable&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)"}}>BILLABLE</span>}
                 </div>
                 <div style={{fontSize:17,fontWeight:700,color:"var(--text0)"}}>{pm.proj.name}</div>
+                {pm.proj.pm&&<div style={{fontSize:13,color:"var(--text3)",marginTop:1}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{pm.proj.pm}</span></div>}
                 {pm.proj.client&&<div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Client: {pm.proj.client} · Phase: {pm.proj.phase||"—"}</div>}
               </div>
               <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
@@ -2371,6 +2372,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
               <div>
                 <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>{p.name||p.id}</div>
                 <div style={{fontSize:12,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{p.id}</div>
+                {p.pm&&<div style={{fontSize:11,color:"#a78bfa",marginTop:2}}>PM: <span style={{fontWeight:600}}>{p.pm}</span></div>}
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:barColor}}>{overallPct}%</div>
@@ -2750,8 +2752,9 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
                       transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>▶</button>
                 )}
               </td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.id}</td>
-              <td style={{fontSize:13,fontWeight:500}}>{p.name}</td>
+              <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</td>
+              <td style={{fontSize:13,color:"#a78bfa"}}>{p.pm||"—"}</td>
               <td style={{color:"var(--text2)",fontSize:13}}>{p.client}</td>
               <td style={{color:"#60a5fa",fontSize:13}}>{p.phase}</td>
               <td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontWeight:700,
@@ -3015,6 +3018,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
           <div>
             <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{proj?proj.name:g.pid}</div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)",marginTop:1}}>{g.pid}</div>
+            {proj&&proj.pm&&<div style={{fontSize:12,color:"var(--text3)",marginTop:1}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{proj.pm}</span></div>}
             {proj&&proj.phase&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span>{proj.status&&<span> · <span style={{color:proj.status==="Active"?"#34d399":"var(--text3)"}}>{proj.status}</span></span>}</div>}
           </div>
           <div style={{textAlign:"right"}}>
@@ -3116,7 +3120,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
         +"<div><div style='font-size:14px;font-weight:700'>"+(proj?proj.name:g.pid)+"</div>"
         +"<div style='font-size:10px;color:#93c5fd'>"+g.pid+(proj&&proj.pm?" · PM: "+proj.pm:"")+(proj&&proj.phase?" · "+proj.phase:"")+"</div></div>"
         +"<div style='text-align:right'><div style='font-size:20px;font-weight:800;color:#60a5fa'>"+g.tot+"h</div>"
-        +"<div style='font-size:10px;color:#93c5fd'>"+Object.keys(g.engs).length+" engineer(s)</div></div></div>"
+        +"<div style='font-size:10px;color:#93c5fd'>"+Object.keys(g.engs).length+" eng</div></div></div>"
         +"<table style='width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none'>"
         +"<thead><tr style='background:#f1f5f9'>"
         +"<th style='padding:5px 8px 5px 20px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>ENGINEER</th>"
@@ -3134,9 +3138,9 @@ function AssignmentReport({entries,projects,engineers,month,year}){
       +"<div style='font-size:11px;color:#64748b;margin-top:3px'>Generated: "+now+"</div></div>"
       +"<div style='text-align:right;font-size:11px;color:#64748b;line-height:1.9'>"
       +"<div>"+grouped.length+" projects · "+totEngs+" engineers</div>"
-      +"<div>Total: <b style='font-size:14px'>"+totHrs+"h</b></div></div></div>"
-      +(grouped.length===0?"<p style='text-align:center;color:#94a3b8'>No work entries found.</p>":blocks)
-      +"<div style='margin-top:22px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center'>ENEVO GROUP — "+now+"</div>"
+      +"<div>Total: <b>"+totHrs+"h</b></div></div></div>"
+      +(grouped.length===0?"<p style='text-align:center;color:#94a3b8'>No entries found.</p>":blocks)
+      +"<div style='margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center'>ENEVO GROUP — "+now+"</div>"
       +"</body></html>";
     var w=window.open("","_blank");
     if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
@@ -3152,17 +3156,16 @@ function AssignmentReport({entries,projects,engineers,month,year}){
               {[...new Set(workE.map(function(e){return e.project_id;}).filter(Boolean))].sort(function(a,b){
                 var pa=projects.find(function(p){return p.id===a;}); var pb=projects.find(function(p){return p.id===b;});
                 return (pa?pa.name:a).localeCompare(pb?pb.name:b);
-              }).map(function(pid){
-                var p=projects.find(function(x){return x.id===pid;});
-                return <option key={pid} value={pid}>{p?p.name:pid}</option>;
-              })}</select></div>
+              }).map(function(pid){var p=projects.find(function(x){return x.id===pid;});
+                return <option key={pid} value={pid}>{p?p.name:pid}</option>;})}
+            </select></div>
           <div><div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>ENGINEER</div>
             <select value={selEng} onChange={function(e){setSelEng(e.target.value);}}
               style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:160}}>
               <option value="ALL">All Engineers</option>
               {engineers.filter(function(e){return workE.some(function(x){return String(x.engineer_id)===String(e.id);});}).map(function(e){
-                return <option key={e.id} value={String(e.id)}>{e.name}</option>;
-              })}</select></div>
+                return <option key={e.id} value={String(e.id)}>{e.name}</option>;})}
+            </select></div>
         </div>
         <button className="bp" onClick={exportPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>&#11015; Export PDF</button>
       </div>
@@ -3187,7 +3190,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
           </div>
           <div style={{textAlign:"right"}}>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:"var(--info)"}}>{g.tot}h</div>
-            <div style={{fontSize:11,color:"var(--text4)"}}>{Object.keys(g.engs).length} engineer(s)</div>
+            <div style={{fontSize:11,color:"var(--text4)"}}>{Object.keys(g.engs).length} eng</div>
           </div>
         </div>
         {Object.entries(g.engs).sort(function(a,b){return b[1].hours-a[1].hours;}).map(function(kv){
@@ -5126,7 +5129,6 @@ const projProfit=projects.map(p=>{
           description:    entry.description     || null,
           debit:          Number(entry.debit)   || 0,
           credit:         Number(entry.credit)  || 0,
-          usd_amount:     toNum(entry.usd_amount),
         };
         try {
           var res = await supabase.from("journal_entries").update(payload).eq("id",id);
@@ -7561,7 +7563,7 @@ export default function App(){
     const actRows=entries.filter(e=>e.entry_type==="work"&&e.activity&&new Date(e.date).getMonth()===month&&new Date(e.date).getFullYear()===year).slice(0,30).map(e=>{
       const eng=engineers.find(x=>x.id===e.engineer_id);const proj=projects.find(x=>x.id===e.project_id);
       return`<tr><td style="font-size:11px">${e.date}</td><td>${eng?.name||""}</td>
-      <td style="font-size:11px"><span style="font-weight:600">${proj?.name||proj?.id||""}</span><span style="color:#0ea5e9;font-size:10px;margin-left:4px">${proj?("("+proj.id+")"):"" }</span></td>
+      <td style="color:#0ea5e9;font-size:11px">${proj?.id||""}</td>
       <td style="font-size:11px">${e.task_type||""}</td><td style="font-style:italic">${e.activity||""}</td><td>${e.hours}h</td></tr>`;}).join("");
     generatePDF(`Task Analysis — ${MONTHS[month]} ${year}`,[
       `<div class="section"><div class="st">Categories</div><table><thead><tr><th>Category</th><th>Hrs</th><th>Billable Hrs</th><th>Share</th><th>Tasks</th></tr></thead>
@@ -7583,9 +7585,9 @@ export default function App(){
       <tbody>${engStats.map(e=>`<tr><td><strong>${e.name}</strong><br><span style="font-size:11px;color:#64748b">${e.role||""}</span></td>
         <td>${fmtPct(e.utilization)}</td><td>${fmtPct(e.billability)}</td><td>${e.workHrs}h</td>
         <td style="color:#0ea5e9">${fmtCurrency(e.revenue)}</td><td>${e.leaveDays}d</td></tr>`).join("")}</tbody></table></div>`,
-      `<div class="section"><div class="st">Projects</div><table><thead><tr><th>Project Name</th><th>No.</th><th>Phase</th><th>Hours</th><th>Revenue</th></tr></thead>
+      `<div class="section"><div class="st">Projects</div><table><thead><tr><th>No.</th><th>Project</th><th>Phase</th><th>Hours</th><th>Revenue</th></tr></thead>
       <tbody>${projStats.filter(p=>p.hours>0).map(p=>`<tr>
-        <td style="font-weight:600">${p.name||p.id}</td><td style="color:#0ea5e9;font-size:11px;font-family:monospace">${p.id}</td><td>${p.phase||""}</td>
+        <td style="color:#0ea5e9;font-size:11px">${p.id}</td><td>${p.name}</td><td>${p.phase||""}</td>
         <td>${p.hours}h</td><td>${p.billable?fmtCurrency(p.revenue):"—"}</td></tr>`).join("")}</tbody></table></div>`],
       "Prepared for Senior Management");
   };
