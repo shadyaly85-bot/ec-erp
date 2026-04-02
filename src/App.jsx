@@ -310,10 +310,10 @@ function buildTimesheetPDF(eng, monthEntries, projects, m, y){
         <div class="kp"><div class="kv">${Object.keys(projMap).length}</div><div class="kl">Projects</div></div>
       </div></div>`,
       `<div class="section"><div class="st">Project Summary</div>
-      <table><thead><tr><th>Project Name</th><th>No.</th><th>Hours</th><th>Share %</th></tr></thead>
+      <table><thead><tr><th>Project No.</th><th>Project Name</th><th>Hours</th><th>Share %</th></tr></thead>
       <tbody>${projRows||`<tr><td colspan="4" style="color:#94a3b8;text-align:center;padding:12px">No work entries for ${MONTHS[m]} ${y}</td></tr>`}</tbody></table></div>`,
       `<div class="section"><div class="st">Daily Work Log — ${MONTHS[m]} ${y}</div>
-      <table><thead><tr><th>Date</th><th>Project Name</th><th>No.</th><th>Category</th><th>Task</th><th>Activity Description</th><th>Hours</th></tr></thead>
+      <table><thead><tr><th>Date</th><th>Project No.</th><th>Project Name</th><th>Category</th><th>Task</th><th>Activity Description</th><th>Hours</th></tr></thead>
       <tbody>${entryRows||`<tr><td colspan="7" style="color:#94a3b8;text-align:center;padding:12px">No entries</td></tr>`}</tbody></table></div>`,
       leaveE.length>0?`<div class="section"><div class="st">Leave / Absence Log</div>
       <table><thead><tr><th>Date</th><th>Leave Type</th><th>Duration</th></tr></thead>
@@ -390,7 +390,7 @@ function buildInvoicePDF(projects, entries, engineers, m, y, filterId){
         <div class="kp"><div class="kv">${projInvoice.length}</div><div class="kl">Projects Billed</div></div>
       </div></div>`,
       `<div class="section"><div class="st">Billable Services Detail</div>
-      <table><thead><tr><th>Project Name</th><th>No.</th><th>Project / Client</th><th>Hours</th><th>Rate</th><th>Amount</th></tr></thead>
+      <table><thead><tr><th>Project No.</th><th>Project / Client</th><th>Hours</th><th>Rate</th><th>Amount</th></tr></thead>
       <tbody>${projInvoice.map(x=>x.rows).join("")}
       <tr style="background:#0f2a50;color:#fff"><td colspan="2" style="font-weight:700;font-size:13px">TOTAL</td>
       <td style="font-family:'IBM Plex Mono',monospace;font-weight:700">${totalHrs}h</td><td></td>
@@ -590,6 +590,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,fontSize:13,marginBottom:10,color:"var(--text1)"}}>
+                {p.pm&&<div><span style={{color:"var(--text4)"}}>PM: </span><span style={{color:"#60a5fa",fontWeight:600}}>{p.pm}</span></div>}
                 {p.client&&<div><span style={{color:"var(--text4)"}}>Client: </span>{p.client}</div>}
                 {p.origin&&<div><span style={{color:"var(--text4)"}}>Origin: </span>{p.origin}</div>}
                 <div><span style={{color:"var(--text4)"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase||"—"}</span></div>
@@ -2731,7 +2732,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
       <table>
         <thead><tr>
           <th style={{width:28}}></th>
-          <th>Name</th><th>No.</th><th>Client</th><th>Phase</th>
+          <th>Name</th><th>No.</th><th>PM</th><th>Client</th><th>Phase</th>
           <th>Status</th><th>Billing</th><th>Hours</th>
           <th>Sub-sites</th>
           <th style={{width:110}}>Actions</th>
@@ -2751,6 +2752,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
               </td>
               <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{p.id}</td>
               <td style={{fontSize:13,fontWeight:500}}>{p.name}</td>
+              <td style={{fontSize:13,color:"#a78bfa"}}>{p.pm||"—"}</td>
               <td style={{color:"var(--text2)",fontSize:13}}>{p.client}</td>
               <td style={{color:"#60a5fa",fontSize:13}}>{p.phase}</td>
               <td><span style={{fontSize:11,padding:"2px 6px",borderRadius:3,fontWeight:700,
@@ -3014,6 +3016,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
           <div>
             <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{proj?proj.name:g.pid}</div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)",marginTop:1}}>{g.pid}</div>
+            {proj&&proj.pm&&<div style={{fontSize:12,color:"var(--text3)",marginTop:1}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{proj.pm}</span></div>}
             {proj&&proj.phase&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span>{proj.status&&<span> · <span style={{color:proj.status==="Active"?"#34d399":"var(--text3)"}}>{proj.status}</span></span>}</div>}
           </div>
           <div style={{textAlign:"right"}}>
@@ -3054,211 +3057,6 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
                   {pct>0&&<div style={{marginTop:6,background:"var(--bg3)",borderRadius:2,height:3,overflow:"hidden"}}>
                     <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:2}}/>
                   </div>}
-                </div>);
-              })}
-            </div>
-          </div>);
-        })}
-      </div>);
-    })}
-  </div>
-  );
-}
-
-
-/* ═══════════════════════════════════════════════════════════
-   ASSIGNMENT REPORT — Current project/task assignments
-   ═══════════════════════════════════════════════════════════ */
-function AssignmentReport({entries, projects, engineers, MONTHS, month, year}){
-  const [filterProj, setFilterProj] = React.useState("ALL");
-  const [filterEng,  setFilterEng]  = React.useState("ALL");
-  const [filterStatus, setFilterStatus] = React.useState("ALL");
-
-  // Get current month entries
-  const currentEntries = React.useMemo(()=>{
-    return entries.filter(function(e){
-      var d = new Date(e.date+"T12:00:00");
-      if(d.getFullYear()!==year || d.getMonth()+1!==month) return false;
-      if(e.entry_type!=="work") return false;
-      if(filterProj!=="ALL" && e.project_id!==filterProj) return false;
-      if(filterEng!=="ALL" && String(e.engineer_id)!==String(filterEng)) return false;
-      return true;
-    });
-  },[entries,year,month,filterProj,filterEng]);
-
-  // Group by project → engineer → tasks
-  const grouped = React.useMemo(()=>{
-    var map={};
-    currentEntries.forEach(function(e){
-      var pid = e.project_id||"Unknown";
-      if(!map[pid]) map[pid]={engineers:{}};
-      var eid = String(e.engineer_id);
-      if(!map[pid].engineers[eid]) map[pid].engineers[eid]={tasks:{},hours:0};
-      var task = e.task_type||"General";
-      if(!map[pid].engineers[eid].tasks[task]) map[pid].engineers[eid].tasks[task]={hours:0,activities:[]};
-      map[pid].engineers[eid].tasks[task].hours += e.hours;
-      map[pid].engineers[eid].hours += e.hours;
-      if(e.activity && !map[pid].engineers[eid].tasks[task].activities.includes(e.activity)){
-        map[pid].engineers[eid].tasks[task].activities.push(e.activity);
-      }
-    });
-    // Sort projects by hours desc
-    return Object.entries(map).map(function(kv){
-      return {pid:kv[0], data:kv[1]};
-    }).sort(function(a,b){
-      var ha=Object.values(a.data.engineers).reduce(function(s,x){return s+x.hours;},0);
-      var hb=Object.values(b.data.engineers).reduce(function(s,x){return s+x.hours;},0);
-      return hb-ha;
-    });
-  },[currentEntries]);
-
-  var totalEngineers = new Set(currentEntries.map(function(e){return e.engineer_id;})).size;
-  var totalHours = currentEntries.reduce(function(s,e){return s+e.hours;},0);
-  var totalProjects = grouped.length;
-
-  var MONTH_NAMES=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-  var buildPDF = function(){
-    var now = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-    var periodLabel = (MONTH_NAMES[month-1]||"") + " " + year;
-    var projBlocks = grouped.map(function(g){
-      var proj = projects.find(function(p){return p.id===g.pid;});
-      var projHours = Object.values(g.data.engineers).reduce(function(s,x){return s+x.hours;},0);
-      var engRows = Object.entries(g.data.engineers).map(function(kv){
-        var eid=kv[0]; var edata=kv[1];
-        var eng = engineers.find(function(e){return String(e.id)===eid;});
-        var taskRows = Object.entries(edata.tasks).map(function(tkv){
-          var task=tkv[0]; var tdata=tkv[1];
-          return "<tr><td style='padding:4px 8px 4px 40px;font-size:11px;color:#475569'>"+task+"</td>"
-            +"<td style='padding:4px 8px;font-size:11px;color:#64748b;font-style:italic'>"+(tdata.activities.slice(0,2).join(", ") || "")+"</td>"
-            +"<td style='padding:4px 8px;font-size:11px;text-align:right;font-family:monospace;color:#1d4ed8'>"+tdata.hours+"h</td></tr>";
-        }).join("");
-        return "<tr style='border-top:1px solid #e2e8f0'>"
-          +"<td style='padding:5px 8px 5px 20px;font-size:12px;font-weight:600;color:#1e293b'>"+(eng?eng.name:eid)+"</td>"
-          +"<td style='padding:5px 8px;font-size:11px;color:#64748b'>"+(eng?eng.role||"":"")+"</td>"
-          +"<td style='padding:5px 8px;text-align:right;font-family:monospace;font-weight:700;color:#1d4ed8'>"+edata.hours+"h</td></tr>"
-          +taskRows;
-      }).join("");
-      return "<div style='margin-bottom:18px;page-break-inside:avoid'>"
-        +"<div style='background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:9px 14px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between;align-items:center'>"
-        +"<div><div style='font-size:14px;font-weight:700'>"+(proj?proj.name:g.pid)+"</div>"
-        +"<div style='font-size:10px;color:#93c5fd;margin-top:1px'>"+g.pid+(proj&&proj.phase?" · "+proj.phase:"")+"</div></div>"
-        +"<div style='text-align:right'><div style='font-size:20px;font-weight:800;color:#60a5fa'>"+projHours+"h</div>"
-        +"<div style='font-size:10px;color:#93c5fd'>"+Object.keys(g.data.engineers).length+" engineer(s)</div></div></div>"
-        +"<table style='width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none;font-family:Arial,sans-serif'>"
-        +"<thead><tr style='background:#f1f5f9'>"
-        +"<th style='padding:5px 8px 5px 20px;text-align:left;font-size:10px;color:#64748b;border-bottom:1px solid #e2e8f0'>ENGINEER</th>"
-        +"<th style='padding:5px 8px;text-align:left;font-size:10px;color:#64748b;border-bottom:1px solid #e2e8f0'>ROLE</th>"
-        +"<th style='padding:5px 8px;text-align:right;font-size:10px;color:#64748b;border-bottom:1px solid #e2e8f0'>HOURS</th>"
-        +"</tr></thead><tbody>"+engRows+"</tbody></table></div>";
-    }).join("");
-    var html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Assignment Report</title>"
-      +"<style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}@media print{body{padding:0}@page{margin:10mm}}</style>"
-      +"</head><body>"
-      +"<div style='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f'>"
-      +"<div><div style='font-size:20px;font-weight:800;color:#1e3a5f'>ENEVO GROUP</div>"
-      +"<div style='font-size:15px;font-weight:700;color:#334155;margin-top:2px'>Assignment Report</div>"
-      +"<div style='font-size:11px;color:#64748b;margin-top:3px'>Period: <b>"+periodLabel+"</b> · Generated: "+now+"</div></div>"
-      +"<div style='text-align:right;font-size:11px;color:#64748b;line-height:1.8'>"
-      +"<div>"+totalProjects+" projects · "+totalEngineers+" engineers</div>"
-      +"<div>Total Hours: <b style='font-size:14px'>"+totalHours+"h</b></div></div></div>"
-      +(grouped.length===0?"<p style='text-align:center;color:#94a3b8;padding:30px'>No work entries found.</p>":projBlocks)
-      +"<div style='margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center'>ENEVO GROUP — Confidential — "+now+"</div>"
-      +"</body></html>";
-    var blob=new Blob([html],{type:"text/html"});
-    var url=URL.createObjectURL(blob);
-    var a=document.createElement("a");a.href=url;a.target="_blank";a.click();
-    setTimeout(function(){URL.revokeObjectURL(url);},5000);
-  };
-
-  return(
-  <div>
-    {/* Controls */}
-    <div className="card" style={{marginBottom:14}}>
-      <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",justifyContent:"space-between"}}>
-        <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>PROJECT</div>
-            <select value={filterProj} onChange={function(e){setFilterProj(e.target.value);}}
-              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:200}}>
-              <option value="ALL">All Projects</option>
-              {[...new Set(currentEntries.map(function(e){return e.project_id;}))].filter(Boolean).sort(function(a,b){
-                var na=projects.find(function(p){return p.id===a;}); var nb=projects.find(function(p){return p.id===b;});
-                return (na?na.name:a).localeCompare(nb?nb.name:b);
-              }).map(function(pid){
-                var p=projects.find(function(x){return x.id===pid;});
-                return <option key={pid} value={pid}>{p?p.name:pid}</option>;
-              })}
-            </select>
-          </div>
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:"var(--text3)",marginBottom:5}}>ENGINEER</div>
-            <select value={filterEng} onChange={function(e){setFilterEng(e.target.value);}}
-              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:180}}>
-              <option value="ALL">All Engineers</option>
-              {engineers.filter(function(e){return currentEntries.some(function(x){return String(x.engineer_id)===String(e.id);});}).map(function(e){
-                return <option key={e.id} value={String(e.id)}>{e.name}</option>;
-              })}
-            </select>
-          </div>
-        </div>
-        <button className="bp" onClick={buildPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>⬇ Export PDF</button>
-      </div>
-    </div>
-
-    {/* KPI Summary */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-      {[
-        {l:"Active Projects",v:totalProjects,c:"var(--info)"},
-        {l:"Engineers Assigned",v:totalEngineers,c:"#34d399"},
-        {l:"Total Hours",v:totalHours+"h",c:"#a78bfa"},
-      ].map(function(k){return(
-        <div key={k.l} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:k.c,lineHeight:1}}>{k.v}</div>
-          <div style={{fontSize:11,color:"var(--text4)",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{k.l}</div>
-        </div>
-      );})}
-    </div>
-
-    {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No work entries for {MONTH_NAMES[month-1]} {year}.</div>}
-
-    {/* Project blocks */}
-    {grouped.map(function(g){
-      var proj=projects.find(function(p){return p.id===g.pid;});
-      var projHours=Object.values(g.data.engineers).reduce(function(s,x){return s+x.hours;},0);
-      return(
-      <div key={g.pid} className="card" style={{marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,paddingBottom:10,borderBottom:"1px solid var(--border3)"}}>
-          <div>
-            <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{proj?proj.name:g.pid}</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)",marginTop:1}}>{g.pid}</div>
-            {proj&&proj.phase&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Phase: {proj.phase}</div>}
-          </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:"var(--info)"}}>{projHours}h</div>
-            <div style={{fontSize:11,color:"var(--text4)"}}>{Object.keys(g.data.engineers).length} engineer(s)</div>
-          </div>
-        </div>
-        {Object.entries(g.data.engineers).sort(function(a,b){return b[1].hours-a[1].hours;}).map(function(kv){
-          var eid=kv[0]; var edata=kv[1];
-          var eng=engineers.find(function(e){return String(e.id)===eid;});
-          return(
-          <div key={eid} style={{marginBottom:10,background:"var(--bg2)",borderRadius:6,padding:"9px 12px",border:"1px solid var(--border3)"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <div>
-                <span style={{fontSize:13,fontWeight:600,color:"var(--text0)"}}>{eng?eng.name:eid}</span>
-                {eng&&<span style={{fontSize:11,color:"var(--text4)",marginLeft:8}}>{eng.role}</span>}
-              </div>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:"var(--info)"}}>{edata.hours}h</span>
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {Object.entries(edata.tasks).map(function(tkv){
-                var task=tkv[0]; var tdata=tkv[1];
-                return(
-                <div key={task} style={{background:"var(--bg3)",borderRadius:4,padding:"3px 8px",fontSize:11}}>
-                  <span style={{color:"var(--text2)",fontWeight:600}}>{task}</span>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",marginLeft:5}}>{tdata.hours}h</span>
-                  {tdata.activities.length>0&&<span style={{color:"var(--text4)",marginLeft:4,fontStyle:"italic"}}>{tdata.activities[0].substring(0,30)}{tdata.activities[0].length>30?"…":""}</span>}
                 </div>);
               })}
             </div>
@@ -5000,7 +4798,7 @@ function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, set
   setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
   deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior, isAcct,
   journalEntries, setJournalEntries, fixedAssets, journalLoading, assetsLoading,
-  finSubTab, setFinSubTab, accounts, showToast, logAction, supabase}){
+  finSubTab, setFinSubTab, accounts}){
 
   const derived = useMemo(()=>{
     const activeStaff=staff.filter(s=>s.active!==false);
@@ -5183,7 +4981,6 @@ const projProfit=projects.map(p=>{
           account_name:   entry.account_name    || null,
           main_account:   entry.main_account    || null,
           statement_type: entry.statement_type  || null,
-          bs_pl:          entry.bs_pl           || null,
           description:    entry.description     || null,
           debit:          Number(entry.debit)   || 0,
           credit:         Number(entry.credit)  || 0,
@@ -6193,7 +5990,7 @@ export default function App(){
   const [newExp,setNewExp]                 = useState({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:null,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});
   const [entryFilter,setEntryFilter]       = useState({engineer:"ALL",project:"ALL",month:today.getMonth(),year:today.getFullYear()});
   const [newEntry,setNewEntry]   = useState({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
-  const [newProj,setNewProj]     = useState({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
+  const [newProj,setNewProj]     = useState({id:"",name:"",type:"Renewable Energy",pm:"",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
   const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
 
   const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3500);};
@@ -6213,7 +6010,7 @@ export default function App(){
         if(error){
           console.error("[ActivityLog] Insert failed:",error.message,"| payload:",entry);
         } else if(data){
-          setActivityLog(prev=>[{...entry,id:data[0]?.id,created_at:new Date().toISOString()},...prev].slice(0,5000));
+          setActivityLog(prev=>[{...entry,id:data[0]?.id,created_at:new Date().toISOString()},...prev].slice(0,2000));
         }
       });
   },[session,myProfile]);
@@ -6351,7 +6148,7 @@ export default function App(){
       // Load activity log for admin — use profR.data directly (myProfile state is stale here)
       if(profR.data?.role_type==="admin"){
         setLogLoading(true);
-        supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(5000)
+        supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
           .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
       }
       // Timesheet alerts: checked via checkTimesheetAlerts called from useEffect below
@@ -7266,7 +7063,7 @@ export default function App(){
     if(error){showToast("Error: "+error.message,false);return;}
     setProjects(prev=>[...prev,data].sort((a,b)=>a.id.localeCompare(b.id)));
     setShowProjModal(false);
-    setNewProj({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
+    setNewProj({id:"",name:"",type:"Renewable Energy",pm:"",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
     showToast("Project created ✓");
     logAction("CREATE","Project",`Created project ${newProj.id} — ${newProj.name}`,{project_id:newProj.id,name:newProj.name});
   };
@@ -8550,8 +8347,8 @@ export default function App(){
                             const kids = children(node.id);
                             return (
                               <td key={node.id} style={{
-                                verticalAlign:"top", padding:"0 12px",
-                                textAlign:"center",
+                                verticalAlign:"top", padding:"0 8px",
+                                textAlign:"center", minWidth:180,
                                 borderTop: (!solo && depth>0) ? `2px solid ${CONN}` : "none",
                               }}>
                                 {/* vertical stub from top border down to card */}
@@ -8683,7 +8480,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     {/* Chart */}
                     {orgNodes.length>0&&(
                       <div style={{overflowX:"auto",paddingBottom:20}}>
-                        <div style={{minWidth:600,display:"flex",flexDirection:"column",alignItems:"center",gap:0,paddingTop:8}}>
+                        <div style={{minWidth:600,overflowX:"auto",display:"flex",flexDirection:"column",alignItems:"center",gap:0,paddingTop:8,paddingBottom:10}}>
                           {/* Top-level drop zone */}
                           {orgEditing&&(
                             <div onDragOver={e=>e.preventDefault()}
@@ -8838,7 +8635,6 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   {id:"task",icon:"⊟",label:"Task Analysis",desc:"Task categories & activity log",show:true},
                   {id:"projtasks",icon:"◈",label:"Project Analysis",desc:"Per-project hours, tasks & engineer breakdown",show:isAdmin||isAcct||isLead||isSenior},
                   {id:"tracker",icon:"📊",label:"Tracker Report",desc:"Activity progress — status, notes & phases by project",show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"assignment",icon:"👥",label:"Assignment Report",desc:"Current project & task assignments per engineer",show:isAdmin||isLead||isAcct||isSenior},
                   {id:"vacation",icon:"✈",label:"Vacation Report",desc:"Leave & absence summary per engineer",show:true},
                   {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct||isSenior},
                   {id:"invoice",icon:"🧾",label:"Invoice Export",desc:"Billable invoice per month",show:canInvoice},
@@ -9044,10 +8840,6 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 
               {activeRpt==="tracker"&&(
                 <TrackerProgressReport activities={activities} projects={projects} subprojects={subprojects} engineers={engineers}/>
-              )}
-
-              {activeRpt==="assignment"&&(
-                <AssignmentReport entries={entries} projects={projects} engineers={engineers} MONTHS={MONTHS} month={month} year={year}/>
               )}
 
            {/* Vacation Report */}
@@ -9516,7 +9308,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   journalEntries={journalEntries} setJournalEntries={setJournalEntries}
                   fixedAssets={fixedAssets} journalLoading={journalLoading}
                   assetsLoading={assetsLoading} finSubTab={finSubTab} setFinSubTab={setFinSubTab}
-                  accounts={accounts} showToast={showToast} logAction={logAction} supabase={supabase}/>
+                  accounts={accounts}/>
               )}
 
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
@@ -9603,7 +9395,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   setRetentionDays={setRetentionDays}
                   onRefresh={()=>{
                     setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(5000)
+                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
                       .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
                   }}
                   onArchive={async()=>{
@@ -9615,7 +9407,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:r.archived_count,deleted:r.deleted_count});
                     // Reload live log after archive
                     setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(5000)
+                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
                       .then(({data:liveData})=>{ if(liveData) setActivityLog(liveData); setLogLoading(false); });
                     // Reset archive cache so next "Load Archive" gets fresh data
                     setArchiveLog([]); setArchiveLoaded(false);
@@ -10134,7 +9926,8 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 <div><Lbl>Phase</Lbl><select value={newProj.phase} onChange={e=>setNewProj(p=>({...p,phase:e.target.value}))}>{PHASES.map(ph=><option key={ph}>{ph}</option>)}</select></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Client</Lbl><input value={newProj.client} onChange={e=>setNewProj(p=>({...p,client:e.target.value}))}/></div>
+                <div><Lbl>Project Manager (PM)</Lbl><input value={newProj.pm||""} onChange={e=>setNewProj(p=>({...p,pm:e.target.value}))} placeholder="e.g. Ahmed Farahat" style={{width:"100%",boxSizing:"border-box"}}/></div>
+              <div><Lbl>Client</Lbl><input value={newProj.client} onChange={e=>setNewProj(p=>({...p,client:e.target.value}))}/></div>
                 <div><Lbl>Origin (HQ / BU)</Lbl><input value={newProj.origin} onChange={e=>setNewProj(p=>({...p,origin:e.target.value}))}/></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
