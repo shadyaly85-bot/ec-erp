@@ -704,6 +704,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
     ["Project ID",p.id],
     ["Project Name",p.name],
     ["Client",p.client||"—"],
+    ["Project Manager",p.pm||"—"],
     ["Phase",p.phase||"—"],
     ["Status",p.status||"—"],
     ["Type",p.type||"—"],
@@ -1086,7 +1087,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
         <div>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.18em;color:#38bdf8;margin-bottom:5px;font-weight:700">${idx+1} of ${projList.length}  ·  ${p.id}</div>
           <div style="font-size:20px;font-weight:700;color:#ffffff;margin-bottom:4px;letter-spacing:-.01em">${p.name||p.id}</div>
-          <div style="font-size:12px;color:#94a3b8;margin-top:2px;font-weight:500">${p.client?"Client: "+p.client+"  ·  ":""} Phase: ${p.phase||"—"}${p.type?"  ·  "+p.type:""}</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:2px;font-weight:500">${p.client?"Client: "+p.client+"  ·  ":""} Phase: ${p.phase||"—"}${p.type?"  ·  "+p.type:""}${p.pm?"  ·  PM: "+p.pm:""}</div>
         </div>
         <div style="text-align:right">
           <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:#38bdf8;line-height:1">${pm.totalHrs}h</div>
@@ -7767,9 +7768,9 @@ export default function App(){
       <tbody>${engStats.map(e=>`<tr><td><strong>${e.name}</strong><br><span style="font-size:11px;color:#64748b">${e.role||""}</span></td>
         <td>${fmtPct(e.utilization)}</td><td>${fmtPct(e.billability)}</td><td>${e.workHrs}h</td>
         <td style="color:#0ea5e9">${fmtCurrency(e.revenue)}</td><td>${e.leaveDays}d</td></tr>`).join("")}</tbody></table></div>`,
-      `<div class="section"><div class="st">Projects</div><table><thead><tr><th>No.</th><th>Project</th><th>Phase</th><th>Hours</th><th>Revenue</th></tr></thead>
+      `<div class="section"><div class="st">Projects</div><table><thead><tr><th>No.</th><th>Project</th><th>PM</th><th>Phase</th><th>Hours</th><th>Revenue</th></tr></thead>
       <tbody>${projStats.filter(p=>p.hours>0).map(p=>`<tr>
-        <td style="color:#0ea5e9;font-size:11px">${p.id}</td><td>${p.name}</td><td>${p.phase||""}</td>
+        <td style="color:#0ea5e9;font-size:11px">${p.id}</td><td>${p.name}</td><td style="color:#a78bfa;font-size:11px">${p.pm||"—"}</td><td>${p.phase||""}</td>
         <td>${p.hours}h</td><td>${p.billable?fmtCurrency(p.revenue):"—"}</td></tr>`).join("")}</tbody></table></div>`],
       "Prepared for Senior Management");
   };
