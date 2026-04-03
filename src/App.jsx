@@ -6159,7 +6159,9 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
   const selKPI = kpiEngId ? engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)) : null;
 
 
-  const alertNotifs = (notifications||[]).filter(n=>n.type==="timesheet_alert"&&!n.read);
+  const alertNotifs  = (notifications||[]).filter(n=>n.type==="timesheet_alert"&&!n.read);
+  const overdueNotif = (notifications||[]).find(n=>n.type==="overdue_alert");
+  const overdueMeta  = overdueNotif ? (()=>{try{return JSON.parse(overdueNotif.meta||"{}");}catch{return {};}})() : null;
 
   return(
 <div style={{display:"grid",gap:14}}>
@@ -6209,6 +6211,20 @@ const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
           <button className="bg" style={{fontSize:11,padding:"2px 6px"}} onClick={()=>onDismissNotif&&onDismissNotif(n.id)}>Dismiss</button>
         </div>
       ))}
+    </div>
+  </div>)}
+
+  {/* Overdue activity alert */}
+  {overdueNotif&&overdueMeta&&(
+  <div className="card" style={{borderColor:"#fb923c50"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#fb923c"}}>⚠ OVERDUE TRACKER ACTIVITIES — {overdueMeta.count} item{overdueMeta.count!==1?"s":""} past deadline</div>
+      <button className="bg" style={{fontSize:11,padding:"2px 8px",borderColor:"#fb923c50",color:"#fb923c"}}
+        onClick={()=>onDismissNotif&&onDismissNotif(overdueNotif.id)}>Dismiss</button>
+    </div>
+    <div style={{fontSize:12,color:"var(--text3)"}}>
+      Activities with a passed deadline that are still In Progress. Review in the Projects → Tracker tab.
+      {overdueMeta.projects?.length>0&&<span style={{color:"var(--text4)"}}> Projects affected: {overdueMeta.projects.join(", ")}</span>}
     </div>
   </div>)}
 
@@ -6554,7 +6570,14 @@ export default function App(){
   const [newProj,setNewProj]     = useState({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
   const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
 
-  const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3500);};
+  const _toastTimer = React.useRef(null);
+  const showToast=(msg,ok=true,undoFn=null)=>{
+    if(_toastTimer.current) clearTimeout(_toastTimer.current);
+    const duration = undoFn ? 5000 : 3500;
+    setToast({msg,ok,undoFn});
+    _toastTimer.current = setTimeout(()=>setToast(null), duration);
+  };
+  const dismissToast=()=>{ if(_toastTimer.current) clearTimeout(_toastTimer.current); setToast(null); };
 
   // Global Escape key — closes topmost open modal (placed here so all state vars are in scope)
   useEffect(()=>{
@@ -6647,6 +6670,16 @@ export default function App(){
   const viewEngId = canEditAny ? (browseEngId||myProfile?.id) : myProfile?.id;
   const viewEng   = engineers.find(e=>e.id===viewEngId);
 
+  // Hash routing — sync URL hash ↔ view state so refresh restores position
+  useEffect(()=>{
+    const hash = window.location.hash.slice(1);
+    const valid = ["dashboard","timesheet","projects","team","reports","admin","import"];
+    if(hash && valid.includes(hash)) setView(hash);
+  },[]); // eslint-disable-line
+  useEffect(()=>{
+    if(session) window.location.hash = view;
+  },[view,session]);
+
   /* ── AUTH ── */
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setAuthLoading(false);});
@@ -6654,6 +6687,47 @@ export default function App(){
     return ()=>subscription.unsubscribe();
   },[]);
   useEffect(()=>{if(session)loadAll();},[session]);
+
+  // Real-time sync — keep data current when teammates make changes
+  useEffect(()=>{
+    if(!session) return;
+    const cutoff=(()=>{const d=new Date();d.setMonth(d.getMonth()-18);return d.toISOString().slice(0,10);})();
+    const myId = session.user.id;
+    const ch = supabase.channel("erp-realtime-"+myId)
+      // time_entries
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"time_entries"},({new:row})=>{
+        if(row.date < cutoff) return; // outside our window
+        setEntries(prev=>prev.some(e=>e.id===row.id)?prev:[row,...prev]);
+      })
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"time_entries"},({new:row})=>{
+        setEntries(prev=>prev.map(e=>e.id===row.id?row:e));
+      })
+      .on("postgres_changes",{event:"DELETE",schema:"public",table:"time_entries"},({old:row})=>{
+        setEntries(prev=>prev.filter(e=>e.id!==row.id));
+      })
+      // project_activities
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"project_activities"},({new:row})=>{
+        setActivities(prev=>prev.some(a=>a.id===row.id)?prev:[...prev,row]);
+      })
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"project_activities"},({new:row})=>{
+        setActivities(prev=>prev.map(a=>a.id===row.id?row:a));
+      })
+      .on("postgres_changes",{event:"DELETE",schema:"public",table:"project_activities"},({old:row})=>{
+        setActivities(prev=>prev.filter(a=>a.id!==row.id));
+      })
+      // projects
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"projects"},({new:row})=>{
+        setProjects(prev=>prev.some(p=>p.id===row.id)?prev:[...prev,row].sort((a,b)=>a.id.localeCompare(b.id)));
+      })
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"projects"},({new:row})=>{
+        setProjects(prev=>prev.map(p=>p.id===row.id?row:p));
+      })
+      .on("postgres_changes",{event:"DELETE",schema:"public",table:"projects"},({old:row})=>{
+        setProjects(prev=>prev.filter(p=>p.id!==row.id));
+      })
+      .subscribe();
+    return ()=>{ supabase.removeChannel(ch); };
+  },[session]); // eslint-disable-line
   // Load SheetJS once on mount
   useEffect(()=>{
     if(window.XLSX){setXlsxReady(true);return;}
@@ -6670,7 +6744,8 @@ export default function App(){
       const [engsR,projR,entrR,profR,notifR,staffR,expR,journalR,assetsR,accountsR]=await Promise.all([
         supabase.from("engineers").select("*").order("name"),
         supabase.from("projects").select("*").order("id"),
-        supabase.from("time_entries").select("*").order("date",{ascending:false}),
+        supabase.from("time_entries").select("*").order("date",{ascending:false})
+          .gte("date",(()=>{const d=new Date();d.setMonth(d.getMonth()-18);return d.toISOString().slice(0,10);})()),
         supabase.from("engineers").select("*").eq("user_id",session.user.id).single(),
         supabase.from("notifications").select("*").order("created_at",{ascending:false}),
         supabase.from("staff").select("*").order("name"),
@@ -7030,12 +7105,22 @@ export default function App(){
   const deleteEntry=async(id, engineerId)=>{
     if(!canEditAny && String(engineerId)!==String(myProfile?.id)) { showToast("You can only delete your own entries",false); return; }
     showConfirm("This time entry will be permanently removed.", async()=>{
-      const {error}=await supabase.from("time_entries").delete().eq("id",id);
-      if(error){showToast("Error",false);return;}
+      const entry = entries.find(e=>e.id===id);
+      // Remove from UI immediately
       setEntries(prev=>prev.filter(e=>e.id!==id));
       const _delEngName = engineers.find(e=>String(e.id)===String(engineerId))?.name||engineerId;
       const _delOnBehalf = String(engineerId)!==String(myProfile?.id) ? ` on behalf of ${_delEngName}` : "";
-      showToast("Deleted",false);
+      // Show undo toast — DB delete fires after 5s unless undone
+      let undone = false;
+      showToast("Entry deleted", false, ()=>{
+        undone = true;
+        setEntries(prev=>prev.some(e=>e.id===id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date)));
+        showToast("Undo successful ✓");
+      });
+      await new Promise(r=>setTimeout(r,5100));
+      if(undone) return;
+      const {error}=await supabase.from("time_entries").delete().eq("id",id);
+      if(error){ setEntries(prev=>prev.some(e=>e.id===id)?prev:[entry,...prev]); showToast("Error deleting",false); return; }
       logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_delOnBehalf}`,{id,engineer_id:engineerId,engineer_name:_delEngName});
     },{title:"Delete Time Entry",confirmLabel:"Delete"});
   };
@@ -7132,10 +7217,33 @@ export default function App(){
     if(alertsRanRef.current) return;
     if(!engineers.length||!entries.length) return;
     alertsRanRef.current = true;
-    // Capture notifications snapshot NOW so checkTimesheetAlerts skips already-shown alerts
     const notifSnapshot = notifications.slice();
     setTimeout(()=>checkTimesheetAlerts(engineers,entries,staff,notifSnapshot),1500);
-  },[session,engineers.length,entries.length]); // eslint-disable-line
+    // Check for overdue tracker activities (not completed, past end_date)
+    setTimeout(()=>{
+      const todayStr = new Date().toISOString().slice(0,10);
+      const overdue = activities.filter(a=>
+        a.end_date && a.end_date < todayStr &&
+        a.status !== "Completed" && a.status !== "On Hold"
+      );
+      if(overdue.length > 0){
+        const key = "overdue_activities_" + todayStr;
+        const dismissed = new Set(JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"));
+        if(!dismissed.has(key)){
+          setNotifications(prev=>{
+            if(prev.some(n=>n.type==="overdue_alert")) return prev;
+            return [...prev,{
+              id:"overdue_"+Date.now(), type:"overdue_alert", read:false,
+              created_at:new Date().toISOString(),
+              meta:JSON.stringify({alert_key:key, count:overdue.length,
+                projects:[...new Set(overdue.map(a=>a.project_id))].slice(0,3)
+              })
+            }];
+          });
+        }
+      }
+    },2500);
+  },[session,engineers.length,entries.length,activities.length]); // eslint-disable-line
 
   /* ── FINANCE CRUD ── */
   const STAFF_DEPTS=["Engineering","Management","Finance","Operations","IT","Administration","Other"];
@@ -8595,6 +8703,159 @@ export default function App(){
                   ))}</tbody>
                 </table>
               </div>
+              {/* ── Upcoming Deadlines + Engineer Availability ── */}
+              {(isAdmin||isLead)&&activitiesLoaded&&(()=>{
+                const todayStr = new Date().toISOString().slice(0,10);
+                const in14     = new Date(); in14.setDate(in14.getDate()+14);
+                const in14Str  = in14.toISOString().slice(0,10);
+
+                // Upcoming: not completed, has end_date, within next 14 days
+                const upcoming = activities
+                  .filter(a=>a.end_date && a.end_date >= todayStr && a.end_date <= in14Str && a.status!=="Completed")
+                  .sort((a,b)=>a.end_date.localeCompare(b.end_date));
+
+                // Overdue: past end_date, not completed, not on hold
+                const overdue = activities
+                  .filter(a=>a.end_date && a.end_date < todayStr && a.status!=="Completed" && a.status!=="On Hold")
+                  .sort((a,b)=>a.end_date.localeCompare(b.end_date));
+
+                // Workload forecast: current month remaining workdays × 8h target per engineer
+                const today2    = new Date();
+                const daysLeft  = (()=>{
+                  let count=0;
+                  const t=new Date(today2);
+                  const end=new Date(year,month+1,0);
+                  while(t<=end){if(t.getDay()!==5&&t.getDay()!==6)count++;t.setDate(t.getDate()+1);}
+                  return count;
+                })();
+                const hrsLeft = daysLeft*8;
+
+                // Per-engineer: hours logged this month vs target, and remaining capacity
+                const engWorkload = engStats.map(eng=>{
+                  const logged  = eng.workHrs;
+                  const target  = eng.targetHrs||0;
+                  const remaining = Math.max(0, target - logged);
+                  const availPct  = target>0 ? Math.round(remaining/target*100) : 0;
+                  return {...eng, logged, target, remaining, availPct};
+                }).filter(e=>e.target>0).sort((a,b)=>b.availPct-a.availPct);
+
+                const fmtDeadlineDate = d => {
+                  const dt = new Date(d+"T12:00:00");
+                  const diff = Math.round((dt-new Date(todayStr+"T12:00:00"))/(1000*60*60*24));
+                  if(diff===0) return {label:"Today",c:"#f87171"};
+                  if(diff===1) return {label:"Tomorrow",c:"#fb923c"};
+                  if(diff<=7)  return {label:`In ${diff}d`,c:"#fb923c"};
+                  return {label:`In ${diff}d`,c:"var(--text3)"};
+                };
+
+                return(
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+
+                  {/* Upcoming Deadlines widget */}
+                  <div className="card" style={{padding:0,overflow:"hidden"}}>
+                    <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border3)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>
+                        📅 Upcoming Deadlines
+                        <span style={{fontSize:11,color:"var(--text4)",fontWeight:400,marginLeft:8}}>Next 14 days</span>
+                      </div>
+                      {overdue.length>0&&(
+                        <span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:"#f8711820",border:"1px solid #f8711840",color:"#f87171",fontWeight:700}}>
+                          ⚠ {overdue.length} overdue
+                        </span>
+                      )}
+                    </div>
+                    <div style={{maxHeight:280,overflowY:"auto"}}>
+                      {overdue.length===0&&upcoming.length===0&&(
+                        <div style={{padding:"24px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>No deadlines in next 14 days</div>
+                      )}
+                      {/* Overdue items first */}
+                      {overdue.slice(0,5).map(a=>{
+                        const proj=projects.find(p=>p.id===a.project_id);
+                        return(
+                        <div key={a.id} style={{padding:"9px 16px",borderBottom:"1px solid var(--border3)",background:"#f8711808",display:"flex",gap:10,alignItems:"flex-start"}}>
+                          <div style={{width:3,flexShrink:0,alignSelf:"stretch",background:"#f87171",borderRadius:2}}/>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</div>
+                            <div style={{fontSize:11,color:"var(--text4)",marginTop:2}}>
+                              <span style={{color:"var(--info)"}}>{proj?.name||a.project_id}</span>
+                              {a.assigned_to&&<span> · 👤 {a.assigned_to}</span>}
+                            </div>
+                          </div>
+                          <div style={{textAlign:"right",flexShrink:0}}>
+                            <div style={{fontSize:11,fontWeight:700,color:"#f87171"}}>OVERDUE</div>
+                            <div style={{fontSize:10,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{a.end_date}</div>
+                          </div>
+                        </div>);
+                      })}
+                      {/* Upcoming items */}
+                      {upcoming.map(a=>{
+                        const proj=projects.find(p=>p.id===a.project_id);
+                        const dl=fmtDeadlineDate(a.end_date);
+                        const pct=Math.round((a.progress||0)*100);
+                        return(
+                        <div key={a.id} style={{padding:"9px 16px",borderBottom:"1px solid var(--border3)",display:"flex",gap:10,alignItems:"flex-start"}}>
+                          <div style={{width:3,flexShrink:0,alignSelf:"stretch",background:dl.c,borderRadius:2}}/>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</div>
+                            <div style={{fontSize:11,color:"var(--text4)",marginTop:2}}>
+                              <span style={{color:"var(--info)"}}>{proj?.name||a.project_id}</span>
+                              {a.assigned_to&&<span> · 👤 {a.assigned_to}</span>}
+                              <span style={{marginLeft:6,fontFamily:"'IBM Plex Mono',monospace",color:pct>=75?"#34d399":pct>=40?"var(--info)":"var(--text4)"}}>{pct}%</span>
+                            </div>
+                          </div>
+                          <div style={{textAlign:"right",flexShrink:0}}>
+                            <div style={{fontSize:11,fontWeight:700,color:dl.c}}>{dl.label}</div>
+                            <div style={{fontSize:10,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{a.end_date}</div>
+                          </div>
+                        </div>);
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Engineer Workload Forecast widget */}
+                  <div className="card" style={{padding:0,overflow:"hidden"}}>
+                    <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border3)"}}>
+                      <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>
+                        📊 Workload Forecast
+                        <span style={{fontSize:11,color:"var(--text4)",fontWeight:400,marginLeft:8}}>{MONTHS[month]} remaining capacity</span>
+                      </div>
+                      <div style={{fontSize:11,color:"var(--text4)",marginTop:2}}>{daysLeft} working days left · {hrsLeft}h per engineer target</div>
+                    </div>
+                    <div style={{maxHeight:280,overflowY:"auto"}}>
+                      {engWorkload.length===0&&(
+                        <div style={{padding:"24px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>No engineer data</div>
+                      )}
+                      {engWorkload.map(eng=>{
+                        const loadColor = eng.availPct>=60?"#34d399":eng.availPct>=30?"#fb923c":"#f87171";
+                        const status    = eng.availPct>=60?"Available":eng.availPct>=30?"Busy":"Near Full";
+                        return(
+                        <div key={eng.id} style={{padding:"10px 16px",borderBottom:"1px solid var(--border3)"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+                            <div className="av" style={{width:26,height:26,fontSize:10,flexShrink:0}}>{eng.name?.slice(0,2).toUpperCase()}</div>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                <span style={{fontSize:13,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{eng.name}</span>
+                                <span style={{fontSize:10,padding:"1px 6px",borderRadius:8,background:loadColor+"20",border:`1px solid ${loadColor}40`,color:loadColor,fontWeight:700,flexShrink:0}}>{status}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                            <div style={{flex:1,background:"var(--bg3)",borderRadius:3,height:6,overflow:"hidden"}}>
+                              <div style={{height:"100%",width:`${Math.min(100,100-eng.availPct)}%`,background:`linear-gradient(90deg,var(--info),${loadColor})`,borderRadius:3}}/>
+                            </div>
+                            <div style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",color:"var(--text3)",whiteSpace:"nowrap",minWidth:90,textAlign:"right"}}>
+                              {eng.logged}h / {eng.target}h
+                              <span style={{color:loadColor,marginLeft:4,fontWeight:700}}>{eng.remaining}h left</span>
+                            </div>
+                          </div>
+                        </div>);
+                      })}
+                    </div>
+                  </div>
+
+                </div>);
+              })()}
+
               </>;})()}
             </div>
           )}
@@ -11255,10 +11516,16 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
       {/* Confirm Dialog — replaces window.confirm */}
       <ConfirmModal dlg={confirmDlg}/>
 
-      {/* Toast */}
+      {/* Toast — supports optional Undo */}
       {toast&&(
-        <div className="toast" style={{background:toast.ok?"var(--bg3)":"#450a0a",color:toast.ok?"#34d399":"#f87171",border:`1px solid ${toast.ok?"#34d399":"#f87171"}`}}>
-          {toast.ok?"✓":"✕"} {toast.msg}
+        <div className="toast" style={{background:toast.ok?"var(--bg3)":"#450a0a",color:toast.ok?"#34d399":"#f87171",border:`1px solid ${toast.ok?"#34d399":"#f87171"}`,display:"flex",alignItems:"center",gap:12,paddingRight:toast.undoFn?10:18}}>
+          <span>{toast.ok?"✓":"✕"} {toast.msg}</span>
+          {toast.undoFn&&(
+            <button onClick={()=>{ toast.undoFn(); dismissToast(); }}
+              style={{background:"transparent",border:`1px solid ${toast.ok?"#34d399":"#f87171"}`,borderRadius:5,padding:"3px 10px",color:toast.ok?"#34d399":"#f87171",cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif",flexShrink:0}}>
+              ↩ Undo
+            </button>
+          )}
         </div>
       )}
     </div>
