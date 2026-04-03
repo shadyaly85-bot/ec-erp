@@ -5333,6 +5333,9 @@ function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, set
   journalEntries, setJournalEntries, fixedAssets, journalLoading, assetsLoading,
   finSubTab, setFinSubTab, accounts, showToast, logAction, supabase}){
 
+  // staffSearch lives here (function scope) so it's not inside the salaries IIFE
+  const [staffSearch, setStaffSearch] = React.useState("");
+
   const derived = useMemo(()=>{
     const activeStaff=staff.filter(s=>s.active!==false);
 const totalPayrollUSD=activeStaff.reduce((s,x)=>s+(x.salary_usd||0),0);
@@ -5822,7 +5825,6 @@ const projProfit=projects.map(p=>{
 
     // Staff table totals
     const activeSt = staff.filter(s=>s.active!==false);
-    const [staffSearch, setStaffSearch] = React.useState("");
     const filteredSt = staffSearch
       ? activeSt.filter(s=>(s.name||"").toLowerCase().includes(staffSearch.toLowerCase())
           ||(s.department||"").toLowerCase().includes(staffSearch.toLowerCase())
