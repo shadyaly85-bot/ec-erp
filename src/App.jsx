@@ -5524,7 +5524,14 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
       </div>
 
       {/* ── Archive management card ── */}
-      {tab==="live"&&(
+      {tab==="live"&&(()=>{
+        const cutoffDate=new Date();cutoffDate.setDate(cutoffDate.getDate()-retentionDays);
+        const cutoffStr=cutoffDate.toISOString().slice(0,10);
+        // Count archivable: entries with real timestamp older than cutoff OR null timestamp (legacy)
+        const archivable=activityLog.filter(l=>
+          !l.created_at || l.created_at.slice(0,10)<cutoffStr
+        );
+        return(
         <div className="card" style={{padding:0,overflow:"hidden"}}>
           <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"12px 20px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
             <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>🗄 Archive Management</div>
@@ -5534,9 +5541,17 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
             <span style={{fontSize:14,color:"var(--text2)"}}>Move entries older than</span>
             <select value={retentionDays} onChange={e=>setRetentionDays(+e.target.value)}
               style={{width:"auto",padding:"6px 10px",fontSize:14}}>
-              {[30,60,90,180].map(d=><option key={d} value={d}>{d} days</option>)}
+              {[7,14,30,60,90,180].map(d=><option key={d} value={d}>{d} days</option>)}
             </select>
             <span style={{fontSize:14,color:"var(--text2)"}}>to archive</span>
+            <span style={{
+              fontSize:13,padding:"3px 10px",borderRadius:6,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,
+              background:archivable.length>0?"#f8711820":"var(--bg3)",
+              color:archivable.length>0?"#f87171":"var(--text4)",
+              border:`1px solid ${archivable.length>0?"#f8711840":"var(--border)"}`,
+            }}>
+              {archivable.length>0?`${archivable.length} eligible`:"0 eligible — all recent"}
+            </span>
             <button onClick={onArchive}
               style={{background:"#f8711820",border:"1px solid #f8711840",borderRadius:7,padding:"7px 16px",color:"#f87171",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"'IBM Plex Sans',sans-serif"}}>
               ⬆ Archive Now
@@ -5546,8 +5561,14 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
               🗑 Prune &gt;1yr
             </button>
           </div>
+          {archivable.length===0&&activityLog.length>0&&(
+            <div style={{padding:"8px 20px 12px",fontSize:13,color:"var(--text4)"}}>
+              ℹ All {activityLog.length} entries in the live log are within the last {retentionDays} days. Try reducing the retention window above, or this count reflects what is loaded (up to 5000 rows — the DB may have older entries that will still be found during archive).
+            </div>
+          )}
         </div>
-      )}
+        );
+      })()}
 
       {/* ── Archive load prompt ── */}
       {tab==="archive"&&!archiveLoaded&&!archiveLoading&&(
@@ -11731,11 +11752,13 @@ export default function App(){
                   onArchive={async()=>{
                     showConfirm(`Move activity log entries older than ${retentionDays} days to the archive? The live log will be faster afterwards.`, async()=>{
                       const cutoff=new Date();cutoff.setDate(cutoff.getDate()-retentionDays);
-                      const cutoffISO=cutoff.toISOString();           // full ISO for timestamptz column
-                      const cutoffDate=cutoff.toISOString().slice(0,10); // YYYY-MM-DD fallback
+                      const cutoffISO=cutoff.toISOString();
+                      const cutoffDate=cutoff.toISOString().slice(0,10);
 
-                      // Strategy 1: fetch by created_at < cutoff (works when column has real timestamps)
-                      const toArchive=[];let from=0;
+                      const toArchive=[];
+
+                      // Pass 1: entries with real timestamp older than cutoff
+                      let from=0;
                       while(true){
                         const{data,error}=await supabase.from("activity_log")
                           .select("*").lt("created_at",cutoffISO)
@@ -11747,29 +11770,47 @@ export default function App(){
                         from+=1000;
                       }
 
-                      // Strategy 2 fallback — fetch ALL and filter client-side
-                      // covers legacy rows where created_at was NULL (now set from local state)
-                      if(!toArchive.length){
-                        const allRows=[];let af=0;
+                      // Pass 2: entries with NULL created_at — these are legacy rows (pre-timestamp fix)
+                      // NULL entries cannot be older or newer than anything, so archive them all
+                      {
+                        let nf=0;
                         while(true){
                           const{data,error}=await supabase.from("activity_log")
-                            .select("*").order("created_at",{ascending:true}).range(af,af+999);
+                            .select("*").is("created_at",null).range(nf,nf+999);
+                          if(error||!data?.length) break;
+                          toArchive.push(...data);
+                          if(data.length<1000) break;
+                          nf+=1000;
+                        }
+                      }
+
+                      // Pass 3: client-side fallback — check all rows in case timestamptz stored differently
+                      if(!toArchive.length){
+                        let af=0;
+                        const allRows=[];
+                        while(true){
+                          const{data,error}=await supabase.from("activity_log")
+                            .select("*").order("id",{ascending:true}).range(af,af+999);
                           if(error||!data?.length) break;
                           allRows.push(...data);
                           if(data.length<1000) break;
                           af+=1000;
-                          if(allRows.length>=5000) break;
+                          if(allRows.length>=10000) break;
                         }
-                        // Filter client-side by date portion
+                        const seen=new Set(toArchive.map(r=>r.id));
                         allRows.forEach(r=>{
-                          if(!r.created_at) return; // skip truly null
+                          if(seen.has(r.id)) return;
+                          if(!r.created_at){ toArchive.push(r); return; } // null = definitely old
                           if(r.created_at.slice(0,10)<cutoffDate) toArchive.push(r);
                         });
                       }
 
-                      if(!toArchive.length){showToast(`No entries older than ${retentionDays} days to archive`,false);return;}
+                      if(!toArchive.length){
+                        showToast(`No entries older than ${retentionDays} days to archive. All ${activityLog.length} entries are recent.`,false);
+                        return;
+                      }
 
-                      // Insert into archive table (strip id so DB assigns a new one)
+                      // Insert into archive (strip id so DB gives new one)
                       let insertOk=0;
                       for(let i=0;i<toArchive.length;i+=500){
                         const chunk=toArchive.slice(i,i+500).map(({id,...rest})=>rest);
