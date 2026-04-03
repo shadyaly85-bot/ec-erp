@@ -2563,8 +2563,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     <div style={{display:"grid",gap:14}}>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}}>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <span style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Project Tracker</span>
-          <span style={{fontSize:13,color:"var(--text4)"}}>{allTrackerProjects.length} projects · {activities.length} activities</span>
+          <div><div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:2}}>PROJECT TRACKER</div><div style={{fontSize:22,fontWeight:800,color:"var(--text0)"}}>{allTrackerProjects.length} <span style={{fontSize:14,fontWeight:400,color:"var(--text3)"}}>projects · {activities.length} activities</span></div></div>
         </div>
         <div style={{display:"flex",gap:8}}>
           <input value={trackerSearch_} onChange={e=>setTrackerSearch_(e.target.value)}
@@ -2977,12 +2976,14 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
 
   return(
   <div style={{display:"grid",gap:12}}>
-    <div className="card" style={{padding:"12px 16px"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-        <h3 style={{fontSize:15,fontWeight:600,color:"var(--text2)"}}>Projects ({projects.length})</h3>
-        {canEdit&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
+    <div className="card" style={{padding:0,overflow:"hidden"}}>
+      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+        <div><div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>◈ Projects</div><div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{projects.length} total</div></div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="🔍 Search projects…" style={{width:200,padding:"7px 12px",borderRadius:7,border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text0)",fontSize:14}}/>
+          {canEdit&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
+        </div>
       </div>
-      <div style={{marginBottom:10}}><input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="Search projects..." style={{width:"100%",boxSizing:"border-box",padding:"7px 12px",borderRadius:6,border:"1px solid var(--border3)",background:"var(--bg2)",color:"var(--text0)",fontSize:13}}/></div>
       <table>
         <thead><tr>
           <th style={{width:28}}></th>
@@ -4204,13 +4205,13 @@ function ExpensesView({journalEntries, oldExpenses, egpRate}) {
 
       {/* Pivot table */}
       <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"#f8711815",borderBottom:"2px solid #f87171",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:13,fontWeight:700,color:"#f87171",letterSpacing:".06em"}}>EXPENSES BREAKDOWN — JOURNAL DATA</span>
+        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Expenses Breakdown</div>
           <div style={{display:"flex",gap:4}}>
             {[{id:"pivot",l:"📊 Pivot"},{id:"monthly",l:"📅 Monthly"}].map(b=>(
               <button key={b.id} onClick={()=>setViewMode(b.id)}
-                style={{background:viewMode===b.id?"#f8711820":"transparent",border:`1px solid ${viewMode===b.id?"#f87171":"var(--border3)"}`,
-                  borderRadius:5,padding:"3px 10px",color:viewMode===b.id?"#f87171":"var(--text3)",cursor:"pointer",fontSize:13}}>
+                style={{background:viewMode===b.id?"linear-gradient(135deg,#0ea5e9,#0369a1)":"transparent",border:`1px solid ${viewMode===b.id?"transparent":"var(--border)"}`,
+                  borderRadius:6,padding:"4px 12px",color:viewMode===b.id?"#fff":"var(--text2)",cursor:"pointer",fontSize:14,fontWeight:viewMode===b.id?600:400,fontFamily:"'IBM Plex Sans',sans-serif"}}>
                 {b.l}
               </button>
             ))}
@@ -4931,7 +4932,10 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
           {/* Staff breakdown from staff table */}
           {payrollReport.activeThisMonth.length > 0 && (
             <div className="card">
-              <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:10}}>STAFF ROSTER — {MONTHS_[repMonth-1]} {repYear} ({payrollReport.activeThisMonth.length} active)</div>
+              <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"12px 20px",margin:"-1px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
+                <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Staff Roster</div>
+                <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS_[repMonth-1]} {repYear} · {payrollReport.activeThisMonth.length} active</div>
+              </div>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                 <thead><tr style={{background:"var(--bg2)"}}>
                   {["Name","Department","Role","USD Salary","EGP Salary"].map(h=>(
@@ -5364,41 +5368,50 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
   const hasFilters = search||modFilter!=="ALL"||actFilter!=="ALL"||userFilter!=="ALL"||dateFrom||dateTo;
 
   return(
-    <div style={{display:"grid",gap:12}}>
+    <div style={{display:"grid",gap:16}}>
 
-      {/* ── Tabs: Live vs Archive ── */}
-      <div style={{display:"flex",gap:0,background:"var(--bg2)",borderRadius:8,padding:4,width:"fit-content"}}>
+      {/* ── Pill nav ── */}
+      <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",width:"fit-content"}}>
         {[
-          {id:"live",    label:`📋 Live Log (${activityLog.length})`},
-          {id:"archive", label:`🗄 Archive (${archiveLog.length})`},
-        ].map(t=>(
-          <button key={t.id} className={`atab ${tab===t.id?"a":""}`} onClick={()=>{setTab(t.id);resetFilters();setPage(0);}}>
-            {t.label}
-          </button>
-        ))}
+          {id:"live",    label:`📋 Live Log`,    count:activityLog.length},
+          {id:"archive", label:`🗄 Archive`,     count:archiveLog.length},
+        ].map(t=>{
+          const active=tab===t.id;
+          return(
+            <button key={t.id} onClick={()=>{setTab(t.id);resetFilters();setPage(0);}}
+              style={{padding:"8px 16px",borderRadius:7,border:"none",cursor:"pointer",fontSize:14,fontWeight:active?700:500,
+                fontFamily:"'IBM Plex Sans',sans-serif",transition:"all .15s",
+                background:active?"linear-gradient(135deg,#0ea5e9,#0369a1)":"transparent",
+                color:active?"#fff":"var(--text2)"}}>
+              {t.label} <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,opacity:.8}}>({t.count})</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* ── Archive controls (shown when on Live tab) ── */}
+      {/* ── Archive management card ── */}
       {tab==="live"&&(
-        <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,padding:"12px 16px",display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{fontSize:13,color:"var(--text2)",fontWeight:600}}>🗄 Archive Management</span>
-          <span style={{fontSize:13,color:"var(--text4)"}}>Move entries older than</span>
-          <select value={retentionDays} onChange={e=>setRetentionDays(+e.target.value)}
-            style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:13}}>
-            {[30,60,90,180].map(d=><option key={d} value={d}>{d} days</option>)}
-          </select>
-          <span style={{fontSize:13,color:"var(--text4)"}}>to archive</span>
-          <button onClick={onArchive}
-            style={{background:"#f8711820",border:"1px solid #f8711840",borderRadius:6,padding:"5px 14px",color:"#f87171",cursor:"pointer",fontSize:13,fontWeight:600}}>
-            ⬆ Archive Now
-          </button>
-          <span style={{fontSize:12,color:"var(--text4)",marginLeft:"auto"}}>
-            Archive keeps data forever · Live table stays fast · Export CSV to download either
-          </span>
-          <button onClick={onPruneArchive}
-            style={{background:"#f8711810",border:"1px solid #f8711830",borderRadius:6,padding:"5px 12px",color:"#f87171",cursor:"pointer",fontSize:13,opacity:0.8}}>
-            🗑 Prune Archive &gt;1yr
-          </button>
+        <div className="card" style={{padding:0,overflow:"hidden"}}>
+          <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"12px 20px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>🗄 Archive Management</div>
+            <div style={{fontSize:13,color:"var(--text3)",marginLeft:"auto"}}>Live table stays fast · Archive keeps data forever</div>
+          </div>
+          <div style={{padding:"12px 20px",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+            <span style={{fontSize:14,color:"var(--text2)"}}>Move entries older than</span>
+            <select value={retentionDays} onChange={e=>setRetentionDays(+e.target.value)}
+              style={{width:"auto",padding:"6px 10px",fontSize:14}}>
+              {[30,60,90,180].map(d=><option key={d} value={d}>{d} days</option>)}
+            </select>
+            <span style={{fontSize:14,color:"var(--text2)"}}>to archive</span>
+            <button onClick={onArchive}
+              style={{background:"#f8711820",border:"1px solid #f8711840",borderRadius:7,padding:"7px 16px",color:"#f87171",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+              ⬆ Archive Now
+            </button>
+            <button onClick={onPruneArchive}
+              style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:7,padding:"7px 14px",color:"var(--text3)",cursor:"pointer",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif",marginLeft:"auto"}}>
+              🗑 Prune &gt;1yr
+            </button>
+          </div>
         </div>
       )}
 
@@ -5416,60 +5429,55 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
         <div style={{textAlign:"center",padding:24,color:"var(--text4)"}}>Loading archive…</div>
       )}
 
-      {/* ── Toolbar ── */}
+      {/* ── Filter toolbar ── */}
       {(tab==="live"||(tab==="archive"&&archiveLog.length>0))&&(
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>
+            {tab==="live"?`📋 Live Log`:`🗄 Archive`}
+            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:400,color:"var(--text3)",marginLeft:8}}>{filtered.length} of {source.length} entries</span>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button className="be" onClick={exportCSV}>⬇ Export CSV</button>
+            <button className="bp" onClick={onRefresh}>↺ Refresh</button>
+          </div>
+        </div>
+        <div style={{padding:"12px 20px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
         <input placeholder="🔍 Search…" value={search} onChange={e=>setSearch(e.target.value)}
-          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,width:190}}/>
-        <select value={modFilter} onChange={e=>setModFilter(e.target.value)}
-          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+          style={{width:200,padding:"7px 12px",fontSize:14}}/>
+        <select value={modFilter} onChange={e=>setModFilter(e.target.value)} style={{width:"auto",padding:"7px 12px",fontSize:14}}>
           <option value="ALL">All Modules</option>
           {modules.filter(m=>m!=="ALL").map(m=><option key={m}>{m}</option>)}
         </select>
-        <select value={actFilter} onChange={e=>setActFilter(e.target.value)}
-          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+        <select value={actFilter} onChange={e=>setActFilter(e.target.value)} style={{width:"auto",padding:"7px 12px",fontSize:14}}>
           <option value="ALL">All Actions</option>
           {actions.filter(a=>a!=="ALL").map(a=><option key={a}>{a}</option>)}
         </select>
-        <select value={userFilter} onChange={e=>setUserFilter(e.target.value)}
-          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+        <select value={userFilter} onChange={e=>setUserFilter(e.target.value)} style={{width:"auto",padding:"7px 12px",fontSize:14}}>
           <option value="ALL">All Users</option>
           {users.filter(u=>u!=="ALL").map(u=><option key={u}>{u}</option>)}
         </select>
-        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
-          title="From date"
-          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 8px",color:"var(--text0)",fontSize:13}}/>
-        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
-          title="To date"
-          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 8px",color:"var(--text0)",fontSize:13}}/>
-        {hasFilters&&<button onClick={resetFilters}
-          style={{background:"transparent",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text3)",cursor:"pointer",fontSize:13}}>✕ Clear</button>}
-        <span style={{fontSize:13,color:"var(--text4)"}}>{filtered.length} of {source.length} events</span>
-        <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-          {tab==="live"&&<button onClick={onRefresh}
-            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 12px",color:"var(--text2)",cursor:"pointer",fontSize:13}}>
-            ↻ Refresh
-          </button>}
-          <button className="bp" onClick={exportCSV} style={{padding:"6px 14px",fontSize:13}}>
-            ⬇ Export CSV
-          </button>
+        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} title="From date" style={{width:"auto",padding:"7px 10px",fontSize:14}}/>
+        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} title="To date" style={{width:"auto",padding:"7px 10px",fontSize:14}}/>
+        {hasFilters&&<button onClick={resetFilters} className="bg" style={{fontSize:13}}>✕ Clear</button>}
         </div>
       </div>
       )}
 
       {/* ── KPI strip (live only) ── */}
       {tab==="live"&&(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
           {[
-            {l:"Live Events",  v:activityLog.length,                                              c:"var(--info)"},
-            {l:"Logins Today", v:activityLog.filter(l=>l.created_at&&new Date(l.created_at).toDateString()===new Date().toDateString()&&l.action==="LOGIN").length, c:"#a78bfa"},
-            {l:"Creates",      v:activityLog.filter(l=>l.action==="CREATE").length,               c:"#34d399"},
-            {l:"Deletes",      v:activityLog.filter(l=>l.action==="DELETE").length,               c:"#f87171"},
-            {l:"Exports",      v:activityLog.filter(l=>l.action==="EXPORT"||l.action==="IMPORT").length, c:"#facc15"},
+            {l:"Live Events",  v:activityLog.length,                                                                                              c:"var(--info)",  sub:"Total logged"},
+            {l:"Logins Today", v:activityLog.filter(l=>l.created_at&&new Date(l.created_at).toDateString()===new Date().toDateString()&&l.action==="LOGIN").length, c:"#a78bfa", sub:"Active sessions"},
+            {l:"Creates",      v:activityLog.filter(l=>l.action==="CREATE").length,                                                               c:"#34d399",      sub:"New records"},
+            {l:"Deletes",      v:activityLog.filter(l=>l.action==="DELETE").length,                                                               c:"#f87171",      sub:"Removals"},
+            {l:"Exports",      v:activityLog.filter(l=>l.action==="EXPORT"||l.action==="IMPORT").length,                                          c:"#facc15",      sub:"Reports & imports"},
           ].map((k,i)=>(
-            <div key={i} style={{background:"var(--bg2)",border:`1px solid ${k.c}25`,borderRadius:8,padding:"8px 12px"}}>
-              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
-              <div style={{fontSize:12,color:"var(--text4)",marginTop:2}}>{k.l}</div>
+            <div key={i} style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,padding:"16px",borderTop:`3px solid ${k.c}`}}>
+              <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>{k.l}</div>
+              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:24,fontWeight:800,color:k.c,marginBottom:4}}>{k.v}</div>
+              <div style={{fontSize:12,color:"var(--text4)"}}>{k.sub}</div>
             </div>
           ))}
         </div>
@@ -6023,8 +6031,9 @@ const projProfit=projects.map(p=>{
 
       {/* Month-by-month YTD from journal */}
       <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"var(--bg2)",borderBottom:"2px solid var(--border)",padding:"10px 16px",fontSize:13,fontWeight:700,color:"var(--text2)"}}>
-          MONTH-BY-MONTH (Journal) — Note: Revenue posted in Feb when invoice issued; costs accrue monthly
+        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Month-by-Month YTD</div>
+          <div style={{fontSize:13,color:"var(--text3)"}}>Revenue posted when invoice issued · costs accrue monthly</div>
         </div>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{background:"var(--bg2)"}}>
@@ -6096,7 +6105,7 @@ const projProfit=projects.map(p=>{
       {/* ── Project P&L ── */}
       {projProfit.length>0&&(
         <div className="card" style={{padding:0,overflow:"hidden"}}>
-          <div style={{background:"var(--bg2)",borderBottom:"2px solid var(--border)",padding:"10px 16px",fontSize:13,fontWeight:700,color:"var(--text2)"}}>PROJECT P&L (Time Entries × Rate)</div>
+          <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Project P&L</div><div style={{fontSize:13,color:"var(--text3)"}}>Time entries × hourly rate</div></div>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
             <thead><tr style={{background:"var(--bg2)"}}>
               {["Project","Revenue","Cost","Profit","Margin"].map(h=>(
@@ -6322,72 +6331,96 @@ engineers.forEach(eng=>{
   }, [entries, engineers, funcYear, funcEngId]);
 
   return(
-<div style={{display:"grid",gap:14}}>
-  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-    <select value={funcYear} onChange={e=>setFuncYear(+e.target.value)}
-      style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:14}}>
-      {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
-    </select>
-    <select value={funcEngId} onChange={e=>setFuncEngId(e.target.value)}
-      style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:14}}>
-      <option value="all">All Engineers</option>
-      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-    </select>
-    <span style={{fontSize:13,color:"var(--text4)"}}>{yearFuncs.length} entries · {totalFuncHrs}h total</span>
-    <button className="bp" style={{marginLeft:"auto"}} onClick={()=>setShowFuncModal(true)}>+ Log Function Hours</button>
+<div style={{display:"grid",gap:20}}>
+
+  {/* ── Page header ── */}
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
+    <div>
+      <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>FUNCTION HOURS</div>
+      <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Functions</h1>
+      <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{yearFuncs.length} entries · {totalFuncHrs}h total · {funcYear}</p>
+    </div>
+    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+      <select value={funcYear} onChange={e=>setFuncYear(+e.target.value)}
+        style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text0)",fontSize:14,fontWeight:600}}>
+        {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+      </select>
+      <select value={funcEngId} onChange={e=>setFuncEngId(e.target.value)}
+        style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text0)",fontSize:14}}>
+        <option value="all">All Engineers</option>
+        {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+      </select>
+      <button className="bp" onClick={()=>setShowFuncModal(true)}>+ Log Function Hours</button>
+    </div>
   </div>
-  <div className="card">
-    <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:12}}>FUNCTION HOURS BY CATEGORY — {funcYear}{funcEngId!=="all"?" · "+engineers.find(e=>String(e.id)===String(funcEngId))?.name:""}</div>
-    <div style={{display:"grid",gap:7}}>
+
+  {/* Category bars */}
+  <div className="card" style={{padding:0,overflow:"hidden"}}>
+    <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Hours by Category</div>
+      <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{funcYear}{funcEngId!=="all"?" · "+engineers.find(e=>String(e.id)===String(funcEngId))?.name:""}</div>
+    </div>
+    <div style={{padding:"16px 20px",display:"grid",gap:10}}>
       {FUNCTION_CATS.map(cat=>{
         const hrs=catTotals[cat]||0;
+        const pct=Math.round(hrs/maxCat*100);
         return(
-        <div key={cat} style={{display:"grid",gridTemplateColumns:"240px 1fr 50px",alignItems:"center",gap:10}}>
-          <div style={{fontSize:13,color:FUNC_COLORS[cat]||"var(--text2)",fontWeight:600}}>{cat}</div>
-          <div style={{background:"var(--bg2)",borderRadius:4,height:16,overflow:"hidden"}}>
-            <div style={{height:"100%",width:`${Math.round(hrs/maxCat*100)}%`,background:FUNC_COLORS[cat]||"var(--info)",borderRadius:4,minWidth:hrs>0?4:0}}/>
+        <div key={cat} style={{display:"grid",gridTemplateColumns:"220px 1fr 60px",alignItems:"center",gap:12}}>
+          <div style={{fontSize:14,color:FUNC_COLORS[cat]||"var(--text2)",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cat}</div>
+          <div style={{background:"var(--bg3)",borderRadius:4,height:8,overflow:"hidden"}}>
+            <div style={{height:"100%",width:`${pct}%`,background:FUNC_COLORS[cat]||"var(--info)",borderRadius:4,transition:"width .4s",minWidth:hrs>0?4:0}}/>
           </div>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:hrs>0?(FUNC_COLORS[cat]||"var(--info)"):"var(--text4)",fontWeight:700,textAlign:"right"}}>{hrs}h</div>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,color:hrs>0?(FUNC_COLORS[cat]||"var(--info)"):"var(--text4)",fontWeight:700,textAlign:"right"}}>{hrs>0?hrs+"h":"—"}</div>
         </div>);
       })}
     </div>
   </div>
-  <div className="card">
-    <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:12}}>ENGINEER FUNCTION MATRIX — {funcYear}</div>
+
+  {/* Engineer matrix */}
+  <div className="card" style={{padding:0,overflow:"hidden"}}>
+    <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Engineer Function Matrix</div>
+      <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{funcYear}</div>
+    </div>
     <div style={{overflowX:"auto"}}>
     <table style={{minWidth:700}}>
       <thead><tr>
         <th>Engineer</th>
         <th style={{textAlign:"right"}}>Total</th>
-        {FUNCTION_CATS.map(c=><th key={c} style={{textAlign:"right",fontSize:11,maxWidth:70,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:FUNC_COLORS[c]}} title={c}>{c.split("—")[0].split("&")[0].trim().slice(0,11)}</th>)}
+        {FUNCTION_CATS.map(c=><th key={c} style={{textAlign:"right",maxWidth:70,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:FUNC_COLORS[c]}} title={c}>{c.split("—")[0].split("&")[0].trim().slice(0,11)}</th>)}
       </tr></thead>
       <tbody>{engineers.map(eng=>{
         const em=engFuncMap[eng.id]||{total:0,cats:{}};
         return(<tr key={eng.id}>
-          <td style={{fontWeight:600,minWidth:120}}>{eng.name}<br/><span style={{fontSize:12,color:"var(--text4)"}}>{eng.role}</span></td>
+          <td><div style={{fontWeight:600}}>{eng.name}</div><div style={{fontSize:12,color:"var(--text4)"}}>{eng.role}</div></td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{em.total||"—"}</td>
           {FUNCTION_CATS.map(c=>(
-            <td key={c} style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:em.cats[c]>0?(FUNC_COLORS[c]||"var(--info)"):"var(--text4)"}}>{em.cats[c]||"—"}</td>
+            <td key={c} style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:em.cats[c]>0?(FUNC_COLORS[c]||"var(--info)"):"var(--text4)"}}>{em.cats[c]||"—"}</td>
           ))}
         </tr>);
       })}</tbody>
     </table>
     </div>
   </div>
-  <div className="card">
-    <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:10}}>ALL FUNCTION ENTRIES — {funcYear}</div>
+
+  {/* All entries */}
+  <div className="card" style={{padding:0,overflow:"hidden"}}>
+    <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>All Function Entries</div>
+      <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{yearFuncs.length} entries · {funcYear}</div>
+    </div>
     <table>
-      <thead><tr><th>Date</th><th>Engineer</th><th>Category</th><th>Hours</th><th>Description</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Date</th><th>Engineer</th><th>Category</th><th style={{textAlign:"right"}}>Hours</th><th>Description</th>{isAdmin&&<th style={{width:60}}></th>}</tr></thead>
       <tbody>{yearFuncs.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>{
         const eng=engineers.find(x=>x.id===e.engineer_id);
         const cat=e.function_category||e.task_type||"Other Function";
         return(<tr key={e.id}>
-          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-          <td style={{fontWeight:600,fontSize:13}}>{eng?.name||"?"}</td>
-          <td><span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:(FUNC_COLORS[cat]||"#6b7280")+"20",color:FUNC_COLORS[cat]||"#6b7280",fontWeight:700}}>{cat}</span></td>
-          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{e.hours}h</td>
-          <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:220}}>{e.activity||"—"}</td>
-          <td>{isAdmin&&<button className="bd" style={{fontSize:13}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}</td>
+          <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.date}</td>
+          <td style={{fontWeight:600}}>{eng?.name||"?"}</td>
+          <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:(FUNC_COLORS[cat]||"#6b7280")+"20",color:FUNC_COLORS[cat]||"#6b7280",fontWeight:700}}>{cat}</span></td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{e.hours}h</td>
+          <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+          {isAdmin&&<td><button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button></td>}
         </tr>);
       })}</tbody>
     </table>
@@ -6590,28 +6623,29 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   <div style={{display:"grid",gap:16}}>
 
     {/* ── Header ── */}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
       <div>
-        <h2 style={{fontSize:20,fontWeight:800,color:"var(--text0)",margin:0}}>📈 KPI Dashboard</h2>
-        <p style={{fontSize:13,color:"var(--text4)",marginTop:2}}>{kpiYear} · Performance Scorecard · Max 120 pts</p>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>PERFORMANCE</div>
+        <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>KPI Dashboard</h1>
+        <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{kpiYear} · Scorecard · Max 120 pts</p>
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
         <select value={kpiYear} onChange={e=>setKpiYear(+e.target.value)}
-          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+          style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text0)",fontSize:14,fontWeight:600}}>
           {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
         </select>
         {canManageKPI&&(
           <select value={effectiveEngId||""} onChange={e=>setKpiEngId(e.target.value||null)}
-            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+            style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text0)",fontSize:14}}>
             <option value="">📊 Team Overview</option>
             {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         )}
         {canManageKPI&&(
-          <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg2)",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
-            <span style={{fontSize:12,color:"var(--text4)"}}>Alert day:</span>
+          <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px"}}>
+            <span style={{fontSize:13,color:"var(--text4)"}}>Alert day:</span>
             <select value={alertDay} onChange={e=>setAlertDay(+e.target.value)}
-              style={{background:"transparent",border:"none",color:"var(--info)",fontSize:13,fontWeight:700,outline:"none"}}>
+              style={{background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontWeight:700,outline:"none",cursor:"pointer"}}>
               {[["1","Mon"],["2","Tue"],["3","Wed"],["4","Thu"],["5","Fri"]].map(([v,l])=><option key={v} value={+v}>{l}</option>)}
             </select>
           </div>
@@ -9546,7 +9580,7 @@ export default function App(){
                       {de.map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
                         return(
-                          <div key={e.id} style={{background:"var(--bg0)",border:`1px solid ${e.billable?"var(--bg3)":"#152535"}`,borderRadius:4,padding:"5px 6px",marginBottom:3,fontSize:12}}>
+                          <div key={e.id} style={{background:"var(--bg0)",border:"1px solid var(--border2)",borderRadius:4,padding:"5px 6px",marginBottom:3,fontSize:12}}>
                             <div style={{display:"flex",justifyContent:"space-between",gap:2}}>
                               <div style={{flex:1,minWidth:0}}>
                                 {e.entry_type==="leave"
@@ -9586,18 +9620,18 @@ export default function App(){
                   };
                   return<>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                  <h3 style={{fontSize:15,fontWeight:600,color:"var(--text2)"}}>Full Month — {MONTHS[month]} {year}</h3>
+                  <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Full Month — {MONTHS[month]} {year}</div>
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                    {selectedEntries.size>0&&<button style={{background:"#ef4444",border:"none",borderRadius:5,padding:"4px 10px",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}} onClick={bulkDeleteEntries}>🗑 Delete {selectedEntries.size} selected</button>}
-                    <select style={{fontSize:13,padding:"4px 8px",width:"auto",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",fontFamily:"'IBM Plex Sans',sans-serif"}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
+                    {selectedEntries.size>0&&<button style={{background:"#ef4444",border:"none",borderRadius:6,padding:"5px 12px",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={bulkDeleteEntries}>🗑 Delete {selectedEntries.size} selected</button>}
+                    <select style={{fontSize:13,padding:"5px 10px",width:"auto"}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
                       <option value="ALL">All Projects</option>
                       {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
                     </select>
-                    {filterProject!=="ALL"&&<button style={{background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text2)",cursor:"pointer",fontSize:13}} onClick={()=>setFilterProject("ALL")}>✕</button>}
-                    <span style={{fontSize:13,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{visEntries.reduce((s,e)=>s+e.hours,0)}h</span>
+                    {filterProject!=="ALL"&&<button className="bg" style={{fontSize:13}} onClick={()=>setFilterProject("ALL")}>✕</button>}
+                    <span style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{visEntries.reduce((s,e)=>s+e.hours,0)}h</span>
                   </div>
                 </div>
-                <div className="card">
+                <div className="card" style={{padding:0,overflow:"hidden"}}>
                   <table>
                     <thead><tr>
                       <th style={{width:28}}><input type="checkbox" checked={allChecked} onChange={toggleAll} style={{cursor:"pointer"}}/></th>
@@ -11093,8 +11127,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               {adminTab==="settings"&&isAdmin&&(
                 <div style={{maxWidth:600,display:"grid",gap:14}}>
                   <div className="card">
-                    <h3 style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>Access Role Descriptions</h3>
-                    <p style={{fontSize:13,color:"var(--text4)",marginBottom:14,lineHeight:1.6}}>Each role controls what features are visible and accessible.</p>
+                    <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",margin:"-20px -20px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Access Role Descriptions</div><div style={{fontSize:13,color:"var(--text3)"}}>Role → feature access control</div></div>
                     <div style={{display:"grid",gap:8}}>
                       {[
                         {role:"engineer",label:"Engineer",color:"var(--text3)",perms:"Post own hours on assigned projects only · View dashboard, projects & team · No reports access"},
@@ -11173,7 +11206,8 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
           {view==="import"&&isAdmin&&(
             <div>
               <div style={{marginBottom:20}}>
-                <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>Import Excel Timesheets</h1>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>IMPORT</div>
+                <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Import Excel Timesheets</h1>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
                   <p style={{color:"var(--text4)",fontSize:14}}>Upload ENEVOEGY timesheet files · Engineers &amp; projects created automatically</p>
                   <span style={{fontSize:13,padding:"2px 8px",borderRadius:3,background:xlsxReady?"#05603a30":"var(--warn-bg)",color:xlsxReady?"#34d399":"#fb923c",fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"}}>
