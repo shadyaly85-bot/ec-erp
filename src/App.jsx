@@ -7254,7 +7254,7 @@ export default function App(){
         if(error){
           console.error("[ActivityLog] Insert failed:",error.message,"| payload:",entry);
         } else if(data){
-          setActivityLog(prev=>[{...entry,id:data[0]?.id,created_at:new Date().toISOString()},...prev].slice(0,2000));
+          setActivityLog(prev=>[{...entry,id:data[0]?.id,created_at:new Date().toISOString()},...prev].slice(0,5000));
         }
       });
   },[session,myProfile]);
@@ -7494,8 +7494,18 @@ export default function App(){
       // Load activity log for admin — use profR.data directly (myProfile state is stale here)
       if(profR.data?.role_type==="admin"){
         setLogLoading(true);
-        supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
-          .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
+        (async()=>{
+          const rows=[];let from=0;const batch=1000;
+          while(true){
+            const{data,error}=await supabase.from("activity_log").select("*").order("created_at",{ascending:false}).range(from,from+batch-1);
+            if(error||!data?.length) break;
+            rows.push(...data);
+            if(data.length<batch) break;
+            from+=batch;
+            if(rows.length>=5000) break;
+          }
+          setActivityLog(rows);setLogLoading(false);
+        })();
       }
       // Timesheet alerts: checked via checkTimesheetAlerts called from useEffect below
     }catch(e){showToast("Error loading data",false);}
@@ -9291,7 +9301,7 @@ export default function App(){
 
       <div style={{display:"flex"}}>
         {/* ── Sidebar ── */}
-        <div className={`app-sidebar${menuOpen?" sidebar-open":""}`} style={{width:215,background:"var(--sidebar)",borderRight:`1px solid var(--sidebar-border)`,minHeight:"100vh",padding:"20px 10px",position:"fixed",top:0,left:0,bottom:0,overflowY:"auto",zIndex:50,transition:"background .3s, transform .25s"}}>
+        <div className={`app-sidebar${menuOpen?" sidebar-open":""}`} style={{width:215,background:"var(--sidebar)",borderRight:`1px solid var(--sidebar-border)`,minHeight:"100vh",padding:"20px 10px",position:"fixed",top:0,left:0,bottom:0,overflowY:"auto",zIndex:menuOpen?200:50,transition:"background .3s, transform .25s"}}>
           <div style={{marginBottom:20,paddingLeft:6}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
               <LogoImg/>
@@ -11702,37 +11712,95 @@ export default function App(){
                   setRetentionDays={setRetentionDays}
                   onRefresh={()=>{
                     setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
-                      .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
+                    (async()=>{
+                      const rows=[];let from=0;const batch=1000;
+                      while(true){
+                        const{data,error}=await supabase.from("activity_log").select("*").order("created_at",{ascending:false}).range(from,from+batch-1);
+                        if(error||!data?.length) break;
+                        rows.push(...data);
+                        if(data.length<batch) break;
+                        from+=batch;
+                        if(rows.length>=5000) break;
+                      }
+                      setActivityLog(rows);setLogLoading(false);
+                    })();
                   }}
                   onArchive={async()=>{
                     showConfirm(`Move activity log entries older than ${retentionDays} days to the archive? The live log will be faster afterwards.`, async()=>{
-                      const {data,error} = await supabase.rpc("archive_activity_log",{retention_days:retentionDays});
-                      if(error){ showToast("Archive error: "+error.message,false); return; }
-                      const r = data?.[0]||{};
-                      showToast(`Archived ${r.archived_count||0} events, removed ${r.deleted_count||0} from live log`);
-                      logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:r.archived_count,deleted:r.deleted_count});
+                      const cutoff=new Date();cutoff.setDate(cutoff.getDate()-retentionDays);
+                      const cutoffISO=cutoff.toISOString();
+                      // Fetch entries to archive in batches
+                      const toArchive=[];let from=0;
+                      while(true){
+                        const{data,error}=await supabase.from("activity_log")
+                          .select("*").lt("created_at",cutoffISO)
+                          .order("created_at",{ascending:true}).range(from,from+999);
+                        if(error){showToast("Archive fetch error: "+error.message,false);return;}
+                        if(!data?.length) break;
+                        toArchive.push(...data);
+                        if(data.length<1000) break;
+                        from+=1000;
+                      }
+                      if(!toArchive.length){showToast(`No entries older than ${retentionDays} days to archive`,false);return;}
+                      // Insert into archive (strip id to get new one)
+                      let insertOk=0;
+                      for(let i=0;i<toArchive.length;i+=500){
+                        const chunk=toArchive.slice(i,i+500).map(({id,...rest})=>rest);
+                        const{error}=await supabase.from("activity_log_archive").insert(chunk);
+                        if(error){showToast("Archive insert error: "+error.message,false);return;}
+                        insertOk+=chunk.length;
+                      }
+                      // Delete from live log
+                      const ids=toArchive.map(r=>r.id);
+                      let deletedOk=0;
+                      for(let i=0;i<ids.length;i+=500){
+                        const chunk=ids.slice(i,i+500);
+                        const{error}=await supabase.from("activity_log").delete().in("id",chunk);
+                        if(error){showToast("Archive delete error: "+error.message,false);return;}
+                        deletedOk+=chunk.length;
+                      }
+                      showToast(`Archived ${insertOk} events, removed ${deletedOk} from live log ✓`);
+                      logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:insertOk,deleted:deletedOk});
+                      // Reload live log
                       setLogLoading(true);
-                      supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
-                        .then(({data:liveData})=>{ if(liveData) setActivityLog(liveData); setLogLoading(false); });
-                      setArchiveLog([]); setArchiveLoaded(false);
+                      const rows=[];let rfrom=0;
+                      while(true){
+                        const{data:liveData,error}=await supabase.from("activity_log").select("*").order("created_at",{ascending:false}).range(rfrom,rfrom+999);
+                        if(error||!liveData?.length) break;
+                        rows.push(...liveData);
+                        if(liveData.length<1000) break;
+                        rfrom+=1000;
+                        if(rows.length>=5000) break;
+                      }
+                      setActivityLog(rows);setLogLoading(false);
+                      setArchiveLog([]);setArchiveLoaded(false);
                     },{title:"Archive Activity Log",confirmLabel:"Archive Now",danger:false,icon:"🗄"});
                   }}
                   onLoadArchive={()=>{
                     setArchiveLoading(true);
-                    supabase.from("activity_log_archive").select("*").order("created_at",{ascending:false}).limit(2000)
-                      .then(({data,error})=>{
-                        if(error){ console.error("[Archive] Load failed:",error.message); showToast("Archive load error: "+error.message,false); }
-                        else{ setArchiveLog(data||[]); setArchiveLoaded(true); }
-                        setArchiveLoading(false);
-                      });
+                    (async()=>{
+                      const rows=[];let from=0;const batch=1000;
+                      while(true){
+                        const{data,error}=await supabase.from("activity_log_archive").select("*").order("created_at",{ascending:false}).range(from,from+batch-1);
+                        if(error){showToast("Archive load error: "+error.message,false);break;}
+                        if(!data?.length) break;
+                        rows.push(...data);
+                        if(data.length<batch) break;
+                        from+=batch;
+                        if(rows.length>=5000) break;
+                      }
+                      setArchiveLog(rows);setArchiveLoaded(true);setArchiveLoading(false);
+                    })();
                   }}
                   onPruneArchive={async()=>{
                     showConfirm("Permanently delete all archive entries older than 1 year? This cannot be undone.", async()=>{
-                      const {data,error} = await supabase.rpc("prune_activity_archive",{max_age_days:365});
+                      const cutoff=new Date();cutoff.setFullYear(cutoff.getFullYear()-1);
+                      const cutoffISO=cutoff.toISOString();
+                      const{error,count}=await supabase.from("activity_log_archive")
+                        .delete().lt("created_at",cutoffISO);
                       if(error){showToast("Prune error: "+error.message,false);return;}
-                      showToast(`Pruned ${data||0} archive entries older than 1 year`);
-                      logAction("DELETE","Auth",`Pruned activity archive — entries older than 365d`,{pruned:data});
+                      showToast(`Pruned archive entries older than 1 year ✓`);
+                      logAction("DELETE","Auth","Pruned activity archive — entries older than 365d",{});
                       setArchiveLog([]); setArchiveLoaded(false);
                     },{title:"Prune Archive",confirmLabel:"Prune Now"});
                   }}
