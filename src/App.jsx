@@ -9944,8 +9944,10 @@ export default function App(){
               {/* ── ORG CHART VIEW ── */}
               {teamViewMode==="org"&&(()=>{
                 // Build tree from flat orgNodes array
-                const roots = orgNodes.filter(n=>!n.parent_id);
-                const children = (pid) => orgNodes.filter(n=>n.parent_id===pid).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+                const roots    = orgNodes.filter(n=>!n.parent_id || n.parent_id===0);
+                const children = (pid) => orgNodes
+                  .filter(n=>n.parent_id && n.parent_id!==0 && Number(n.parent_id)===Number(pid))
+                  .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
 
                 const saveNode = async(node) => {
                   const{id,...fields}=node;
@@ -10070,20 +10072,26 @@ export default function App(){
                 const PAD_Y   = 28;
 
                 const _widthCache = new Map();
+                const _visiting   = new Set();
                 const subtreeWidth = (id) => {
                   if (_widthCache.has(id)) return _widthCache.get(id);
+                  if (_visiting.has(id))   return CARD_W + H_GAP; // cycle → break it
+                  _visiting.add(id);
                   const kids = children(id);
                   const w = kids.length === 0
                     ? CARD_W + H_GAP
                     : Math.max(CARD_W + H_GAP, kids.reduce((s,c) => s + subtreeWidth(c.id), 0));
+                  _visiting.delete(id);
                   _widthCache.set(id, w);
                   return w;
                 };
 
-                // Step 2: assign x,y positions — depth guard prevents infinite loops from circular data
+                // Step 2: assign x,y positions — visiting set catches circular data
                 const positions = {};
+                const _layoutSeen = new Set();
                 const layoutNode = (node, startX, depth) => {
-                  if (depth > 20 || positions[node.id]) return; // cycle/depth guard
+                  if (depth > 20 || _layoutSeen.has(node.id)) return; // depth cap + cycle guard
+                  _layoutSeen.add(node.id);
                   const sw = subtreeWidth(node.id);
                   const centerX = startX + sw / 2;
                   positions[node.id] = { x: centerX - CARD_W / 2, y: PAD_Y + depth * LEVEL_H };
