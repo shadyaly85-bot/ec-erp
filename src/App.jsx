@@ -1610,7 +1610,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
 }
 
 /* ── VacationReport Component ── */
-function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onExport,isAdmin,vacationAllowance=21,setVacationAllowance,vacationAdjustments={},setVacAdj}){
+function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onExport,isAdmin,vacationAllowance=21,setVacationAllowance,vacationAdjustments={},setVacAdj,showToast}){
   const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
   const typeColors={"Annual Leave":"var(--info)","Sick Leave":"#f87171","Public Holiday":"#fb923c","Business Travel":"#a78bfa","Training External":"#34d399","Unpaid Leave":"#6b7280"};
 
@@ -1786,12 +1786,12 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
                         <td style={{textAlign:"center",padding:"6px 8px"}}>
                           <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
                             <button onClick={()=>setVacAdj&&setVacAdj(year,eng.id,Math.max(0,(eng.manualAdj||0)-1))}
-                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:22,height:22,cursor:"pointer",color:"var(--text2)",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:24,height:28,cursor:"pointer",color:"var(--text2)",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>−</button>
                             <input type="number" min={0} value={eng.manualAdj||0}
                               onChange={e=>setVacAdj&&setVacAdj(year,eng.id,Math.max(0,+e.target.value||0))}
-                              style={{width:38,textAlign:"center",background:"var(--bg2)",border:"1px solid #fb923c50",borderRadius:5,color:"#fb923c",fontSize:13,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,padding:"2px 4px",outline:"none"}}/>
+                              style={{width:56,textAlign:"center",background:"var(--bg2)",border:"1px solid #fb923c50",borderRadius:5,color:"#fb923c",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,padding:"4px 6px",outline:"none"}}/>
                             <button onClick={()=>setVacAdj&&setVacAdj(year,eng.id,(eng.manualAdj||0)+1)}
-                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:22,height:22,cursor:"pointer",color:"var(--text2)",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:24,height:28,cursor:"pointer",color:"var(--text2)",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>+</button>
                           </div>
                           {eng.manualAdj>0&&<div style={{fontSize:10,color:"#fb923c",textAlign:"center",marginTop:2}}>{eng.manualAdj}d unlogged</div>}
                         </td>
@@ -1824,6 +1824,14 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
               </tfoot>
             </table>
             </div>
+            {isAdmin&&(
+              <div style={{display:"flex",justifyContent:"flex-end",marginTop:12,paddingTop:10,borderTop:"1px solid var(--border3)"}}>
+                <button className="bp" style={{fontSize:13,padding:"7px 20px"}} onClick={()=>{
+                  try{localStorage.setItem('ec_vacation_adj',JSON.stringify(vacationAdjustments));}catch(err){}
+                  showToast&&showToast("Vacation balances saved ✓");
+                }}>💾 Save Balance</button>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -6718,7 +6726,13 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         {/* Notes — admin eyes only */}
         {isAdmin&&(
         <div className="card">
-          <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:10}}>📝 Manager Notes <span style={{fontSize:11,fontWeight:400,color:"var(--text4)"}}>— admin only</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>📝 Manager Notes <span style={{fontSize:11,fontWeight:400,color:"var(--text4)"}}>— admin only</span></div>
+            <button className="bp" style={{fontSize:12,padding:"5px 16px"}} onClick={()=>{
+              try{localStorage.setItem("ec_kpi_notes",JSON.stringify(kpiNotes));}catch(err){}
+              showToast("Notes saved ✓");
+            }}>💾 Save Notes</button>
+          </div>
           <div style={{display:"grid",gap:8}}>
             {[["general","General"],["A","Utilization"],["B","Project Perf."],["C","Development"],["D","Compliance"]].map(([f,l])=>(
               <div key={f}>
@@ -10399,6 +10413,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 setVacationAllowance={setVacationAllowance}
                 vacationAdjustments={vacationAdjustments}
                 setVacAdj={setVacAdj}
+                showToast={showToast}
                 onExport={()=>buildVacationPDF(engineers,entries,leaveEntries,projects,month,year)}
               />}
 
