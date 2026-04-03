@@ -6436,28 +6436,6 @@ export default function App(){
     if(isDark){ document.body.classList.remove("light"); localStorage.setItem("erp_theme","dark"); }
     else{ document.body.classList.add("light"); localStorage.setItem("erp_theme","light"); }
   },[isDark]);
-
-  // Global Escape key — closes topmost open modal
-  useEffect(()=>{
-    const handler=e=>{
-      if(e.key!=="Escape") return;
-      if(confirmDlg)       { setConfirmDlg(null); return; }
-      if(showPwdModal)     { setShowPwdModal(false); return; }
-      if(subProjModal)     { setSubProjModal(null); return; }
-      if(editProjModal)    { setEditProjModal(null); return; }
-      if(showProjModal)    { setShowProjModal(false); return; }
-      if(editEngModal)     { setEditEngModal(null); return; }
-      if(showEngModal)     { setShowEngModal(false); return; }
-      if(showStaffModal)   { setShowStaffModal(false); setEditStaff(null); return; }
-      if(showExpModal)     { setShowExpModal(false); setEditExp(null); return; }
-      if(showFuncModal)    { setShowFuncModal(false); return; }
-      if(editEntry)        { setEditEntry(null); return; }
-      if(modalDate)        { setModalDate(null); return; }
-    };
-    document.addEventListener("keydown",handler);
-    return ()=>document.removeEventListener("keydown",handler);
-  },[confirmDlg,showPwdModal,subProjModal,editProjModal,showProjModal,
-     editEngModal,showEngModal,showStaffModal,showExpModal,showFuncModal,editEntry,modalDate]);
   const toggleTheme = ()=>setIsDark(d=>!d);
 
   const [authEmail,setAuthEmail]     = useState("");
@@ -6577,6 +6555,28 @@ export default function App(){
   const [newEng,setNewEng]       = useState({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
 
   const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3500);};
+
+  // Global Escape key — closes topmost open modal (placed here so all state vars are in scope)
+  useEffect(()=>{
+    const handler=e=>{
+      if(e.key!=="Escape") return;
+      if(confirmDlg)     { setConfirmDlg(null); return; }
+      if(showPwdModal)   { setShowPwdModal(false); return; }
+      if(subProjModal)   { setSubProjModal(null); return; }
+      if(editProjModal)  { setEditProjModal(null); return; }
+      if(showProjModal)  { setShowProjModal(false); return; }
+      if(editEngModal)   { setEditEngModal(null); return; }
+      if(showEngModal)   { setShowEngModal(false); return; }
+      if(showStaffModal) { setShowStaffModal(false); setEditStaff(null); return; }
+      if(showExpModal)   { setShowExpModal(false); setEditExp(null); return; }
+      if(showFuncModal)  { setShowFuncModal(false); return; }
+      if(editEntry)      { setEditEntry(null); return; }
+      if(modalDate)      { setModalDate(null); return; }
+    };
+    document.addEventListener("keydown",handler);
+    return ()=>document.removeEventListener("keydown",handler);
+  },[confirmDlg,showPwdModal,subProjModal,editProjModal,showProjModal,
+     editEngModal,showEngModal,showStaffModal,showExpModal,showFuncModal,editEntry,modalDate]);;
 
   // ── Activity logger — fire-and-forget, never blocks UI ──
   const logAction=useCallback((action,module,detail,meta={})=>{
