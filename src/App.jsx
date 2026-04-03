@@ -9921,7 +9921,7 @@ export default function App(){
                   showToast("Moved ✓");
                 };
 
-                // Card component — clean, elegant, no stats
+                // OrgCard component
                 const OrgCard = ({node}) => {
                   // Use raw engineers (not engStats) so accountants/senior_mgmt are included
                   const eng = node.engineer_id ? engineers.find(e=>e.id===node.engineer_id) : null;
@@ -10027,171 +10027,172 @@ export default function App(){
                   );
                 };
 
-                // Recursive tree renderer
-                // ── Live org chart renderer (React) ──
-                // Uses border-based connectors: each node sits inside a <td> that draws
-                // its top-border (the horizontal bar) and left-border (the elbow line).
-                const CONN = isDark ? "#3a6a9a" : "#1e4d80";
 
-                const OrgRow = ({nodes, depth}) => {
-                  if(!nodes.length) return null;
-                  const solo = nodes.length===1;
-                  return (
-                    <table style={{borderCollapse:"separate",borderSpacing:0,tableLayout:"fixed",margin:"0 auto"}}>
-                      <tbody>
-                        <tr>
-                          {nodes.map((node,i)=>{
-                            const kids = children(node.id);
-                            return (
-                              <td key={node.id} style={{
-                                verticalAlign:"top", padding:"0 8px", minWidth:180,
-                                textAlign:"center",
-                                borderTop: (!solo && depth>0) ? `2px solid ${CONN}` : "none",
-                              }}>
-                                {/* vertical stub from top border down to card */}
-                                {depth>0 && (
-                                  <div style={{width:2,height:18,background:(!solo)?CONN:"transparent",margin:"0 auto"}}/>
-                                )}
-                                <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-                                  <OrgCard node={node}/>
-                                  {orgEditing&&isAdmin&&(
-                                    <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:node.id,is_external:false,sort_order:kids.length})}
-                                      style={{marginTop:5,background:"transparent",border:`1px dashed ${CONN}`,color:CONN,
-                                        borderRadius:6,padding:"3px 8px",fontSize:12,cursor:"pointer",width:"100%",letterSpacing:".05em",fontWeight:600}}>
-                                      + add
-                                    </button>
-                                  )}
-                                  {kids.length>0&&(
-                                    <>
-                                      <div style={{width:2,height:20,background:CONN}}/>
-                                      <OrgRow nodes={kids} depth={depth+1}/>
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      </tbody>
-                    </table>
-                  );
+                // ── Tree layout algorithm (Reingold-Tilford style) ──
+                // Step 1: compute how wide each subtree needs to be
+                const CARD_W  = 170;
+                const CARD_H  = 120;
+                const H_GAP   = 36;   // horizontal gap between siblings
+                const V_GAP   = 72;   // vertical gap between levels (space for connector lines)
+                const LEVEL_H = CARD_H + V_GAP;
+                const PAD_X   = 52;
+                const PAD_Y   = 28;
+
+                const subtreeWidth = (id) => {
+                  const kids = children(id);
+                  if (!kids.length) return CARD_W + H_GAP;
+                  return Math.max(CARD_W + H_GAP, kids.reduce((s,c) => s + subtreeWidth(c.id), 0));
                 };
 
-                const RenderLevel = ({nodes}) => {
-                  if(!nodes||!nodes.length) return null;
-                  return <OrgRow nodes={nodes} depth={0}/>;
+                // Step 2: assign x,y positions (top-down pass)
+                const positions = {};
+                const layoutNode = (node, startX, depth) => {
+                  const sw = subtreeWidth(node.id);
+                  const centerX = startX + sw / 2;
+                  positions[node.id] = { x: centerX - CARD_W / 2, y: PAD_Y + depth * LEVEL_H };
+                  const kids = children(node.id);
+                  let curX = startX;
+                  kids.forEach(c => {
+                    layoutNode(c, curX, depth + 1);
+                    curX += subtreeWidth(c.id);
+                  });
                 };
 
-                // ── PDF export ──
-                // Uses an HTML <table> approach for reliable cross-browser connector lines.
-                const exportOrgPDF = () => {
-                  const ch2 = (pid) => orgNodes.filter(n=>n.parent_id===pid).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+                const sortedRoots = roots.sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
+                let rootX = PAD_X;
+                sortedRoots.forEach(r => { layoutNode(r, rootX, 0); rootX += subtreeWidth(r.id); });
 
-                  const buildCard2 = (node) => {
-                    const eng2 = node.engineer_id ? engineers.find(e=>e.id===node.engineer_id) : null;
-                    const rc2 = eng2 ? (ROLE_COLORS[eng2.role_type]||"#1a5276") : "#1a5276";
-                    const ini2 = (node.name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
-                    const ext = node.is_external;
-                    return `<div style="width:136px;background:${ext?"#f8fafc":"#eef4fb"};border-radius:10px;padding:12px 8px 10px;text-align:center;border:2px solid ${ext?"#8aaac0":"#1a5276"};box-shadow:0 2px 8px rgba(10,30,60,0.10);display:inline-block;${ext?"opacity:0.8;border-style:dashed;":""}">
-  <div style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 7px;font-size:15px;font-weight:800;border:2.5px solid ${rc2};background:${rc2}22;color:${rc2}">${ini2}</div>
-  <div style="font-size:13px;font-weight:800;line-height:1.3;margin-bottom:2px;color:#0b1f38">${node.name}</div>
-  ${node.title?`<div style="font-size:10px;color:#2a4a6a;font-weight:600;line-height:1.4">${node.title}</div>`:""}
-  ${eng2&&!ext?`<div style="font-size:9px;color:#4a6a8a;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-top:2px">${ROLE_LABELS[eng2.role_type]||eng2.role||""}</div>`:""}
-</div>`;
-                  };
+                // Step 3: canvas dimensions
+                const canvasW = PAD_X * 2 + sortedRoots.reduce((s,r) => s + subtreeWidth(r.id), 0);
+                const allY = Object.values(positions).map(p => p.y);
+                const canvasH = (allY.length ? Math.max(...allY) : 0) + CARD_H + PAD_Y * 2;
 
-                  // Recursive table builder — each level is a <table> row of <td>s
-                  // The top-border of each <td> (except first child) forms the horizontal connector
-                  const buildTable = (nodes, isRoot) => {
-                    if(!nodes.length) return "";
-                    const solo = nodes.length === 1;
-                    const tds = nodes.map((n, i) => {
-                      const kids = ch2(n.id);
-                      // border-top only — no border-left (avoids full-height vertical lines)
-                      const tdStyle = isRoot||solo
-                        ? `padding:0 10px;vertical-align:top;text-align:center;`
-                        : `padding:0 10px;vertical-align:top;text-align:center;border-top:2px solid #1a5276;`;
-                      const stub = (!isRoot&&!solo) ? `<div style="width:2px;height:16px;background:#1a5276;margin:0 auto;"></div>` : "";
-                      const vline = kids.length ? `<div style="width:2px;height:18px;background:#1a5276;margin:0 auto;"></div>` : "";
-                      return `<td style="${tdStyle}">${stub}${buildCard2(n)}${vline}${kids.length?buildTable(kids,false):""}</td>`;
-                    });
-                    return `<table style="border-collapse:separate;border-spacing:0;margin:0 auto;"><tbody><tr>${tds.join("")}</tr></tbody></table>`;
-                  };
-
-                  const rts = orgNodes.filter(n=>!n.parent_id).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-                  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
-<style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-.hdr{display:flex;align-items:center;gap:14px;margin-bottom:30px;padding-bottom:14px;border-bottom:2px solid #0e2a4a;}
-.hdr img{width:44px;height:44px;border-radius:8px;object-fit:contain;}
-.hdr h1{font-size:18px;font-weight:800;color:#0b1f38;}
-.hdr p{font-size:11px;color:#4a6a8a;margin-top:2px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;}
-@media print{
-  @page{margin:6mm;size:A4 landscape;}
-  body{zoom:0.65;}
-}
-</style></head><body>
-<div class="hdr"><img src="${LOGO_SRC}"/><div><h1>Organization Chart</h1><p>ENEVO Group · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div>
-<div style="display:flex;justify-content:center;">${buildTable(rts, true)}</div>
-<script>window.onload=()=>setTimeout(()=>{window.print();},500);</script>
-</body></html>`;
-                  const w = window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
-                  if(w){w.document.write(html);w.document.close();logAction("EXPORT","OrgChart",`Exported org chart PDF`,{nodes:orgNodes.length});}
-                  else showToast("Allow popups to export PDF",false);
-                };
+                // Step 4: build SVG connector paths (elbow lines)
+                const connectors = [];
+                orgNodes.forEach(node => {
+                  if (!node.parent_id) return;
+                  const par = orgNodes.find(n => n.id === node.parent_id);
+                  if (!par || !positions[node.id] || !positions[par.id]) return;
+                  const px = positions[par.id].x  + CARD_W / 2;  // parent bottom-center
+                  const py = positions[par.id].y  + CARD_H;
+                  const cx = positions[node.id].x + CARD_W / 2;  // child top-center
+                  const cy = positions[node.id].y;
+                  const midY = py + V_GAP / 2;
+                  connectors.push({ px, py, cx, cy, midY, key: node.id });
+                });
 
                 return(
-                  <div style={{background:"var(--bg1)",borderRadius:12,padding:"20px 0 0",margin:"-4px 0"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:28,padding:"0 24px"}}>
+                  <div style={{background:"var(--bg1)",borderRadius:12,padding:"0 0 24px",margin:"-4px 0"}}>
+                    {/* Chart header */}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24,padding:"20px 28px 0"}}>
                       <div style={{display:"flex",alignItems:"center",gap:14}}>
-                        <img src={LOGO_SRC} alt="ENEVO" style={{width:40,height:40,borderRadius:9,objectFit:"contain",opacity:0.85}}/>
+                        <img src={LOGO_SRC} alt="ENEVO" style={{width:42,height:42,borderRadius:9,objectFit:"contain",opacity:0.85}}/>
                         <div>
-                          <div style={{fontSize:17,fontWeight:700,color:"var(--text0)",letterSpacing:"-.02em"}}>Organization Chart</div>
-                          <div style={{fontSize:13,color:"#4e7a9a",marginTop:1,letterSpacing:".05em",textTransform:"uppercase"}}>
-                            {orgEditing?<span style={{color:"#fb923c",fontWeight:700}}>EDIT MODE</span>:`ENEVO Group · ${orgNodes.filter(n=>!n.is_external).length} members`}
+                          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:3}}>ENEVO GROUP</div>
+                          <div style={{fontSize:20,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Organization Chart</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:3,fontFamily:"'IBM Plex Mono',monospace"}}>
+                            {orgEditing
+                              ?<span style={{color:"#fb923c",fontWeight:700}}>⚠ Edit Mode — drag cards to rearrange</span>
+                              :`${orgNodes.filter(n=>!n.is_external).length} members · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}`}
                           </div>
                         </div>
                       </div>
                       <div style={{display:"flex",gap:8,alignItems:"center"}}>
                         {!orgEditing&&orgNodes.length>0&&(
-                          <button onClick={exportOrgPDF} style={{padding:"6px 14px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",background:"#38bdf810",border:"1px solid #38bdf830",color:"var(--info)",letterSpacing:".03em"}}>⬇ Export PDF</button>
+                          <button onClick={exportOrgPDF} className="be" style={{fontSize:14,padding:"7px 16px"}}>⬇ Export PDF</button>
                         )}
                         {isAdmin&&(
                           <>
                             {orgEditing&&(
-                              <button onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:null,is_external:false,sort_order:roots.length})} style={{padding:"6px 14px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",background:"transparent",border:"1px solid var(--border)",color:"var(--text4)",letterSpacing:".03em"}}>+ Root Node</button>
+                              <button className="bg" style={{fontSize:14}}
+                                onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:null,is_external:false,sort_order:roots.length})}>
+                                + Root Node
+                              </button>
                             )}
-                            <button onClick={()=>setOrgEditing(e=>!e)} style={{padding:"6px 14px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",background:orgEditing?"#fb923c12":"transparent",border:`1px solid ${orgEditing?"#fb923c40":"var(--border)"}`,color:orgEditing?"#fb923c":"var(--text4)",letterSpacing:".03em"}}>{orgEditing?"done":"edit"}</button>
+                            <button onClick={()=>setOrgEditing(e=>!e)}
+                              style={{padding:"7px 16px",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
+                                background:orgEditing?"#fb923c":"linear-gradient(135deg,#0ea5e9,#0369a1)",
+                                border:"none",color:"#fff",transition:"all .2s"}}>
+                              {orgEditing?"✓ Done editing":"✎ Edit Chart"}
+                            </button>
                           </>
                         )}
                       </div>
                     </div>
+
+                    {/* Empty state */}
                     {orgNodes.length===0&&(
                       <div style={{textAlign:"center",padding:"80px 20px"}}>
-                        <div style={{fontSize:13,marginBottom:16,letterSpacing:".08em",textTransform:"uppercase",color:"var(--border)"}}>No chart configured</div>
-                        {isAdmin&&<button onClick={()=>setOrgEditing(true)} style={{padding:"8px 20px",borderRadius:8,background:"transparent",border:"1px solid var(--border)",color:"var(--text4)",fontSize:13,cursor:"pointer",letterSpacing:".05em"}}>edit chart</button>}
+                        <div style={{fontSize:48,marginBottom:16}}>🏢</div>
+                        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:6}}>No org chart configured</div>
+                        <div style={{fontSize:13,color:"var(--text4)",marginBottom:20}}>Add your team hierarchy to visualize the organization</div>
+                        {isAdmin&&<button className="bp" onClick={()=>setOrgEditing(true)}>✎ Start building</button>}
                       </div>
                     )}
 
-                    {/* Chart */}
+                    {/* Chart canvas */}
                     {orgNodes.length>0&&(
-                      <div style={{overflowX:"auto",paddingBottom:20}}>
-                        <div style={{minWidth:600,display:"flex",flexDirection:"column",alignItems:"center",gap:0,paddingTop:8}}>
-                          {/* Top-level drop zone */}
-                          {orgEditing&&(
-                            <div onDragOver={e=>e.preventDefault()}
-                              onDrop={e=>{e.preventDefault();if(orgDragId) moveNode(orgDragId,null);}}
-                              style={{width:"100%",padding:"6px",textAlign:"center",fontSize:12,color:"var(--text4)",
-                                border:"1px dashed var(--border3)",borderRadius:6,marginBottom:8}}>
-                              ↑ Drop here to make root
-                            </div>
-                          )}
-                          <RenderLevel nodes={roots.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0))}/>
+                      <div style={{overflowX:"auto",overflowY:"visible",paddingBottom:8}}>
+                        {/* Drop zone for root */}
+                        {orgEditing&&(
+                          <div onDragOver={e=>e.preventDefault()}
+                            onDrop={e=>{e.preventDefault();if(orgDragId) moveNode(orgDragId,null);}}
+                            style={{margin:"0 28px 8px",padding:"8px",textAlign:"center",fontSize:13,
+                              color:"var(--text4)",border:"1px dashed var(--border)",borderRadius:8}}>
+                            ↑ Drop here to make root-level
+                          </div>
+                        )}
+                        <div style={{position:"relative", width:canvasW, height:canvasH, minWidth:"100%"}}>
+                          {/* SVG connector layer */}
+                          <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none",overflow:"visible"}} aria-hidden="true">
+                            {connectors.map(({px,py,cx,cy,midY,key})=>(
+                              <path key={key}
+                                d={`M ${px} ${py} L ${px} ${midY} L ${cx} ${midY} L ${cx} ${cy}`}
+                                fill="none"
+                                stroke={isDark?"#2a5a8a":"#94b4d0"}
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            ))}
+                          </svg>
+
+                          {/* Card layer — absolutely positioned */}
+                          {orgNodes.map(node=>{
+                            const pos = positions[node.id];
+                            if(!pos) return null;
+                            return(
+                              <div key={node.id}
+                                draggable={orgEditing}
+                                onDragStart={orgEditing?()=>setOrgDragId(node.id):undefined}
+                                onDragEnd={orgEditing?()=>setOrgDragId(null):undefined}
+                                onDragOver={orgEditing?e=>e.preventDefault():undefined}
+                                onDrop={orgEditing?e=>{e.preventDefault();e.stopPropagation();if(orgDragId&&orgDragId!==node.id) moveNode(orgDragId,node.id);}:undefined}
+                                style={{
+                                  position:"absolute",
+                                  left:pos.x, top:pos.y,
+                                  width:CARD_W,
+                                  cursor:orgEditing?"grab":"default",
+                                  opacity:orgDragId===node.id?0.25:1,
+                                  transition:"opacity .2s",
+                                  zIndex:orgDragId===node.id?1:2,
+                                }}>
+                                <OrgCard node={node}/>
+                                {orgEditing&&isAdmin&&(
+                                  <button
+                                    onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:node.id,is_external:false,sort_order:children(node.id).length})}
+                                    style={{marginTop:4,width:"100%",background:"transparent",border:`1px dashed ${isDark?"#2a5a8a":"#94b4d0"}`,
+                                      color:isDark?"#4a8aaa":"#4a6a8a",borderRadius:6,padding:"4px",fontSize:12,
+                                      cursor:"pointer",fontWeight:600,letterSpacing:".04em"}}>
+                                    + add child
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
-
                     {/* Edit Node Modal */}
                     {orgEditNode&&(
                       <div style={{position:"fixed",inset:0,background:"#00000090",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}
