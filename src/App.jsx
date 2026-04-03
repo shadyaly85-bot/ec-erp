@@ -9943,11 +9943,6 @@ export default function App(){
 
               {/* ── ORG CHART VIEW ── */}
               {teamViewMode==="org"&&(()=>{
-                // Build tree from flat orgNodes array
-                const roots    = orgNodes.filter(n=>!n.parent_id || n.parent_id===0);
-                const children = (pid) => orgNodes
-                  .filter(n=>n.parent_id && n.parent_id!==0 && Number(n.parent_id)===Number(pid))
-                  .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
 
                 const saveNode = async(node) => {
                   const{id,...fields}=node;
@@ -10061,69 +10056,86 @@ export default function App(){
                 };
 
 
-                // ── Tree layout algorithm (Reingold-Tilford style) ──
-                // Step 1: compute how wide each subtree needs to be — MEMOIZED to avoid exponential blowup
+                // ── Layout: iterative BFS — no recursion, guaranteed termination ──
                 const CARD_W  = 170;
                 const CARD_H  = 120;
-                const H_GAP   = 36;   // horizontal gap between siblings
-                const V_GAP   = 72;   // vertical gap between levels
+                const H_GAP   = 36;
+                const V_GAP   = 72;
                 const LEVEL_H = CARD_H + V_GAP;
                 const PAD_X   = 52;
                 const PAD_Y   = 28;
 
-                const _widthCache = new Map();
-                const _visiting   = new Set();
-                const subtreeWidth = (id) => {
-                  if (_widthCache.has(id)) return _widthCache.get(id);
-                  if (_visiting.has(id))   return CARD_W + H_GAP; // cycle → break it
-                  _visiting.add(id);
-                  const kids = children(id);
-                  const w = kids.length === 0
+                // Build children map (once, O(N))
+                const kidMap = {};
+                const rootNodes = [];
+                orgNodes.forEach(n => {
+                  const pid = n.parent_id ? Number(n.parent_id) : null;
+                  if (!pid) { rootNodes.push(n); return; }
+                  if (!kidMap[pid]) kidMap[pid] = [];
+                  kidMap[pid].push(n);
+                });
+                Object.values(kidMap).forEach(arr => arr.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)));
+                rootNodes.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+
+                // BFS to get ordered list of reachable nodes — visited set prevents ANY cycle hang
+                const bfsOrder = []; // [{id, depth}]
+                const bfsSeen  = new Set();
+                const bfsQ     = rootNodes.map(n=>({id:n.id, depth:0}));
+                while (bfsQ.length) {
+                  const item = bfsQ.shift();
+                  if (bfsSeen.has(item.id)) continue;
+                  bfsSeen.add(item.id);
+                  bfsOrder.push(item);
+                  (kidMap[item.id]||[]).forEach(c => { if (!bfsSeen.has(c.id)) bfsQ.push({id:c.id, depth:item.depth+1}); });
+                }
+
+                // Phase 1: subtree widths bottom-up (reverse BFS = leaves first)
+                const widths = {};
+                [...bfsOrder].reverse().forEach(({id}) => {
+                  const kids = (kidMap[id]||[]).filter(c=>bfsSeen.has(c.id));
+                  widths[id] = kids.length === 0
                     ? CARD_W + H_GAP
-                    : Math.max(CARD_W + H_GAP, kids.reduce((s,c) => s + subtreeWidth(c.id), 0));
-                  _visiting.delete(id);
-                  _widthCache.set(id, w);
-                  return w;
-                };
+                    : Math.max(CARD_W + H_GAP, kids.reduce((s,c)=>s+(widths[c.id]||CARD_W+H_GAP), 0));
+                });
 
-                // Step 2: assign x,y positions — visiting set catches circular data
+                // Phase 2: positions top-down (BFS order = parents first)
                 const positions = {};
-                const _layoutSeen = new Set();
-                const layoutNode = (node, startX, depth) => {
-                  if (depth > 20 || _layoutSeen.has(node.id)) return; // depth cap + cycle guard
-                  _layoutSeen.add(node.id);
-                  const sw = subtreeWidth(node.id);
-                  const centerX = startX + sw / 2;
-                  positions[node.id] = { x: centerX - CARD_W / 2, y: PAD_Y + depth * LEVEL_H };
-                  const kids = children(node.id);
-                  let curX = startX;
+                let rx = PAD_X;
+                rootNodes.forEach(r => {
+                  const rw = widths[r.id]||CARD_W+H_GAP;
+                  positions[r.id] = { x: rx + rw/2 - CARD_W/2, y: PAD_Y };
+                  rx += rw;
+                });
+                bfsOrder.forEach(({id, depth}) => {
+                  if (!positions[id]) return;
+                  const kids = (kidMap[id]||[]).filter(c=>bfsSeen.has(c.id));
+                  if (!kids.length) return;
+                  const subtreeStart = positions[id].x + CARD_W/2 - (widths[id]||CARD_W+H_GAP)/2;
+                  let cx = subtreeStart;
                   kids.forEach(c => {
-                    layoutNode(c, curX, depth + 1);
-                    curX += subtreeWidth(c.id);
+                    const cw = widths[c.id]||CARD_W+H_GAP;
+                    positions[c.id] = { x: cx + cw/2 - CARD_W/2, y: PAD_Y + (depth+1)*LEVEL_H };
+                    cx += cw;
                   });
-                };
+                });
 
-                const sortedRoots = roots.sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
-                let rootX = PAD_X;
-                sortedRoots.forEach(r => { layoutNode(r, rootX, 0); rootX += subtreeWidth(r.id); });
+                // Canvas size
+                const allPos   = Object.values(positions);
+                const canvasW  = PAD_X * 2 + rootNodes.reduce((s,r)=>s+(widths[r.id]||CARD_W+H_GAP), 0);
+                const canvasH  = (allPos.length ? Math.max(...allPos.map(p=>p.y)) : 0) + CARD_H + PAD_Y * 2;
 
-                // Step 3: canvas dimensions
-                const canvasW = PAD_X * 2 + sortedRoots.reduce((s,r) => s + subtreeWidth(r.id), 0);
-                const allY = Object.values(positions).map(p => p.y);
-                const canvasH = (allY.length ? Math.max(...allY) : 0) + CARD_H + PAD_Y * 2;
-
-                // Step 4: build SVG connector paths (elbow lines)
+                // SVG connector paths
                 const connectors = [];
                 orgNodes.forEach(node => {
                   if (!node.parent_id) return;
-                  const par = orgNodes.find(n => n.id === node.parent_id);
-                  if (!par || !positions[node.id] || !positions[par.id]) return;
-                  const px = positions[par.id].x  + CARD_W / 2;  // parent bottom-center
-                  const py = positions[par.id].y  + CARD_H;
-                  const cx = positions[node.id].x + CARD_W / 2;  // child top-center
+                  const pid = Number(node.parent_id);
+                  if (!positions[node.id] || !positions[pid]) return;
+                  const px = positions[pid].x    + CARD_W/2;
+                  const py = positions[pid].y    + CARD_H;
+                  const cx = positions[node.id].x + CARD_W/2;
                   const cy = positions[node.id].y;
-                  const midY = py + V_GAP / 2;
-                  connectors.push({ px, py, cx, cy, midY, key: node.id });
+                  const midY = py + V_GAP/2;
+                  connectors.push({px,py,cx,cy,midY,key:node.id});
                 });
 
                 return(
@@ -10150,7 +10162,7 @@ export default function App(){
                           <>
                             {orgEditing&&(
                               <button className="bg" style={{fontSize:14}}
-                                onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:null,is_external:false,sort_order:roots.length})}>
+                                onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:null,is_external:false,sort_order:rootNodes.length})}>
                                 + Root Node
                               </button>
                             )}
@@ -10226,7 +10238,7 @@ export default function App(){
                                 {renderOrgCard(node)}
                                 {orgEditing&&isAdmin&&(
                                   <button
-                                    onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:node.id,is_external:false,sort_order:children(node.id).length})}
+                                    onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:node.id,is_external:false,sort_order:(kidMap[node.id]||[]).length})}
                                     style={{marginTop:4,width:"100%",background:"transparent",border:`1px dashed ${isDark?"#2a5a8a":"#94b4d0"}`,
                                       color:isDark?"#4a8aaa":"#4a6a8a",borderRadius:6,padding:"4px",fontSize:12,
                                       cursor:"pointer",fontWeight:600,letterSpacing:".04em"}}>
