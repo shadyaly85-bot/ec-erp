@@ -1610,7 +1610,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
 }
 
 /* ── VacationReport Component ── */
-function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onExport,isAdmin,vacationAllowance=21,setVacationAllowance,vacationAdjustments={},setVacAdj,showToast}){
+function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onExport,isAdmin,vacationBalances={},setVacBalance,showToast}){
   const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
   const typeColors={"Annual Leave":"var(--info)","Sick Leave":"#f87171","Public Holiday":"#fb923c","Business Travel":"#a78bfa","Training External":"#34d399","Unpaid Leave":"#6b7280"};
 
@@ -1710,102 +1710,95 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
       {/* ── ANNUAL LEAVE BALANCE TRACKER ── */}
       {(()=>{
-        const yearAdj = (vacationAdjustments||{})[year]||{};
-        const annualOnly = allEntries.filter(e=>
+        const yearBalances = (vacationBalances||{})[year]||{};
+        const annualOnly   = allEntries.filter(e=>
           e.entry_type==="leave" && (e.leave_type==="Annual Leave"||!e.leave_type) &&
-          new Date(e.date).getFullYear()===year
+          new Date(e.date+"T12:00:00").getFullYear()===year
         );
-        const balances = engineers
+        const rows = engineers
           .filter(eng=>eng.is_active!==false)
           .map(eng=>{
-            const systemUsed = annualOnly.filter(e=>String(e.engineer_id)===String(eng.id)).length;
-            const manualAdj  = +(yearAdj[eng.id]||0); // extra days used not in system
-            const totalUsed  = systemUsed + manualAdj;
-            const remaining  = Math.max(0, vacationAllowance - totalUsed);
-            const pct        = Math.round(totalUsed/vacationAllowance*100);
-            return{...eng, systemUsed, manualAdj, totalUsed, remaining, pct};
+            const entitlement = +(yearBalances[eng.id]??21); // default 21 if not set
+            const used        = annualOnly.filter(e=>String(e.engineer_id)===String(eng.id)).length;
+            const remaining   = Math.max(0, entitlement - used);
+            const pct         = entitlement>0 ? Math.round(used/entitlement*100) : 0;
+            return{...eng, entitlement, used, remaining, pct};
           });
-        if(!balances.length) return null;
+        if(!rows.length) return null;
+
         return(
           <div className="card" style={{marginBottom:14}}>
             {/* Header */}
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:10}}>
               <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",margin:0}}>🏖 Annual Leave Balance — {year}</h4>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                {isAdmin?(
-                  <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"4px 10px"}}>
-                    <span style={{fontSize:12,color:"var(--text4)"}}>Annual allowance:</span>
-                    <input type="number" min={1} max={60} value={vacationAllowance}
-                      onChange={e=>setVacationAllowance&&setVacationAllowance(Math.max(1,+e.target.value))}
-                      style={{width:48,background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"center",outline:"none"}}/>
-                    <span style={{fontSize:12,color:"var(--text4)"}}>days/yr</span>
-                  </div>
-                ):(
-                  <span style={{fontSize:12,color:"var(--text4)"}}>Allowance: {vacationAllowance} days/year</span>
-                )}
-              </div>
+              {isAdmin&&(
+                <div style={{fontSize:12,color:"var(--text4)"}}>
+                  Edit each person's entitlement in the <span style={{color:"var(--info)",fontWeight:600}}>Balance</span> column, then click Save
+                </div>
+              )}
             </div>
-
-            {isAdmin&&(
-              <div style={{fontSize:12,color:"var(--text4)",marginBottom:12,background:"#0ea5e910",border:"1px solid #0ea5e930",borderRadius:6,padding:"7px 12px"}}>
-                💡 <strong style={{color:"var(--info)"}}>Manual adjustment:</strong> Enter days used that were not submitted in the system (e.g. Jan–Mar unlogged vacation). These are added to the system count to get the real balance.
-              </div>
-            )}
 
             {/* Table */}
             <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead>
                 <tr style={{background:"var(--bg2)"}}>
-                  <th style={{textAlign:"left",padding:"7px 12px",color:"var(--text3)",fontSize:12}}>Engineer</th>
-                  <th style={{textAlign:"center",padding:"7px 10px",color:"var(--text3)",fontSize:12}}>System<br/>Days</th>
-                  {isAdmin&&<th style={{textAlign:"center",padding:"7px 10px",color:"#fb923c",fontSize:12}}>Manual<br/>Adjust</th>}
-                  <th style={{textAlign:"center",padding:"7px 10px",color:"var(--text3)",fontSize:12}}>Total<br/>Used</th>
-                  <th style={{textAlign:"left",padding:"7px 12px",color:"var(--text3)",fontSize:12,minWidth:140}}>Balance Bar</th>
-                  <th style={{textAlign:"center",padding:"7px 10px",color:"#34d399",fontSize:12}}>Remaining</th>
-                  <th style={{textAlign:"center",padding:"7px 10px",color:"var(--text3)",fontSize:12}}>Status</th>
+                  <th style={{textAlign:"left",padding:"8px 12px",color:"var(--text3)",fontSize:12}}>Engineer</th>
+                  <th style={{textAlign:"center",padding:"8px 12px",color:"var(--info)",fontSize:12}}>
+                    {isAdmin?"Balance (editable)":"Entitlement"}
+                  </th>
+                  <th style={{textAlign:"center",padding:"8px 12px",color:"#fb923c",fontSize:12}}>Used</th>
+                  <th style={{textAlign:"left",padding:"8px 12px",color:"var(--text3)",fontSize:12,minWidth:120}}>Progress</th>
+                  <th style={{textAlign:"center",padding:"8px 12px",color:"#34d399",fontSize:12}}>Remaining</th>
+                  <th style={{textAlign:"center",padding:"8px 12px",color:"var(--text3)",fontSize:12}}>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {balances.sort((a,b)=>b.totalUsed-a.totalUsed).map((eng,i)=>{
+                {rows.sort((a,b)=>b.used-a.used).map((eng,i)=>{
                   const barColor = eng.pct>=90?"#f87171":eng.pct>=60?"#fb923c":"#34d399";
-                  const status   = eng.pct>=90?"⚠ Critical":eng.pct>=60?"▲ High":"✓ Healthy";
+                  const status   = eng.pct>=100?"🚨 Exceeded":eng.pct>=90?"⚠ Critical":eng.pct>=60?"▲ High":"✓ Healthy";
                   return(
                     <tr key={eng.id} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
+                      {/* Engineer */}
                       <td style={{padding:"8px 12px"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:7}}>
-                          <div style={{width:26,height:26,borderRadius:"50%",background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"var(--info)",flexShrink:0}}>{(eng.name||"?").slice(0,2).toUpperCase()}</div>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{width:28,height:28,borderRadius:"50%",background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"var(--info)",flexShrink:0}}>{(eng.name||"?").slice(0,2).toUpperCase()}</div>
                           <div>
                             <div style={{fontWeight:600,fontSize:13}}>{eng.name}</div>
                             <div style={{fontSize:11,color:"var(--text4)"}}>{eng.role}</div>
                           </div>
                         </div>
                       </td>
-                      <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)",padding:"8px 10px"}}>{eng.systemUsed}d</td>
-                      {isAdmin&&(
-                        <td style={{textAlign:"center",padding:"6px 8px"}}>
+                      {/* Entitlement — editable for admin */}
+                      <td style={{textAlign:"center",padding:"6px 10px"}}>
+                        {isAdmin?(
                           <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-                            <button onClick={()=>setVacAdj&&setVacAdj(year,eng.id,Math.max(0,(eng.manualAdj||0)-1))}
-                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:24,height:28,cursor:"pointer",color:"var(--text2)",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>−</button>
-                            <input type="number" min={0} value={eng.manualAdj||0}
-                              onChange={e=>setVacAdj&&setVacAdj(year,eng.id,Math.max(0,+e.target.value||0))}
-                              style={{width:56,textAlign:"center",background:"var(--bg2)",border:"1px solid #fb923c50",borderRadius:5,color:"#fb923c",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,padding:"4px 6px",outline:"none"}}/>
-                            <button onClick={()=>setVacAdj&&setVacAdj(year,eng.id,(eng.manualAdj||0)+1)}
-                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:24,height:28,cursor:"pointer",color:"var(--text2)",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>+</button>
+                            <button onClick={()=>setVacBalance&&setVacBalance(year,eng.id,eng.entitlement-1)}
+                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:26,height:30,cursor:"pointer",color:"var(--text2)",fontSize:16,lineHeight:1,flexShrink:0}}>−</button>
+                            <input type="number" min={0} max={365} value={eng.entitlement}
+                              onChange={e=>setVacBalance&&setVacBalance(year,eng.id,+e.target.value||0)}
+                              style={{width:60,textAlign:"center",background:"var(--bg2)",border:"1px solid var(--info)",borderRadius:6,color:"var(--info)",fontSize:15,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,padding:"4px 6px",outline:"none"}}/>
+                            <button onClick={()=>setVacBalance&&setVacBalance(year,eng.id,eng.entitlement+1)}
+                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:26,height:30,cursor:"pointer",color:"var(--text2)",fontSize:16,lineHeight:1,flexShrink:0}}>+</button>
                           </div>
-                          {eng.manualAdj>0&&<div style={{fontSize:10,color:"#fb923c",textAlign:"center",marginTop:2}}>{eng.manualAdj}d unlogged</div>}
-                        </td>
-                      )}
-                      <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:barColor,padding:"8px 10px"}}>{eng.totalUsed}d</td>
+                        ):(
+                          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)",fontSize:14}}>{eng.entitlement}d</span>
+                        )}
+                      </td>
+                      {/* Used */}
+                      <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#fb923c",fontSize:14,padding:"8px 10px"}}>{eng.used}d</td>
+                      {/* Progress bar */}
                       <td style={{padding:"8px 12px"}}>
-                        <div style={{background:"var(--bg3)",height:8,borderRadius:4,overflow:"hidden",minWidth:100}}>
+                        <div style={{background:"var(--bg3)",height:8,borderRadius:4,overflow:"hidden"}}>
                           <div style={{height:"100%",width:`${Math.min(100,eng.pct)}%`,background:barColor,borderRadius:4,transition:"width .4s"}}/>
                         </div>
-                        <div style={{fontSize:10,color:"var(--text4)",marginTop:2}}>{eng.pct}% of {vacationAllowance}d</div>
+                        <div style={{fontSize:10,color:"var(--text4)",marginTop:2}}>{eng.used} of {eng.entitlement} days</div>
                       </td>
-                      <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#34d399",fontSize:14,padding:"8px 10px"}}>{eng.remaining}d</td>
+                      {/* Remaining */}
+                      <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,color:eng.remaining>0?"#34d399":"#f87171",fontSize:16,padding:"8px 10px"}}>{eng.remaining}d</td>
+                      {/* Status */}
                       <td style={{textAlign:"center",padding:"8px 10px"}}>
-                        <span style={{fontSize:11,padding:"2px 8px",borderRadius:8,background:barColor+"20",color:barColor,fontWeight:700}}>{status}</span>
+                        <span style={{fontSize:11,padding:"2px 9px",borderRadius:8,background:barColor+"20",color:barColor,fontWeight:700,whiteSpace:"nowrap"}}>{status}</span>
                       </td>
                     </tr>
                   );
@@ -1814,22 +1807,26 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
               <tfoot>
                 <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)"}}>
                   <td style={{padding:"8px 12px",fontWeight:700,color:"var(--text0)"}}>TEAM TOTAL</td>
-                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{balances.reduce((s,e)=>s+e.systemUsed,0)}d</td>
-                  {isAdmin&&<td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#fb923c"}}>{balances.reduce((s,e)=>s+e.manualAdj,0)}d</td>}
-                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{balances.reduce((s,e)=>s+e.totalUsed,0)}d</td>
+                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{rows.reduce((s,e)=>s+e.entitlement,0)}d</td>
+                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#fb923c"}}>{rows.reduce((s,e)=>s+e.used,0)}d</td>
                   <td/>
-                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#34d399"}}>{balances.reduce((s,e)=>s+e.remaining,0)}d</td>
+                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#34d399"}}>{rows.reduce((s,e)=>s+e.remaining,0)}d</td>
                   <td/>
                 </tr>
               </tfoot>
             </table>
             </div>
+
+            {/* Save button */}
             {isAdmin&&(
-              <div style={{display:"flex",justifyContent:"flex-end",marginTop:12,paddingTop:10,borderTop:"1px solid var(--border3)"}}>
-                <button className="bp" style={{fontSize:13,padding:"7px 20px"}} onClick={()=>{
-                  try{localStorage.setItem('ec_vacation_adj',JSON.stringify(vacationAdjustments));}catch(err){}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,paddingTop:10,borderTop:"1px solid var(--border3)"}}>
+                <span style={{fontSize:12,color:"var(--text4)"}}>
+                  💡 Balances are per-year and per-person. Changes are auto-saved when you click 💾 Save.
+                </span>
+                <button className="bp" style={{fontSize:13,padding:"7px 22px",flexShrink:0}} onClick={()=>{
+                  try{localStorage.setItem('ec_vacation_balances',JSON.stringify(vacationBalances));}catch(err){}
                   showToast&&showToast("Vacation balances saved ✓");
-                }}>💾 Save Balance</button>
+                }}>💾 Save</button>
               </div>
             )}
           </div>
@@ -6378,7 +6375,7 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
-function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiEngId,kpiNotes,setKpiNotes,isAdmin,isLead,isAcct,isEngineer,myProfile,year,notifications,onDismissNotif,alertDay,setAlertDay,showToast,supabase,setEntries,setNotifications,vacationAllowance=21,setVacationAllowance}){
+function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiEngId,kpiNotes,setKpiNotes,isAdmin,isLead,isAcct,isEngineer,myProfile,year,notifications,onDismissNotif,alertDay,setAlertDay,showToast,supabase,setEntries,setNotifications}){
 
   const canManageKPI = isAdmin||isLead;
   // Engineers auto-locked to their own profile
@@ -6898,12 +6895,10 @@ export default function App(){
   const [funcEngId,setFuncEngId]           = useState("all");
   const [kpiEngId,setKpiEngId]            = useState(null);
   const [kpiNotes,setKpiNotes]             = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_kpi_notes')||'{}');}catch{return{};}}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
-  const [vacationAllowance,setVacationAllowance] = useState(()=>{try{return +localStorage.getItem('ec_vacation_allowance')||21;}catch{return 21;}});
-  useEffect(()=>{ localStorage.setItem('ec_vacation_allowance',String(vacationAllowance)); },[vacationAllowance]);
-  // Manual vacation balance adjustments: {year: {engId: extraDaysUsed}}
-  const [vacationAdjustments,setVacationAdjustments] = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_vacation_adj')||'{}');}catch{return {};}});
-  useEffect(()=>{ localStorage.setItem('ec_vacation_adj',JSON.stringify(vacationAdjustments)); },[vacationAdjustments]);
-  const setVacAdj=(year,engId,val)=>setVacationAdjustments(prev=>({...prev,[year]:{...(prev[year]||{}),[engId]:val}}));
+  // Per-engineer vacation entitlement: { year: { engId: days } }  — admin enters each person's allowance
+  const [vacationBalances,setVacationBalances] = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_vacation_balances')||'{}');}catch{return {};}});
+  useEffect(()=>{ localStorage.setItem('ec_vacation_balances',JSON.stringify(vacationBalances)); },[vacationBalances]);
+  const setVacBalance=(yr,engId,days)=>setVacationBalances(prev=>({...prev,[yr]:{...(prev[yr]||{}),[engId]:Math.max(0,days)}}));
   const [activities,setActivities]         = useState([]);
   const [subprojects,setSubprojects]       = useState([]);
   const [activitiesLoaded,setActivitiesLoaded] = useState(false);
@@ -10409,10 +10404,8 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 engineers={engineers} leaveEntries={leaveEntries} allEntries={entries}
                 month={month} year={year} MONTHS={MONTHS}
                 isAdmin={isAdmin}
-                vacationAllowance={vacationAllowance}
-                setVacationAllowance={setVacationAllowance}
-                vacationAdjustments={vacationAdjustments}
-                setVacAdj={setVacAdj}
+                vacationBalances={vacationBalances}
+                setVacBalance={setVacBalance}
                 showToast={showToast}
                 onExport={()=>buildVacationPDF(engineers,entries,leaveEntries,projects,month,year)}
               />}
@@ -10908,8 +10901,6 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   alertDay={alertDay} setAlertDay={setAlertDay}
                   showToast={showToast} supabase={supabase}
                   setEntries={setEntries} setNotifications={setNotifications}
-                  vacationAllowance={vacationAllowance}
-                  setVacationAllowance={setVacationAllowance}
                 />
               )}
 
