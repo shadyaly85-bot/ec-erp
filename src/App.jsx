@@ -10895,6 +10895,12 @@ export default function App(){
                               </div>
                             ))}
                           </div>
+                          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginBottom:12}}>
+                            <button className="bp" style={{fontSize:13,padding:"7px 18px"}}
+                              onClick={()=>buildInvoicePDF(projects,entries,engineers,month,year,invoiceProjId==="ALL"?null:invoiceProjId)}>
+                              ⬇ Export Invoice PDF {invoiceProjId!=="ALL"?"(filtered)":"(all)"}
+                            </button>
+                          </div>
                           <table>
                             <thead><tr><th>Project</th><th>No.</th><th style={{textAlign:"right"}}>Hours</th><th style={{textAlign:"right"}}>Rate</th><th style={{textAlign:"right"}}>Revenue</th><th style={{textAlign:"right"}}>Type</th><th></th></tr></thead>
                             <tbody>{filteredProjs.map(p=>(
@@ -10905,7 +10911,10 @@ export default function App(){
                                 <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--text3)"}}>{p.billable?`$${p.rate_per_hour}/h`:"—"}</td>
                                 <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:700}}>{p.billable?fmtCurrency(p.revenue):"—"}</td>
                                 <td style={{textAlign:"right"}}><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:p.billable?"#05603a30":"#fb923c20",color:p.billable?"#34d399":"#fb923c",fontWeight:700}}>{p.billable?"BILL":"NON"}</span></td>
-                                <td><button className="be" style={{fontSize:12,whiteSpace:"nowrap"}} onClick={()=>{const eng=engineers[0];if(eng)buildTimesheetPDF(eng,monthEntries,projects,month,year);}}>⬇ PDF</button></td>
+                                <td><button className="be" style={{fontSize:12,whiteSpace:"nowrap"}}
+                                  onClick={()=>buildInvoicePDF(projects,entries,engineers,month,year,p.id)}>
+                                  ⬇ PDF
+                                </button></td>
                               </tr>
                             ))}</tbody>
                             {filteredProjs.filter(p=>p.billable).length>0&&(
@@ -11084,6 +11093,17 @@ export default function App(){
                 );
               })()}
 
+              {/* ── Senior Management: read-only overview banner ── */}
+              {isSenior&&!isAdmin&&(
+                <div style={{display:"flex",alignItems:"center",gap:14,background:"#0ea5e910",border:"1px solid #0ea5e930",borderRadius:10,padding:"14px 18px"}}>
+                  <span style={{fontSize:24}}>👁</span>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:700,color:"var(--info)"}}>Overview Panel — Read Only</div>
+                    <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>You have visibility across all company data. Changes must be made through the Admin or Lead accounts.</div>
+                  </div>
+                </div>
+              )}
+
               {/* ── Tab navigation ── */}
               <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",flexWrap:"wrap"}}>
                 {[
@@ -11166,7 +11186,9 @@ export default function App(){
                             <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{eng.level}</span></td>
                             <td style={{color:"var(--text3)",fontSize:13}}>{eng.email||"—"}</td>
                             <td>
-                              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                              {isSenior&&!isAdmin
+                                ?<span style={{fontSize:13,padding:"2px 10px",borderRadius:6,background:"var(--bg3)",color:roleColor,fontWeight:600,border:`1px solid ${roleColor}30`}}>{ROLE_LABELS[eng.role_type||"engineer"]}</span>
+                                :<div style={{display:"flex",gap:6,alignItems:"center"}}>
                                 <select value={pendingRoles[eng.id]??eng.role_type??"engineer"}
                                   style={{padding:"5px 8px",fontSize:13,background:"var(--bg2)",border:`1px solid ${roleColor}40`,color:roleColor,borderRadius:6,outline:"none",fontWeight:600}}
                                   onChange={e=>setPendingRoles(p=>({...p,[eng.id]:e.target.value}))}>
@@ -11187,15 +11209,17 @@ export default function App(){
                                     logAction("UPDATE","Engineer",`Role changed: ${eng.name} → ${newRole}`,{engineer_id:eng.id,name:eng.name,new_role:newRole});
                                   }}>Save ✓</button>
                                 )}
-                              </div>
+                              </div>}
                             </td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#f47218",fontWeight:600}}>{wdStr||"—"}</td>
                             <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{es?.workHrs||0}h</td>
                             <td>
-                              <div style={{display:"flex",gap:5}}>
-                                <button className="be" onClick={()=>setEditEngModal({...eng})}>✎</button>
-                                <button className="bd" onClick={()=>deleteEngineer(eng.id)}>✕</button>
-                              </div>
+                              {isSenior&&!isAdmin
+                                ?<span style={{fontSize:12,color:"var(--text4)"}}>view only</span>
+                                :<div style={{display:"flex",gap:5}}>
+                                  <button className="be" onClick={()=>setEditEngModal({...eng})}>✎</button>
+                                  <button className="bd" onClick={()=>deleteEngineer(eng.id)}>✕</button>
+                                </div>}
                             </td>
                           </tr>
                         );
