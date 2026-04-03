@@ -6653,28 +6653,33 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       </div>
     </div>
 
-    {/* ── Pending vacation approvals (admin/lead only) ── */}
+    {/* ── Pending vacation approvals (admin/lead) ── */}
     {canManageKPI&&pendingVacations.length>0&&(
       <div className="card" style={{borderColor:"#f59e0b50",padding:0,overflow:"hidden"}}>
-        <div style={{background:"#78350f20",borderBottom:"1px solid #f59e0b30",padding:"10px 16px",display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>⏳ Pending Vacation Approvals</span>
-          <span style={{fontSize:13,background:"#f59e0b20",border:"1px solid #f59e0b40",color:"#f59e0b",padding:"1px 8px",borderRadius:8,fontWeight:700}}>{pendingVacations.length}</span>
+        <div style={{background:"var(--bg0)",borderBottom:"1px solid #f59e0b40",padding:"14px 20px",display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:15,fontWeight:700,color:"#f59e0b"}}>⏳ Pending Vacation Approvals</span>
+          <span style={{fontSize:13,background:"#f59e0b20",border:"1px solid #f59e0b40",color:"#f59e0b",padding:"2px 9px",borderRadius:8,fontWeight:700}}>{pendingVacations.length}</span>
+          <span style={{fontSize:13,color:"var(--text3)",marginLeft:"auto"}}>Also visible in 🔔 notifications bell at top of Admin panel</span>
         </div>
         <div style={{display:"grid",gap:0}}>
           {pendingVacations.map(e=>{
             const eng=engineers.find(x=>String(x.id)===String(e.engineer_id));
+            const engRole=eng?.role_type||"engineer";
             const notif=vacReqNotifs.find(n=>{ try{return JSON.parse(n.meta||"{}").entry_id===e.id;}catch{return false;} });
             return(
-              <div key={e.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:"1px solid var(--border3)"}}>
-                <div className="av" style={{width:32,height:32,fontSize:13,flexShrink:0}}>{eng?.name?.slice(0,2).toUpperCase()||"?"}</div>
+              <div key={e.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 20px",borderBottom:"1px solid var(--border)"}}>
+                <div className="av" style={{width:34,height:34,fontSize:13,flexShrink:0}}>{eng?.name?.slice(0,2).toUpperCase()||"?"}</div>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"var(--text0)"}}>{eng?.name||"Unknown"}</div>
-                  <div style={{fontSize:13,color:"var(--text4)"}}>Annual Leave · {e.date} · {e.leave_type||"Annual Leave"}</div>
+                  <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>{eng?.name||"Unknown"}</div>
+                  <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
+                    Annual Leave · <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{e.date}</span>
+                    <span style={{marginLeft:6,fontSize:12,padding:"1px 6px",borderRadius:4,background:ROLE_COLORS[engRole]+"20",color:ROLE_COLORS[engRole]||"var(--text4)",fontWeight:600}}>{ROLE_LABELS[engRole]||engRole}</span>
+                  </div>
                 </div>
                 <button onClick={()=>approveVacation(e.id,notif?.id)}
-                  style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:5,padding:"5px 12px",color:"#34d399",fontSize:13,fontWeight:700,cursor:"pointer"}}>✓ Approve</button>
+                  style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:7,padding:"6px 16px",color:"#34d399",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✓ Approve</button>
                 <button onClick={()=>rejectVacation(e.id,notif?.id)}
-                  style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:5,padding:"5px 12px",color:"#f87171",fontSize:13,fontWeight:700,cursor:"pointer"}}>✕ Reject</button>
+                  style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:7,padding:"6px 16px",color:"#f87171",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✕ Reject</button>
               </div>
             );
           })}
@@ -7250,7 +7255,19 @@ export default function App(){
         all.filter(n=>n.read).forEach(n=>toDelete.push(n.id));
         if(toDelete.length) supabase.from("notifications").delete().in("id",[...new Set(toDelete)]).then(()=>{});
         const deduped = all.filter(n=>!n.read && !toDelete.includes(n.id));
-        setNotifications(deduped);
+        // Role-based filter: engineers only see notifications relevant to them
+        // Admin/lead/accountant/senior see all
+        const profId = profR.data?.id;
+        const profRole = profR.data?.role_type||"engineer";
+        const isRestrictedRole = !["admin","lead","accountant","senior_management"].includes(profRole);
+        const filtered = isRestrictedRole
+          ? deduped.filter(n=>{
+              // Engineers only see notifications about themselves
+              try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
+              catch{ return false; }
+            })
+          : deduped;
+        setNotifications(filtered);
       }
       if(staffR.data){
         const sData=staffR.data;
@@ -7340,7 +7357,12 @@ export default function App(){
 
 
 
-  const unreadCount=notifications.length; // all rows are unread (dismissed = deleted)
+  const unreadCount=useMemo(()=>{
+    const notifCount=notifications.length;
+    // Also count pending vacation entries that haven't been notified yet
+    const pendingVacCount=isAdmin?entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL").length:0;
+    return Math.max(notifCount, pendingVacCount);
+  },[notifications,entries,isAdmin]);
 
   // Dismiss = permanently delete from DB so they never come back on refresh
   const dismissNotification=useCallback(async(id)=>{
@@ -7445,7 +7467,7 @@ export default function App(){
     const selectedAct = actId ? activities.find(a=>String(a.id)===String(actId)) : null;
     // Vacation approval workflow: flag Annual Leave from non-admin/lead as pending
     const isAnnualLeave = isLeave && (newEntry.leaveType==="Annual Leave" || !newEntry.leaveType);
-    const needsApproval = isAnnualLeave && !canEditAny; // engineers & accountant go through approval
+    const needsApproval = isAnnualLeave && !isAdmin; // only admin bypasses; lead, accountant, engineer all need approval
     const basePayload={
       engineer_id:engId,
       project_id: (isLeave||isFunc)?null:newEntry.projectId,
@@ -9039,7 +9061,7 @@ export default function App(){
           {navItems.map(n=>(
             <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>setView(n.id)}>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16}}>{n.icon}</span>{n.label}
-              {n.id==="admin"&&unreadCount>0&&<span style={{marginLeft:"auto",background:"#ef4444",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10}}>{unreadCount}</span>}
+              {n.id==="admin"&&unreadCount>0&&<span style={{marginLeft:"auto",background:unreadCount>0?"#ef4444":"transparent",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{unreadCount}</span>}
             </button>
           ))}
           <div style={{marginTop:14,borderTop:`1px solid var(--border)`,paddingTop:12,paddingLeft:6,paddingRight:6}}>
@@ -9527,6 +9549,27 @@ export default function App(){
                     style={{background:"none",border:"none",color:"var(--text3)",cursor:"pointer",fontSize:15}}>✕</button>
                 </div>
               )}
+
+              {/* Pending vacation banner — shown to engineer/lead/accountant */}
+              {(()=>{
+                const myPending=entries.filter(e=>String(e.engineer_id)===String(viewEngId)&&e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL");
+                if(myPending.length===0) return null;
+                return(
+                  <div style={{display:"flex",alignItems:"center",gap:12,background:"#78350f18",border:"1px solid #f59e0b50",borderRadius:10,padding:"12px 16px",marginBottom:10}}>
+                    <span style={{fontSize:20}}>⏳</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{myPending.length} Annual Leave request{myPending.length!==1?"s":""} pending admin approval</div>
+                      <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
+                        {myPending.map(e=>e.date).join(", ")} · The admin will approve or reject shortly
+                      </div>
+                    </div>
+                    <span style={{fontSize:12,padding:"3px 10px",borderRadius:8,background:"#f59e0b20",border:"1px solid #f59e0b40",color:"#f59e0b",fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"}}>
+                      PENDING
+                    </span>
+                  </div>
+                );
+              })()}
+
               {/* 7-day week grid */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:7}}>
                 {weekDays.map(day=>{
@@ -9579,15 +9622,21 @@ export default function App(){
                       </div>
                       {de.map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
+                        const isPending=e.activity==="PENDING_APPROVAL";
                         return(
-                          <div key={e.id} style={{background:"var(--bg0)",border:"1px solid var(--border2)",borderRadius:4,padding:"5px 6px",marginBottom:3,fontSize:12}}>
+                          <div key={e.id} style={{background:isPending?"#78350f18":"var(--bg0)",border:`1px solid ${isPending?"#f59e0b50":"var(--border2)"}`,borderRadius:4,padding:"5px 6px",marginBottom:3,fontSize:12}}>
                             <div style={{display:"flex",justifyContent:"space-between",gap:2}}>
                               <div style={{flex:1,minWidth:0}}>
                                 {e.entry_type==="leave"
-                                  ?<span style={{color:"#fb923c",fontWeight:600}}>✈ {e.leave_type}</span>
+                                  ?<>
+                                    <span style={{color:"#fb923c",fontWeight:600}}>✈ {e.leave_type||"Annual Leave"}</span>
+                                    {isPending&&<div style={{marginTop:2,display:"inline-flex",alignItems:"center",gap:3,background:"#f59e0b20",border:"1px solid #f59e0b50",borderRadius:3,padding:"1px 5px",marginLeft:4}}>
+                                      <span style={{fontSize:10,color:"#f59e0b",fontWeight:700}}>⏳ PENDING APPROVAL</span>
+                                    </div>}
+                                  </>
                                   :<><span style={{color:"#0ea5e9",fontSize:11,fontWeight:600}}>{proj?.name||proj?.id||e.project_id}</span>
                                     <div style={{color:"var(--text2)",fontSize:11,marginTop:1}}>{e.task_type}</div>
-                                    {e.activity&&<div style={{color:"var(--text3)",fontSize:11,marginTop:1,fontStyle:"italic",lineHeight:1.3}}>{e.activity.substring(0,35)}{e.activity.length>35?"…":""}</div>}
+                                    {e.activity&&!isPending&&<div style={{color:"var(--text3)",fontSize:11,marginTop:1,fontStyle:"italic",lineHeight:1.3}}>{e.activity.substring(0,35)}{e.activity.length>35?"…":""}</div>}
                                   </>}
                               </div>
                               {canEdit&&canPostHours&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
@@ -9642,15 +9691,27 @@ export default function App(){
                       {visEntries.map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
                         const checked=selectedEntries.has(e.id);
+                        const isPending=e.activity==="PENDING_APPROVAL";
                         return(
-                          <tr key={e.id} style={{background:checked?"#0d1e3440":"transparent"}}>
-                            <td><input type="checkbox" checked={checked} onChange={()=>setSelectedEntries(prev=>{const n=new Set(prev);checked?n.delete(e.id):n.add(e.id);return n;})} style={{cursor:"pointer"}}/></td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                            <td style={{fontSize:13,color:"var(--info)"}}>{proj?<><span style={{fontWeight:600,color:"var(--text0)"}}>{proj.name||proj.id}</span><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)",marginLeft:4}}>({proj.id})</span></>:<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
-                            <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type||"—"}</td>
-                            <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                          <tr key={e.id} style={{background:checked?"#0ea5e910":isPending?"#78350f10":"transparent"}}>
+                            <td><input type="checkbox" checked={checked} onChange={()=>setSelectedEntries(prev=>{const n=new Set(prev);checked?n.delete(e.id):n.add(e.id);return n;})} style={{cursor:"pointer",accentColor:"var(--info)"}}/></td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.date}</td>
+                            <td>{proj
+                              ?<><span style={{fontWeight:600,color:"var(--text0)"}}>{proj.name||proj.id}</span><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",marginLeft:4}}>({proj.id})</span></>
+                              :<span style={{color:"#fb923c",fontWeight:600}}>✈ {e.leave_type||"Leave"}</span>}
+                            </td>
+                            <td style={{color:"var(--text2)"}}>{e.task_type||"—"}</td>
+                            <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                              {isPending
+                                ?<span style={{color:"#f59e0b",fontWeight:700,fontStyle:"normal"}}>⏳ Pending Approval</span>
+                                :(e.activity||"—")}
+                            </td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
-                            <td><span style={{fontSize:12,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
+                            <td>
+                              {isPending
+                                ?<span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:"#f59e0b20",border:"1px solid #f59e0b40",color:"#f59e0b",fontWeight:700}}>PENDING</span>
+                                :<span style={{fontSize:12,padding:"2px 7px",borderRadius:4,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span>}
+                            </td>
                             <td><div style={{display:"flex",gap:5}}>
                               {canPostHours&&<button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>}
                               {canPostHours&&<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}
@@ -10698,9 +10759,9 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                      isLead?"Edit entries · lead dashboard · tracker":"Your personal KPI scorecard"}
                   </p>
                 </div>
-                {isAdmin&&unreadCount>0&&(
+                {isAdmin&&(unreadCount>0||entries.some(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL"))&&(
                   <div style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:13,color:"#f87171",fontWeight:600}}>🔔 {unreadCount} notification{unreadCount!==1?"s":""}</span>
+                    <span style={{fontSize:13,color:"#f87171",fontWeight:600}}>🔔 {unreadCount} item{unreadCount!==1?"s":""} need attention</span>
                   </div>
                 )}
               </div>
@@ -10731,10 +10792,66 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   </div>
                   {notifPanelOpen&&(
                   <div style={{padding:"14px 18px",display:"grid",gap:12}}>
+
+                    {/* ── Vacation Approval Requests — most prominent, actionable ── */}
+                    {(()=>{
+                      const vacNotifs=notifications.filter(n=>n.type==="vacation_request");
+                      const pendingVacs=entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL");
+                      if(pendingVacs.length===0&&vacNotifs.length===0) return null;
+                      return(
+                        <div>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                            <span style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>⏳ Vacation Approval Requests</span>
+                            <span style={{background:"#f59e0b20",color:"#f59e0b",fontSize:12,fontWeight:700,padding:"1px 7px",borderRadius:8}}>{pendingVacs.length}</span>
+                          </div>
+                          <div style={{display:"grid",gap:6}}>
+                            {pendingVacs.length===0&&(
+                              <div style={{fontSize:13,color:"var(--text4)",padding:"8px 12px",background:"var(--bg2)",borderRadius:8}}>No pending vacation requests</div>
+                            )}
+                            {pendingVacs.map(e=>{
+                              const eng=engineers.find(x=>String(x.id)===String(e.engineer_id));
+                              const engRole=eng?.role_type||"engineer";
+                              const matchedNotif=vacNotifs.find(n=>{try{return JSON.parse(n.meta||"{}").entry_id===e.id;}catch{return false;}});
+                              return(
+                                <div key={e.id} style={{display:"flex",alignItems:"center",gap:12,background:"#78350f18",border:"1px solid #f59e0b40",borderRadius:10,padding:"12px 16px"}}>
+                                  <div className="av" style={{width:34,height:34,fontSize:13,flexShrink:0}}>{eng?.name?.slice(0,2).toUpperCase()||"?"}</div>
+                                  <div style={{flex:1,minWidth:0}}>
+                                    <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>{eng?.name||"Unknown"}</div>
+                                    <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
+                                      Annual Leave · <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{e.date}</span>
+                                      <span style={{marginLeft:6,fontSize:12,padding:"1px 6px",borderRadius:4,background:ROLE_COLORS[engRole]+"20",color:ROLE_COLORS[engRole]||"var(--text4)",fontWeight:600}}>{ROLE_LABELS[engRole]||engRole}</span>
+                                    </div>
+                                  </div>
+                                  <div style={{display:"flex",gap:6,flexShrink:0}}>
+                                    <button onClick={async()=>{
+                                      await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
+                                      setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
+                                      if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
+                                      showToast(`${eng?.name||"Vacation"} approved ✓`);
+                                    }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:7,padding:"6px 14px",color:"#34d399",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                                      ✓ Approve
+                                    </button>
+                                    <button onClick={async()=>{
+                                      await supabase.from("time_entries").delete().eq("id",e.id);
+                                      setEntries(prev=>prev.filter(x=>x.id!==e.id));
+                                      if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
+                                      showToast(`${eng?.name||"Vacation"} request rejected`,false);
+                                    }} style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:7,padding:"6px 14px",color:"#f87171",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                                      ✕ Reject
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {[
                       {list:signupNotifs,  label:"👤 New Signups",       color:"#fb923c", sub:"Engineers tab → set role"},
                       {list:alertNotifs2,  label:"⏰ Timesheet Alerts",   color:"#f87171", sub:null},
-                      {list:otherNotifs,   label:"ℹ System",             color:"var(--text3)", sub:null},
+                      {list:otherNotifs.filter(n=>n.type!=="vacation_request"), label:"ℹ System", color:"var(--text3)", sub:null},
                     ].filter(g=>g.list.length>0).map(grp=>(
                       <div key={grp.label}>
                         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
