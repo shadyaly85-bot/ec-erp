@@ -3980,22 +3980,14 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                 <option value="Profit & Loss Sheet">Profit &amp; Loss Sheet</option>
                 <option value="Balance Sheet">Balance Sheet</option>
               </select></div>
-            <div><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>BS/PL</label>
-              <select value={editLine.bs_pl||""} onChange={e=>setEditLine(p=>({...p,bs_pl:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}>
-                <option value="">—</option><option value="BS">Balance Sheet (BS)</option><option value="PL">Profit &amp; Loss (PL)</option>
-              </select></div>
+            <div/>{/* spacer */}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-            {[{label:"Debit (EGP)",key:"debit"},{label:"Credit (EGP)",key:"credit"},{label:"USD Amount",key:"usd_amount"}].map(({label,key})=>(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            {[{label:"Debit (EGP)",key:"debit"},{label:"Credit (EGP)",key:"credit"}].map(({label,key})=>(
               <div key={key}><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>{label}</label>
                 <input type="number" step="0.01" value={editLine[key]||""} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))}
                   style={{width:"100%",boxSizing:"border-box"}}/></div>
             ))}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            <div><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Exchange Rate</label>
-              <input type="number" step="0.01" value={editLine.exchange_rate||""} onChange={e=>setEditLine(p=>({...p,exchange_rate:e.target.value}))}
-                style={{width:"100%",boxSizing:"border-box"}}/></div>
           </div>
           <div style={{marginBottom:16}}><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Description</label>
             <textarea rows={2} value={editLine.description||""} onChange={e=>setEditLine(p=>({...p,description:e.target.value}))}
@@ -6921,6 +6913,7 @@ export default function App(){
 
   // ── Theme ──
   const [isDark,setIsDark] = useState(()=>localStorage.getItem("erp_theme")!=="light");
+  const [menuOpen,setMenuOpen] = useState(false); // mobile sidebar toggle
   useEffect(()=>{
     if(isDark){ document.body.classList.remove("light"); localStorage.setItem("erp_theme","dark"); }
     else{ document.body.classList.add("light"); localStorage.setItem("erp_theme","light"); }
@@ -9117,11 +9110,42 @@ export default function App(){
         body.light input:focus,body.light select:focus,body.light textarea:focus{box-shadow:0 0 0 3px #0ea5e920}
         body.light .rpt-card{box-shadow:0 1px 4px #0000000a}
         body.light .wc{box-shadow:inset 0 1px 3px #0000000a}
+        /* ── RESPONSIVE / MOBILE ── */
+        .hamburger{display:none;position:fixed;top:14px;left:14px;z-index:300;
+          background:var(--info);border:none;border-radius:8px;width:40px;height:40px;
+          cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;box-shadow:0 2px 12px #0005}
+        .hamburger span{display:block;width:20px;height:2px;background:#fff;border-radius:2px;transition:all .25s}
+        .sidebar-overlay{display:none;position:fixed;inset:0;z-index:149;background:#00000060;backdrop-filter:blur(3px)}
+        @media(max-width:900px){
+          .hamburger{display:flex !important}
+          .app-sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:150}
+          .app-sidebar.sidebar-open{transform:translateX(0)}
+          .sidebar-overlay{display:block}
+          .app-content{margin-left:0 !important;max-width:100vw !important;padding:16px 14px 24px !important;padding-top:64px !important}
+        }
+        @media(max-width:640px){
+          .week-grid-7{grid-template-columns:repeat(3,1fr) !important}
+          .stats-5col{grid-template-columns:repeat(2,1fr) !important}
+          .stats-4col{grid-template-columns:repeat(2,1fr) !important}
+          .hide-mobile{display:none !important}
+          .modal{width:95vw !important;padding:16px !important}
+          .rpt-two-panel{grid-template-columns:1fr !important}
+          .rpt-nav{position:static !important}
+        }
       `}</style>
+
+      {/* ── Hamburger (mobile only) ── */}
+      <button className="hamburger" onClick={()=>setMenuOpen(o=>!o)} aria-label="Menu">
+        <span style={{transform:menuOpen?"rotate(45deg) translate(5px,5px)":"none"}}/>
+        <span style={{opacity:menuOpen?0:1}}/>
+        <span style={{transform:menuOpen?"rotate(-45deg) translate(5px,-5px)":"none"}}/>
+      </button>
+      {/* ── Sidebar overlay (mobile tap-to-close) ── */}
+      {menuOpen&&<div className="sidebar-overlay" onClick={()=>setMenuOpen(false)}/>}
 
       <div style={{display:"flex"}}>
         {/* ── Sidebar ── */}
-        <div style={{width:215,background:"var(--sidebar)",borderRight:`1px solid var(--sidebar-border)`,minHeight:"100vh",padding:"20px 10px",position:"fixed",top:0,left:0,bottom:0,overflowY:"auto",zIndex:50,transition:"background .3s"}}>
+        <div className={`app-sidebar${menuOpen?" sidebar-open":""}`} style={{width:215,background:"var(--sidebar)",borderRight:`1px solid var(--sidebar-border)`,minHeight:"100vh",padding:"20px 10px",position:"fixed",top:0,left:0,bottom:0,overflowY:"auto",zIndex:50,transition:"background .3s, transform .25s"}}>
           <div style={{marginBottom:20,paddingLeft:6}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
               <LogoImg/>
@@ -9133,7 +9157,7 @@ export default function App(){
             <div style={{fontSize:13,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>ENEVO Group</div>
           </div>
           {navItems.map(n=>(
-            <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>setView(n.id)}>
+            <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>{setView(n.id);setMenuOpen(false);}}>
               <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16}}>{n.icon}</span>{n.label}
               {n.id==="admin"&&unreadCount>0&&<span style={{marginLeft:"auto",background:unreadCount>0?"#ef4444":"transparent",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{unreadCount}</span>}
             </button>
@@ -9181,7 +9205,7 @@ export default function App(){
         </div>
 
         {/* ── Main Content ── */}
-        <div style={{marginLeft:215,flex:1,padding:"24px 28px",maxWidth:"calc(100vw - 215px)",background:"var(--bg2)",color:"var(--text1)",minHeight:"100vh",transition:"background .3s"}}>
+        <div className="app-content" style={{marginLeft:215,flex:1,padding:"24px 28px",maxWidth:"calc(100vw - 215px)",background:"var(--bg2)",color:"var(--text1)",minHeight:"100vh",transition:"background .3s"}}>
           {loading&&<div style={{textAlign:"center",padding:60,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>Loading…</div>}
           {!loading&&<>
 
@@ -9677,7 +9701,7 @@ export default function App(){
               })()}
 
               {/* 7-day week grid */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:7}}>
+              <div className="week-grid-7" style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:7}}>
                 {weekDays.map(day=>{
                   const dow=new Date(day).getDay();
                   // Use viewed engineer's weekend days for calendar highlighting
@@ -9911,7 +9935,7 @@ export default function App(){
                       <div style={{fontSize:14,color:"var(--text2)",fontWeight:600}}>{label}</div>
                       <div style={{fontSize:13,color:"var(--text4)"}}>{MONTHS[month]} {year}</div>
                     </div>
-                    <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+                    <div className="stats-5col" style={{flex:1,display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
                       {[
                         {l:"Total Work",v:totalW+"h",c:"var(--text0)"},
                         {l:"Billable",v:totalB+"h",c:"#34d399",show:isAdmin||isAcct},
@@ -10421,7 +10445,7 @@ export default function App(){
 
 
               {/* ── GRID VIEW ── */}
-              {teamViewMode==="grid"&&<div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
+              {teamViewMode==="grid"&&<div className="stats-5col" style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
                 {filteredTeam.map(eng=>(
                   <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",
                     opacity:!isEngActive(eng)?0.5:1,
@@ -10490,7 +10514,7 @@ export default function App(){
               </div>
 
               {/* ── Two-panel layout ── */}
-              <div style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:16,alignItems:"start"}}>
+              <div className="rpt-two-panel" style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:16,alignItems:"start"}}>
 
                 {/* Left: report navigator */}
                 <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,overflow:"hidden",position:"sticky",top:24}}>
