@@ -10025,73 +10025,83 @@ export default function App(){
                   else showToast("Allow popups to export PDF",false);
                 };
 
-                // OrgCard — plain render function (NOT a React component) to avoid
-                // the "new component type each render" reconciliation bug
+                // OrgCard — plain render function (NOT a React component)
                 const renderOrgCard = (node) => {
-                  const eng = node.engineer_id ? engineers.find(e=>e.id===node.engineer_id) : null;
+                  const eng = node.engineer_id ? engineers.find(e=>String(e.id)===String(node.engineer_id)) : null;
                   const active = eng ? isEngActive(eng) : true;
-                  const rc = eng ? (ROLE_COLORS[eng.role_type]||"var(--text3)") : "var(--text4)";
-                  const initials = (node.name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+                  // Map role_type to a fixed hex color so we can safely use alpha
+                  const ROLE_HEX = {
+                    admin:"#f59e0b", lead:"#38bdf8", accountant:"#a78bfa",
+                    senior_management:"#34d399", engineer:"#64748b"
+                  };
+                  const rc  = eng ? (ROLE_HEX[eng.role_type]||"#38bdf8") : "#38bdf8";
+                  const initials = (node.name||"?").split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+                  const cardBg   = node.is_external
+                    ? (isDark?"#0a1525":"#f0f4f8")
+                    : (isDark?"#122040":"#ffffff");
+                  const cardBorder = node.is_external
+                    ? (isDark?"1px dashed #2a5a8a":"1px dashed #94b4d0")
+                    : orgEditing
+                      ? `2px dashed ${rc}`
+                      : `1px solid ${rc}`;
                   return(
                     <div style={{
-                      background: node.is_external?"transparent":"var(--bg1)",
-                      border: node.is_external
-                        ? `1px dashed ${isDark?"#2a4a6a":"#94b4d0"}`
-                        : orgEditing ? `2px dashed ${rc}80` : `1px solid ${rc}40`,
-                      borderRadius:12,
-                      padding:"16px 14px 14px",
+                      background: cardBg,
+                      border: cardBorder,
+                      borderRadius:14,
+                      padding:"18px 14px 16px",
                       textAlign:"center",
                       width:170,
                       boxSizing:"border-box",
                       opacity: !active?0.5:1,
-                      filter: !active?"grayscale(0.7)":"none",
-                      transition:"border-color .2s, box-shadow .2s",
                       position:"relative",
                       boxShadow: isDark
-                        ? `0 4px 16px #00000060, 0 0 0 1px ${rc}20`
-                        : `0 2px 12px #00000018, 0 0 0 1px ${rc}15`,
+                        ? "0 4px 20px #00000080, 0 1px 3px #00000060"
+                        : "0 2px 12px #0000001a, 0 1px 4px #00000010",
                     }}>
                       {/* Edit/delete — edit mode only */}
                       {orgEditing&&isAdmin&&(
-                        <div style={{position:"absolute",top:6,right:6,display:"flex",gap:4,zIndex:20}}>
+                        <div style={{position:"absolute",top:6,right:6,display:"flex",gap:3,zIndex:20}}>
                           <button onClick={e=>{e.stopPropagation();setOrgEditNode({...node});}}
-                            style={{background:"var(--bg1)",border:"1px solid #38bdf840",color:"var(--info)",
-                              width:22,height:22,borderRadius:5,fontSize:13,cursor:"pointer",padding:0,lineHeight:"22px"}}>✎</button>
+                            style={{background:"#0ea5e920",border:"1px solid #0ea5e960",color:"#38bdf8",
+                              width:22,height:22,borderRadius:5,fontSize:12,cursor:"pointer",padding:0,lineHeight:"20px"}}>✎</button>
                           <button onClick={e=>{e.stopPropagation();deleteNode(node.id);}}
-                            style={{background:"var(--bg1)",border:"1px solid #f8717140",color:"#f87171",
-                              width:22,height:22,borderRadius:5,fontSize:13,cursor:"pointer",padding:0,lineHeight:"22px"}}>✕</button>
+                            style={{background:"#f8717120",border:"1px solid #f8717160",color:"#f87171",
+                              width:22,height:22,borderRadius:5,fontSize:12,cursor:"pointer",padding:0,lineHeight:"20px"}}>✕</button>
                         </div>
                       )}
-                      {/* Avatar */}
+                      {/* Avatar circle */}
                       <div style={{
-                        width:52,height:52,borderRadius:"50%",
-                        background:`linear-gradient(135deg,${rc}30,${rc}12)`,
-                        border:`2px solid ${rc}60`,
+                        width:54,height:54,borderRadius:"50%",
+                        background: isDark ? `${rc}22` : `${rc}18`,
+                        border:`2.5px solid ${rc}`,
                         display:"flex",alignItems:"center",justifyContent:"center",
                         margin:"0 auto 10px",
-                        fontSize:17,fontWeight:800,color:rc,
-                        boxShadow:`0 0 0 4px ${rc}15`,
+                        fontSize:18,fontWeight:800,color:rc,
+                        boxShadow:`0 0 0 4px ${rc}20`,
                       }}>
                         {initials}
                       </div>
                       {/* Name */}
-                      <div style={{fontSize:14,fontWeight:700,color:node.is_external?"var(--text3)":"var(--text0)",
-                        lineHeight:1.3,marginBottom:3,letterSpacing:"-.01em"}}>
+                      <div style={{fontSize:14,fontWeight:700,
+                        color: node.is_external?(isDark?"#4e7a9a":"#64748b"):(isDark?"#e2eaf4":"#0f172a"),
+                        lineHeight:1.3,marginBottom:4}}>
                         {node.name}
-                        {!active&&eng&&<div style={{fontSize:11,color:"#f87171",letterSpacing:".06em",fontWeight:700,marginTop:1}}>INACTIVE</div>}
+                        {!active&&eng&&<div style={{fontSize:10,color:"#f87171",letterSpacing:".06em",fontWeight:700,marginTop:2}}>INACTIVE</div>}
                       </div>
                       {/* Title */}
                       {(node.title||eng?.role||eng)&&(
-                        <div style={{fontSize:12,color:node.is_external?"var(--text4)":"var(--text3)",
-                          lineHeight:1.4,fontStyle:node.is_external?"italic":"normal",fontWeight:500}}>
+                        <div style={{fontSize:12,
+                          color: node.is_external?(isDark?"#4a6a8a":"#94a3b8"):(isDark?"#7a9ab8":"#475569"),
+                          lineHeight:1.4,fontStyle:node.is_external?"italic":"normal",fontWeight:500,marginBottom:4}}>
                           {node.title||(eng?.role)||(eng?ROLE_LABELS[eng.role_type]||"":"")}
                         </div>
                       )}
                       {/* Role badge */}
                       {eng&&!node.is_external&&(
-                        <div style={{display:"inline-block",marginTop:5,padding:"2px 7px",borderRadius:4,
+                        <div style={{display:"inline-block",padding:"2px 8px",borderRadius:4,
                           fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",
-                          background:`${rc}18`,color:rc}}>
+                          background:`${rc}20`,color:rc,border:`1px solid ${rc}40`}}>
                           {ROLE_LABELS[eng.role_type]||eng.role_type}
                         </div>
                       )}
@@ -10183,7 +10193,7 @@ export default function App(){
                 });
 
                 return(
-                  <div style={{background:"var(--bg1)",borderRadius:12,padding:"0 0 24px",margin:"-4px 0"}}>
+                  <div style={{background:"var(--bg0)",borderRadius:12,padding:"0 0 32px",margin:"-4px 0",border:"1px solid var(--border)"}}>
                     {/* Chart header */}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24,padding:"20px 28px 0"}}>
                       <div style={{display:"flex",alignItems:"center",gap:14}}>
