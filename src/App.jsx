@@ -417,6 +417,24 @@ function buildInvoicePDF(projects, entries, engineers, m, y, filterId){
 }
 
 /* ─── SIGNUP SCREEN ─── */
+/* ── UNDO HELPER — used by all delete operations ──
+   Removes from UI immediately, gives 5s undo window, fires DB delete after. */
+function applyUndo(showToast, label, removeUI, restoreUI, dbDelete, logFn){
+  removeUI();
+  let undone = false;
+  showToast(label + " — Undo?", false, ()=>{
+    undone = true;
+    restoreUI();
+    showToast("Undo successful ✓");
+  });
+  setTimeout(async()=>{
+    if(undone) return;
+    const err = await dbDelete();
+    if(err){ restoreUI(); showToast("Delete failed — restored", false); }
+    else logFn?.();
+  }, 5100);
+}
+
 /* ── CONFIRM DIALOG — replaces window.confirm everywhere ── */
 function ConfirmModal({dlg}){
   if(!dlg) return null;
@@ -560,10 +578,15 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
     if(showToast)showToast("Activity added ✓");
   };
   const delPvAct=async(id)=>{
-    showConfirm("Delete this activity?", async()=>{
-      await supabase.from("project_activities").delete().eq("id",id);
-      if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id));
-      if(showToast)showToast("Activity deleted");
+    const act=(activities||[]).find(a=>a.id===id);
+    showConfirm("Delete this activity?",()=>{
+      applyUndo(
+        showToast,"Activity deleted",
+        ()=>{ if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id)); },
+        ()=>{ if(setActivities&&act)setActivities(prev=>[act,...prev]); },
+        async()=>{ const{error}=await supabase.from("project_activities").delete().eq("id",id); return error||null; },
+        null
+      );
     },{title:"Delete Activity",confirmLabel:"Delete"});
   };
   const filteredProjects=projects.filter(p=>{
@@ -2144,10 +2167,15 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
     if(showToast)showToast("Activity saved ✓");
   };
   const delAct = async(id)=>{
-    showConfirm("Delete this activity?", async()=>{
-      await supabase.from("project_activities").delete().eq("id",id);
-      if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id));
-      if(showToast)showToast("Activity deleted");
+    const act=(activities||[]).find(a=>a.id===id);
+    showConfirm("Delete this activity?",()=>{
+      applyUndo(
+        showToast,"Activity deleted",
+        ()=>{ if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id)); },
+        ()=>{ if(setActivities&&act)setActivities(prev=>[act,...prev]); },
+        async()=>{ const{error}=await supabase.from("project_activities").delete().eq("id",id); return error||null; },
+        null
+      );
     },{title:"Delete Activity",confirmLabel:"Delete"});
   };
 
@@ -2338,12 +2366,16 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
 
   const deleteActivity = useCallback(async(id)=>{
     const act=activities.find(a=>a.id===id);
-    showConfirm(`Delete activity "${act?.activity_name||id}"?`, async()=>{
-      await supabase.from("project_activities").delete().eq("id",id);
-      setActivities(prev=>prev.filter(a=>a.id!==id));
-      logAction("DELETE","Tracker",`Deleted activity: ${act?.activity_name||id} on ${act?.project_id||""}`,{id,project_id:act?.project_id,activity:act?.activity_name});
+    showConfirm(`Delete activity "${act?.activity_name||id}"?`,()=>{
+      applyUndo(
+        showToast,"Activity deleted",
+        ()=>setActivities(prev=>prev.filter(a=>a.id!==id)),
+        ()=>{ if(act)setActivities(prev=>[act,...prev]); },
+        async()=>{ const{error}=await supabase.from("project_activities").delete().eq("id",id); return error||null; },
+        ()=>logAction("DELETE","Tracker",`Deleted activity: ${act?.activity_name||id} on ${act?.project_id||""}`,{id,project_id:act?.project_id,activity:act?.activity_name})
+      );
     },{title:"Delete Activity",confirmLabel:"Delete"});
-  },[setActivities,activities,logAction,showConfirm]);
+  },[setActivities,activities,logAction,showConfirm,showToast]);
 
   // ── Loading ──
   if(!activitiesLoaded) return(
@@ -2743,10 +2775,15 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
     if(showToast)showToast("Activity saved ✓");
   };
   const delAct=async(id)=>{
-    showConfirm("Delete this activity?", async()=>{
-      await supabase.from("project_activities").delete().eq("id",id);
-      if(setActivities) setActivities(prev=>prev.filter(a=>a.id!==id));
-      if(showToast)showToast("Activity deleted");
+    const act=(activities||[]).find(a=>a.id===id);
+    showConfirm("Delete this activity?",()=>{
+      applyUndo(
+        showToast,"Activity deleted",
+        ()=>{ if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id)); },
+        ()=>{ if(setActivities&&act)setActivities(prev=>[act,...prev]); },
+        async()=>{ const{error}=await supabase.from("project_activities").delete().eq("id",id); return error||null; },
+        null
+      );
     },{title:"Delete Activity",confirmLabel:"Delete"});
   };
 
@@ -5505,10 +5542,14 @@ const projProfit=projects.map(p=>{
       onDelete={async(id)=>{
         if(!isAcct&&!isAdmin) return;
         const entry=journalEntries.find(e=>e.id===id);
-        showConfirm(`Delete journal entry #${entry?.entry_no||id} — ${entry?.account_name||""}? This cannot be undone.`, async()=>{
-          await supabase.from("journal_entries").delete().eq("id",id);
-          setJournalEntries(prev=>prev.filter(e=>e.id!==id));
-          logAction("DELETE","Journal",`Deleted journal entry id:${id}`,{id});
+        showConfirm(`Delete journal entry #${entry?.entry_no||id} — ${entry?.account_name||""}?`,()=>{
+          applyUndo(
+            showToast,`Entry #${entry?.entry_no||id} deleted`,
+            ()=>setJournalEntries(prev=>prev.filter(e=>e.id!==id)),
+            ()=>setJournalEntries(prev=>[...prev,entry].sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date)))),
+            async()=>{ const{error}=await supabase.from("journal_entries").delete().eq("id",id); return error||null; },
+            ()=>logAction("DELETE","Journal",`Deleted journal entry id:${id}`,{id})
+          );
         },{title:"Delete Journal Entry",confirmLabel:"Delete Entry"});
       }}
       onEdit={async(entry)=>{
@@ -7103,25 +7144,19 @@ export default function App(){
   };
 
   const deleteEntry=async(id, engineerId)=>{
-    if(!canEditAny && String(engineerId)!==String(myProfile?.id)) { showToast("You can only delete your own entries",false); return; }
-    showConfirm("This time entry will be permanently removed.", async()=>{
-      const entry = entries.find(e=>e.id===id);
-      // Remove from UI immediately
-      setEntries(prev=>prev.filter(e=>e.id!==id));
-      const _delEngName = engineers.find(e=>String(e.id)===String(engineerId))?.name||engineerId;
-      const _delOnBehalf = String(engineerId)!==String(myProfile?.id) ? ` on behalf of ${_delEngName}` : "";
-      // Show undo toast — DB delete fires after 5s unless undone
-      let undone = false;
-      showToast("Entry deleted", false, ()=>{
-        undone = true;
-        setEntries(prev=>prev.some(e=>e.id===id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date)));
-        showToast("Undo successful ✓");
-      });
-      await new Promise(r=>setTimeout(r,5100));
-      if(undone) return;
-      const {error}=await supabase.from("time_entries").delete().eq("id",id);
-      if(error){ setEntries(prev=>prev.some(e=>e.id===id)?prev:[entry,...prev]); showToast("Error deleting",false); return; }
-      logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_delOnBehalf}`,{id,engineer_id:engineerId,engineer_name:_delEngName});
+    if(!canEditAny && String(engineerId)!==String(myProfile?.id)){ showToast("You can only delete your own entries",false); return; }
+    const entry=entries.find(e=>e.id===id);
+    if(!entry) return;
+    const _engName=engineers.find(e=>String(e.id)===String(engineerId))?.name||engineerId;
+    const _onBehalf=String(engineerId)!==String(myProfile?.id)?` on behalf of ${_engName}`:"";
+    showConfirm("This time entry will be permanently removed.",()=>{
+      applyUndo(
+        showToast,"Entry deleted",
+        ()=>setEntries(prev=>prev.filter(e=>e.id!==id)),
+        ()=>setEntries(prev=>[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date))),
+        async()=>{ const{error}=await supabase.from("time_entries").delete().eq("id",id); return error||null; },
+        ()=>logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_onBehalf}`,{id,engineer_id:engineerId,engineer_name:_engName})
+      );
     },{title:"Delete Time Entry",confirmLabel:"Delete"});
   };
 
@@ -7336,13 +7371,18 @@ export default function App(){
   },[editStaff,newStaff,engineers,showToast]);
 
   const deleteStaff=useCallback(async(id)=>{
-    const name=staff.find(s=>s.id===id)?.name||id;
-    showConfirm(`Remove ${name} from the staff salary table? This does not delete their engineer account.`, async()=>{
-      await supabase.from("staff").delete().eq("id",id);
-      setStaff(prev=>prev.filter(s=>s.id!==id));
-      logAction("DELETE","Staff",`Deleted staff member: ${name}`,{id,name});
+    const item=staff.find(s=>s.id===id);
+    const name=item?.name||id;
+    showConfirm(`Remove ${name} from the staff salary table? This does not delete their engineer account.`,()=>{
+      applyUndo(
+        showToast,`${name} removed from staff`,
+        ()=>setStaff(prev=>prev.filter(s=>s.id!==id)),
+        ()=>setStaff(prev=>[item,...prev].sort((a,b)=>a.name.localeCompare(b.name))),
+        async()=>{ const{error}=await supabase.from("staff").delete().eq("id",id); return error||null; },
+        ()=>logAction("DELETE","Staff",`Deleted staff member: ${name}`,{id,name})
+      );
     },{title:"Remove Staff Member",confirmLabel:"Remove"});
-  },[staff,logAction,showConfirm]);
+  },[staff,logAction,showConfirm,showToast]);
 
   const saveExpense=useCallback(async()=>{
     const payload=editExp?{...editExp}:{...newExp};
@@ -7369,12 +7409,16 @@ export default function App(){
 
   const deleteExpense=useCallback(async(id)=>{
     const exp=expenses.find(e=>e.id===id);
-    showConfirm(`Delete "${exp?.description||"this expense"}"? This cannot be undone.`, async()=>{
-      await supabase.from("expenses").delete().eq("id",id);
-      setExpenses(prev=>prev.filter(e=>e.id!==id));
-      logAction("DELETE","Expense",`Deleted expense: ${exp?.description||id}`,{id,description:exp?.description});
+    showConfirm(`Delete "${exp?.description||"this expense"}"?`,()=>{
+      applyUndo(
+        showToast,"Expense deleted",
+        ()=>setExpenses(prev=>prev.filter(e=>e.id!==id)),
+        ()=>setExpenses(prev=>[exp,...prev]),
+        async()=>{ const{error}=await supabase.from("expenses").delete().eq("id",id); return error||null; },
+        ()=>logAction("DELETE","Expense",`Deleted expense: ${exp?.description||id}`,{id,description:exp?.description})
+      );
     },{title:"Delete Expense",confirmLabel:"Delete"});
-  },[expenses,logAction,showConfirm]);
+  },[expenses,logAction,showConfirm,showToast]);
 
   /* ── EXCEL IMPORT ── */
   const importTimesheets=async files=>{
@@ -7739,15 +7783,17 @@ export default function App(){
 
   const bulkDeleteEntries=async()=>{
     if(selectedEntries.size===0) return;
-    showConfirm(`Permanently delete ${selectedEntries.size} selected time entr${selectedEntries.size===1?"y":"ies"}? This cannot be undone.`, async()=>{
-      const ids=[...selectedEntries];
-      const {error}=await supabase.from("time_entries").delete().in("id",ids);
-      if(error){showToast("Error: "+error.message,false);return;}
-      setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id)));
-      setSelectedEntries(new Set());
-      showToast(`Deleted ${ids.length} entries`);
-      logAction("DELETE","TimeEntry",`Bulk deleted ${ids.length} time entries`,{count:ids.length});
-    },{title:"Bulk Delete Entries",confirmLabel:`Delete ${selectedEntries.size}`});
+    const ids=[...selectedEntries];
+    const saved=entries.filter(e=>selectedEntries.has(e.id));
+    showConfirm(`Delete ${ids.length} selected time entr${ids.length===1?"y":"ies"}?`,()=>{
+      applyUndo(
+        showToast,`${ids.length} entr${ids.length===1?"y":"ies"} deleted`,
+        ()=>{ setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id))); setSelectedEntries(new Set()); },
+        ()=>setEntries(prev=>[...saved,...prev].sort((a,b)=>b.date.localeCompare(a.date))),
+        async()=>{ const{error}=await supabase.from("time_entries").delete().in("id",ids); return error||null; },
+        ()=>logAction("DELETE","TimeEntry",`Bulk deleted ${ids.length} time entries`,{count:ids.length})
+      );
+    },{title:"Bulk Delete Entries",confirmLabel:`Delete ${ids.length}`});
   };
 
   /* ── PROJECT CRUD ── */
@@ -7812,17 +7858,23 @@ export default function App(){
   };
   const deleteProject=async id=>{
     const proj=projects.find(p=>p.id===id);
-    showConfirm(`Delete project "${proj?.name||id}"? This will also remove all its time entries, activities, and sub-sites. This cannot be undone.`, async()=>{
-      await supabase.from("time_entries").delete().eq("project_id",id);
-      await supabase.from("project_activities").delete().eq("project_id",id).then(()=>{});
-      await supabase.from("project_subprojects").delete().eq("project_id",id).then(()=>{});
-      await supabase.from("projects").delete().eq("id",id);
-      setProjects(prev=>prev.filter(p=>p.id!==id));
-      setEntries(prev=>prev.filter(e=>e.project_id!==id));
-      setActivities(prev=>prev.filter(a=>a.project_id!==id));
-      setSubprojects(prev=>prev.filter(s=>s.project_id!==id));
-      showToast("Project deleted",false);
-      logAction("DELETE","Project",`Deleted project ${id}`,{project_id:id});
+    const savedEntries=entries.filter(e=>e.project_id===id);
+    const savedActs=activities.filter(a=>a.project_id===id);
+    const savedSubs=subprojects.filter(s=>s.project_id===id);
+    showConfirm(`Delete project "${proj?.name||id}"? This removes all its entries, activities and sub-sites.`,()=>{
+      applyUndo(
+        showToast,`Project "${proj?.name||id}" deleted`,
+        ()=>{ setProjects(prev=>prev.filter(p=>p.id!==id)); setEntries(prev=>prev.filter(e=>e.project_id!==id)); setActivities(prev=>prev.filter(a=>a.project_id!==id)); setSubprojects(prev=>prev.filter(s=>s.project_id!==id)); },
+        ()=>{ setProjects(prev=>[...prev,proj].sort((a,b)=>a.id.localeCompare(b.id))); setEntries(prev=>[...savedEntries,...prev]); setActivities(prev=>[...savedActs,...prev]); setSubprojects(prev=>[...savedSubs,...prev]); },
+        async()=>{
+          await supabase.from("time_entries").delete().eq("project_id",id);
+          await supabase.from("project_activities").delete().eq("project_id",id);
+          await supabase.from("project_subprojects").delete().eq("project_id",id);
+          const{error}=await supabase.from("projects").delete().eq("id",id);
+          return error||null;
+        },
+        ()=>logAction("DELETE","Project",`Deleted project ${id}`,{project_id:id})
+      );
     },{title:"Delete Project",confirmLabel:"Delete Project",icon:"🗑"});
   };
 
@@ -7851,13 +7903,19 @@ export default function App(){
   };
   const deleteSubProject=async(id)=>{
     const sub=subprojects.find(s=>s.id===id);
-    showConfirm(`Delete sub-site "${sub?.name||id}"? Its activities will be unlinked but not deleted.`, async()=>{
-      await supabase.from("project_activities").update({subproject_id:null}).eq("subproject_id",id);
-      await supabase.from("project_subprojects").delete().eq("id",id);
-      setSubprojects(prev=>prev.filter(s=>s.id!==id));
-      setActivities(prev=>prev.map(a=>String(a.subproject_id)===String(id)?{...a,subproject_id:null}:a));
-      showToast("Sub-site deleted",false);
-      logAction("DELETE","Project",`Deleted sub-project: ${sub?.name||id}`,{subproject_id:id,name:sub?.name});
+    const linkedActs=activities.filter(a=>String(a.subproject_id)===String(id));
+    showConfirm(`Delete sub-site "${sub?.name||id}"? Its activities will be unlinked but not deleted.`,()=>{
+      applyUndo(
+        showToast,`Sub-site "${sub?.name||id}" deleted`,
+        ()=>{ setSubprojects(prev=>prev.filter(s=>s.id!==id)); setActivities(prev=>prev.map(a=>String(a.subproject_id)===String(id)?{...a,subproject_id:null}:a)); },
+        ()=>{ setSubprojects(prev=>[...prev,sub]); setActivities(prev=>prev.map(a=>linkedActs.find(l=>l.id===a.id)?{...a,subproject_id:id}:a)); },
+        async()=>{
+          await supabase.from("project_activities").update({subproject_id:null}).eq("subproject_id",id);
+          const{error}=await supabase.from("project_subprojects").delete().eq("id",id);
+          return error||null;
+        },
+        ()=>logAction("DELETE","Project",`Deleted sub-project: ${sub?.name||id}`,{subproject_id:id,name:sub?.name})
+      );
     },{title:"Delete Sub-Site",confirmLabel:"Delete Sub-Site"});
   };
 
@@ -7972,15 +8030,19 @@ export default function App(){
   };
   const deleteEngineer=async id=>{
     const eng=engineers.find(e=>e.id===id);
-    showConfirm(`Delete engineer "${eng?.name||id}" and all their time entries? This cannot be undone.`, async()=>{
-      await supabase.from("time_entries").delete().eq("engineer_id",id);
-      await supabase.from("engineers").delete().eq("id",id);
-      setEngineers(prev=>prev.filter(e=>e.id!==id));
-      setEntries(prev=>prev.filter(e=>e.engineer_id!==id));
-      setProjects(prev=>prev.map(p=>({...p,assigned_engineers:(p.assigned_engineers||[]).filter(x=>String(x)!==String(id))})));
-      if(eng) setActivities(prev=>prev.map(a=>a.assigned_to===eng.name?{...a,assigned_to:""}:a));
-      showToast("Removed",false);
-      logAction("DELETE","Engineer",`Deleted engineer: ${eng?.name||id}`,{id,name:eng?.name});
+    const savedEntries=entries.filter(e=>e.engineer_id===id);
+    showConfirm(`Delete engineer "${eng?.name||id}" and all their time entries?`,()=>{
+      applyUndo(
+        showToast,`Engineer "${eng?.name||id}" deleted`,
+        ()=>{ setEngineers(prev=>prev.filter(e=>e.id!==id)); setEntries(prev=>prev.filter(e=>e.engineer_id!==id)); setProjects(prev=>prev.map(p=>({...p,assigned_engineers:(p.assigned_engineers||[]).filter(x=>String(x)!==String(id))}))); if(eng)setActivities(prev=>prev.map(a=>a.assigned_to===eng.name?{...a,assigned_to:""}:a)); },
+        ()=>{ setEngineers(prev=>[...prev,eng].sort((a,b)=>a.name.localeCompare(b.name))); setEntries(prev=>[...savedEntries,...prev]); },
+        async()=>{
+          await supabase.from("time_entries").delete().eq("engineer_id",id);
+          const{error}=await supabase.from("engineers").delete().eq("id",id);
+          return error||null;
+        },
+        ()=>logAction("DELETE","Engineer",`Deleted engineer: ${eng?.name||id}`,{id,name:eng?.name})
+      );
     },{title:"Delete Engineer",confirmLabel:"Delete Engineer"});
   };
 
@@ -9292,10 +9354,14 @@ export default function App(){
 
                 const deleteNode = async(id) => {
                   const node=orgNodes.find(n=>n.id===id);
-                  showConfirm(`Delete "${node?.name||"this node"}"? Its children will become unattached.`, async()=>{
-                    await supabase.from("org_chart").delete().eq("id",id);
-                    setOrgNodes(prev=>prev.filter(n=>n.id!==id));
-                    showToast("Deleted");
+                  showConfirm(`Delete "${node?.name||"this node"}"? Its children will become unattached.`,()=>{
+                    applyUndo(
+                      showToast,`Node "${node?.name||id}" deleted`,
+                      ()=>setOrgNodes(prev=>prev.filter(n=>n.id!==id)),
+                      ()=>setOrgNodes(prev=>[...prev,node]),
+                      async()=>{ const{error}=await supabase.from("org_chart").delete().eq("id",id); return error||null; },
+                      null
+                    );
                   },{title:"Delete Org Node",confirmLabel:"Delete"});
                 };
 
