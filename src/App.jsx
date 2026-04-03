@@ -6941,7 +6941,7 @@ export default function App(){
   const [loading,setLoading]         = useState(false);
 
   const [view,setView]               = useState("dashboard");
-  const [teamViewMode,setTeamViewMode] = useState("org"); // "org" | "grid"
+  const [teamViewMode,setTeamViewMode] = useState("grid"); // "org" | "grid" — default grid for instant load
   const [orgNodes,setOrgNodes]         = useState([]); // [{id,engineer_id,name,title,parent_id,is_external,sort_order}]
   const [orgLoaded,setOrgLoaded]       = useState(false);
   const [orgEditing,setOrgEditing]     = useState(false);
@@ -10060,24 +10060,30 @@ export default function App(){
 
 
                 // ── Tree layout algorithm (Reingold-Tilford style) ──
-                // Step 1: compute how wide each subtree needs to be
+                // Step 1: compute how wide each subtree needs to be — MEMOIZED to avoid exponential blowup
                 const CARD_W  = 170;
                 const CARD_H  = 120;
                 const H_GAP   = 36;   // horizontal gap between siblings
-                const V_GAP   = 72;   // vertical gap between levels (space for connector lines)
+                const V_GAP   = 72;   // vertical gap between levels
                 const LEVEL_H = CARD_H + V_GAP;
                 const PAD_X   = 52;
                 const PAD_Y   = 28;
 
+                const _widthCache = new Map();
                 const subtreeWidth = (id) => {
+                  if (_widthCache.has(id)) return _widthCache.get(id);
                   const kids = children(id);
-                  if (!kids.length) return CARD_W + H_GAP;
-                  return Math.max(CARD_W + H_GAP, kids.reduce((s,c) => s + subtreeWidth(c.id), 0));
+                  const w = kids.length === 0
+                    ? CARD_W + H_GAP
+                    : Math.max(CARD_W + H_GAP, kids.reduce((s,c) => s + subtreeWidth(c.id), 0));
+                  _widthCache.set(id, w);
+                  return w;
                 };
 
-                // Step 2: assign x,y positions (top-down pass)
+                // Step 2: assign x,y positions — depth guard prevents infinite loops from circular data
                 const positions = {};
                 const layoutNode = (node, startX, depth) => {
+                  if (depth > 20 || positions[node.id]) return; // cycle/depth guard
                   const sw = subtreeWidth(node.id);
                   const centerX = startX + sw / 2;
                   positions[node.id] = { x: centerX - CARD_W / 2, y: PAD_Y + depth * LEVEL_H };
