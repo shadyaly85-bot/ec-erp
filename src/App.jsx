@@ -10624,204 +10624,213 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
           )}
           {/* ════ ADMIN / LEAD PANEL ════ */}
           {view==="admin"&&(
-            <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div style={{display:"grid",gap:20}}>
+
+              {/* ── Page header ── */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
                 <div>
-                  <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>{isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":"Lead Panel"}</h1>
-                  <p style={{color:"var(--text4)",fontSize:13,marginTop:3}}>{isAdmin?"Full control: engineers, projects, entries, settings":isSenior?"View-only access · full visibility across all data":isAcct?"Full access to Finance · View all data":"Edit engineer entries · Export individual timesheets"}</p>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>
+                    {isAdmin?"SYSTEM ADMINISTRATION":isSenior?"OVERVIEW PANEL":isAcct?"FINANCE PANEL":isLead?"LEAD PANEL":"MY DASHBOARD"}
+                  </div>
+                  <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>
+                    {isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":isLead?"Lead Panel":"My KPIs"}
+                  </h1>
+                  <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
+                    {isAdmin?"Engineers · Projects · Finance · Tracker · KPIs · Settings":
+                     isSenior?"Full visibility · read-only across all data":
+                     isAcct?"Finance access · view all team data":
+                     isLead?"Edit entries · lead dashboard · tracker":"Your personal KPI scorecard"}
+                  </p>
                 </div>
-                {false&&unreadCount>0&&isAdmin&&<button className="bg" onClick={()=>{ notifications.forEach(n=>supabase.from("notifications").delete().eq("id",n.id)); setNotifications([]); }}>Dismiss all {notifications.length} notifications</button>}
+                {isAdmin&&unreadCount>0&&(
+                  <div style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:13,color:"#f87171",fontWeight:600}}>🔔 {unreadCount} notification{unreadCount!==1?"s":""}</span>
+                  </div>
+                )}
               </div>
 
-              {/* Notifications (admin only) — collapsible, state survives tab switches */}
+              {/* ── Notifications panel ── */}
               {isAdmin&&notifications.length>0&&(()=>{
                 const signupNotifs  = notifications.filter(n=>n.type==="new_signup");
                 const alertNotifs2  = notifications.filter(n=>n.type==="timesheet_alert");
                 const otherNotifs   = notifications.filter(n=>n.type!=="new_signup"&&n.type!=="timesheet_alert");
                 const totalCount    = notifications.length;
                 return(
-                <div style={{marginBottom:18,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:10,overflow:"hidden"}}>
-                  {/* Panel header — always visible, click to toggle */}
-                  <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",userSelect:"none"}}
+                <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,overflow:"hidden"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 18px",cursor:"pointer",userSelect:"none",background:"var(--bg0)",borderBottom:notifPanelOpen?"1px solid var(--border)":"none"}}
                     onClick={toggleNotifPanel}>
-                    <span style={{fontSize:15}}>🔔</span>
-                    <span style={{fontSize:13,fontWeight:700,color:"var(--text1)"}}>Notifications</span>
-                    <span style={{background:"#ef444420",color:"#f87171",fontSize:12,fontWeight:700,padding:"2px 7px",borderRadius:10,minWidth:20,textAlign:"center"}}>{totalCount}</span>
+                    <span style={{fontSize:16}}>🔔</span>
+                    <span style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>Notifications</span>
+                    <span style={{background:"#ef444420",color:"#f87171",fontSize:13,fontWeight:700,padding:"2px 8px",borderRadius:10}}>{totalCount}</span>
                     <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
-                      <button style={{background:"#f8717110",border:"1px solid #f8717130",borderRadius:5,padding:"3px 10px",color:"#f87171",fontSize:12,cursor:"pointer"}}
+                      <button style={{background:"#f8717110",border:"1px solid #f8717130",borderRadius:6,padding:"4px 12px",color:"#f87171",fontSize:13,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}
                         onClick={e=>{e.stopPropagation();
-                          // Save timesheet alert keys to localStorage before deleting so they don't re-insert
                           const alertKeys=notifications.filter(n=>n.type==="timesheet_alert").map(n=>{try{return JSON.parse(n.meta||"{}").alert_key;}catch{return null;}}).filter(Boolean);
                           if(alertKeys.length){const prev=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,...alertKeys])]));}
                           const ids=notifications.map(n=>n.id); supabase.from("notifications").delete().in("id",ids); setNotifications([]);}}>
                         Dismiss All
                       </button>
-                      <span style={{fontSize:14,color:"var(--text4)",fontWeight:700,transform:notifPanelOpen?"rotate(0)":"rotate(-90deg)",display:"inline-block",transition:"transform 0.2s"}}>▾</span>
+                      <span style={{fontSize:16,color:"var(--text4)",transform:notifPanelOpen?"rotate(0)":"rotate(-90deg)",display:"inline-block",transition:"transform 0.2s"}}>▾</span>
                     </div>
                   </div>
-
-                  {/* Collapsible body */}
                   {notifPanelOpen&&(
-                  <div style={{borderTop:"1px solid var(--border3)",padding:"12px 14px",display:"grid",gap:10}}>
-
-                    {/* 👤 New Signups */}
-                    {signupNotifs.length>0&&(
-                      <div>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
-                          <span style={{fontSize:13,fontWeight:700,color:"#fb923c",textTransform:"uppercase",letterSpacing:".05em"}}>👤 New Signups</span>
-                          <span style={{background:"#fb923c20",color:"#fb923c",fontSize:11,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{signupNotifs.length}</span>
-                          <button style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--text4)",fontSize:12,cursor:"pointer",padding:"2px 6px"}}
-                            onClick={()=>dismissAllOfType("new_signup")}>Dismiss all</button>
+                  <div style={{padding:"14px 18px",display:"grid",gap:12}}>
+                    {[
+                      {list:signupNotifs,  label:"👤 New Signups",       color:"#fb923c", sub:"Engineers tab → set role"},
+                      {list:alertNotifs2,  label:"⏰ Timesheet Alerts",   color:"#f87171", sub:null},
+                      {list:otherNotifs,   label:"ℹ System",             color:"var(--text3)", sub:null},
+                    ].filter(g=>g.list.length>0).map(grp=>(
+                      <div key={grp.label}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                          <span style={{fontSize:13,fontWeight:700,color:grp.color}}>{grp.label}</span>
+                          <span style={{background:grp.color+"20",color:grp.color,fontSize:12,fontWeight:700,padding:"1px 7px",borderRadius:8}}>{grp.list.length}</span>
+                          <button style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--text4)",fontSize:13,cursor:"pointer"}}
+                            onClick={()=>{
+                              const ids=grp.list.map(n=>n.id);
+                              supabase.from("notifications").delete().in("id",ids);
+                              setNotifications(prev=>prev.filter(n=>!ids.includes(n.id)));
+                            }}>Dismiss all</button>
                         </div>
                         <div style={{display:"grid",gap:5}}>
-                          {signupNotifs.map(n=>(
-                            <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg1)",borderRadius:7,padding:"9px 12px",border:"1px solid #fb923c18"}}>
+                          {grp.list.map(n=>(
+                            <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg2)",borderRadius:8,padding:"10px 14px",border:`1px solid ${grp.color}18`}}>
                               <div style={{flex:1,minWidth:0}}>
-                                <div style={{fontSize:13,fontWeight:600,color:"var(--text0)"}}>{n.message}</div>
+                                <div style={{fontSize:14,fontWeight:600,color:"var(--text0)"}}>{n.message}</div>
                                 <div style={{fontSize:12,color:"var(--text4)",marginTop:3}}>
                                   {new Date(n.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}
-                                  {" · "}<span style={{color:"var(--info)"}}>Engineers tab → set role</span>
+                                  {grp.sub&&<span> · <span style={{color:"var(--info)"}}>{grp.sub}</span></span>}
                                 </div>
                               </div>
-                              <button style={{flexShrink:0,background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"3px 9px",color:"var(--text3)",fontSize:12,cursor:"pointer"}}
+                              <button style={{flexShrink:0,background:"transparent",border:"1px solid var(--border)",borderRadius:6,padding:"4px 10px",color:"var(--text3)",fontSize:13,cursor:"pointer"}}
                                 onClick={()=>dismissNotification(n.id)}>✕</button>
                             </div>
                           ))}
                         </div>
                       </div>
-                    )}
-
-                    {/* ⏰ Timesheet Alerts */}
-                    {alertNotifs2.length>0&&(
-                      <div>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
-                          <span style={{fontSize:13,fontWeight:700,color:"#f87171",textTransform:"uppercase",letterSpacing:".05em"}}>⏰ Timesheet Alerts</span>
-                          <span style={{background:"#f8717120",color:"#f87171",fontSize:11,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{alertNotifs2.length}</span>
-                          <button style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--text4)",fontSize:12,cursor:"pointer",padding:"2px 6px"}}
-                            onClick={()=>dismissAllOfType("timesheet_alert")}>Dismiss all</button>
-                        </div>
-                        <div style={{display:"grid",gap:5}}>
-                          {alertNotifs2.map(n=>(
-                            <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg1)",borderRadius:7,padding:"9px 12px",border:"1px solid #f8717118"}}>
-                              <div style={{flex:1,minWidth:0}}>
-                                <div style={{fontSize:13,color:"var(--text0)"}}>{n.message}</div>
-                                <div style={{fontSize:12,color:"var(--text4)",marginTop:3}}>
-                                  {new Date(n.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}
-                                </div>
-                              </div>
-                              <button style={{flexShrink:0,background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"3px 9px",color:"var(--text3)",fontSize:12,cursor:"pointer"}}
-                                onClick={()=>dismissNotification(n.id)}>✕</button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ℹ System */}
-                    {otherNotifs.length>0&&(
-                      <div>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
-                          <span style={{fontSize:13,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em"}}>ℹ System</span>
-                          <span style={{background:"var(--bg3)",color:"var(--text3)",fontSize:11,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{otherNotifs.length}</span>
-                          <button style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--text4)",fontSize:12,cursor:"pointer",padding:"2px 6px"}}
-                            onClick={()=>{const ids=otherNotifs.map(n=>n.id);supabase.from("notifications").delete().in("id",ids);setNotifications(prev=>prev.filter(n=>n.type==="new_signup"||n.type==="timesheet_alert"));}}>Dismiss all</button>
-                        </div>
-                        <div style={{display:"grid",gap:5}}>
-                          {otherNotifs.map(n=>(
-                            <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg1)",borderRadius:7,padding:"9px 12px",border:"1px solid var(--border3)"}}>
-                              <div style={{flex:1,minWidth:0}}>
-                                <div style={{fontSize:13,color:"var(--text0)"}}>{n.message}</div>
-                                <div style={{fontSize:12,color:"var(--text4)",marginTop:3}}>{new Date(n.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}</div>
-                              </div>
-                              <button style={{flexShrink:0,background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"3px 9px",color:"var(--text3)",fontSize:12,cursor:"pointer"}}
-                                onClick={()=>dismissNotification(n.id)}>✕</button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
+                    ))}
                   </div>
                   )}
                 </div>
                 );
               })()}
 
-              {/* Tabs */}
-              <div style={{display:"flex",gap:4,marginBottom:18,background:"var(--bg2)",borderRadius:8,padding:4,width:"fit-content"}}>
+              {/* ── Tab navigation ── */}
+              <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",flexWrap:"wrap"}}>
                 {[
-                  {id:"engineers",label:"👥 Engineers",show:isAdmin||isAcct||isSenior},
-                  {id:"projects", label:"◈ Projects",  show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"entries",  label:"⏱ All Entries",show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct||isSenior},
-                  {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"kpis",     label:"📈 KPIs",       show:true},
-                  {id:"tracker",  label:"📊 Tracker",    show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"settings", label:"ℹ Info",        show:isAdmin},
+                  {id:"engineers",label:"👥 Engineers", show:isAdmin||isAcct||isSenior},
+                  {id:"projects", label:"◈ Projects",   show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"entries",  label:"⏱ All Entries", show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"finance",  label:"💰 Finance",    show:isAdmin||isAcct||isSenior},
+                  {id:"functions",label:"⚡ Functions",   show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"kpis",     label:"📈 KPIs",        show:true},
+                  {id:"tracker",  label:"📊 Tracker",     show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"settings", label:"ℹ Info",         show:isAdmin},
                   {id:"actlog",   label:"🪵 Activity Log", show:isAdmin},
-                ].filter(t=>t.show).map(t=>(
-                  <button key={t.id} className={`atab ${adminTab===t.id?"a":""}`} onClick={()=>setAdminTab(t.id)}>{t.label}</button>
-                ))}
+                ].filter(t=>t.show).map(t=>{
+                  const active=adminTab===t.id;
+                  return(
+                    <button key={t.id} onClick={()=>setAdminTab(t.id)}
+                      style={{padding:"8px 14px",borderRadius:7,border:"none",cursor:"pointer",fontSize:14,fontWeight:active?700:500,
+                        fontFamily:"'IBM Plex Sans',sans-serif",transition:"all .15s",
+                        background:active?"linear-gradient(135deg,#0ea5e9,#0369a1)":"transparent",
+                        color:active?"#fff":"var(--text2)"}}>
+                      {t.label}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* ENGINEERS */}
               {adminTab==="engineers"&&(isAdmin||isAcct||isSenior)&&(
-                <div className="card">
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                    <h3 style={{fontSize:15,fontWeight:600,color:"var(--text2)"}}>Engineers & Access Control ({engineers.length})</h3>
-                    {isAdmin&&<button className="bp" onClick={()=>setShowEngModal(true)}>+ Add Member</button>}
+                <div className="card" style={{padding:0,overflow:"hidden"}}>
+                  {/* Card header */}
+                  <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+                    <div>
+                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>👥 Engineers & Access Control</div>
+                      <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{engineers.filter(e=>isEngActive(e)).length} active · {engineers.length} total members</div>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <input value={engSearch} onChange={e=>setEngSearch(e.target.value)}
+                        placeholder="🔍 Search engineers…"
+                        style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:7,padding:"7px 12px",color:"var(--text0)",fontSize:14,width:210,outline:"none"}}/>
+                      {isAdmin&&<button className="bp" onClick={()=>setShowEngModal(true)}>+ Add Member</button>}
+                    </div>
                   </div>
-                  <div style={{background:"var(--bg2)",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:13,color:"var(--info)",marginBottom:12}}>
-                    ℹ New registrations default to <strong>Engineer</strong> role. Update their role here after they sign up.
+
+                  {/* Info bar */}
+                  <div style={{background:"#0ea5e908",borderBottom:"1px solid #0ea5e920",padding:"8px 20px",fontSize:13,color:"var(--info)"}}>
+                    ℹ New registrations default to <strong>Engineer</strong> role — update their access role in the dropdown below after they sign up.
                   </div>
-                  <div style={{marginBottom:10}}><input value={engSearch} onChange={e=>setEngSearch(e.target.value)} placeholder="Search engineers..." style={{width:"100%",boxSizing:"border-box",padding:"7px 12px",borderRadius:6,border:"1px solid var(--border3)",background:"var(--bg2)",color:"var(--text0)",fontSize:13}}/></div>
+
+                  {/* Engineers table */}
                   <table>
-                    <thead><tr><th>Name</th><th>Job Role</th><th>Level</th><th>Email</th><th>Access Role</th><th>Weekend</th><th>Month Hrs</th><th style={{width:110}}>Actions</th></tr></thead>
-                    <tbody>{engineers.filter(eng=>!engSearch||(eng.name||"").toLowerCase().includes(engSearch.toLowerCase())||(eng.role||"").toLowerCase().includes(engSearch.toLowerCase())).map(eng=>{
-                      const es=engStats.find(e=>e.id===eng.id);
-                      const engWd=()=>{try{return eng.weekend_days?JSON.parse(eng.weekend_days):DEFAULT_WEEKEND;}catch{return DEFAULT_WEEKEND;}};
-                      const wdStr=engWd().map(d=>["Su","Mo","Tu","We","Th","Fr","Sa"][d]).join("+");
-                      return(
-                        <tr key={eng.id}>
-                          <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="av" style={{fontSize:12,width:26,height:26,opacity:!isEngActive(eng)?0.4:1}}>{eng.name?.slice(0,2).toUpperCase()}</div><div><span style={{fontWeight:500,color:!isEngActive(eng)?"var(--text3)":"inherit"}}>{eng.name}</span>{!isEngActive(eng)&&<span style={{marginLeft:5,fontSize:12,padding:"1px 5px",borderRadius:3,background:"#f8717120",color:"#f87171"}}>INACTIVE</span>}</div></div></td>
-                          <td style={{color:"var(--text2)",fontSize:13}}>{eng.role}</td>
-                          <td><span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--border)",color:"var(--text3)"}}>{eng.level}</span></td>
-                          <td style={{color:"var(--text3)",fontSize:13}}>{eng.email||"—"}</td>
-                          <td>
-                            <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                              <select value={pendingRoles[eng.id]??eng.role_type??"engineer"}
-                                style={{padding:"3px 6px",fontSize:13,width:"auto",background:"var(--bg2)",border:"1px solid var(--border3)",color:"var(--text1)",borderRadius:4,outline:"none"}}
-                                onChange={e=>setPendingRoles(p=>({...p,[eng.id]:e.target.value}))}>
-                                {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                              </select>
-                              {pendingRoles[eng.id]&&pendingRoles[eng.id]!==eng.role_type&&(
-                                <button className="be" style={{fontSize:13,padding:"3px 8px"}} onClick={async()=>{
-                                  const newRole=pendingRoles[eng.id];
-                                  const {data,error}=await supabase.from("engineers").update({role_type:newRole}).eq("id",eng.id).select().single();
-                                  if(error){
-                                    // RLS blocks this — need policy: allow admin to update any row
-                                    // Workaround: update local state and show SQL to run
-                                    setEngineers(prev=>prev.map(e=>e.id===eng.id?{...e,role_type:newRole}:e));
-                                    showToast("Role set locally ✓ — To persist: run SQL migration in Admin › Info tab",false);
-                                    return;
-                                  }
-                                  if(data) setEngineers(prev=>prev.map(x=>x.id===data.id?data:x));
-                                  setPendingRoles(p=>{const n={...p};delete n[eng.id];return n;});
-                                  showToast(`${eng.name} → ${ROLE_LABELS[newRole]} ✓`);
-                                  logAction("UPDATE","Engineer",`Role changed: ${eng.name} → ${newRole}`,{engineer_id:eng.id,name:eng.name,new_role:newRole});
-                                }}>Save</button>
-                              )}
-                            </div>
-                          </td>
-                          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#f47218"}}>{wdStr||"—"}</td>
-                          <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{es?.workHrs||0}h</td>
-                          <td><div style={{display:"flex",gap:5}}>
-                            <button className="be" onClick={()=>setEditEngModal({...eng})}>✎</button>
-                            <button className="bd" onClick={()=>deleteEngineer(eng.id)}>✕</button>
-                          </div></td>
-                        </tr>
-                      );
-                    })}</tbody>
+                    <thead><tr>
+                      <th>Member</th>
+                      <th>Job Role</th>
+                      <th>Level</th>
+                      <th>Email</th>
+                      <th>Access Role</th>
+                      <th>Weekend</th>
+                      <th style={{textAlign:"right"}}>Month Hrs</th>
+                      <th style={{width:90}}>Actions</th>
+                    </tr></thead>
+                    <tbody>
+                      {engineers.filter(eng=>!engSearch||(eng.name||"").toLowerCase().includes(engSearch.toLowerCase())||(eng.role||"").toLowerCase().includes(engSearch.toLowerCase())).map(eng=>{
+                        const es=engStats.find(e=>e.id===eng.id);
+                        const engWd=()=>{try{return eng.weekend_days?JSON.parse(eng.weekend_days):DEFAULT_WEEKEND;}catch{return DEFAULT_WEEKEND;}};
+                        const wdStr=engWd().map(d=>["Su","Mo","Tu","We","Th","Fr","Sa"][d]).join("+");
+                        const roleColor=ROLE_COLORS[eng.role_type]||"var(--text4)";
+                        const active=isEngActive(eng);
+                        return(
+                          <tr key={eng.id} style={{opacity:active?1:0.6}}>
+                            <td>
+                              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                <div className="av" style={{width:32,height:32,fontSize:13,flexShrink:0,opacity:active?1:0.5}}>{eng.name?.slice(0,2).toUpperCase()}</div>
+                                <div>
+                                  <div style={{fontWeight:600,color:"var(--text0)"}}>{eng.name}</div>
+                                  {!active&&<span style={{fontSize:12,padding:"1px 6px",borderRadius:3,background:"#f8717120",color:"#f87171",fontWeight:700}}>INACTIVE</span>}
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{color:"var(--text2)"}}>{eng.role}</td>
+                            <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{eng.level}</span></td>
+                            <td style={{color:"var(--text3)",fontSize:13}}>{eng.email||"—"}</td>
+                            <td>
+                              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                                <select value={pendingRoles[eng.id]??eng.role_type??"engineer"}
+                                  style={{padding:"5px 8px",fontSize:13,background:"var(--bg2)",border:`1px solid ${roleColor}40`,color:roleColor,borderRadius:6,outline:"none",fontWeight:600}}
+                                  onChange={e=>setPendingRoles(p=>({...p,[eng.id]:e.target.value}))}>
+                                  {ROLE_TYPES.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                                </select>
+                                {pendingRoles[eng.id]&&pendingRoles[eng.id]!==eng.role_type&&(
+                                  <button className="be" style={{fontSize:13,padding:"4px 10px",whiteSpace:"nowrap"}} onClick={async()=>{
+                                    const newRole=pendingRoles[eng.id];
+                                    const {data,error}=await supabase.from("engineers").update({role_type:newRole}).eq("id",eng.id).select().single();
+                                    if(error){
+                                      setEngineers(prev=>prev.map(e=>e.id===eng.id?{...e,role_type:newRole}:e));
+                                      showToast("Role set locally ✓ — To persist: run SQL migration in Admin › Info tab",false);
+                                      return;
+                                    }
+                                    if(data) setEngineers(prev=>prev.map(x=>x.id===data.id?data:x));
+                                    setPendingRoles(p=>{const n={...p};delete n[eng.id];return n;});
+                                    showToast(`${eng.name} → ${ROLE_LABELS[newRole]} ✓`);
+                                    logAction("UPDATE","Engineer",`Role changed: ${eng.name} → ${newRole}`,{engineer_id:eng.id,name:eng.name,new_role:newRole});
+                                  }}>Save ✓</button>
+                                )}
+                              </div>
+                            </td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#f47218",fontWeight:600}}>{wdStr||"—"}</td>
+                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{es?.workHrs||0}h</td>
+                            <td>
+                              <div style={{display:"flex",gap:5}}>
+                                <button className="be" onClick={()=>setEditEngModal({...eng})}>✎</button>
+                                <button className="bd" onClick={()=>deleteEngineer(eng.id)}>✕</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
                   </table>
                 </div>
               )}
@@ -10849,93 +10858,140 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 
               {/* ALL ENTRIES */}
               {adminTab==="entries"&&(
-                <div>
-                  <div className="card" style={{marginBottom:12}}>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-                      <div><Lbl>Engineer</Lbl>
+                <div style={{display:"grid",gap:14}}>
+
+                  {/* Filter card */}
+                  <div className="card" style={{padding:0,overflow:"hidden"}}>
+                    <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
+                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>⏱ All Time Entries</div>
+                      <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Browse, filter and audit all engineer entries</div>
+                    </div>
+                    <div style={{padding:"14px 20px",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Engineer</div>
                         <select value={entryFilter.engineer} onChange={e=>setEntryFilter(p=>({...p,engineer:e.target.value}))}>
                           <option value="ALL">All Engineers</option>
                           {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
                         </select>
                       </div>
-                      <div><Lbl>Project</Lbl>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Project</div>
                         <select value={entryFilter.project} onChange={e=>setEntryFilter(p=>({...p,project:e.target.value}))}>
                           <option value="ALL">All Projects</option>
                           {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
                         </select>
                       </div>
-                      <div><Lbl>Month</Lbl>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Month</div>
                         <select value={entryFilter.month} onChange={e=>setEntryFilter(p=>({...p,month:+e.target.value}))}>
                           {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
                         </select>
                       </div>
-                      <div><Lbl>Year</Lbl>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Year</div>
                         <select value={entryFilter.year} onChange={e=>setEntryFilter(p=>({...p,year:+e.target.value}))}>
                           {[year-2,year-1,year,year+1].map(y=><option key={y}>{y}</option>)}
                         </select>
                       </div>
                     </div>
                   </div>
-                  <div className="card">
-                    {(()=>{
-                      const workE=adminBrowseEntries.filter(e=>e.entry_type==="work");
-                      const leaveE=adminBrowseEntries.filter(e=>e.entry_type==="leave");
-                      const totalWH=workE.reduce((s,e)=>s+e.hours,0);
-                      const billH=workE.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
-                      const nonBillH=totalWH-billH;
-                      const uniqEngs=[...new Set(workE.map(e=>e.engineer_id))].length;
-                      const uniqProjs=[...new Set(workE.map(e=>e.project_id).filter(Boolean))].length;
-                      return(
-                    <div style={{marginBottom:14}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                        <h3 style={{fontSize:15,fontWeight:600,color:"var(--text2)"}}>Entries ({adminBrowseEntries.length})</h3>
-                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#34d399",fontWeight:700}}>{totalWH}h work · <span style={{color:"#fb923c"}}>{leaveE.length}d leave</span></span>
-                      </div>
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+
+                  {/* Metrics + table */}
+                  {(()=>{
+                    const workE=adminBrowseEntries.filter(e=>e.entry_type==="work");
+                    const leaveE=adminBrowseEntries.filter(e=>e.entry_type==="leave");
+                    const totalWH=workE.reduce((s,e)=>s+e.hours,0);
+                    const billH=workE.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
+                    const nonBillH=totalWH-billH;
+                    const uniqEngs=[...new Set(workE.map(e=>e.engineer_id))].length;
+                    const uniqProjs=[...new Set(workE.map(e=>e.project_id).filter(Boolean))].length;
+                    return(
+                    <div style={{display:"grid",gap:14}}>
+                      {/* Hero metrics */}
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
                         {[
-                          {l:"Work Hours",  v:totalWH+"h",       c:"var(--info)"},
-                          {l:"Billable",    v:billH+"h",         c:"#34d399"},
-                          {l:"Non-Billable",v:nonBillH+"h",      c:"#fb923c"},
-                          {l:"Engineers",   v:uniqEngs,          c:"#a78bfa"},
-                          {l:"Projects",    v:uniqProjs,         c:"#60a5fa"},
+                          {l:"Work Hours",  v:totalWH+"h",  c:"var(--info)",  sub:`${adminBrowseEntries.length} entries`},
+                          {l:"Billable",    v:billH+"h",    c:"#34d399",      sub:totalWH?Math.round(billH/totalWH*100)+"% of total":""},
+                          {l:"Non-Billable",v:nonBillH+"h", c:"#fb923c",      sub:"Internal / overhead"},
+                          {l:"Engineers",   v:uniqEngs,     c:"#a78bfa",      sub:"Active in selection"},
+                          {l:"Projects",    v:uniqProjs,    c:"#60a5fa",      sub:"Distinct projects"},
                         ].map((s,i)=>(
-                          <div key={i} style={{background:"var(--bg2)",borderRadius:6,padding:"8px 10px"}}>
-                            <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div>
-                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c,marginTop:4}}>{s.v}</div>
+                          <div key={i} style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,padding:"16px",borderTop:`3px solid ${s.c}`}}>
+                            <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>{s.l}</div>
+                            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:24,fontWeight:800,color:s.c,lineHeight:1,marginBottom:4}}>{s.v}</div>
+                            <div style={{fontSize:12,color:"var(--text4)"}}>{s.sub}</div>
                           </div>
                         ))}
                       </div>
+
+                      {/* Entries table */}
+                      <div className="card" style={{padding:0,overflow:"hidden"}}>
+                        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>{adminBrowseEntries.length} Entries</div>
+                          {canEditAny&&isAdmin&&selectedEntries.size>0&&(
+                            <button className="bd" style={{fontSize:13,padding:"5px 14px"}} onClick={bulkDeleteEntries}>
+                              🗑 Delete {selectedEntries.size} selected
+                            </button>
+                          )}
+                        </div>
+                        <div style={{maxHeight:520,overflowY:"auto"}}>
+                          <table>
+                            <thead><tr>
+                              {canEditAny&&isAdmin&&<th style={{width:36,paddingLeft:12}}>
+                                <input type="checkbox" onChange={e=>setSelectedEntries(e.target.checked?new Set(adminBrowseEntries.map(e=>e.id)):new Set())}
+                                  checked={selectedEntries.size===adminBrowseEntries.length&&adminBrowseEntries.length>0}
+                                  style={{cursor:"pointer",accentColor:"var(--info)"}}/>
+                              </th>}
+                              <th>Date</th><th>Engineer</th><th>Project</th><th>Task</th><th>Activity</th>
+                              <th style={{textAlign:"right"}}>Hrs</th><th>Type</th>
+                              {canEditAny&&<th style={{width:80}}></th>}
+                            </tr></thead>
+                            <tbody>
+                              {adminBrowseEntries.length===0&&<tr><td colSpan={9} style={{textAlign:"center",color:"var(--text4)",padding:28,fontSize:14}}>No entries match the current filter</td></tr>}
+                              {adminBrowseEntries.map(e=>{
+                                const eng=engineers.find(x=>x.id===e.engineer_id);
+                                const proj=projects.find(x=>x.id===e.project_id);
+                                const isLeave=e.entry_type==="leave";
+                                return(
+                                  <tr key={e.id} style={{background:selectedEntries.has(e.id)?"#0ea5e910":undefined}}>
+                                    {canEditAny&&isAdmin&&<td style={{paddingLeft:12}} onClick={ev=>ev.stopPropagation()}>
+                                      <input type="checkbox" checked={selectedEntries.has(e.id)}
+                                        onChange={()=>setSelectedEntries(prev=>{const s=new Set(prev);s.has(e.id)?s.delete(e.id):s.add(e.id);return s;})}
+                                        style={{cursor:"pointer",accentColor:"var(--info)"}}/>
+                                    </td>}
+                                    <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
+                                    <td>
+                                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                        <div className="av" style={{width:24,height:24,fontSize:10,flexShrink:0}}>{eng?.name?.slice(0,2).toUpperCase()||"?"}</div>
+                                        <span style={{fontWeight:500}}>{eng?.name||"—"}</span>
+                                      </div>
+                                    </td>
+                                    <td>{isLeave
+                                      ? <span style={{color:"#fb923c",fontWeight:600}}>{e.leave_type||"Leave"}</span>
+                                      : proj ? <span><span style={{color:"var(--info)",fontWeight:600}}>{proj.name}</span> <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text4)"}}>({proj.id})</span></span>
+                                      : <span style={{color:"var(--text4)"}}>—</span>}
+                                    </td>
+                                    <td style={{color:"var(--text2)"}}>{e.task_type||"—"}</td>
+                                    <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                                    <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
+                                    <td><span style={{fontSize:12,padding:"2px 7px",borderRadius:4,fontWeight:700,
+                                      background:isLeave?"#7c2d1230":"#022c2230",
+                                      color:isLeave?"#fb923c":"#34d399"}}>{e.entry_type}</span>
+                                    </td>
+                                    {canEditAny&&<td><div style={{display:"flex",gap:4}}>
+                                      <button className="be" style={{fontSize:12}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
+                                      {isAdmin&&<button className="bd" style={{fontSize:12}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}
+                                    </div></td>}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
                     </div>
-                      );
-                    })()}
-                    <div style={{maxHeight:500,overflowY:"auto"}}>
-                      <table>
-                        <thead><tr><th>Date</th><th>Engineer</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th><th>Type</th><th style={{width:90}}>Actions</th></tr></thead>
-                        <tbody>
-                          {adminBrowseEntries.length===0&&<tr><td colSpan={8} style={{textAlign:"center",color:"var(--text4)",padding:20}}>No entries</td></tr>}
-                          {adminBrowseEntries.map(e=>{
-                            const eng=engineers.find(x=>x.id===e.engineer_id);
-                            const proj=projects.find(x=>x.id===e.project_id);
-                            return(
-                              <tr key={e.id}>
-                                <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                                <td style={{fontSize:13}}>{eng?.name||"—"}</td>
-                                <td style={{fontSize:13}}>{proj?<span style={{color:"var(--info)"}}>{proj.name} <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text3)"}}>({proj.id})</span></span>:<span style={{color:"#fb923c"}}>{e.leave_type}</span>}</td>
-                                <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type||"—"}</td>
-                                <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
-                                <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
-                                <td><span style={{fontSize:12,padding:"2px 5px",borderRadius:3,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span></td>
-                                {canEditAny&&<td><div style={{display:"flex",gap:4}}>
-                                  <button className="be" style={{fontSize:13}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
-                                  {isAdmin&&<button className="bd" style={{fontSize:13}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}
-                                </div></td>}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
               )}
 
