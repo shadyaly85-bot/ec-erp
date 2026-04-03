@@ -6503,6 +6503,7 @@ export default function App(){
   const [engineers,setEngineers]     = useState([]);
   const [projects,setProjects]       = useState([]);
   const [entries,setEntries]         = useState([]);
+  const [loadedYears,setLoadedYears] = useState(new Set()); // tracks which years are in entries state
   const [notifications,setNotifications] = useState([]);
   // Panel ALWAYS starts closed — user opens manually by clicking the bell header
   // sessionStorage remembers if user left it open (not closed)
@@ -6641,6 +6642,27 @@ export default function App(){
     return ()=>document.removeEventListener("keydown",handler);
   },[confirmDlg,showPwdModal,subProjModal,editProjModal,showProjModal,
      editEngModal,showEngModal,showStaffModal,showExpModal,showFuncModal,editEntry,modalDate]);;
+
+  // On-demand year fetch — loads a year's entries only when user navigates to it
+  const [entriesLoading,setEntriesLoading] = useState(false);
+  useEffect(()=>{
+    if(!session||!year||loadedYears.has(year)) return;
+    setEntriesLoading(true);
+    supabase.from("time_entries").select("*")
+      .gte("date",`${year}-01-01`).lte("date",`${year}-12-31`)
+      .order("date",{ascending:false})
+      .then(({data,error})=>{
+        if(!error&&data){
+          setEntries(prev=>{
+            const existingIds=new Set(prev.map(e=>e.id));
+            const fresh=data.filter(e=>!existingIds.has(e.id));
+            return fresh.length>0?[...prev,...fresh]:prev;
+          });
+          setLoadedYears(prev=>new Set([...prev,year]));
+        }
+        setEntriesLoading(false);
+      });
+  },[year,session]); // eslint-disable-line
 
   // ── Activity logger — fire-and-forget, never blocks UI ──
   const logAction=useCallback((action,module,detail,meta={})=>{
@@ -6786,7 +6808,7 @@ export default function App(){
         supabase.from("engineers").select("*").order("name"),
         supabase.from("projects").select("*").order("id"),
         supabase.from("time_entries").select("*").order("date",{ascending:false})
-          .gte("date",(()=>{const d=new Date();d.setMonth(d.getMonth()-18);return d.toISOString().slice(0,10);})()),
+          .gte("date",`${today.getFullYear()-1}-01-01`),
         supabase.from("engineers").select("*").eq("user_id",session.user.id).single(),
         supabase.from("notifications").select("*").order("created_at",{ascending:false}),
         supabase.from("staff").select("*").order("name"),
@@ -6797,7 +6819,10 @@ export default function App(){
       ]);
       if(engsR.data) setEngineers(engsR.data);
       if(projR.data) setProjects(projR.data);
-      if(entrR.data) setEntries(entrR.data);
+      if(entrR.data){
+        setEntries(entrR.data);
+        setLoadedYears(new Set([today.getFullYear(), today.getFullYear()-1]));
+      }
       if(profR.data){ setMyProfile(profR.data); setBrowseEngId(profR.data.id); }
       if(notifR.data){
         // Deduplicate timesheet alerts by alert_key — keep only newest per key, delete duplicates
@@ -6881,7 +6906,7 @@ export default function App(){
   const handleLogout=async()=>{
     logAction("LOGOUT","Auth","Signed out");
     await supabase.auth.signOut();
-    setSession(null);setEngineers([]);setProjects([]);setEntries([]);setMyProfile(null);setStaff([]);setExpenses([]);setJournalEntries([]);setFixedAssets([]);
+    setSession(null);setEngineers([]);setProjects([]);setEntries([]);setLoadedYears(new Set());setMyProfile(null);setStaff([]);setExpenses([]);setJournalEntries([]);setFixedAssets([]);
     setAccounts([]);setActivityLog([]);setArchiveLog([]);
   };
   const handleChangePassword=async()=>{
@@ -8588,9 +8613,12 @@ export default function App(){
               </select>
             </div>
             <div><Lbl>Year</Lbl>
-              <select value={year} onChange={e=>setYear(+e.target.value)} style={{fontSize:13,padding:"5px 8px"}}>
-                {[year-2,year-1,year,year+1].map(y=><option key={y}>{y}</option>)}
-              </select>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <select value={year} onChange={e=>setYear(+e.target.value)} style={{fontSize:13,padding:"5px 8px"}}>
+                  {[year-2,year-1,year,year+1].map(y=><option key={y}>{y}</option>)}
+                </select>
+                {entriesLoading&&<span style={{fontSize:11,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>⟳ {year}</span>}
+              </div>
             </div>
           </div>
           <div style={{position:"absolute",bottom:16,left:10,right:10}}>
@@ -8678,9 +8706,10 @@ export default function App(){
                       {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
                     </select>
                     <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                      {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+                      {[2023,2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
                     </select>
                     <button style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text1)",cursor:"pointer",fontSize:13}} onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}>→</button>
+                    {entriesLoading&&<span style={{fontSize:12,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace",animation:"pulse 1s infinite"}}>⟳ Loading {year}…</span>}
                   </div>
                 </div>
                 <div>
