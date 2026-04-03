@@ -503,7 +503,7 @@ function SignupScreen({onBack}){
       <div style={{background:"var(--bg3)",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:13,color:"var(--info)"}}>
         ℹ Account role is set to <strong>Engineer</strong> by default. Your admin can upgrade your access level after registration.
       </div>
-      {err&&<div style={{padding:"8px 12px",borderRadius:6,fontSize:14,background:err.startsWith("✓")?"var(--bg3)":"#450a0a",color:err.startsWith("✓")?"#34d399":"#f87171",border:`1px solid ${err.startsWith("✓")?"#34d399":"#f87171"}`}}>{err}</div>}
+      {err&&<div style={{padding:"8px 12px",borderRadius:6,fontSize:14,background:err.startsWith("✓")?"var(--bg3)":"var(--err-bg)",color:err.startsWith("✓")?"#34d399":"#f87171",border:`1px solid ${err.startsWith("✓")?"#34d399":"#f87171"}`}}>{err}</div>}
       <button className="bp" onClick={handle} disabled={loading} style={{width:"100%",justifyContent:"center",padding:11}}>{loading?"Creating…":"Create Account"}</button>
       <div style={{textAlign:"center",fontSize:14,color:"var(--text4)",cursor:"pointer"}} onClick={onBack}>← Back to Sign In</div>
     </div>
@@ -638,7 +638,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                 </div>
                 <div style={{display:"flex",gap:5,alignItems:"flex-start"}}>
                   <span style={{fontSize:12,padding:"2px 7px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,
-                    background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"var(--border)",
+                    background:p.status==="Active"?"#05603a30":p.status==="On Hold"?"#7c2d1230":"var(--border)",
                     color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span>
                   {canManage&&<button style={{background:"#0ea5e9",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:13,cursor:"pointer"}} onClick={()=>setEditProjModal({...p})}>✎</button>}
                   {isAdmin&&<button style={{background:"#ef4444",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:13,cursor:"pointer"}} onClick={()=>deleteProject(p.id)}>✕</button>}
@@ -1593,7 +1593,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
 
             {/* Billability bar */}
             {pm.proj.billable&&(
-              <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #0d1a2d"}}>
+              <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid var(--border2)"}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:13}}>
                   <span style={{color:"var(--text3)"}}>Billable coverage</span>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontWeight:700}}>{billPct}%</span>
@@ -2105,12 +2105,12 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
           <div>
             <label style={LBL}>START DATE</label>
             <input type="date" value={draft.start_date||""} onChange={e=>setDraft(p=>({...p,start_date:e.target.value||null}))}
-              style={{...INP,colorScheme:"dark"}}/>
+              style={{...INP}}/>
           </div>
           <div>
             <label style={LBL}>END DATE <span style={{color:"var(--text3)",fontWeight:400}}>(deadline)</span></label>
             <input type="date" value={draft.end_date||""} onChange={e=>setDraft(p=>({...p,end_date:e.target.value||null}))}
-              style={{...INP,colorScheme:"dark",color:draft.end_date&&new Date(draft.end_date)<new Date()&&draft.status!=="Completed"?"#f87171":"var(--text0)"}}/>
+              style={{...INP,color:draft.end_date&&new Date(draft.end_date)<new Date()&&draft.status!=="Completed"?"#f87171":"var(--text0)"}}/>
           </div>
         </div>
 
@@ -2236,12 +2236,12 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
           <div>
             <label style={LBL}>START DATE</label>
             <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}
-              style={{...INP,colorScheme:"dark"}}/>
+              style={{...INP}}/>
           </div>
           <div>
             <label style={LBL}>END DATE <span style={{color:"var(--text3)",fontWeight:400}}>(deadline)</span></label>
             <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}
-              style={{...INP,colorScheme:"dark"}}/>
+              style={{...INP}}/>
           </div>
         </div>
 
@@ -2325,7 +2325,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
   };
 
   const GROUP_COLORS={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
-  const STATUS_STYLE={"Completed":{bg:"var(--bg3)",color:"#34d399"},"In Progress":{bg:"var(--bg3)",color:"var(--info)"},"On Hold":{bg:"#1a0f00",color:"#fb923c"},"Not Started":{bg:"var(--bg3)",color:"var(--text3)"}};
+  const STATUS_STYLE={"Completed":{bg:"var(--bg3)",color:"#34d399"},"In Progress":{bg:"var(--bg3)",color:"var(--info)"},"On Hold":{bg:"var(--warn-bg)",color:"#fb923c"},"Not Started":{bg:"var(--bg3)",color:"var(--text3)"}};
 
   return(
     <div>
@@ -2344,7 +2344,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
           const gc=GROUP_COLORS[a.group_name]||"var(--text3)";
           const pct=Math.round((a.progress||0)*100);
           return(
-          <div key={a.id} style={{background:"var(--bg2)",border:"1px solid #0f1e2e",borderRadius:6,padding:"8px 12px"}}>
+          <div key={a.id} style={{background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:6,padding:"8px 12px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:14,fontWeight:600,color:"var(--text0)",marginBottom:4}}>{a.activity_name}</div>
@@ -2614,7 +2614,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
               {pending>0&&<span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--text3)",fontWeight:700}}>{pending} Pending</span>}
               {hasSubs&&<span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"#a78bfa",fontWeight:700}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-sites</span>}
               {projActs.length===0&&canEdit&&(
-                <span style={{fontSize:12,padding:"2px 8px",borderRadius:3,background:"var(--bg3)",color:"var(--info)",border:"1px dashed #192d47",cursor:"pointer"}}
+                <span style={{fontSize:12,padding:"2px 8px",borderRadius:3,background:"var(--bg3)",color:"var(--info)",border:"1px dashed var(--border3)",cursor:"pointer"}}
                   onClick={e=>{e.stopPropagation();setTrackerProj(p.id);}}>
                   + Add activities
                 </span>
@@ -2798,7 +2798,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       </div>)}
 
       {visActs.length===0&&(
-        <div style={{textAlign:"center",padding:"40px 24px",background:"var(--bg2)",borderRadius:8,border:"1px dashed #192d47"}}>
+        <div style={{textAlign:"center",padding:"40px 24px",background:"var(--bg2)",borderRadius:8,border:"1px dashed var(--border3)"}}>
           <div style={{fontSize:28,marginBottom:10}}>📋</div>
           <div style={{fontSize:15,fontWeight:600,color:"var(--text0)",marginBottom:6}}>No activities yet</div>
           <div style={{fontSize:13,color:"var(--text4)",marginBottom:canEdit?18:0}}>
@@ -3010,10 +3010,10 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
               <td style={{color:"var(--text2)",fontSize:13}}>{p.client}</td>
               <td style={{color:"#60a5fa",fontSize:13}}>{p.phase}</td>
               <td><span style={{fontSize:12,padding:"2px 6px",borderRadius:3,fontWeight:700,
-                background:p.status==="Active"?"#024b36":p.status==="On Hold"?"#7c2d1230":"var(--border)",
+                background:p.status==="Active"?"#05603a30":p.status==="On Hold"?"#7c2d1230":"var(--border)",
                 color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span></td>
               <td><span style={{fontSize:12,padding:"2px 6px",borderRadius:3,fontWeight:700,
-                background:p.billable?"var(--bg3)":"#1a0a00",color:p.billable?"var(--info)":"#fb923c"}}>
+                background:p.billable?"var(--bg3)":"#fb923c20",color:p.billable?"var(--info)":"#fb923c"}}>
                 {p.billable?"Billable":"Non-Bill"}</span></td>
               <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{hrs}h</td>
               <td>
@@ -6640,7 +6640,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
                 <button onClick={()=>approveVacation(e.id,notif?.id)}
                   style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:5,padding:"5px 12px",color:"#34d399",fontSize:13,fontWeight:700,cursor:"pointer"}}>✓ Approve</button>
                 <button onClick={()=>rejectVacation(e.id,notif?.id)}
-                  style={{background:"#450a0a",border:"1px solid #f8717150",borderRadius:5,padding:"5px 12px",color:"#f87171",fontSize:13,fontWeight:700,cursor:"pointer"}}>✕ Reject</button>
+                  style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:5,padding:"5px 12px",color:"#f87171",fontSize:13,fontWeight:700,cursor:"pointer"}}>✕ Reject</button>
               </div>
             );
           })}
@@ -6689,7 +6689,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       return(
       <div style={{display:"grid",gap:14}}>
         {/* Hero card */}
-        <div style={{background:"linear-gradient(135deg,#0c1a2e 0%,#0e2340 100%)",border:"1px solid #0ea5e930",borderRadius:14,padding:"20px 24px",display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{background:"var(--bg1g)",border:"1px solid #0ea5e930",borderRadius:14,padding:"20px 24px",display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
           <ScoreGauge score={k.totalScore} size={130}/>
           <div style={{flex:1,minWidth:200}}>
             <div style={{fontSize:22,fontWeight:800,color:"var(--text0)",marginBottom:2}}>{eng.name}</div>
@@ -8870,7 +8870,7 @@ export default function App(){
         </div>
         {authMode==="login"?(
           <div style={{display:"grid",gap:12}}>
-            {authErr&&<div style={{padding:"8px 12px",borderRadius:6,fontSize:14,background:"#450a0a",color:"#f87171",border:"1px solid #f87171"}}>{authErr}</div>}
+            {authErr&&<div style={{padding:"8px 12px",borderRadius:6,fontSize:14,background:"var(--err-bg)",color:"#f87171",border:"1px solid #f87171"}}>{authErr}</div>}
             <div><Lbl>Email</Lbl><input type="email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="you@company.com"/></div>
             <div><Lbl>Password</Lbl><input type="password" value={authPwd} onChange={e=>setAuthPwd(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin(e)}/></div>
             <button className="bp" onClick={handleLogin}>Sign In</button>
@@ -8908,6 +8908,9 @@ export default function App(){
           --nb-hover:#0d1a2d;--atab-active:#0d1a2d;
           --text0:#f0f6ff;--text1:#dde3ef;--text2:#8fa8c4;--text3:#6b8caa;--text4:#4a6f8f;
           --accent:#0ea5e9;--info:#38bdf8;--scrollbar-thumb:#1a3354;
+          --warn-bg:#1a0f00;--warn-border:#f59e0b40;
+          --err-bg:#2d0808;--err-border:#f8717150;
+          --success-bg:#031a0f;--success-border:#34d39940;
           --input-bg:#060e1c;--input-border:#1a3050;
           --modal-bg:#0c1829;--card-hover:#0d1e34;
           --th-bg:#060e1c;--tr-hover:#0d1e33;
@@ -8921,6 +8924,9 @@ export default function App(){
           --nb-hover:#2d3f55;--atab-active:#1e3a5a;
           --text0:#0f172a;--text1:#1e293b;--text2:#334e68;--text3:#4a6080;--text4:#627d98;
           --accent:#0ea5e9;--info:#0284c7;--scrollbar-thumb:#94a3b8;
+          --warn-bg:#fffbeb;--warn-border:#f59e0b50;
+          --err-bg:#fff1f1;--err-border:#f8717150;
+          --success-bg:#f0fdf4;--success-border:#34d39940;
           --input-bg:#f8fafc;--input-border:#c8d6e8;
           --modal-bg:#ffffff;--card-hover:#edf3fa;
           --th-bg:#f0f5fb;--tr-hover:#edf3fa;
@@ -8965,6 +8971,22 @@ export default function App(){
         .metric{background:var(--bg1g);border:1px solid var(--border);border-radius:10px;padding:18px;line-height:1.4}/* light mode sidebar text override */
         body.light .nb{color:#94a3b8}
         body.light .nb:hover,body.light .nb.a{color:#38bdf8;background:#2d3f55}
+        /* ── Light mode component overrides ── */
+        body.light{color-scheme:light}
+        body.light .bd{border-color:#fca5a5;color:#dc2626}
+        body.light .bd:hover{background:#fee2e240}
+        body.light .be{border-color:#bfdbfe;color:#2563eb}
+        body.light .be:hover{background:#dbeafe50}
+        body.light .card{box-shadow:0 1px 6px #0000000d}
+        body.light .modal{box-shadow:0 12px 40px #00000018}
+        body.light .metric{box-shadow:0 1px 4px #0000000a}
+        body.light .modal-ov{background:#00000055}
+        body.light th{border-bottom-color:#c8d6e8}
+        body.light .toast{box-shadow:0 4px 16px #00000018}
+        body.light input,body.light select,body.light textarea{color-scheme:light;box-shadow:inset 0 1px 3px #0000000a}
+        body.light input:focus,body.light select:focus,body.light textarea:focus{box-shadow:0 0 0 3px #0ea5e920}
+        body.light .rpt-card{box-shadow:0 1px 4px #0000000a}
+        body.light .wc{box-shadow:inset 0 1px 3px #0000000a}
       `}</style>
 
       <div style={{display:"flex"}}>
@@ -9135,7 +9157,7 @@ export default function App(){
                 return<>
                 {/* ── Non-billable warning ── */}
                 {(isAdmin||isAcct)&&dWorkHrs>0&&dBillHrs===0&&(
-                  <div style={{background:"#1a0f00",border:"1px solid #fb923c40",borderRadius:10,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                  <div style={{background:"var(--warn-bg)",border:"1px solid #fb923c40",borderRadius:10,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
                     <span style={{fontSize:14,color:"#fb923c"}}>⚠ All hours are showing as non-billable — projects may need the billable flag set.</span>
                     <button className="bg" style={{fontSize:13,borderColor:"#fb923c",color:"#fb923c",whiteSpace:"nowrap",flexShrink:0}} onClick={()=>setView("reports")}>Fix in Reports →</button>
                   </div>
@@ -9244,7 +9266,7 @@ export default function App(){
                           <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{p.phase||"—"}</span></td>
                           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--text0)"}}>{p.hours}h</td>
                           {(isAdmin||isAcct)&&<>
-                            <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"#05603a30":"#1a0a00",color:p.billable?"#34d399":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
+                            <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"#05603a30":"#fb923c20",color:p.billable?"#34d399":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
                             <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:600}}>{p.billable?fmtCurrency(p.revenue):"—"}</td>
                           </>}
                         </tr>
@@ -10066,7 +10088,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                             <div onDragOver={e=>e.preventDefault()}
                               onDrop={e=>{e.preventDefault();if(orgDragId) moveNode(orgDragId,null);}}
                               style={{width:"100%",padding:"6px",textAlign:"center",fontSize:12,color:"var(--text4)",
-                                border:"1px dashed #192d47",borderRadius:6,marginBottom:8}}>
+                                border:"1px dashed var(--border3)",borderRadius:6,marginBottom:8}}>
                               ↑ Drop here to make root
                             </div>
                           )}
@@ -10148,7 +10170,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 {filteredTeam.map(eng=>(
                   <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",
                     opacity:!isEngActive(eng)?0.5:1,
-                    border:filterEngineer===String(eng.id)?"1px solid #38bdf8":!isEngActive(eng)?"1px solid #0f1e2e":"1px solid var(--border3)"}}
+                    border:filterEngineer===String(eng.id)?"1px solid #38bdf8":!isEngActive(eng)?"1px solid var(--border2)":"1px solid var(--border3)"}}
                     onClick={()=>setFilterEngineer(filterEngineer===String(eng.id)?"ALL":String(eng.id))}>
                     <div className="av" style={{width:44,height:44,fontSize:15,margin:"0 auto 8px",filter:!isEngActive(eng)?"grayscale(1)":"none"}}>{eng.name?.slice(0,2).toUpperCase()}</div>
                     <div style={{fontSize:15,fontWeight:600}}>{eng.name}{!isEngActive(eng)&&<span style={{fontSize:12,marginLeft:5,color:"#f87171",background:"#f8717115",padding:"1px 4px",borderRadius:3}}>LEFT</span>}</div>
@@ -10564,7 +10586,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                           </div>
                         </div>
                         {allWithHours.some(p=>!p.billable)&&(
-                          <div style={{padding:"10px 20px",background:"#1a0f00",borderBottom:"1px solid #fb923c30",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                          <div style={{padding:"10px 20px",background:"var(--warn-bg)",borderBottom:"1px solid #fb923c30",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
                             <span style={{fontSize:13,color:"#fb923c"}}>⚠ Some projects have hours but are not marked billable</span>
                             <button className="bg" style={{fontSize:12,borderColor:"#fb923c50",color:"#fb923c",flexShrink:0,padding:"4px 10px"}}
                               onClick={async()=>{
@@ -10599,7 +10621,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                                 <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{p.hours}h</td>
                                 <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--text3)"}}>{p.billable?`$${p.rate_per_hour}/h`:"—"}</td>
                                 <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:700}}>{p.billable?fmtCurrency(p.revenue):"—"}</td>
-                                <td style={{textAlign:"right"}}><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:p.billable?"#05603a30":"#1a0a00",color:p.billable?"#34d399":"#fb923c",fontWeight:700}}>{p.billable?"BILL":"NON"}</span></td>
+                                <td style={{textAlign:"right"}}><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:p.billable?"#05603a30":"#fb923c20",color:p.billable?"#34d399":"#fb923c",fontWeight:700}}>{p.billable?"BILL":"NON"}</span></td>
                                 <td><button className="be" style={{fontSize:12,whiteSpace:"nowrap"}} onClick={()=>{const eng=engineers[0];if(eng)buildTimesheetPDF(eng,monthEntries,projects,month,year);}}>⬇ PDF</button></td>
                               </tr>
                             ))}</tbody>
@@ -11154,7 +11176,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>Import Excel Timesheets</h1>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
                   <p style={{color:"var(--text4)",fontSize:14}}>Upload ENEVOEGY timesheet files · Engineers &amp; projects created automatically</p>
-                  <span style={{fontSize:13,padding:"2px 8px",borderRadius:3,background:xlsxReady?"#024b36":"#1a0a00",color:xlsxReady?"#34d399":"#fb923c",fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"}}>
+                  <span style={{fontSize:13,padding:"2px 8px",borderRadius:3,background:xlsxReady?"#05603a30":"var(--warn-bg)",color:xlsxReady?"#34d399":"#fb923c",fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"}}>
                     {xlsxReady?"✓ XLSX READY":"⏳ LOADING XLSX..."}
                   </span>
                 </div>
@@ -11164,7 +11186,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                 <div>
                   <div className="card" style={{marginBottom:14}}>
                     <h3 style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:12}}>📂 Upload Timesheet Files</h3>
-                    <div style={{border:"2px dashed #192d47",borderRadius:8,padding:"28px",textAlign:"center",marginBottom:14,cursor:"pointer",transition:"border-color .2s"}}
+                    <div style={{border:"2px dashed var(--border3)",borderRadius:8,padding:"28px",textAlign:"center",marginBottom:14,cursor:"pointer",transition:"border-color .2s"}}
                       onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="var(--info)";}}
                       onDragLeave={e=>{e.currentTarget.style.borderColor="var(--border)";}}
                       onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor="var(--border)";const f=[...e.dataTransfer.files].filter(f=>f.name.endsWith(".xlsx")||f.name.endsWith(".xls"));setImportFiles(prev=>[...prev,...f]);}}
@@ -11187,7 +11209,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                             <button className="bd" style={{fontSize:13}} onClick={()=>setImportFiles(prev=>prev.filter((_,j)=>j!==i))}>✕</button>
                           </div>
                         ))}
-                        {!xlsxReady&&<div style={{background:"#1a0a00",border:"1px solid #fb923c30",borderRadius:6,padding:"8px 12px",fontSize:13,color:"#fb923c",marginBottom:8}}>⏳ XLSX library loading... wait a moment then try again.</div>}
+                        {!xlsxReady&&<div style={{background:"var(--warn-bg)",border:"1px solid #fb923c30",borderRadius:6,padding:"8px 12px",fontSize:13,color:"#fb923c",marginBottom:8}}>⏳ XLSX library loading... wait a moment then try again.</div>}
                         <div style={{display:"flex",gap:10,marginTop:12}}>
                           <button className="bp" style={{flex:1,justifyContent:"center"}} disabled={importing||!xlsxReady} onClick={()=>importTimesheets(importFiles)}>
                             {importing?"⏳ Importing...":!xlsxReady?"⏳ Loading XLSX...":"⬆ Import All Files"}
@@ -11211,7 +11233,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                         <div><div style={{fontSize:14,fontWeight:600}}>{label}</div><div style={{fontSize:13,color:"var(--text4)",lineHeight:1.5}}>{desc}</div></div>
                       </div>
                     ))}
-                    <div style={{background:"#1a0a00",border:"1px solid #fb923c30",borderRadius:6,padding:"9px 12px",fontSize:13,color:"#fb923c",marginTop:8}}>
+                    <div style={{background:"var(--warn-bg)",border:"1px solid #fb923c30",borderRadius:6,padding:"9px 12px",fontSize:13,color:"#fb923c",marginTop:8}}>
                       ⚠ After importing, go to Admin → All Entries to review and assign project numbers to any unmatched entries.
                     </div>
                   </div>
@@ -11221,7 +11243,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   <h3 style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:12}}>📋 Import Log</h3>
                   {importLog.length===0&&<div style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:30}}>No import started yet</div>}
                   {importLog.map((entry,i)=>(
-                    <div key={i} style={{display:"flex",gap:8,marginBottom:5,fontSize:13,padding:"4px 0",borderBottom:"1px solid #0d1a2d"}}>
+                    <div key={i} style={{display:"flex",gap:8,marginBottom:5,fontSize:13,padding:"4px 0",borderBottom:"1px solid var(--border2)"}}>
                       <span style={{width:8,height:8,borderRadius:"50%",marginTop:4,flexShrink:0,background:entry.type==="ok"?"#34d399":entry.type==="error"?"#f87171":entry.type==="warn"?"#fb923c":"var(--info)"}}/>
                       <span style={{color:entry.type==="ok"?"#34d399":entry.type==="error"?"#f87171":entry.type==="warn"?"#fb923c":"var(--text2)",lineHeight:1.4}}>{entry.msg}</span>
                     </div>
@@ -11395,7 +11417,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     <div>
                       <label style={LBL}>PROJECT</label>
                       {_noProjects?(
-                        <div style={{padding:"12px",background:"#1a0a0a",border:"1px solid #f8717140",borderRadius:6,fontSize:13,color:"#f87171",textAlign:"center"}}>
+                        <div style={{padding:"12px",background:"var(--err-bg)",border:"1px solid #f8717140",borderRadius:6,fontSize:13,color:"#f87171",textAlign:"center"}}>
                           ⚠ {_targetEng?.name||"This engineer"} is not assigned to any active project.<br/>
                           <span style={{color:"var(--text3)",fontSize:13}}>Ask an admin to assign projects first.</span>
                         </div>
@@ -12026,7 +12048,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                     )}
                   </div>
                   {isEGP&&(exp.amount_egp>0)&&(
-                    <div style={{padding:"5px 10px",background:"var(--bg2)",borderRadius:4,border:"1px solid #0f1e2e",fontSize:13,color:"var(--text3)"}}>
+                    <div style={{padding:"5px 10px",background:"var(--bg2)",borderRadius:4,border:"1px solid var(--border2)",fontSize:13,color:"var(--text3)"}}>
                       ≈ <span style={{color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>${(Math.round((exp.amount_egp||0)/(rate)*100)/100).toLocaleString()}</span>
                       <span style={{marginLeft:8}}>@ {rate} EGP/$</span>
                     </div>
@@ -12117,7 +12139,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   onKeyDown={e=>e.key==="Enter"&&handleChangePassword()}/>
               </div>
               {pwdMsg&&(
-                <div style={{fontSize:13,padding:"8px 12px",borderRadius:7,background:pwdMsg.ok?"#052e1620":"#450a0a",color:pwdMsg.ok?"#34d399":"#f87171",border:`1px solid ${pwdMsg.ok?"#34d39940":"#f8717140"}`}}>
+                <div style={{fontSize:13,padding:"8px 12px",borderRadius:7,background:pwdMsg.ok?"var(--success-bg)":"var(--err-bg)",color:pwdMsg.ok?"#34d399":"#f87171",border:`1px solid ${pwdMsg.ok?"#34d39940":"#f8717140"}`}}>
                   {pwdMsg.ok?"✓":"✕"} {pwdMsg.text}
                 </div>
               )}
@@ -12135,7 +12157,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 
       {/* Toast — supports optional Undo */}
       {toast&&(
-        <div className="toast" style={{background:toast.ok?"var(--bg3)":"#450a0a",color:toast.ok?"#34d399":"#f87171",border:`1px solid ${toast.ok?"#34d399":"#f87171"}`,display:"flex",alignItems:"center",gap:12,paddingRight:toast.undoFn?10:18}}>
+        <div className="toast" style={{background:toast.ok?"var(--bg3)":"var(--err-bg)",color:toast.ok?"#34d399":"#f87171",border:`1px solid ${toast.ok?"#34d399":"#f87171"}`,display:"flex",alignItems:"center",gap:12,paddingRight:toast.undoFn?10:18}}>
           <span>{toast.ok?"✓":"✕"} {toast.msg}</span>
           {toast.undoFn&&(
             <button onClick={()=>{ toast.undoFn(); dismissToast(); }}
