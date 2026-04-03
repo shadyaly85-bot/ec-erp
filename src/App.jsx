@@ -598,27 +598,45 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
   });
   return(
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:18}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:18,flexWrap:"wrap",gap:12}}>
         <div>
           <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>PROJECT PORTFOLIO</div>
           <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Projects</h1>
           <p style={{color:"var(--text4)",fontSize:14,marginTop:3}}>{filteredProjects.length} of {projects.length} projects</p>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+        <div style={{display:"flex",gap:8,alignItems:"flex-end",flexWrap:"wrap"}}>
+          {/* Search */}
           <div>
-            <div style={{fontSize:13,color:"var(--text4)",fontWeight:600,marginBottom:4}}>SEARCH</div>
+            <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>SEARCH</div>
             <input value={projSearch} onChange={e=>setProjSearch(e.target.value)}
-              placeholder="Name, ID, client…" style={{width:180,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"7px 10px",color:"var(--text0)",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif"}}/>
+              placeholder="Name, ID, client…" style={{width:180}}/>
           </div>
+          {/* Status chips */}
           <div>
-            <div style={{fontSize:13,color:"var(--text4)",fontWeight:600,marginBottom:4}}>STATUS</div>
-            <select value={projStatusFilter} onChange={e=>setProjStatusFilter(e.target.value)}
-              style={{width:130,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"7px 10px",color:"var(--text0)",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif"}}>
-              <option value="ALL">All Statuses</option>
-              {["Active","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
-            </select>
+            <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>STATUS</div>
+            <div style={{display:"flex",gap:4}}>
+              {[
+                {v:"ALL",     l:"All",       c:"var(--text2)"},
+                {v:"Active",  l:"Active",    c:"#34d399"},
+                {v:"On Hold", l:"On Hold",   c:"#fb923c"},
+                {v:"Completed",l:"Done",     c:"#a78bfa"},
+              ].map(chip=>{
+                const cnt=chip.v==="ALL"?projects.length:projects.filter(p=>p.status===chip.v).length;
+                const active=projStatusFilter===chip.v;
+                return(
+                  <button key={chip.v} onClick={()=>setProjStatusFilter(chip.v)}
+                    style={{padding:"6px 12px",borderRadius:20,border:`1px solid ${active?chip.c+"90":"var(--border)"}`,
+                      background:active?chip.c+"18":"transparent",color:active?chip.c:"var(--text3)",
+                      fontSize:13,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
+                      display:"flex",alignItems:"center",gap:5,transition:"all .15s",whiteSpace:"nowrap"}}>
+                    {chip.l}
+                    <span style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",opacity:.8}}>{cnt}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          {isAdmin&&<button style={{background:"#0ea5e9",border:"none",borderRadius:6,padding:"8px 14px",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={()=>setShowProjModal(true)}>+ New Project</button>}
+          {isAdmin&&<button className="bp" style={{fontSize:14,padding:"8px 14px"}} onClick={()=>setShowProjModal(true)}>+ New Project</button>}
         </div>
       </div>
       {filteredProjects.length===0&&<div style={{textAlign:"center",padding:60,color:"var(--text4)",fontSize:15}}>No projects match your filter.</div>}
@@ -9556,6 +9574,47 @@ export default function App(){
                         min={minPostDate()} max={maxPostDate()}/>
                       <button className="bg" style={{padding:"7px 10px"}} onClick={()=>{const d=new Date(weekOf);d.setDate(d.getDate()+7);setWeekOf(fmt(d));}}>→</button>
                       <button className="bg" style={{fontSize:13}} onClick={()=>setWeekOf(fmt(today))}>Today</button>
+                      {canPostHours&&(()=>{
+                        // Count entries in previous week
+                        const prevWeekDays=getWeekDays7((()=>{const d=new Date(weekOf);d.setDate(d.getDate()-7);return fmt(d);})());
+                        const prevEntries=entries.filter(e=>prevWeekDays.includes(e.date)&&e.engineer_id===(canEditAny?viewEngId:myProfile?.id)&&e.entry_type!=="leave");
+                        if(!prevEntries.length) return null;
+                        return(
+                          <button className="bg" style={{fontSize:13,gap:5,display:"flex",alignItems:"center",borderColor:"#a78bfa50",color:"#a78bfa",whiteSpace:"nowrap"}}
+                            title={`Copy all ${prevEntries.length} work entries from last week to this week`}
+                            onClick={async()=>{
+                              const engId=canEditAny?viewEngId:myProfile?.id;
+                              let copied=0, skipped=0;
+                              for(const d of weekDays){
+                                const dayOfWeek=new Date(d).getDay();
+                                const prevDay=prevWeekDays.find(pd=>new Date(pd).getDay()===dayOfWeek);
+                                if(!prevDay) continue;
+                                const dayPrevEntries=prevEntries.filter(e=>e.date===prevDay);
+                                if(!dayPrevEntries.length) continue;
+                                if(!isDateAllowed(d)){skipped++;continue;}
+                                const existing=entries.filter(e=>e.date===d&&e.engineer_id===engId);
+                                if(existing.length){skipped++;continue;} // skip days already filled
+                                const inserts=dayPrevEntries.map(e=>({
+                                  engineer_id:engId,project_id:e.project_id,
+                                  date:d,task_category:e.task_category,task_type:e.task_type,
+                                  hours:e.hours,activity:e.activity,entry_type:e.entry_type,
+                                  leave_type:e.leave_type||null,billable:e.billable||false,
+                                  activity_id:e.activity_id||null,
+                                }));
+                                let {data,error}=await supabase.from("time_entries").insert(inserts).select();
+                                if(error&&error.message?.includes("function_category")){
+                                  const res=await supabase.from("time_entries").insert(inserts).select();
+                                  data=res.data; error=res.error;
+                                }
+                                if(!error&&data){setEntries(prev=>[...data,...prev]);copied+=data.length;}
+                              }
+                              if(copied>0) showToast(`Copied ${copied} entries from last week ✓${skipped>0?` (${skipped} days skipped — already filled or locked)`:""}`);
+                              else showToast("No entries copied — all days already filled or locked",false);
+                            }}>
+                            ⎘ Copy Last Week <span style={{fontSize:11,opacity:.7}}>({prevEntries.length})</span>
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -9710,6 +9769,10 @@ export default function App(){
                   const allowed=isDateAllowed(day);
                   const de=entries.filter(e=>e.date===day&&e.engineer_id===viewEngId);
                   const dh=de.reduce((s,e)=>s+e.hours,0);
+                  const dwh=de.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
+                  const targetDay=8; // standard working day
+                  const dhPct=Math.min(100,Math.round(dh/targetDay*100));
+                  const barColor=dh===0?"var(--border)":dh>=targetDay?"#34d399":dh>=4?"#fb923c":"var(--info)";
                   const isToday=day===fmt(today);
                   const isFuture=day>fmt(today);
                   return(
@@ -9725,7 +9788,7 @@ export default function App(){
                             {DAY_NAMES[dow]}{isWE&&<span style={{fontSize:12,marginLeft:2,color:"#f47218"}}> WE</span>}
                           </div>
                           <div style={{fontSize:12,color:"var(--text4)"}}>{new Date(day).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
-                          {dh>0&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",marginTop:1}}>{dh}h</div>}
+                          {dh>0&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:barColor,fontWeight:700,marginTop:1}}>{dh}h</div>}
                         </div>
                         <div style={{display:"flex",flexDirection:"column",gap:2,alignItems:"flex-end"}}>
                           {allowed&&canPostHours&&<button className="bp" style={{padding:"2px 5px",fontSize:13,
@@ -9750,6 +9813,12 @@ export default function App(){
                           {!allowed&&<span style={{fontSize:11,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>LOCKED</span>}
                         </div>
                       </div>
+                      {/* Daily hours progress bar */}
+                      {allowed&&!isWE&&(
+                        <div style={{height:3,borderRadius:2,background:"var(--bg3)",marginBottom:6,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:`${dhPct}%`,background:barColor,borderRadius:2,transition:"width .3s"}}/>
+                        </div>
+                      )}
                       {de.map(e=>{
                         const proj=projects.find(p=>p.id===e.project_id);
                         const isPending=e.activity==="PENDING_APPROVAL";
