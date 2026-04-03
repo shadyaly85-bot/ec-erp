@@ -1610,7 +1610,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
 }
 
 /* ── VacationReport Component ── */
-function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onExport}){
+function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onExport,isAdmin,vacationAllowance=21,setVacationAllowance,vacationAdjustments={},setVacAdj}){
   const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
   const typeColors={"Annual Leave":"var(--info)","Sick Leave":"#f87171","Public Holiday":"#fb923c","Business Travel":"#a78bfa","Training External":"#34d399","Unpaid Leave":"#6b7280"};
 
@@ -1710,45 +1710,119 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
       {/* ── ANNUAL LEAVE BALANCE TRACKER ── */}
       {(()=>{
-        const ANNUAL_ALLOWANCE = 21; // configurable — Egyptian labor law standard
+        const yearAdj = (vacationAdjustments||{})[year]||{};
         const annualOnly = allEntries.filter(e=>
           e.entry_type==="leave" && (e.leave_type==="Annual Leave"||!e.leave_type) &&
           new Date(e.date).getFullYear()===year
         );
         const balances = engineers
-          .filter(eng=>isBillableRole?isBillableRole(eng.role_type):true)
+          .filter(eng=>eng.is_active!==false)
           .map(eng=>{
-            const used = annualOnly.filter(e=>String(e.engineer_id)===String(eng.id)).length;
-            const remaining = Math.max(0, ANNUAL_ALLOWANCE - used);
-            const pct = Math.round(used/ANNUAL_ALLOWANCE*100);
-            return{...eng, used, remaining, pct};
+            const systemUsed = annualOnly.filter(e=>String(e.engineer_id)===String(eng.id)).length;
+            const manualAdj  = +(yearAdj[eng.id]||0); // extra days used not in system
+            const totalUsed  = systemUsed + manualAdj;
+            const remaining  = Math.max(0, vacationAllowance - totalUsed);
+            const pct        = Math.round(totalUsed/vacationAllowance*100);
+            return{...eng, systemUsed, manualAdj, totalUsed, remaining, pct};
           });
         if(!balances.length) return null;
         return(
           <div className="card" style={{marginBottom:14}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            {/* Header */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
               <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",margin:0}}>🏖 Annual Leave Balance — {year}</h4>
-              <span style={{fontSize:12,color:"var(--text4)"}}>Allowance: {ANNUAL_ALLOWANCE} days/year (Egyptian labor law)</span>
-            </div>
-            <div style={{display:"grid",gap:8}}>
-              {balances.map(eng=>{
-                const barColor = eng.pct>=90?"#f87171":eng.pct>=60?"#fb923c":"#34d399";
-                return(
-                  <div key={eng.id} style={{display:"grid",gridTemplateColumns:"180px 1fr 80px 80px",gap:10,alignItems:"center"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:7}}>
-                      <div style={{width:24,height:24,borderRadius:"50%",background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"var(--info)",flexShrink:0}}>{(eng.name||"?").slice(0,2).toUpperCase()}</div>
-                      <span style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{eng.name}</span>
-                    </div>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{flex:1,background:"var(--bg3)",height:7,borderRadius:4,overflow:"hidden"}}>
-                        <div style={{height:"100%",width:`${Math.min(100,eng.pct)}%`,background:barColor,borderRadius:4}}/>
-                      </div>
-                    </div>
-                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:barColor,fontWeight:700,textAlign:"right"}}>{eng.used}d used</div>
-                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#34d399",fontWeight:700,textAlign:"right"}}>{eng.remaining}d left</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                {isAdmin?(
+                  <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"4px 10px"}}>
+                    <span style={{fontSize:12,color:"var(--text4)"}}>Annual allowance:</span>
+                    <input type="number" min={1} max={60} value={vacationAllowance}
+                      onChange={e=>setVacationAllowance&&setVacationAllowance(Math.max(1,+e.target.value))}
+                      style={{width:48,background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"center",outline:"none"}}/>
+                    <span style={{fontSize:12,color:"var(--text4)"}}>days/yr</span>
                   </div>
-                );
-              })}
+                ):(
+                  <span style={{fontSize:12,color:"var(--text4)"}}>Allowance: {vacationAllowance} days/year</span>
+                )}
+              </div>
+            </div>
+
+            {isAdmin&&(
+              <div style={{fontSize:12,color:"var(--text4)",marginBottom:12,background:"#0ea5e910",border:"1px solid #0ea5e930",borderRadius:6,padding:"7px 12px"}}>
+                💡 <strong style={{color:"var(--info)"}}>Manual adjustment:</strong> Enter days used that were not submitted in the system (e.g. Jan–Mar unlogged vacation). These are added to the system count to get the real balance.
+              </div>
+            )}
+
+            {/* Table */}
+            <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:"var(--bg2)"}}>
+                  <th style={{textAlign:"left",padding:"7px 12px",color:"var(--text3)",fontSize:12}}>Engineer</th>
+                  <th style={{textAlign:"center",padding:"7px 10px",color:"var(--text3)",fontSize:12}}>System<br/>Days</th>
+                  {isAdmin&&<th style={{textAlign:"center",padding:"7px 10px",color:"#fb923c",fontSize:12}}>Manual<br/>Adjust</th>}
+                  <th style={{textAlign:"center",padding:"7px 10px",color:"var(--text3)",fontSize:12}}>Total<br/>Used</th>
+                  <th style={{textAlign:"left",padding:"7px 12px",color:"var(--text3)",fontSize:12,minWidth:140}}>Balance Bar</th>
+                  <th style={{textAlign:"center",padding:"7px 10px",color:"#34d399",fontSize:12}}>Remaining</th>
+                  <th style={{textAlign:"center",padding:"7px 10px",color:"var(--text3)",fontSize:12}}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {balances.sort((a,b)=>b.totalUsed-a.totalUsed).map((eng,i)=>{
+                  const barColor = eng.pct>=90?"#f87171":eng.pct>=60?"#fb923c":"#34d399";
+                  const status   = eng.pct>=90?"⚠ Critical":eng.pct>=60?"▲ High":"✓ Healthy";
+                  return(
+                    <tr key={eng.id} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
+                      <td style={{padding:"8px 12px"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:7}}>
+                          <div style={{width:26,height:26,borderRadius:"50%",background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"var(--info)",flexShrink:0}}>{(eng.name||"?").slice(0,2).toUpperCase()}</div>
+                          <div>
+                            <div style={{fontWeight:600,fontSize:13}}>{eng.name}</div>
+                            <div style={{fontSize:11,color:"var(--text4)"}}>{eng.role}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)",padding:"8px 10px"}}>{eng.systemUsed}d</td>
+                      {isAdmin&&(
+                        <td style={{textAlign:"center",padding:"6px 8px"}}>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+                            <button onClick={()=>setVacAdj&&setVacAdj(year,eng.id,Math.max(0,(eng.manualAdj||0)-1))}
+                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:22,height:22,cursor:"pointer",color:"var(--text2)",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+                            <input type="number" min={0} value={eng.manualAdj||0}
+                              onChange={e=>setVacAdj&&setVacAdj(year,eng.id,Math.max(0,+e.target.value||0))}
+                              style={{width:38,textAlign:"center",background:"var(--bg2)",border:"1px solid #fb923c50",borderRadius:5,color:"#fb923c",fontSize:13,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,padding:"2px 4px",outline:"none"}}/>
+                            <button onClick={()=>setVacAdj&&setVacAdj(year,eng.id,(eng.manualAdj||0)+1)}
+                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:22,height:22,cursor:"pointer",color:"var(--text2)",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                          </div>
+                          {eng.manualAdj>0&&<div style={{fontSize:10,color:"#fb923c",textAlign:"center",marginTop:2}}>{eng.manualAdj}d unlogged</div>}
+                        </td>
+                      )}
+                      <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:barColor,padding:"8px 10px"}}>{eng.totalUsed}d</td>
+                      <td style={{padding:"8px 12px"}}>
+                        <div style={{background:"var(--bg3)",height:8,borderRadius:4,overflow:"hidden",minWidth:100}}>
+                          <div style={{height:"100%",width:`${Math.min(100,eng.pct)}%`,background:barColor,borderRadius:4,transition:"width .4s"}}/>
+                        </div>
+                        <div style={{fontSize:10,color:"var(--text4)",marginTop:2}}>{eng.pct}% of {vacationAllowance}d</div>
+                      </td>
+                      <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#34d399",fontSize:14,padding:"8px 10px"}}>{eng.remaining}d</td>
+                      <td style={{textAlign:"center",padding:"8px 10px"}}>
+                        <span style={{fontSize:11,padding:"2px 8px",borderRadius:8,background:barColor+"20",color:barColor,fontWeight:700}}>{status}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)"}}>
+                  <td style={{padding:"8px 12px",fontWeight:700,color:"var(--text0)"}}>TEAM TOTAL</td>
+                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{balances.reduce((s,e)=>s+e.systemUsed,0)}d</td>
+                  {isAdmin&&<td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#fb923c"}}>{balances.reduce((s,e)=>s+e.manualAdj,0)}d</td>}
+                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{balances.reduce((s,e)=>s+e.totalUsed,0)}d</td>
+                  <td/>
+                  <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#34d399"}}>{balances.reduce((s,e)=>s+e.remaining,0)}d</td>
+                  <td/>
+                </tr>
+              </tfoot>
+            </table>
             </div>
           </div>
         );
@@ -6296,371 +6370,440 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
-function KPIsTab({entries, engineers, projects, kpiYear, setKpiYear, kpiEngId, setKpiEngId, kpiNotes, setKpiNotes, isAdmin, isLead, isAcct, year, notifications, onDismissNotif, alertDay, setAlertDay, showToast}){
-  const yearEntries = useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
-  const engKPIs = useMemo(()=>{
-/* ── KPI CALCULATION GUIDE (shown in tooltips and detail view) ──
-   A. UTILIZATION/EFFICIENCY 30%
-      • Billable %   = hours on billable projects ÷ total hours × 100
-      • BD/Sales     = Tender+Proposal+BD function hours (tracked, not scored separately)
-      • Knowledge %  = Training+R&D function hours ÷ total hours × 100 (target ~10%)
-      • Score formula: bill%×0.70 + (knowledge%/10×100)×0.20 + min(BD%×3,100)×0.10
-   B. PROJECT PERFORMANCE 30%
-      • Description rate = entries with activity notes ÷ total work entries × 100
-      • Projects count   = distinct billable projects worked on
-      • Doc hours        = Documentation & Reporting function hours
-      • Score formula: descRate×0.50 + min(projects×10,100)×0.30 + min(docHrs×5,100)×0.20
-   C. DEVELOPMENT GOAL 20%
-      • Training given/received, Mentoring, R&D hours
-      • Score formula: (trainRcv/8×100)×0.30 + (trainGiven/4×100)×0.25 + (mentoring/4×100)×0.25 + (rnd/4×100)×0.20
-   D. COMPLIANCE GOAL 20%
-      • Weekly submission rate = distinct weeks with entries ÷ weeks elapsed × 100
-   TOTAL = A×0.30 + B×0.30 + C×0.20 + D×0.20
-   BANDS: 0-40 Under Performer | 41-75 Competent | 76-95 Performer | 96-120 High Performer
-*/
+function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiEngId,kpiNotes,setKpiNotes,isAdmin,isLead,isAcct,isEngineer,myProfile,year,notifications,onDismissNotif,alertDay,setAlertDay,showToast,supabase,setEntries,setNotifications,vacationAllowance=21,setVacationAllowance}){
 
-const computeKPI=eng=>{
-  const myE=yearEntries.filter(e=>String(e.engineer_id)===String(eng.id));
-  const workE=myE.filter(e=>e.entry_type==="work");
-  const funcE=myE.filter(e=>(e.entry_type==="function"||e.task_category==="Function"));
-  const leaveE=myE.filter(e=>e.entry_type==="leave");
-  const totalWork=workE.reduce((s,e)=>s+e.hours,0);
-  const totalFuncHrs=funcE.reduce((s,e)=>s+e.hours,0);
-  const totalLeave=leaveE.length;
-  const billWork=workE.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
-  const salesBD=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Tender|Proposal|BD|Business/i)).reduce((s,e)=>s+e.hours,0);
-  const knowledgeHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Training|Knowledge|R&D|Innovation/i)).reduce((s,e)=>s+e.hours,0);
-  const totalHrs=(totalWork+totalFuncHrs)||1;
-  const billPct=Math.round(billWork/totalHrs*100);
-  const bdPct=Math.round(salesBD/totalHrs*100);
-  const knowledgePct=Math.round(knowledgeHrs/totalHrs*100);
-  const utilScore=Math.min(100,Math.round(Math.min(100,billPct)*0.70+Math.min(100,(knowledgePct/10)*100)*0.20+Math.min(100,bdPct*3)*0.10));
-  const projsWorked=[...new Set(workE.map(e=>e.project_id).filter(Boolean))];
-  const entriesWithDesc=workE.filter(e=>e.activity&&e.activity.trim().length>5).length;
-  const descRate=workE.length>0?Math.round(entriesWithDesc/workE.length*100):0;
-  const docHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Doc|Report/i)).reduce((s,e)=>s+e.hours,0);
-  const projScore=Math.min(100,Math.round(descRate*0.50+Math.min(100,projsWorked.length*10)*0.30+Math.min(100,docHrs*5)*0.20));
-  const trainingGiven=funcE.filter(e=>(e.function_category||e.task_type||"").includes("Given")).reduce((s,e)=>s+e.hours,0);
-  const trainingReceived=funcE.filter(e=>(e.function_category||e.task_type||"").includes("Received")).reduce((s,e)=>s+e.hours,0);
-  const mentoring=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Mentor|Coach/i)).reduce((s,e)=>s+e.hours,0);
-  const rnd=funcE.filter(e=>(e.function_category||e.task_type||"").match(/R&D|Innovation/i)).reduce((s,e)=>s+e.hours,0);
-  const devScore=Math.min(100,Math.round(Math.min(100,(trainingReceived/8)*100)*0.30+Math.min(100,(trainingGiven/4)*100)*0.25+Math.min(100,(mentoring/4)*100)*0.25+Math.min(100,(rnd/4)*100)*0.20));
-  const weeks=new Set(myE.filter(e=>e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")).map(e=>{
-    const d=new Date(e.date+"T12:00:00");const dow=d.getDay();
-    const mon=new Date(d);mon.setDate(d.getDate()-(dow===0?6:dow-1));
-    return mon.toISOString().slice(0,10);
-  }));
-  const now2=new Date();
-  // KPI week counting starts from the later of: year start OR engineer's join date
-  // This prevents penalising new joiners for weeks before they were employed
-  const yearStart=new Date(kpiYear,0,1);
-  const engJoinDate=eng.join_date?new Date(eng.join_date+"T12:00:00"):null;
-  const kpiStart=engJoinDate&&engJoinDate>yearStart?engJoinDate:yearStart;
-  const kpiEnd=Math.min(now2,new Date(kpiYear,11,31));
-  const weeksElapsed=Math.max(1,Math.ceil((kpiEnd-kpiStart)/(7*24*3600*1000)));
-  const submissionRate=Math.min(100,Math.round(weeks.size/weeksElapsed*100));
-  const complianceScore=submissionRate;
-  const totalScore=Math.round(utilScore*0.30+projScore*0.30+devScore*0.20+complianceScore*0.20);
-  return{eng,totalWork,billWork,billPct,bdPct,knowledgePct,totalLeave,totalFuncHrs,
-    utilScore,projScore,devScore,complianceScore,totalScore,
-    submissionRate,trainingGiven,trainingReceived,mentoring,rnd,salesBD,
-    projsWorked:projsWorked.length,descRate,docHrs,
-    weeks:weeks.size,weeksElapsed,funcE,workE,totalHrs};
-};
+  const canManageKPI = isAdmin||isLead;
+  // Engineers auto-locked to their own profile
+  const effectiveEngId = isEngineer ? (myProfile?.id ? String(myProfile.id) : null) : kpiEngId;
 
-const engKPIs=engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore);
+  const yearEntries=useMemo(()=>entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===kpiYear;}),[entries,kpiYear]);
 
-// Selected engineer for detail view
-    return engKPIs;
-  }, [entries, engineers, projects, kpiYear, yearEntries]);
+  const computeKPI=useCallback(eng=>{
+    const myE=yearEntries.filter(e=>String(e.engineer_id)===String(eng.id));
+    const workE=myE.filter(e=>e.entry_type==="work");
+    const funcE=myE.filter(e=>(e.entry_type==="function"||e.task_category==="Function"));
+    const leaveE=myE.filter(e=>e.entry_type==="leave");
+    const totalWork=workE.reduce((s,e)=>s+e.hours,0);
+    const totalFuncHrs=funcE.reduce((s,e)=>s+e.hours,0);
+    const totalLeave=leaveE.length;
+    const billWork=workE.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
+    const salesBD=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Tender|Proposal|BD|Business/i)).reduce((s,e)=>s+e.hours,0);
+    const knowledgeHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Training|Knowledge|R&D|Innovation/i)).reduce((s,e)=>s+e.hours,0);
+    const totalHrs=(totalWork+totalFuncHrs)||1;
+    const billPct=Math.round(billWork/totalHrs*100);
+    const bdPct=Math.round(salesBD/totalHrs*100);
+    const knowledgePct=Math.round(knowledgeHrs/totalHrs*100);
+    const utilScore=Math.min(100,Math.round(Math.min(100,billPct)*0.70+Math.min(100,(knowledgePct/10)*100)*0.20+Math.min(100,bdPct*3)*0.10));
+    const projsWorked=[...new Set(workE.map(e=>e.project_id).filter(Boolean))];
+    const entriesWithDesc=workE.filter(e=>e.activity&&e.activity.trim().length>5&&e.activity!=="PENDING_APPROVAL").length;
+    const descRate=workE.length>0?Math.round(entriesWithDesc/workE.length*100):0;
+    const docHrs=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Doc|Report/i)).reduce((s,e)=>s+e.hours,0);
+    const projScore=Math.min(100,Math.round(descRate*0.50+Math.min(100,projsWorked.length*10)*0.30+Math.min(100,docHrs*5)*0.20));
+    const trainingGiven=funcE.filter(e=>(e.function_category||e.task_type||"").includes("Given")).reduce((s,e)=>s+e.hours,0);
+    const trainingReceived=funcE.filter(e=>(e.function_category||e.task_type||"").includes("Received")).reduce((s,e)=>s+e.hours,0);
+    const mentoring=funcE.filter(e=>(e.function_category||e.task_type||"").match(/Mentor|Coach/i)).reduce((s,e)=>s+e.hours,0);
+    const rnd=funcE.filter(e=>(e.function_category||e.task_type||"").match(/R&D|Innovation/i)).reduce((s,e)=>s+e.hours,0);
+    const devScore=Math.min(100,Math.round(Math.min(100,(trainingReceived/8)*100)*0.30+Math.min(100,(trainingGiven/4)*100)*0.25+Math.min(100,(mentoring/4)*100)*0.25+Math.min(100,(rnd/4)*100)*0.20));
+    const weeks=new Set(myE.filter(e=>e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")).map(e=>{
+      const d=new Date(e.date+"T12:00:00");const dow=d.getDay();
+      const mon=new Date(d);mon.setDate(d.getDate()-(dow===0?6:dow-1));
+      return mon.toISOString().slice(0,10);
+    }));
+    const now2=new Date();
+    const yearStart=new Date(kpiYear,0,1);
+    const engJoinDate=eng.join_date?new Date(eng.join_date+"T12:00:00"):null;
+    const kpiStart=engJoinDate&&engJoinDate>yearStart?engJoinDate:yearStart;
+    const kpiEnd=Math.min(now2,new Date(kpiYear,11,31));
+    const weeksElapsed=Math.max(1,Math.ceil((kpiEnd-kpiStart)/(7*24*3600*1000)));
+    const submissionRate=Math.min(100,Math.round(weeks.size/weeksElapsed*100));
+    const complianceScore=submissionRate;
+    const totalScore=Math.round(utilScore*0.30+projScore*0.30+devScore*0.20+complianceScore*0.20);
+    return{eng,totalWork,billWork,billPct,bdPct,knowledgePct,totalLeave,totalFuncHrs,
+      utilScore,projScore,devScore,complianceScore,totalScore,
+      submissionRate,trainingGiven,trainingReceived,mentoring,rnd,salesBD,
+      projsWorked:projsWorked.length,descRate,docHrs,
+      weeks:weeks.size,weeksElapsed,funcE,workE,totalHrs};
+  },[yearEntries,projects,kpiYear]);
 
-  // Derived in component body so JSX render can access them
-  const selKPI = kpiEngId ? engKPIs.find(k=>String(k.eng.id)===String(kpiEngId)) : null;
+  const engKPIs=useMemo(()=>engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore),[engineers,computeKPI]);
+  const selKPI=effectiveEngId?engKPIs.find(k=>String(k.eng.id)===String(effectiveEngId)):null;
 
+  // Pending vacation requests
+  const pendingVacations=useMemo(()=>
+    entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL"),
+  [entries]);
 
-  const alertNotifs  = (notifications||[]).filter(n=>n.type==="timesheet_alert"&&!n.read);
-  const overdueNotif = (notifications||[]).find(n=>n.type==="overdue_alert");
-  const overdueMeta  = overdueNotif ? (()=>{try{return JSON.parse(overdueNotif.meta||"{}");}catch{return {};}})() : null;
+  const alertNotifs=(notifications||[]).filter(n=>n.type==="timesheet_alert"&&!n.read);
+  const overdueNotif=(notifications||[]).find(n=>n.type==="overdue_alert");
+  const vacReqNotifs=(notifications||[]).filter(n=>n.type==="vacation_request");
+
+  // Approve/reject vacation
+  const approveVacation=async(entryId,notifId)=>{
+    if(!supabase) return;
+    await supabase.from("time_entries").update({activity:null}).eq("id",entryId);
+    setEntries&&setEntries(prev=>prev.map(e=>e.id===entryId?{...e,activity:null}:e));
+    if(notifId){ await supabase.from("notifications").delete().eq("id",notifId); setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId)); }
+    showToast("Vacation approved ✓");
+  };
+  const rejectVacation=async(entryId,notifId)=>{
+    if(!supabase) return;
+    await supabase.from("time_entries").delete().eq("id",entryId);
+    setEntries&&setEntries(prev=>prev.filter(e=>e.id!==entryId));
+    if(notifId){ await supabase.from("notifications").delete().eq("id",notifId); setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId)); }
+    showToast("Vacation request rejected",false);
+  };
+
+  // Score gauge (SVG arc)
+  const ScoreGauge=({score,size=120})=>{
+    const R=46; const cx=60; const cy=62;
+    const arcLen=2*Math.PI*R*0.75;
+    const pct=Math.min(score/120,1);
+    const fill=pct*arcLen;
+    const color=score>=96?"#34d399":score>=76?"#0ea5e9":score>=41?"#fb923c":"#f87171";
+    const label=score>=96?"High Performer":score>=76?"Performer":score>=41?"Competent":"Under Performer";
+    return(
+      <svg width={size} height={size} viewBox="0 0 120 110">
+        <path d={`M ${cx-R*Math.cos(Math.PI*0.25)} ${cy+R*Math.sin(Math.PI*0.25)} A ${R} ${R} 0 1 1 ${cx+R*Math.cos(Math.PI*0.25)} ${cy+R*Math.sin(Math.PI*0.25)}`}
+          fill="none" stroke="var(--bg3)" strokeWidth="10" strokeLinecap="round"/>
+        <path d={`M ${cx-R*Math.cos(Math.PI*0.25)} ${cy+R*Math.sin(Math.PI*0.25)} A ${R} ${R} 0 1 1 ${cx+R*Math.cos(Math.PI*0.25)} ${cy+R*Math.sin(Math.PI*0.25)}`}
+          fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
+          strokeDasharray={`${fill} ${arcLen}`} style={{transition:"stroke-dasharray .8s ease"}}/>
+        <text x={cx} y={cy-4} textAnchor="middle" fontSize="22" fontWeight="800" fill={color} fontFamily="'IBM Plex Mono',monospace">{score}</text>
+        <text x={cx} y={cy+12} textAnchor="middle" fontSize="8.5" fill="var(--text4)" fontFamily="sans-serif">{label}</text>
+        <text x={cx} y={cy+23} textAnchor="middle" fontSize="7.5" fill="var(--text4)" fontFamily="sans-serif">out of 120</text>
+      </svg>
+    );
+  };
+
+  // Improvement tips per metric
+  const TIPS={
+    A:[
+      {icon:"📋",tip:"Log hours on billable projects every day — even 1h entries count."},
+      {icon:"🎓",tip:"Keep knowledge sessions to ~10% of total time (Training & R&D function entries)."},
+      {icon:"🤝",tip:"Log BD activities: tender reviews, proposals, and client meetings as Function → BD/Sales."},
+    ],
+    B:[
+      {icon:"✍️",tip:"Add a meaningful activity note (>5 chars) to every single work entry — aim for 100%."},
+      {icon:"📁",tip:"Work across multiple active projects; each distinct project boosts your score."},
+      {icon:"📝",tip:"Log lesson-learned and progress-report writing as Function → Documentation."},
+    ],
+    C:[
+      {icon:"📚",tip:"Attend internal or external training sessions and log them as Function → Training Received."},
+      {icon:"👨‍🏫",tip:"Run at least one knowledge-sharing session per quarter → Function → Training Given."},
+      {icon:"🔬",tip:"Contribute to R&D or tool-building → Function → R&D & Innovation."},
+    ],
+    D:[
+      {icon:"📅",tip:"Submit at least one entry every working week — gaps penalise your compliance score heavily."},
+      {icon:"⏰",tip:"Post timesheets by Friday; your alert day is currently set to remind you."},
+      {icon:"✅",tip:"If you have no project work in a week, log a function entry or leave entry to stay compliant."},
+    ],
+  };
+
+  // Score card component
+  const MetricCard=({id,label,weight,score,color,items,children})=>{
+    const [open,setOpen]=React.useState(false);
+    return(
+      <div style={{background:"var(--bg2)",border:`1px solid ${color}30`,borderRadius:10,overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
+          <div style={{width:48,height:48,borderRadius:"50%",background:color+"20",border:`2px solid ${color}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:800,color}}>{score}</span>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:13,fontWeight:700,color:"var(--text0)"}}>{label}</span>
+              <span style={{fontSize:11,color:"var(--text4)",background:"var(--bg3)",padding:"1px 7px",borderRadius:8}}>{weight}</span>
+            </div>
+            <div style={{background:"var(--bg3)",height:6,borderRadius:3,overflow:"hidden"}}>
+              <div style={{height:"100%",width:`${Math.min(100,score)}%`,background:color,borderRadius:3,transition:"width .8s ease"}}/>
+            </div>
+          </div>
+          <span style={{fontSize:14,color:"var(--text4)",transition:"transform .2s",transform:open?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
+        </div>
+        {open&&(
+          <div style={{padding:"0 16px 14px",borderTop:`1px solid ${color}20`}}>
+            {children}
+            <div style={{marginTop:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>How to improve</div>
+              <div style={{display:"grid",gap:5}}>
+                {TIPS[id]?.map((t,i)=>(
+                  <div key={i} style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:12,color:"var(--text3)",background:"var(--bg1)",borderRadius:6,padding:"6px 10px"}}>
+                    <span style={{flexShrink:0}}>{t.icon}</span>{t.tip}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Stat row inside metric card
+  const StatRow=({label,value,sub,color})=>(
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:"1px solid var(--border3)"}}>
+      <span style={{fontSize:12,color:"var(--text3)"}}>{label}</span>
+      <div style={{textAlign:"right"}}>
+        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:color||"var(--text0)"}}>{value}</span>
+        {sub&&<div style={{fontSize:10,color:"var(--text4)"}}>{sub}</div>}
+      </div>
+    </div>
+  );
+
+  const kpiRatingColor=s=>s>=96?"#34d399":s>=76?"var(--info)":s>=41?"#fb923c":"#f87171";
+  const kpiRatingLabel=s=>s>=96?"🏆 High Performer":s>=76?"⭐ Performer":s>=41?"👍 Competent":"📈 Under Performer";
 
   return(
-<div style={{display:"grid",gap:14}}>
+  <div style={{display:"grid",gap:16}}>
 
-  {/* Controls */}
-  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-    <select value={kpiYear} onChange={e=>setKpiYear(+e.target.value)}
-      style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:14}}>
-      {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
-    </select>
-    <select value={kpiEngId||""} onChange={e=>setKpiEngId(e.target.value||null)}
-      style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:14}}>
-      <option value="">All Engineers (overview)</option>
-      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-    </select>
-    <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg2)",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
-      <span style={{fontSize:11,color:"var(--text4)",textTransform:"uppercase"}}>Alert from</span>
-      <select value={alertDay} onChange={e=>setAlertDay(+e.target.value)}
-        style={{background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,outline:"none",cursor:"pointer"}}>
-        {[["1","Monday"],["2","Tuesday"],["3","Wednesday"],["4","Thursday"],["5","Friday"]].map(([v,l])=><option key={v} value={+v}>{l}</option>)}
-      </select>
-    </div>
-    {alertNotifs.length>0&&<span style={{background:"#450a0a",border:"1px solid #f87171",color:"#f87171",fontSize:12,fontWeight:700,padding:"4px 10px",borderRadius:6}}>⏰ {alertNotifs.length} alert{alertNotifs.length>1?"s":""}</span>}
-  </div>
-
-  {/* Rating legend */}
-  <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-    {[["0–40","Under Performer","#f87171","#7f1d1d20"],["41–75","Competent","#fb923c","var(--bg3)"],["76–95","Performer","var(--info)","var(--bg3)"],["96–120","High Performer","#34d399","var(--bg3)"]].map(([r,l,c,bg])=>(
-      <div key={r} style={{display:"flex",alignItems:"center",gap:5,background:bg,border:`1px solid ${c}25`,borderRadius:6,padding:"4px 9px"}}>
-        <div style={{width:7,height:7,borderRadius:2,background:c}}/>
-        <span style={{fontSize:12,color:c,fontWeight:700}}>{r}</span>
-        <span style={{fontSize:12,color:"var(--text3)"}}>{l}</span>
+    {/* ── Header ── */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+      <div>
+        <h2 style={{fontSize:20,fontWeight:800,color:"var(--text0)",margin:0}}>📈 KPI Dashboard</h2>
+        <p style={{fontSize:13,color:"var(--text4)",marginTop:2}}>{kpiYear} · Performance Scorecard · Max 120 pts</p>
       </div>
-    ))}
-    <span style={{fontSize:11,color:"var(--text4)"}}>Weights: Utilization 30% · Project Perf 30% · Development 20% · Compliance 20%</span>
-  </div>
-
-  {/* Delay alerts */}
-  {alertNotifs.length>0&&(
-  <div className="card" style={{borderColor:"#f8717130"}}>
-    <div style={{fontSize:13,fontWeight:700,color:"#f87171",marginBottom:10}}>⏰ TIMESHEET DELAY ALERTS</div>
-    <div style={{display:"grid",gap:6}}>
-      {alertNotifs.map(n=>(
-        <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"#7f1d1d20",borderRadius:6,padding:"8px 12px"}}>
-          <span style={{fontSize:12,color:"#f87171",flex:1}}>{n.message}</span>
-          <span style={{fontSize:11,color:"var(--text3)"}}>{new Date(n.created_at).toLocaleDateString("en-GB")}</span>
-          <button className="bg" style={{fontSize:11,padding:"2px 6px"}} onClick={()=>onDismissNotif&&onDismissNotif(n.id)}>Dismiss</button>
-        </div>
-      ))}
-    </div>
-  </div>)}
-
-  {/* Overdue activity alert */}
-  {overdueNotif&&overdueMeta&&(
-  <div className="card" style={{borderColor:"#fb923c50"}}>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-      <div style={{fontSize:13,fontWeight:700,color:"#fb923c"}}>⚠ OVERDUE TRACKER ACTIVITIES — {overdueMeta.count} item{overdueMeta.count!==1?"s":""} past deadline</div>
-      <button className="bg" style={{fontSize:11,padding:"2px 8px",borderColor:"#fb923c50",color:"#fb923c"}}
-        onClick={()=>onDismissNotif&&onDismissNotif(overdueNotif.id)}>Dismiss</button>
-    </div>
-    <div style={{fontSize:12,color:"var(--text3)"}}>
-      Activities with a passed deadline that are still In Progress. Review in the Projects → Tracker tab.
-      {overdueMeta.projects?.length>0&&<span style={{color:"var(--text4)"}}> Projects affected: {overdueMeta.projects.join(", ")}</span>}
-    </div>
-  </div>)}
-
-  {/* ── Overview table (shown when no engineer selected) ── */}
-  {!kpiEngId&&(
-  <div className="card">
-    <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:12}}>ENGINEER KPI SCORECARD — {kpiYear}</div>
-    <div style={{overflowX:"auto"}}>
-    <table style={{minWidth:820}}>
-      <thead>
-        <tr style={{background:"var(--bg2)"}}>
-          <th rowSpan={2}>Engineer</th>
-          <th colSpan={3} style={{textAlign:"center",color:"var(--info)",fontSize:11,borderBottom:"1px solid #0ea5e920"}}>A. Utilization 30%</th>
-          <th colSpan={2} style={{textAlign:"center",color:"#a78bfa",fontSize:11,borderBottom:"1px solid #0ea5e920"}}>B. Project 30%</th>
-          <th colSpan={2} style={{textAlign:"center",color:"#34d399",fontSize:11,borderBottom:"1px solid #0ea5e920"}}>C. Development 20%</th>
-          <th style={{textAlign:"center",color:"#fb923c",fontSize:11,borderBottom:"1px solid #0ea5e920"}}>D. Compliance 20%</th>
-          <th rowSpan={2} style={{textAlign:"center"}}>Score</th>
-          <th rowSpan={2} style={{textAlign:"center"}}>Rating</th>
-        </tr>
-        <tr style={{background:"var(--bg2)"}}>
-          <th style={{textAlign:"right",fontSize:10,color:"var(--text4)"}}>Bill%</th>
-          <th style={{textAlign:"right",fontSize:10,color:"var(--text4)"}}>Know%</th>
-          <th style={{textAlign:"right",fontSize:10,color:"var(--text4)"}}>Score</th>
-          <th style={{textAlign:"right",fontSize:10,color:"var(--text4)"}}>Desc%</th>
-          <th style={{textAlign:"right",fontSize:10,color:"var(--text4)"}}>Score</th>
-          <th style={{textAlign:"right",fontSize:10,color:"var(--text4)"}}>Train↑</th>
-          <th style={{textAlign:"right",fontSize:10,color:"var(--text4)"}}>Score</th>
-          <th style={{textAlign:"right",fontSize:10,color:"var(--text4)"}}>Submit%</th>
-        </tr>
-      </thead>
-      <tbody>{engKPIs.map((k,i)=>(
-        <tr key={k.eng.id} onClick={()=>setKpiEngId(String(k.eng.id))} style={{cursor:"pointer"}}>
-          <td><div style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:12,fontWeight:700,color:"var(--text4)",minWidth:16}}>{i+1}</span>
-            <div><div style={{fontWeight:700,fontSize:13}}>{k.eng.name}</div><div style={{fontSize:11,color:"var(--text4)"}}>{k.eng.role}</div></div>
-          </div></td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontSize:12}}>{k.billPct}%</td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c",fontSize:12}}>{k.knowledgePct}%</td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:kpiRatingColor(k.utilScore)}}>{k.utilScore}</td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontSize:12}}>{k.descRate}%</td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:kpiRatingColor(k.projScore)}}>{k.projScore}</td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontSize:12}}>{k.trainingGiven}h</td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:kpiRatingColor(k.devScore)}}>{k.devScore}</td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"}}>{k.submissionRate}%</td>
-          <td style={{textAlign:"center"}}>
-            <div style={{display:"inline-flex",alignItems:"center",gap:5}}>
-              <div style={{width:34,height:5,background:"var(--bg2)",borderRadius:3,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${Math.min(100,k.totalScore)}%`,background:kpiRatingColor(k.totalScore),borderRadius:3}}/>
-              </div>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:kpiRatingColor(k.totalScore),fontSize:14}}>{k.totalScore}</span>
-            </div>
-          </td>
-          <td><span style={{fontSize:11,padding:"2px 6px",borderRadius:4,background:kpiRatingBg(k.totalScore),color:kpiRatingColor(k.totalScore),fontWeight:700,whiteSpace:"nowrap"}}>{kpiRatingLabel(k.totalScore)}</span></td>
-        </tr>
-      ))}</tbody>
-    </table>
-    </div>
-    <div style={{fontSize:11,color:"var(--text4)",marginTop:8}}>Click any row for full detail · Know% target is 8–12% (green)</div>
-  </div>)}
-
-  {/* ── Individual detail view ── */}
-  {selKPI&&(()=>{
-    const k=selKPI;
-    const {eng}=k;
-    const engNotes=kpiNotes[eng.id]||{A:"",B:"",C:"",D:"",general:""};
-    const setNote=(field,val)=>setKpiNotes(prev=>({...prev,[eng.id]:{...(prev[eng.id]||{}),general:"",A:"",B:"",C:"",D:"",...(prev[eng.id]||{}),[field]:val}}));
-
-    const monthlyData=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((mn,m)=>{
-      const mWork=k.workE.filter(e=>new Date(e.date+"T12:00:00").getMonth()===m);
-      const mFunc=k.funcE.filter(e=>new Date(e.date+"T12:00:00").getMonth()===m);
-      const mLeave=yearEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave"&&new Date(e.date+"T12:00:00").getMonth()===m);
-      const wh=mWork.reduce((s,e)=>s+e.hours,0);
-      const bh=mWork.filter(e=>{const p=projects.find(x=>x.id===e.project_id);return p&&p.billable;}).reduce((s,e)=>s+e.hours,0);
-      const fh=mFunc.reduce((s,e)=>s+e.hours,0);
-      const util=wh>0?Math.round(bh/(wh+fh||1)*100):0;
-      return{mn,m,wh,bh,fh,util,leave:mLeave.length};
-    });
-
-    const criteria=[
-      {id:"A",label:"Utilization / Efficiency",weight:"30%",score:k.utilScore,color:"var(--info)",
-       howCalc:"Score = Billable%×70% + (Knowledge%÷10×100)×20% + min(BD%×3,100)×10%",
-       items:[
-         {l:"Billable Utilization %",v:`${k.billPct}%`,calc:`${k.billWork}h billable ÷ ${k.totalHrs}h total`,target:"Maximize — hours on invoiced/contractual projects",color:"var(--info)"},
-         {l:"Sales Support / BD hours",v:`${k.salesBD}h`,calc:"Tender+Proposal+BD function entries",target:"Tracked only — proposals, BD & leadership meetings",color:"#0ea5e9"},
-         {l:"Knowledge Capture %",v:`${k.knowledgePct}%`,calc:`${Math.round(k.knowledgePct/100*k.totalHrs)}h training+R&D ÷ ${k.totalHrs}h total`,target:"~10% — pre-planned, manager pre-approved",color:k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c"},
-       ]},
-      {id:"B",label:"Project Performance",weight:"30%",score:k.projScore,color:"#a78bfa",
-       howCalc:"Score = DescriptionRate×50% + min(Projects×10,100)×30% + min(DocHours×5,100)×20%",
-       items:[
-         {l:"Entry Description Rate",v:`${k.descRate}%`,calc:`${Math.round(k.descRate/100*k.workE.length)} of ${k.workE.length} entries have activity notes`,target:"≥80% — quality of output & discipline indicator",color:k.descRate>=80?"#34d399":"#fb923c"},
-         {l:"Projects worked on",v:k.projsWorked,calc:"Distinct billable projects this year",target:"Active across multiple projects",color:"#a78bfa"},
-         {l:"Documentation hours",v:`${k.docHrs}h`,calc:"Documentation & Reporting function entries",target:"Lesson learned, closure docs, progress reports",color:"#f59e0b"},
-       ]},
-      {id:"C",label:"Development Goal",weight:"20%",score:k.devScore,color:"#34d399",
-       howCalc:"Score = (TrainRcv÷8×100)×30% + (TrainGiven÷4×100)×25% + (Mentoring÷4×100)×25% + (R&D÷4×100)×20%",
-       items:[
-         {l:"Training received",v:`${k.trainingReceived}h`,calc:"Internal Training — Received function entries",target:"Personal development — certificates, skills",color:"#818cf8"},
-         {l:"Training given (knowledge sharing)",v:`${k.trainingGiven}h`,calc:"Internal Training — Given function entries",target:"Leaders: contribution to team knowledge — target ≥4h",color:"#a78bfa"},
-         {l:"Mentoring & coaching",v:`${k.mentoring}h`,calc:"Mentoring & Coaching function entries",target:"Leaders: people empowerment & delegation",color:"#34d399"},
-         {l:"R&D & Innovation",v:`${k.rnd}h`,calc:"R&D & Innovation function entries",target:"Library of tools, models, work instructions",color:"#10b981"},
-       ]},
-      {id:"D",label:"Compliance Goal",weight:"20%",score:k.complianceScore,color:"#fb923c",
-       howCalc:"Score = Weeks with entries ÷ Weeks elapsed in year × 100",
-       items:[
-         {l:"Weekly timesheet submission",v:`${k.submissionRate}%`,calc:`${k.weeks} weeks posted out of ${k.weeksElapsed} elapsed`,target:"100% — weekly entry is a core compliance KPI",color:k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"},
-         {l:"Total work hours logged",v:`${k.totalWork}h`,calc:"All work-type entries this year",target:"Reflects activity & availability",color:"var(--text2)"},
-         {l:"Leave days",v:`${k.totalLeave}d`,calc:"All leave-type entries this year",target:"Tracked — advance submission & approval expected",color:"#fb923c"},
-       ]},
-    ];
-
-    return(
-    <div className="card" style={{borderColor:"#0ea5e930"}}>
-      {/* Header row */}
-      <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16,flexWrap:"wrap"}}>
-        <div style={{flex:1}}>
-          <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{eng.name}</div>
-          <div style={{fontSize:12,color:"var(--text4)"}}>{eng.role} · KPI Year {kpiYear}</div>
-        </div>
-        <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          <div style={{textAlign:"center",background:kpiRatingBg(k.totalScore),border:`1px solid ${kpiRatingColor(k.totalScore)}30`,borderRadius:8,padding:"10px 18px"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:32,fontWeight:700,color:kpiRatingColor(k.totalScore),lineHeight:1}}>{k.totalScore}</div>
-            <div style={{fontSize:11,color:kpiRatingColor(k.totalScore),textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{kpiRatingLabel(k.totalScore)}</div>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        <select value={kpiYear} onChange={e=>setKpiYear(+e.target.value)}
+          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+          {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+        </select>
+        {canManageKPI&&(
+          <select value={effectiveEngId||""} onChange={e=>setKpiEngId(e.target.value||null)}
+            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+            <option value="">📊 Team Overview</option>
+            {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        )}
+        {canManageKPI&&(
+          <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg2)",border:"1px solid #38bdf840",borderRadius:6,padding:"5px 10px"}}>
+            <span style={{fontSize:11,color:"var(--text4)"}}>Alert day:</span>
+            <select value={alertDay} onChange={e=>setAlertDay(+e.target.value)}
+              style={{background:"transparent",border:"none",color:"var(--info)",fontSize:13,fontWeight:700,outline:"none"}}>
+              {[["1","Mon"],["2","Tue"],["3","Wed"],["4","Thu"],["5","Fri"]].map(([v,l])=><option key={v} value={+v}>{l}</option>)}
+            </select>
           </div>
-          <button className="bg" style={{fontSize:12}} onClick={()=>setKpiEngId(null)}>✕ Back</button>
-        </div>
+        )}
       </div>
+    </div>
 
-      {/* 4 criteria cards */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-        {criteria.map(c=>(
-          <div key={c.id} style={{background:"var(--bg2)",borderRadius:8,padding:"12px 14px",border:`1px solid ${c.color}20`}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-              <div><span style={{fontSize:11,fontWeight:700,color:c.color,background:c.color+"20",padding:"1px 6px",borderRadius:3,marginRight:5}}>{c.id} · {c.weight}</span><span style={{fontSize:12,fontWeight:700,color:"var(--text0)"}}>{c.label}</span></div>
-              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:kpiRatingColor(c.score)}}>{c.score}</div>
-            </div>
-            {/* How calculated */}
-            <div style={{fontSize:11,color:"var(--text4)",fontStyle:"italic",marginBottom:6,padding:"3px 6px",background:"var(--bg2)",borderRadius:3}}>{c.howCalc}</div>
-            <div style={{background:"var(--bg1)",borderRadius:3,height:5,overflow:"hidden",marginBottom:10}}>
-              <div style={{height:"100%",width:`${Math.min(100,c.score)}%`,background:c.color,borderRadius:3}}/>
-            </div>
-            <div style={{display:"grid",gap:7}}>
-              {c.items.map((item,ii)=>(
-                <div key={ii} style={{borderTop:ii>0?"1px solid #0d1a2d":"none",paddingTop:ii>0?6:0}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:6}}>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:12,color:"var(--text2)",fontWeight:600}}>{item.l}</div>
-                      <div style={{fontSize:11,color:"var(--text4)",marginTop:1}}>{item.calc}</div>
-                    </div>
-                    <div style={{textAlign:"right",flexShrink:0}}>
-                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:item.color}}>{item.v}</div>
-                    </div>
-                  </div>
-                  <div style={{fontSize:11,color:"var(--text4)",marginTop:2,fontStyle:"italic"}}>→ {item.target}</div>
+    {/* ── Pending vacation approvals (admin/lead only) ── */}
+    {canManageKPI&&pendingVacations.length>0&&(
+      <div className="card" style={{borderColor:"#f59e0b50",padding:0,overflow:"hidden"}}>
+        <div style={{background:"#78350f20",borderBottom:"1px solid #f59e0b30",padding:"10px 16px",display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>⏳ Pending Vacation Approvals</span>
+          <span style={{fontSize:12,background:"#f59e0b20",border:"1px solid #f59e0b40",color:"#f59e0b",padding:"1px 8px",borderRadius:8,fontWeight:700}}>{pendingVacations.length}</span>
+        </div>
+        <div style={{display:"grid",gap:0}}>
+          {pendingVacations.map(e=>{
+            const eng=engineers.find(x=>String(x.id)===String(e.engineer_id));
+            const notif=vacReqNotifs.find(n=>{ try{return JSON.parse(n.meta||"{}").entry_id===e.id;}catch{return false;} });
+            return(
+              <div key={e.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:"1px solid var(--border3)"}}>
+                <div className="av" style={{width:32,height:32,fontSize:12,flexShrink:0}}>{eng?.name?.slice(0,2).toUpperCase()||"?"}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:"var(--text0)"}}>{eng?.name||"Unknown"}</div>
+                  <div style={{fontSize:12,color:"var(--text4)"}}>Annual Leave · {e.date} · {e.leave_type||"Annual Leave"}</div>
                 </div>
-              ))}
-            </div>
-            {/* Manager note per criterion */}
-            <div style={{marginTop:10,borderTop:"1px solid #0d1a2d",paddingTop:8}}>
-              <div style={{fontSize:11,color:"var(--text4)",marginBottom:3}}>Manager note for {c.id}:</div>
-              <textarea value={engNotes[c.id]||""} onChange={e=>setNote(c.id,e.target.value)}
-                rows={2} placeholder={`Add note for ${c.label}…`}
-                style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text2)",fontSize:12,padding:"4px 6px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Monthly table */}
-      <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:8}}>MONTHLY ACTIVITY — {kpiYear}</div>
-      <table style={{marginBottom:14}}>
-        <thead><tr><th>Month</th><th style={{textAlign:"right"}}>Work Hrs</th><th style={{textAlign:"right"}}>Billable</th><th style={{textAlign:"right"}}>Util%</th><th style={{textAlign:"right"}}>Func Hrs</th><th style={{textAlign:"right"}}>Leave</th></tr></thead>
-        <tbody>{monthlyData.map(row=>(
-          <tr key={row.m}>
-            <td style={{fontWeight:600}}>{row.mn} {kpiYear}</td>
-            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace"}}>{row.wh||"—"}</td>
-            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{row.bh||"—"}</td>
-            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:row.util>=70?"#34d399":row.util>=50?"#fb923c":"var(--text2)"}}>{row.wh?row.util+"%":"—"}</td>
-            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{row.fh||"—"}</td>
-            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>{row.leave||"—"}</td>
-          </tr>
-        ))}</tbody>
-      </table>
-
-      {/* General manager note */}
-      <div style={{marginBottom:14}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>GENERAL MANAGER NOTES / YEAR-END SUMMARY</div>
-          <button className="bp" style={{fontSize:12,padding:"4px 14px"}} onClick={()=>{
-            try{localStorage.setItem("ec_kpi_notes",JSON.stringify(kpiNotes));}catch(err){}
-            showToast("Notes saved ✓");
-          }}>&#128190; Save Notes</button>
+                <button onClick={()=>approveVacation(e.id,notif?.id)}
+                  style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:5,padding:"5px 12px",color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer"}}>✓ Approve</button>
+                <button onClick={()=>rejectVacation(e.id,notif?.id)}
+                  style={{background:"#450a0a",border:"1px solid #f8717150",borderRadius:5,padding:"5px 12px",color:"#f87171",fontSize:12,fontWeight:700,cursor:"pointer"}}>✕ Reject</button>
+              </div>
+            );
+          })}
         </div>
-        <textarea value={engNotes.general||""} onChange={e=>setNote("general",e.target.value)}
-          rows={4} placeholder="Overall performance summary, key achievements, areas for improvement, next year goals…"
-          style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,color:"var(--text2)",fontSize:13,padding:"8px 10px",resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
-        <div style={{fontSize:11,color:"var(--text4)",marginTop:4}}>Notes saved to your browser (localStorage) — persist across sessions.</div>
       </div>
+    )}
 
-      {/* Improvement actions checklist */}
-      <div style={{padding:"10px 12px",background:"var(--bg2)",borderRadius:6,border:"1px solid var(--border3)"}}>
-        <div style={{fontSize:12,fontWeight:700,color:"var(--text2)",marginBottom:8}}>HEAD OFFICE IMPROVEMENT ACTIONS (Annual Form)</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5}}>
-          {["Process optimization","Training recommendation","Daily project monitoring","Regular one-to-one discussions","Other corrective measures"].map((a,i)=>(
-            <div key={i} style={{display:"flex",gap:6,alignItems:"center",fontSize:12,color:"var(--text3)"}}>
-              <div style={{width:6,height:6,borderRadius:1,background:"var(--border)",flexShrink:0}}/>
-              {a}
+    {/* ── Timesheet + overdue alerts ── */}
+    {alertNotifs.length>0&&(
+      <div className="card" style={{borderColor:"#f8717130",padding:"10px 16px"}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#f87171",marginBottom:8}}>⏰ {alertNotifs.length} TIMESHEET DELAY ALERT{alertNotifs.length>1?"S":""}</div>
+        <div style={{display:"grid",gap:4}}>
+          {alertNotifs.map(n=>(
+            <div key={n.id} style={{display:"flex",alignItems:"center",gap:8,background:"#7f1d1d20",borderRadius:5,padding:"6px 10px"}}>
+              <span style={{fontSize:12,color:"#f87171",flex:1}}>{n.message}</span>
+              <button className="bg" style={{fontSize:11,padding:"2px 6px"}} onClick={()=>onDismissNotif&&onDismissNotif(n.id)}>✕</button>
             </div>
           ))}
         </div>
-        <div style={{fontSize:11,color:"var(--text4)",marginTop:8,fontStyle:"italic"}}>📋 Use this data to fill the annual head office review form — scores, hours, and notes above feed directly into the 4 criteria.</div>
       </div>
-    </div>);
-  })()}
-</div>
-  );
-}
+    )}
+    {overdueNotif&&(
+      <div style={{display:"flex",alignItems:"center",gap:10,background:"#78350f20",border:"1px solid #f59e0b40",borderRadius:8,padding:"10px 14px"}}>
+        <span style={{fontSize:13,color:"#fb923c",flex:1}}>⚠ {(()=>{try{return JSON.parse(overdueNotif.meta||"{}").count;}catch{return "?";}})()  } Tracker activities past their deadline</span>
+        <button className="bg" style={{fontSize:11}} onClick={()=>onDismissNotif&&onDismissNotif(overdueNotif.id)}>Dismiss</button>
+      </div>
+    )}
 
+    {/* ── Rating legend ── */}
+    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+      {[["0–40","Under Performer","#f87171"],["41–75","Competent","#fb923c"],["76–95","Performer","var(--info)"],["96–120","High Performer","#34d399"]].map(([r,l,c])=>(
+        <div key={r} style={{display:"flex",alignItems:"center",gap:5,background:c+"15",border:`1px solid ${c}30`,borderRadius:6,padding:"4px 10px"}}>
+          <div style={{width:7,height:7,borderRadius:2,background:c}}/><span style={{fontSize:11,color:c,fontWeight:700}}>{r}</span><span style={{fontSize:11,color:"var(--text3)"}}>{l}</span>
+        </div>
+      ))}
+      <span style={{fontSize:11,color:"var(--text4)",alignSelf:"center",marginLeft:4}}>Weights: A×30% · B×30% · C×20% · D×20%</span>
+    </div>
+
+    {/* ── Individual detail view ── */}
+    {selKPI&&(()=>{
+      const k=selKPI; const {eng}=k;
+      const engNotes=kpiNotes[eng.id]||{general:"",A:"",B:"",C:"",D:""};
+      const setNote=(field,val)=>setKpiNotes(prev=>({...prev,[eng.id]:{...{general:"",A:"",B:"",C:"",D:""},...(prev[eng.id]||{}),[field]:val}}));
+      const teamAvg=engKPIs.length>0?Math.round(engKPIs.reduce((s,k)=>s+k.totalScore,0)/engKPIs.length):0;
+
+      return(
+      <div style={{display:"grid",gap:14}}>
+        {/* Hero card */}
+        <div style={{background:"linear-gradient(135deg,#0c1a2e 0%,#0e2340 100%)",border:"1px solid #0ea5e930",borderRadius:14,padding:"20px 24px",display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
+          <ScoreGauge score={k.totalScore} size={130}/>
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{fontSize:22,fontWeight:800,color:"var(--text0)",marginBottom:2}}>{eng.name}</div>
+            <div style={{fontSize:13,color:"var(--info)",marginBottom:12}}>{eng.role} · {eng.level} · KPI {kpiYear}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
+              {[
+                {l:"Total Work",v:`${k.totalWork}h`,c:"var(--text0)"},
+                {l:"Billable",v:`${k.billPct}%`,c:"#34d399"},
+                {l:"Projects",v:k.projsWorked,c:"#a78bfa"},
+                {l:"Compliance",v:`${k.submissionRate}%`,c:k.submissionRate>=80?"#34d399":"#fb923c"},
+              ].map(s=>(
+                <div key={s.l} style={{background:"#ffffff08",borderRadius:8,padding:"8px 12px"}}>
+                  <div style={{fontSize:10,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em"}}>{s.l}</div>
+                  <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:800,color:s.c,marginTop:3}}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {canManageKPI&&engKPIs.length>1&&(
+            <div style={{textAlign:"center",minWidth:100}}>
+              <div style={{fontSize:10,color:"var(--text4)",textTransform:"uppercase",marginBottom:6}}>Team rank</div>
+              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:32,fontWeight:800,color:"var(--info)"}}>#{engKPIs.findIndex(x=>x.eng.id===eng.id)+1}</div>
+              <div style={{fontSize:11,color:"var(--text4)"}}>of {engKPIs.length}</div>
+              <div style={{marginTop:8,fontSize:11,color:"var(--text3)"}}>Team avg: <span style={{color:kpiRatingColor(teamAvg),fontWeight:700}}>{teamAvg}</span></div>
+            </div>
+          )}
+        </div>
+
+        {/* Rating banner */}
+        <div style={{textAlign:"center",fontSize:15,fontWeight:700,color:kpiRatingColor(k.totalScore),background:kpiRatingColor(k.totalScore)+"15",border:`1px solid ${kpiRatingColor(k.totalScore)}30`,borderRadius:8,padding:"10px",letterSpacing:".03em"}}>
+          {kpiRatingLabel(k.totalScore)}
+        </div>
+
+        {/* 4 metric cards */}
+        <MetricCard id="A" label="A · Utilization / Efficiency" weight="30%" score={k.utilScore} color="var(--info)">
+          <StatRow label="Billable utilization" value={`${k.billPct}%`} sub={`${k.billWork}h / ${k.totalHrs}h total`} color={k.billPct>=70?"#34d399":"#fb923c"}/>
+          <StatRow label="Knowledge capture" value={`${k.knowledgePct}%`} sub="Target: 8–12%" color={k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c"}/>
+          <StatRow label="BD / Sales support" value={`${k.salesBD}h`} sub="Tenders + proposals + BD meetings"/>
+        </MetricCard>
+
+        <MetricCard id="B" label="B · Project Performance" weight="30%" score={k.projScore} color="#a78bfa">
+          <StatRow label="Entry description rate" value={`${k.descRate}%`} sub={`${Math.round(k.descRate/100*k.workE.length)} of ${k.workE.length} entries have notes`} color={k.descRate>=80?"#34d399":"#fb923c"}/>
+          <StatRow label="Active projects" value={k.projsWorked} sub="Distinct billable projects this year" color="#a78bfa"/>
+          <StatRow label="Documentation hours" value={`${k.docHrs}h`} sub="Reports, lesson-learned, closure docs"/>
+        </MetricCard>
+
+        <MetricCard id="C" label="C · Development Goal" weight="20%" score={k.devScore} color="#34d399">
+          <StatRow label="Training received" value={`${k.trainingReceived}h`} sub="Target ≥8h/yr" color={k.trainingReceived>=8?"#34d399":"#fb923c"}/>
+          <StatRow label="Training given" value={`${k.trainingGiven}h`} sub="Knowledge sharing sessions — target ≥4h"/>
+          <StatRow label="Mentoring & coaching" value={`${k.mentoring}h`} sub="People development"/>
+          <StatRow label="R&D & innovation" value={`${k.rnd}h`} sub="Tools, models, work instructions"/>
+        </MetricCard>
+
+        <MetricCard id="D" label="D · Compliance Goal" weight="20%" score={k.complianceScore} color="#fb923c">
+          <StatRow label="Weekly submission rate" value={`${k.submissionRate}%`} sub={`${k.weeks} weeks posted out of ${k.weeksElapsed} elapsed`} color={k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"}/>
+          <StatRow label="Total work hours" value={`${k.totalWork}h`} sub="All work entries this year"/>
+          <StatRow label="Leave days" value={`${k.totalLeave}d`} sub="Annual leave + sick + other"/>
+        </MetricCard>
+
+        {/* Notes — admin eyes only */}
+        {isAdmin&&(
+        <div className="card">
+          <div style={{fontSize:13,fontWeight:700,color:"var(--text2)",marginBottom:10}}>📝 Manager Notes <span style={{fontSize:11,fontWeight:400,color:"var(--text4)"}}>— admin only</span></div>
+          <div style={{display:"grid",gap:8}}>
+            {[["general","General"],["A","Utilization"],["B","Project Perf."],["C","Development"],["D","Compliance"]].map(([f,l])=>(
+              <div key={f}>
+                <div style={{fontSize:11,color:"var(--text4)",marginBottom:3}}>{l}</div>
+                <textarea rows={2} value={engNotes[f]||""} onChange={e=>setNote(f,e.target.value)}
+                  placeholder={`Notes on ${l}…`}
+                  style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:12,resize:"vertical",fontFamily:"'IBM Plex Sans',sans-serif"}}/>
+              </div>
+            ))}
+          </div>
+        </div>
+        )}
+
+        {canManageKPI&&<button className="bg" style={{fontSize:13}} onClick={()=>{ isEngineer?null:setKpiEngId(null); }}>← Back to team overview</button>}
+      </div>);
+    })()}
+
+    {/* ── Team Overview (admin/lead, no engineer selected) ── */}
+    {!selKPI&&canManageKPI&&(
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border3)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>TEAM KPI SCORECARD — {kpiYear}</span>
+          <span style={{fontSize:12,color:"var(--text4)"}}>{engKPIs.length} engineers · Avg: <span style={{color:kpiRatingColor(Math.round(engKPIs.reduce((s,k)=>s+k.totalScore,0)/Math.max(1,engKPIs.length))),fontWeight:700}}>{Math.round(engKPIs.reduce((s,k)=>s+k.totalScore,0)/Math.max(1,engKPIs.length))}</span></span>
+        </div>
+        <div style={{overflowX:"auto"}}>
+        <table style={{minWidth:700}}>
+          <thead><tr style={{background:"var(--bg2)"}}>
+            <th style={{textAlign:"left",padding:"8px 12px"}}>#</th>
+            <th style={{textAlign:"left",padding:"8px 12px"}}>Engineer</th>
+            <th style={{textAlign:"center",padding:"8px 10px",color:"var(--info)",fontSize:11}}>A<br/>Util</th>
+            <th style={{textAlign:"center",padding:"8px 10px",color:"#a78bfa",fontSize:11}}>B<br/>Proj</th>
+            <th style={{textAlign:"center",padding:"8px 10px",color:"#34d399",fontSize:11}}>C<br/>Dev</th>
+            <th style={{textAlign:"center",padding:"8px 10px",color:"#fb923c",fontSize:11}}>D<br/>Comply</th>
+            <th style={{textAlign:"center",padding:"8px 12px"}}>Score</th>
+            <th style={{textAlign:"center",padding:"8px 12px"}}>Rating</th>
+          </tr></thead>
+          <tbody>{engKPIs.map((k,i)=>(
+            <tr key={k.eng.id} onClick={()=>setKpiEngId(String(k.eng.id))} style={{cursor:"pointer",borderBottom:"1px solid var(--border3)"}}>
+              <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text4)",fontWeight:700}}>{i+1}</td>
+              <td style={{padding:"8px 12px"}}>
+                <div style={{fontWeight:700,fontSize:13}}>{k.eng.name}</div>
+                <div style={{fontSize:11,color:"var(--text4)"}}>{k.eng.role}</div>
+              </td>
+              {[k.utilScore,k.projScore,k.devScore,k.complianceScore].map((s,j)=>(
+                <td key={j} style={{textAlign:"center",padding:"8px 10px"}}>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                    <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,fontSize:14,color:kpiRatingColor(s)}}>{s}</span>
+                    <div style={{width:36,height:4,background:"var(--bg3)",borderRadius:2,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${s}%`,background:kpiRatingColor(s),borderRadius:2}}/>
+                    </div>
+                  </div>
+                </td>
+              ))}
+              <td style={{textAlign:"center",padding:"8px 12px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}>
+                  <div style={{width:40,height:5,background:"var(--bg3)",borderRadius:3,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${Math.min(100,k.totalScore)}%`,background:kpiRatingColor(k.totalScore),borderRadius:3}}/>
+                  </div>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,color:kpiRatingColor(k.totalScore),fontSize:15}}>{k.totalScore}</span>
+                </div>
+              </td>
+              <td style={{textAlign:"center",padding:"8px 12px"}}>
+                <span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:kpiRatingColor(k.totalScore)+"20",color:kpiRatingColor(k.totalScore),fontWeight:700,whiteSpace:"nowrap"}}>
+                  {k.totalScore>=96?"High Performer":k.totalScore>=76?"Performer":k.totalScore>=41?"Competent":"Under Performer"}
+                </span>
+              </td>
+            </tr>
+          ))}</tbody>
+        </table>
+        </div>
+        <div style={{padding:"8px 16px",fontSize:11,color:"var(--text4)"}}>Click any row for full detail with improvement guide</div>
+      </div>
+    )}
+
+    {/* ── Engineer: no profile linked ── */}
+    {isEngineer&&!selKPI&&(
+      <div style={{textAlign:"center",padding:"40px 20px",background:"var(--bg2)",borderRadius:12,border:"1px dashed var(--border3)"}}>
+        <div style={{fontSize:36,marginBottom:10}}>📊</div>
+        <div style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:6}}>KPI not available</div>
+        <div style={{fontSize:13,color:"var(--text4)"}}>Your engineer profile is not linked to your account yet. Ask your admin to link it.</div>
+      </div>
+    )}
+
+  </div>);
+}
 export default function App(){
   const [session,setSession]         = useState(null);
   const [authLoading,setAuthLoading] = useState(true);
@@ -6741,6 +6884,12 @@ export default function App(){
   const [funcEngId,setFuncEngId]           = useState("all");
   const [kpiEngId,setKpiEngId]            = useState(null);
   const [kpiNotes,setKpiNotes]             = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_kpi_notes')||'{}');}catch{return{};}}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
+  const [vacationAllowance,setVacationAllowance] = useState(()=>{try{return +localStorage.getItem('ec_vacation_allowance')||21;}catch{return 21;}});
+  useEffect(()=>{ localStorage.setItem('ec_vacation_allowance',String(vacationAllowance)); },[vacationAllowance]);
+  // Manual vacation balance adjustments: {year: {engId: extraDaysUsed}}
+  const [vacationAdjustments,setVacationAdjustments] = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_vacation_adj')||'{}');}catch{return {};}});
+  useEffect(()=>{ localStorage.setItem('ec_vacation_adj',JSON.stringify(vacationAdjustments)); },[vacationAdjustments]);
+  const setVacAdj=(year,engId,val)=>setVacationAdjustments(prev=>({...prev,[year]:{...(prev[year]||{}),[engId]:val}}));
   const [activities,setActivities]         = useState([]);
   const [subprojects,setSubprojects]       = useState([]);
   const [activitiesLoaded,setActivitiesLoaded] = useState(false);
@@ -6895,7 +7044,7 @@ export default function App(){
   const canBrowseAll = isLead||canViewFinance; // all finance-visible roles can browse engineers
   const canEdit   = true;   // everyone can edit/delete their own entries
   const canReport = canViewFinance || isLead; // senior + accountant + lead see Reports
-  const canPostHours = !canViewFinance || isAdmin; // senior+accountant view timesheets read-only
+  const canPostHours = !isSenior || isAdmin; // senior_management view-only; accountant CAN post their own vacation
   const canInvoice= isAcct; // ONLY admin + accountant see invoices — NOT senior
   // Redirect away from old mysettings page (merged into Admin › Info)
   useEffect(()=>{
@@ -7222,6 +7371,9 @@ export default function App(){
       }
     }
     const selectedAct = actId ? activities.find(a=>String(a.id)===String(actId)) : null;
+    // Vacation approval workflow: flag Annual Leave from non-admin/lead as pending
+    const isAnnualLeave = isLeave && (newEntry.leaveType==="Annual Leave" || !newEntry.leaveType);
+    const needsApproval = isAnnualLeave && !canEditAny; // engineers & accountant go through approval
     const basePayload={
       engineer_id:engId,
       project_id: (isLeave||isFunc)?null:newEntry.projectId,
@@ -7229,7 +7381,7 @@ export default function App(){
       task_category:(isLeave)?null:isFunc?"Function":(newEntry._group||newEntry.taskCategory),
       task_type:   (isLeave)?null:isFunc?funcCat:selectedAct?(selectedAct.activity_name):(newEntry.taskType||newEntry.taskCategory),
       hours:       isLeave?8:+newEntry.hours,
-      activity:    newEntry.activity,
+      activity:    needsApproval ? "PENDING_APPROVAL" : (newEntry.activity||null),
       entry_type:  (newEntry.type==="function")?"work":newEntry.type,
       leave_type:  isLeave?newEntry.leaveType:null,
       billable:    !isLeave&&!isFunc&&(projects.find(p=>p.id===newEntry.projectId)?.billable||false),
@@ -7245,9 +7397,23 @@ export default function App(){
     }
     if(error){showToast("Error: "+error.message,false);return;}
     if(data) setEntries(prev=>[data,...prev]);
+    // If pending approval: create admin notification
+    if(needsApproval && data){
+      const _reqEng = engineers.find(e=>String(e.id)===String(engId));
+      const notif = {
+        type:"vacation_request", read:false,
+        message:`${_reqEng?.name||"Someone"} requested Annual Leave on ${date}`,
+        created_at:new Date().toISOString(),
+        meta:JSON.stringify({entry_id:data.id,engineer_id:engId,engineer_name:_reqEng?.name,date,leave_type:newEntry.leaveType})
+      };
+      supabase.from("notifications").insert(notif).select().single()
+        .then(({data:nd})=>{ if(nd) setNotifications(prev=>[nd,...prev]); });
+      showToast("Vacation request submitted — pending admin approval ✓");
+    } else {
+      showToast("Hours posted ✓");
+    }
     setModalDate(null);
     setNewEntry({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
-    showToast("Hours posted ✓");
     const _engName = engineers.find(e=>String(e.id)===String(engId))?.name||engId;
     const _onBehalf = String(engId)!==String(myProfile?.id) ? ` on behalf of ${_engName}` : "";
     logAction("CREATE","TimeEntry",`Posted ${basePayload.hours}h on ${basePayload.project_id||basePayload.entry_type} for ${basePayload.date}${_onBehalf}`,{engineer_id:engId,engineer_name:_engName,project_id:basePayload.project_id,hours:basePayload.hours,date:basePayload.date,entry_type:basePayload.entry_type});
@@ -8682,12 +8848,11 @@ export default function App(){
   ════════════════════════ */
   const navItems = [
     {id:"dashboard", icon:"▦", label:"Dashboard"},
-    // Timesheet: senior sees read-only Hours Review (same as accountant)
     {id:"timesheet", icon:"⏱", label:(isAcct||isSenior)?"Hours Review":"Post Hours"},
     {id:"projects",  icon:"◈", label:"Projects"},
     {id:"team",      icon:"◉", label:"Team"},
     ...(canReport?[{id:"reports",icon:"⊞",label:"Reports & PDF"}]:[]),
-    {id:"admin", icon:"⚙", label:isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":"Lead Panel"},
+    {id:"admin", icon:"⚙", label:isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":isLead?"Lead Panel":"My KPIs"},
     ...(isAdmin?[{id:"import",icon:"⬆",label:"Import Excel"}]:[]),
   ];
 
@@ -10229,6 +10394,11 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               {activeRpt==="vacation"&&<VacationReport
                 engineers={engineers} leaveEntries={leaveEntries} allEntries={entries}
                 month={month} year={year} MONTHS={MONTHS}
+                isAdmin={isAdmin}
+                vacationAllowance={vacationAllowance}
+                setVacationAllowance={setVacationAllowance}
+                vacationAdjustments={vacationAdjustments}
+                setVacAdj={setVacAdj}
                 onExport={()=>buildVacationPDF(engineers,entries,leaveEntries,projects,month,year)}
               />}
 
@@ -10359,7 +10529,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
           )}
 
           {/* ════ ADMIN / LEAD PANEL ════ */}
-          {view==="admin"&&(isAdmin||role==="lead"||isAcct||isSenior)&&(
+          {view==="admin"&&(
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
                 <div>
@@ -10491,7 +10661,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   {id:"entries",  label:"⏱ All Entries",show:isAdmin||isLead||isAcct||isSenior},
                   {id:"finance",  label:"💰 Finance",   show:isAdmin||isAcct||isSenior},
                   {id:"functions",label:"⚡ Functions",  show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"kpis",     label:"📈 KPIs",       show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"kpis",     label:"📈 KPIs",       show:true},
                   {id:"tracker",  label:"📊 Tracker",    show:isAdmin||isLead||isAcct||isSenior},
                   {id:"settings", label:"ℹ Info",        show:isAdmin},
                   {id:"actlog",   label:"🪵 Activity Log", show:isAdmin},
@@ -10709,17 +10879,22 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               )}
 
               {/* ══ KPI DASHBOARD ══ */}
-              {adminTab==="kpis"&&(isAdmin||isLead||isAcct||isSenior)&&(
+              {adminTab==="kpis"&&(
                 <KPIsTab
                   entries={entries} engineers={engineers} projects={projects}
                   kpiYear={kpiYear} setKpiYear={setKpiYear}
                   kpiEngId={kpiEngId} setKpiEngId={setKpiEngId}
                   kpiNotes={kpiNotes} setKpiNotes={setKpiNotes}
-                  isAdmin={isAdmin} isLead={isLead} isAcct={isAcct} year={year}
-                  notifications={notifications}
+                  isAdmin={isAdmin} isLead={isLead} isAcct={isAcct}
+                  isEngineer={!isAdmin&&!isLead&&!isAcct&&!isSenior}
+                  myProfile={myProfile}
+                  year={year} notifications={notifications}
                   onDismissNotif={dismissNotification}
                   alertDay={alertDay} setAlertDay={setAlertDay}
-                  showToast={showToast}
+                  showToast={showToast} supabase={supabase}
+                  setEntries={setEntries} setNotifications={setNotifications}
+                  vacationAllowance={vacationAllowance}
+                  setVacationAllowance={setVacationAllowance}
                 />
               )}
 
