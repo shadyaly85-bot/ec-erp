@@ -2440,17 +2440,28 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component
    ════════════════════════════════════════════════════════ */
-function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, showToast, logAction, showConfirm}){
+function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, showToast, logAction, showConfirm,
+  trackerProj,  setTrackerProj,
+  trackerSub,   setTrackerSub,
+  trackerSearch, setTrackerSearch,
+  trackerStatus, setTrackerStatus,
+  actClipboard,  setActClipboard,
+}){
   const canEdit = isAdmin || isLead;
-  const [trackerProj,  setTrackerProj]  = useState(null);
-  const [trackerSub,   setTrackerSub]   = useState(null);
-  const [editActivity, setEditActivity] = useState(null);  // activity being edited (modal)
-  const [addModal,     setAddModal]     = useState(null);  // {projId, subId} for add modal
-  const [trackerSearch_, setTrackerSearch_] = useState("");
-  const [trackerStatusF, setTrackerStatusF] = useState("ALL");
-  const [expandedCats, setExpandedCats] = useState({});    // {catName: bool}
-  const [bulkSelected, setBulkSelected] = useState(new Set()); // activity ids selected for bulk
-  const [bulkStatus,   setBulkStatus]   = useState("Completed"); // target status for bulk op
+  // Persistent state lifted to parent (survives remounts/minimize)
+  const trackerSearch_ = trackerSearch;
+  const setTrackerSearch_ = setTrackerSearch;
+  const trackerStatusF = trackerStatus;
+  const setTrackerStatusF = setTrackerStatus;
+  // Transient state — fine to reset on remount
+  const [editActivity, setEditActivity] = useState(null);
+  const [addModal,     setAddModal]     = useState(null);
+  const [expandedCats, setExpandedCats] = useState({});
+  const [bulkSelected, setBulkSelected] = useState(new Set());
+  const [bulkStatus,   setBulkStatus]   = useState("Completed");
+  // Paste destination state
+  const [pasteTargetProj, setPasteTargetProj] = useState("");
+  const [pasteTargetSub,  setPasteTargetSub]  = useState("");
 
   // ── Memoised lookups ──
   const activityHrsMap = useMemo(()=>{
@@ -2545,6 +2556,46 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     showToast(`${ids.length} activit${ids.length===1?"y":"ies"} → ${bulkStatus} ✓`);
     logAction("UPDATE","Tracker",`Bulk set ${ids.length} activities to ${bulkStatus}`,{count:ids.length,status:bulkStatus});
   },[bulkSelected,bulkStatus,showToast,logAction]);
+
+  // ── Copy selected activities to clipboard ──
+  const copyActivities = useCallback(()=>{
+    if(!bulkSelected.size){showToast("Select activities first",false);return;}
+    const acts=activities.filter(a=>bulkSelected.has(a.id));
+    const fromProj=trackerProj;
+    const fromSub=trackerSub;
+    const fromProjName=projects.find(p=>p.id===fromProj)?.name||fromProj;
+    setActClipboard({acts, fromProj, fromSub, fromProjName});
+    setBulkSelected(new Set());
+    showToast(`${acts.length} activit${acts.length===1?"y":"ies"} copied to clipboard ✓`);
+  },[bulkSelected,activities,trackerProj,trackerSub,projects,setActClipboard,showToast]);
+
+  // ── Paste clipboard activities into target project / sub-site ──
+  const pasteActivities = useCallback(async()=>{
+    if(!actClipboard||!actClipboard.acts.length){showToast("Nothing in clipboard",false);return;}
+    const targetProj=pasteTargetProj||trackerProj;
+    if(!targetProj){showToast("Select a target project",false);return;}
+    const targetSub=pasteTargetSub||null;
+    const inserts=actClipboard.acts.map((a,i)=>({
+      project_id:   targetProj,
+      subproject_id:targetSub||null,
+      group_name:   a.group_name||null,
+      category:     a.category||null,
+      activity_name:a.activity_name,
+      status:       "Not Started",   // always reset
+      progress:     0,               // always reset
+      assigned_to:  a.assigned_to||null,
+      start_date:   a.start_date||null,
+      end_date:     a.end_date||null,
+      sort_order:   (actsByProj[targetProj]||[]).length + i,
+    }));
+    const{data,error}=await supabase.from("project_activities").insert(inserts).select();
+    if(error){showToast("Paste failed: "+error.message,false);return;}
+    if(data) setActivities(prev=>[...prev,...data]);
+    const destName=projects.find(p=>p.id===targetProj)?.name||targetProj;
+    showToast(`${inserts.length} activit${inserts.length===1?"y":"ies"} pasted into ${destName} ✓`);
+    logAction("CREATE","Tracker",`Pasted ${inserts.length} activities from ${actClipboard.fromProjName} → ${destName}`,{count:inserts.length,from:actClipboard.fromProj,to:targetProj});
+    setPasteTargetProj(""); setPasteTargetSub("");
+  },[actClipboard,pasteTargetProj,pasteTargetSub,trackerProj,actsByProj,projects,setActivities,showToast,logAction]);
 
   const deleteActivity = useCallback(async(id)=>{
     const act=activities.find(a=>a.id===id);
@@ -2751,9 +2802,54 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       })}
     </div>)}
 
+    {/* ── Activity Clipboard Paste Bar ── */}
+    {actClipboard&&canEdit&&(
+      <div style={{display:"flex",gap:10,alignItems:"center",padding:"12px 16px",background:"#a78bfa15",border:"1px solid #a78bfa40",borderRadius:10,flexWrap:"wrap"}}>
+        <span style={{fontSize:20}}>📋</span>
+        <div style={{flex:1,minWidth:200}}>
+          <div style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>
+            {actClipboard.acts.length} activit{actClipboard.acts.length===1?"y":"ies"} in clipboard
+          </div>
+          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
+            From: <span style={{color:"var(--text0)",fontWeight:600}}>{actClipboard.fromProjName}</span>
+            {actClipboard.fromSub&&<span> › {subprojects.find(s=>String(s.id)===String(actClipboard.fromSub))?.name}</span>}
+            <span style={{marginLeft:8,fontSize:12,color:"var(--text4)"}}>· Status resets to Not Started on paste</span>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <div>
+            <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:3}}>Target Project</div>
+            <select value={pasteTargetProj||trackerProj||""} onChange={e=>setPasteTargetProj(e.target.value)} style={{fontSize:13,width:160}}>
+              {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.name||p.id}</option>)}
+            </select>
+          </div>
+          {(()=>{
+            const tProj=pasteTargetProj||trackerProj;
+            const tSubs=subprojects.filter(s=>s.project_id===tProj);
+            if(!tSubs.length) return null;
+            return(
+              <div>
+                <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:3}}>Sub-site (optional)</div>
+                <select value={pasteTargetSub} onChange={e=>setPasteTargetSub(e.target.value)} style={{fontSize:13,width:140}}>
+                  <option value="">— No sub-site —</option>
+                  {tSubs.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            );
+          })()}
+          <button className="bp" style={{fontSize:13,padding:"7px 18px",alignSelf:"flex-end"}} onClick={pasteActivities}>
+            ⎙ Paste {actClipboard.acts.length}
+          </button>
+          <button className="bg" style={{fontSize:13,alignSelf:"flex-end"}} onClick={()=>{setActClipboard(null);setPasteTargetProj("");setPasteTargetSub("");}}>
+            ✕ Clear
+          </button>
+        </div>
+      </div>
+    )}
+
     {/* Category accordion sections — grouped by TAXONOMY order */}
     {canEdit&&bulkSelected.size>0&&(
-      <div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 14px",background:"#0ea5e915",border:"1px solid #0ea5e930",borderRadius:8}}>
+      <div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 14px",background:"#0ea5e915",border:"1px solid #0ea5e930",borderRadius:8,flexWrap:"wrap"}}>
         <span style={{fontSize:13,fontWeight:700,color:"var(--info)"}}>{bulkSelected.size} selected</span>
         <span style={{color:"var(--text4)",fontSize:13}}>→ Set to:</span>
         <select value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)}
@@ -2761,6 +2857,10 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
         </select>
         <button className="bp" style={{fontSize:13,padding:"4px 14px"}} onClick={bulkUpdateStatus}>Apply</button>
+        <button style={{fontSize:13,padding:"4px 14px",borderRadius:6,border:"1px solid #a78bfa50",background:"#a78bfa15",color:"#a78bfa",cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600}}
+          onClick={copyActivities}>
+          📋 Copy selection
+        </button>
         <button className="bg" style={{fontSize:13,padding:"4px 10px"}} onClick={()=>setBulkSelected(new Set())}>✕ Clear</button>
       </div>
     )}
@@ -7032,6 +7132,12 @@ export default function App(){
   const [vacationBalances,setVacationBalances] = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_vacation_balances')||'{}');}catch{return {};}});
   useEffect(()=>{ localStorage.setItem('ec_vacation_balances',JSON.stringify(vacationBalances)); },[vacationBalances]);
   const setVacBalance=(yr,engId,days)=>setVacationBalances(prev=>({...prev,[yr]:{...(prev[yr]||{}),[engId]:Math.max(0,days)}}));
+  // Tracker persistent state — lifted here so it survives browser minimize/tab-switch/remount
+  const [trackerProj,  setTrackerProj]   = useState(null);
+  const [trackerSub,   setTrackerSub]    = useState(null);
+  const [trackerSearch,setTrackerSearch] = useState("");
+  const [trackerStatus,setTrackerStatus] = useState("ALL");
+  const [actClipboard, setActClipboard]  = useState(null); // {acts:[...], fromProj, fromSub, fromProjName}
   const [activities,setActivities]         = useState([]);
   const [subprojects,setSubprojects]       = useState([]);
   const [activitiesLoaded,setActivitiesLoaded] = useState(false);
@@ -11551,6 +11657,11 @@ export default function App(){
                   showToast={showToast}
                   logAction={logAction}
                   showConfirm={showConfirm}
+                  trackerProj={trackerProj}   setTrackerProj={setTrackerProj}
+                  trackerSub={trackerSub}     setTrackerSub={setTrackerSub}
+                  trackerSearch={trackerSearch} setTrackerSearch={setTrackerSearch}
+                  trackerStatus={trackerStatus} setTrackerStatus={setTrackerStatus}
+                  actClipboard={actClipboard}  setActClipboard={setActClipboard}
                 />
               )}
 
