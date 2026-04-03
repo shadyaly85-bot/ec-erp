@@ -6686,7 +6686,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
     </div>
 
     {/* ── Pending vacation approvals (admin/lead) ── */}
-    {canManageKPI&&pendingVacations.length>0&&(
+    {isAdmin&&pendingVacations.length>0&&(
       <div className="card" style={{borderColor:"#f59e0b50",padding:0,overflow:"hidden"}}>
         <div style={{background:"var(--bg0)",borderBottom:"1px solid #f59e0b40",padding:"14px 20px",display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:15,fontWeight:700,color:"#f59e0b"}}>⏳ Pending Vacation Approvals</span>
@@ -7426,16 +7426,12 @@ export default function App(){
 
   const unreadCount=useMemo(()=>{
     const notifCount=notifications.length;
-    // Pending vacation count: admin sees all, lead sees only their subtree
-    const pendingVacCount=(isAdmin||isLead)
-      ? entries.filter(e=>
-          e.entry_type==="leave" &&
-          e.activity==="PENDING_APPROVAL" &&
-          (!mySubEngIds||mySubEngIds.has(String(e.engineer_id)))
-        ).length
+    // Only admin is responsible for approving vacations
+    const pendingVacCount=isAdmin
+      ? entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL").length
       : 0;
     return Math.max(notifCount, pendingVacCount);
-  },[notifications,entries,isAdmin,isLead,mySubEngIds]);
+  },[notifications,entries,isAdmin]);
 
   // Dismiss = permanently delete from DB so they never come back on refresh
   const dismissNotification=useCallback(async(id)=>{
@@ -10795,13 +10791,17 @@ export default function App(){
 
                   {/* ── Vacation ── */}
                   {activeRpt==="vacation"&&<VacationReport
-                    engineers={engineers} leaveEntries={leaveEntries} allEntries={entries}
+                    engineers={mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers}
+                    leaveEntries={leaveEntries} allEntries={entries}
                     month={month} year={year} MONTHS={MONTHS}
                     isAdmin={isAdmin}
                     vacationBalances={vacationBalances}
                     setVacBalance={setVacBalance}
                     showToast={showToast}
-                    onExport={()=>buildVacationPDF(engineers,entries,leaveEntries,projects,month,year)}
+                    onExport={()=>{
+                      const expEngs = mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers;
+                      buildVacationPDF(expEngs,entries,leaveEntries,projects,month,year);
+                    }}
                   />}
 
                   {/* ── Monthly Management ── */}
@@ -10957,14 +10957,12 @@ export default function App(){
                   {notifPanelOpen&&(
                   <div style={{padding:"14px 18px",display:"grid",gap:12}}>
 
-                    {/* ── Vacation Approval Requests — most prominent, actionable ── */}
-                    {(()=>{
+                    {/* ── Vacation Approval Requests — admin only ── */}
+                    {isAdmin&&(()=>{
                       const vacNotifs=notifications.filter(n=>n.type==="vacation_request");
-                      // Leads only see their org subtree; admins see all
                       const pendingVacs=entries.filter(e=>
                         e.entry_type==="leave" &&
-                        e.activity==="PENDING_APPROVAL" &&
-                        (!mySubEngIds||mySubEngIds.has(String(e.engineer_id)))
+                        e.activity==="PENDING_APPROVAL"
                       );
                       if(pendingVacs.length===0&&vacNotifs.length===0) return null;
                       return(
