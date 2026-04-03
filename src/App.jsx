@@ -600,7 +600,8 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:18}}>
         <div>
-          <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>Projects</h1>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>PROJECT PORTFOLIO</div>
+          <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Projects</h1>
           <p style={{color:"var(--text4)",fontSize:14,marginTop:3}}>{filteredProjects.length} of {projects.length} projects</p>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
@@ -9006,12 +9007,46 @@ export default function App(){
 
           {/* ════ DASHBOARD ════ */}
           {view==="dashboard"&&(
-            <div>
-              <div style={{marginBottom:20}}>
-                <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>{isAdmin||isAcct||isLead?"Team Dashboard":"My Summary"}</h1>
-                <p style={{color:"var(--text4)",fontSize:14,marginTop:3,fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year} · {isAdmin||isAcct||isLead?"Live Overview":"Your personal stats"}</p>
+            <div style={{display:"grid",gap:20}}>
+
+              {/* ── Page header + controls ── */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>
+                    {isAdmin||isAcct||isLead?"TEAM COMMAND CENTER":"MY DASHBOARD"}
+                  </div>
+                  <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>
+                    {MONTHS[month]} {year}
+                  </h1>
+                  <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
+                    {isAdmin||isAcct||isLead?"Live team overview · auto-synced":"Your personal stats"}
+                    {entriesLoading&&<span style={{color:"var(--info)",marginLeft:8}}>⟳ Loading {year}…</span>}
+                  </p>
+                </div>
+                {/* Controls */}
+                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:4,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px"}}>
+                    <button style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:16,padding:"0 4px",lineHeight:1}} onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}}>‹</button>
+                    <select value={month} onChange={e=>setMonth(+e.target.value)} style={{background:"transparent",border:"none",color:"var(--text0)",fontSize:14,fontWeight:600,fontFamily:"'IBM Plex Sans',sans-serif",cursor:"pointer",outline:"none",padding:"0 2px"}}>
+                      {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+                    </select>
+                    <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontWeight:700,fontFamily:"'IBM Plex Mono',monospace",cursor:"pointer",outline:"none",padding:"0 2px"}}>
+                      {[2023,2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+                    </select>
+                    <button style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:16,padding:"0 4px",lineHeight:1}} onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}>›</button>
+                  </div>
+                  {(isAdmin||isAcct||isLead)&&(
+                    <select value={dashProjFilter} onChange={e=>setDashProjFilter(e.target.value)}
+                      style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text0)",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif",minWidth:180}}>
+                      <option value="ALL">All Projects</option>
+                      {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  )}
+                  {dashProjFilter!=="ALL"&&<button className="bg" style={{fontSize:13}} onClick={()=>setDashProjFilter("ALL")}>✕ Clear filter</button>}
+                </div>
               </div>
-              {/* Engineers only see their own summary */}
+
+              {/* ── ENGINEER personal view ── */}
               {!isAdmin&&!isAcct&&!isLead&&(()=>{
                 const myE=monthEntries.filter(e=>String(e.engineer_id)===String(myProfile?.id));
                 const myWork=myE.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
@@ -9019,297 +9054,282 @@ export default function App(){
                 const myProjs=[...new Set(myE.filter(e=>e.entry_type==="work").map(e=>e.project_id).filter(Boolean))].length;
                 const myTarget=getTargetHrs(year,month,myWeekend);
                 const myUtil=myTarget>0?Math.round(myWork/myTarget*100):0;
+                const utilColor=myUtil>=80?"#34d399":myUtil>=60?"#fb923c":"#f87171";
                 return<>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11,marginBottom:18}}>
-                    {[{l:"My Work Hours",v:myWork+"h",c:"var(--info)"},{l:"Utilization",v:fmtPct(myUtil),c:myUtil>=80?"#34d399":myUtil>=60?"#fb923c":"#f87171"},{l:"Leave Days",v:myLeave+"d",c:"#fb923c"},{l:"Projects",v:myProjs,c:"#a78bfa"}].map((s,i)=>(
-                      <div key={i} className="metric"><div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{s.l}</div><div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:s.c,marginTop:8,lineHeight:1}}>{s.v}</div></div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
+                    {[
+                      {l:"Work Hours",v:myWork+"h",c:"var(--info)",sub:`Target ${myTarget}h`},
+                      {l:"Utilization",v:fmtPct(myUtil),c:utilColor,sub:myUtil>=80?"On track":myUtil>=60?"Needs attention":"Below target"},
+                      {l:"Leave Days",v:myLeave+"d",c:"#fb923c",sub:MONTHS[month]},
+                      {l:"Projects",v:myProjs,c:"#a78bfa",sub:"Active this month"},
+                    ].map((s,i)=>(
+                      <div key={i} style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,padding:"18px 20px",borderTop:`3px solid ${s.c}`}}>
+                        <div style={{fontSize:12,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:10}}>{s.l}</div>
+                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:30,fontWeight:800,color:s.c,lineHeight:1,marginBottom:6}}>{s.v}</div>
+                        <div style={{fontSize:13,color:"var(--text4)"}}>{s.sub}</div>
+                      </div>
                     ))}
                   </div>
-                  <div className="card"><h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:10}}>My {MONTHS[month]} Work Log</h3>
-                    <table><thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th></tr></thead>
-                    <tbody>{myE.filter(e=>e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
-                      const p=projects.find(x=>x.id===e.project_id);
-                      return<tr key={e.id}><td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td><td style={{color:"var(--info)",fontSize:13}}>{p?.id||"—"}</td><td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type||"—"}</td><td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td><td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{e.hours}h</td></tr>;
-                    })}{myE.length===0&&<tr><td colSpan={5} style={{textAlign:"center",color:"var(--text4)",padding:16}}>No entries for {MONTHS[month]} {year}. Go to Post Hours to log time.</td></tr>}
-                    </tbody></table>
+                  <div className="card" style={{padding:0,overflow:"hidden"}}>
+                    <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
+                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>My Work Log — {MONTHS[month]} {year}</div>
+                    </div>
+                    <table>
+                      <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th></tr></thead>
+                      <tbody>{myE.filter(e=>e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
+                        const p=projects.find(x=>x.id===e.project_id);
+                        return<tr key={e.id}>
+                          <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.date}</td>
+                          <td style={{color:"var(--info)",fontWeight:600}}>{p?.id||"—"}</td>
+                          <td style={{color:"var(--text2)"}}>{e.task_type||"—"}</td>
+                          <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                          <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{e.hours}h</td>
+                        </tr>;
+                      })}{myE.length===0&&<tr><td colSpan={5} style={{textAlign:"center",color:"var(--text4)",padding:24}}>No entries for {MONTHS[month]} {year} — go to Post Hours to log time.</td></tr>}
+                      </tbody>
+                    </table>
                   </div>
                 </>;
               })()}
-              {/* Admin/Lead/Accountant see full team dashboard */}
+
+              {/* ── ADMIN / LEAD / ACCOUNTANT full dashboard ── */}
               {(isAdmin||isAcct||isLead)&&(()=>{
-                // Filtered entries for dashboard
                 const dEntries=dashProjFilter==="ALL"?monthEntries:monthEntries.filter(e=>e.project_id===dashProjFilter);
                 const dWork=dEntries.filter(e=>e.entry_type==="work");
                 const dWorkHrs=dWork.reduce((s,e)=>s+e.hours,0);
-                // Always derive billable from current project status
                 const dBillHrs=dWork.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?e.hours:0);},0);
                 const dNonHrs=dWorkHrs-dBillHrs;
                 const dRevenue=dWork.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?p.rate_per_hour*e.hours:0);},0);
                 const dBillPct=dWorkHrs?Math.round(dBillHrs/dWorkHrs*100):0;
                 const dLeave=dEntries.filter(e=>e.entry_type==="leave").length;
+                const billColor=dBillPct>=80?"#34d399":dBillPct>=60?"#fb923c":"#f87171";
+
                 return<>
-              {/* Month + Project filter bar */}
-              <div style={{display:"flex",gap:10,alignItems:"flex-end",marginBottom:16,background:"var(--bg2)",borderRadius:8,padding:"10px 14px",border:"1px solid var(--border3)"}}>
-                <div style={{marginRight:"auto"}}>
-                  <div style={{fontSize:13,color:"var(--text4)",fontWeight:700,marginBottom:4}}>MONTH</div>
-                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                    <button style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text1)",cursor:"pointer",fontSize:13}} onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}}>←</button>
-                    <select value={month} onChange={e=>setMonth(+e.target.value)} style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                      {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
-                    </select>
-                    <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                      {[2023,2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
-                    </select>
-                    <button style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text1)",cursor:"pointer",fontSize:13}} onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}>→</button>
-                    {entriesLoading&&<span style={{fontSize:13,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace",animation:"pulse 1s infinite"}}>⟳ Loading {year}…</span>}
+                {/* ── Non-billable warning ── */}
+                {(isAdmin||isAcct)&&dWorkHrs>0&&dBillHrs===0&&(
+                  <div style={{background:"#1a0f00",border:"1px solid #fb923c40",borderRadius:10,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                    <span style={{fontSize:14,color:"#fb923c"}}>⚠ All hours are showing as non-billable — projects may need the billable flag set.</span>
+                    <button className="bg" style={{fontSize:13,borderColor:"#fb923c",color:"#fb923c",whiteSpace:"nowrap",flexShrink:0}} onClick={()=>setView("reports")}>Fix in Reports →</button>
                   </div>
-                </div>
-                <div>
-                  <div style={{fontSize:13,color:"var(--text4)",fontWeight:700,marginBottom:4}}>PROJECT FILTER</div>
-                  <select value={dashProjFilter} onChange={e=>setDashProjFilter(e.target.value)} style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 10px",color:"var(--text0)",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif",width:220}}>
-                    <option value="ALL">All Projects</option>
-                    {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
-                  </select>
-                </div>
-                {dashProjFilter!=="ALL"&&<button style={{background:"transparent",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text2)",cursor:"pointer",fontSize:13}} onClick={()=>setDashProjFilter("ALL")}>✕ All</button>}
-              </div>
-              {/* Warn if all projects are non-billable — guide admin to fix */}
-              {(isAdmin||isAcct)&&dWorkHrs>0&&dBillHrs===0&&(
-                <div style={{background:"#1a0f00",border:"1px solid #fb923c40",borderRadius:6,padding:"8px 14px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-                  <span style={{fontSize:13,color:"#fb923c"}}>⚠ All hours showing as non-billable — projects may need billable flag set. Go to Reports → Invoice Export to fix.</span>
-                  <button className="bg" style={{fontSize:13,borderColor:"#fb923c",color:"#fb923c",whiteSpace:"nowrap",flexShrink:0}} onClick={()=>setView("reports")}>Fix now →</button>
-                </div>
-              )}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:11,marginBottom:18}}>
-                {[
-                  {l:"Total Work Hrs",v:dWorkHrs+"h",c:"var(--text0)",show:true},
-                  {l:"Billable Hrs",v:dBillHrs+"h",c:"#34d399",show:isAdmin||isAcct||isLead},
-                  {l:"Non-Billable",v:dNonHrs+"h",c:"#fb923c",show:isAdmin||isAcct},
-                  {l:"Billability",v:fmtPct(dBillPct),c:"var(--info)",show:isAdmin||isAcct},
-                  {l:"Revenue Billed",v:fmtCurrency(dRevenue),c:"#a78bfa",show:isAdmin||isAcct},
-                  {l:"Absence Days",v:dLeave+"d",c:"#f472b6",show:true},
-                ].filter(m=>m.show).map((m,i)=>(
-                  <div key={i} className="metric">
-                    <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>{m.l}</div>
-                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:m.c,marginTop:8,lineHeight:1}}>{m.v}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:14,marginBottom:14}}>
-                <div className="card">
-                  <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Team Utilization — {MONTHS[month]}</h3>
-                  {engStats.length===0&&<p style={{color:"var(--text4)",fontSize:14}}>No hours logged yet.</p>}
-                  {engStats.map(eng=>(
-                    <div key={eng.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                      <div className="av" style={{fontSize:12,width:26,height:26}}>{eng.name?.slice(0,2).toUpperCase()}</div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-                          <span style={{fontSize:13,fontWeight:500}}>{eng.name}</span>
-                          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{eng.workHrs}h · {fmtPct(eng.utilization)}</span>
-                        </div>
-                        <div style={{background:"var(--bg3)",height:4,borderRadius:3,overflow:"hidden"}}>
-                          <div style={{height:"100%",width:`${eng.utilization}%`,borderRadius:3,background:eng.utilization>=80?"linear-gradient(90deg,#34d399,#10b981)":eng.utilization>=60?"linear-gradient(90deg,#fb923c,#f59e0b)":"linear-gradient(90deg,#f87171,#ef4444)"}}/>
-                        </div>
-                      </div>
-                      {(isAdmin||isAcct)&&<span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#a78bfa",width:32,textAlign:"right"}}>{fmtPct(eng.billability)}</span>}
+                )}
+
+                {/* ── Hero metrics ── */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+                  {[
+                    {l:"Total Work Hours",  v:dWorkHrs+"h",  c:"var(--text0)",  sub:`${dEntries.filter(e=>e.entry_type==="work").length} entries · ${[...new Set(dWork.map(e=>e.engineer_id))].length} engineers`,show:true},
+                    {l:"Billable Hours",    v:dBillHrs+"h",  c:"#34d399",       sub:`${dBillPct}% of total work`,show:isAdmin||isAcct||isLead},
+                    {l:"Billability Rate",  v:fmtPct(dBillPct),c:billColor,     sub:dBillPct>=80?"On target":dBillPct>=60?"Needs attention":"Below target",show:isAdmin||isAcct},
+                    {l:"Non-Billable",      v:dNonHrs+"h",   c:"#fb923c",       sub:"Internal / overhead",show:isAdmin||isAcct},
+                    {l:"Revenue Billed",   v:fmtCurrency(dRevenue),c:"#a78bfa", sub:MONTHS[month]+" "+year,show:isAdmin||isAcct},
+                    {l:"Absence Days",     v:dLeave+"d",     c:"#f472b6",       sub:"All leave types",show:true},
+                  ].filter(m=>m.show).map((m,i)=>(
+                    <div key={i} style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,padding:"20px 22px",borderTop:`3px solid ${m.c}`,display:"flex",flexDirection:"column",gap:8}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".07em"}}>{m.l}</div>
+                      <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:32,fontWeight:800,color:m.c,lineHeight:1}}>{m.v}</div>
+                      <div style={{fontSize:13,color:"var(--text4)"}}>{m.sub}</div>
                     </div>
                   ))}
                 </div>
-                <div className="card">
-                  <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Task Distribution</h3>
-                  {taskStats.length===0&&<p style={{color:"var(--text4)",fontSize:14}}>No tasks logged.</p>}
-                  {taskStats.map(cat=>{const pct=totalWorkHrs?Math.round(cat.hours/totalWorkHrs*100):0;return(
-                    <div key={cat.category} style={{marginBottom:9}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-                        <span style={{fontSize:13}}>{cat.category}</span>
-                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{cat.hours}h · {pct}%</span>
-                      </div>
-                      <div style={{background:"var(--bg3)",height:4,borderRadius:3,overflow:"hidden"}}>
-                        <div className="bar" style={{width:`${pct}%`}}/>
-                      </div>
-                    </div>);})}
-                </div>
-              </div>
-              <div className="card">
-                <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Projects — {MONTHS[month]} {year}{dashProjFilter!=="ALL"&&` · Filtered`}</h3>
-                <table>
-                  <thead><tr><th>Name</th><th>No.</th><th>Phase</th><th>Hours</th>{(isAdmin||isAcct)&&<><th>Billing</th><th>Revenue</th></>}</tr></thead>
-                  <tbody>{projStats.filter(p=>p.hours>0&&(dashProjFilter==="ALL"||p.id===dashProjFilter)).map(p=>(
-                    <tr key={p.id}>
-                      <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)"}}>{p.id}</td>
-                      <td style={{color:"var(--text2)",fontSize:13}}>{p.phase}</td>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{p.hours}h</td>
-                      {(isAdmin||isAcct)&&<><td><span style={{fontSize:12,padding:"2px 6px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"var(--bg3)":"#1a0a00",color:p.billable?"var(--info)":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{p.billable?fmtCurrency(p.revenue):"—"}</td></>}
-                    </tr>
-                  ))}</tbody>
-                </table>
-              </div>
-              {/* ── Upcoming Deadlines + Engineer Availability ── */}
-              {(isAdmin||isLead)&&activitiesLoaded&&(()=>{
-                const todayStr = new Date().toISOString().slice(0,10);
-                const in14     = new Date(); in14.setDate(in14.getDate()+14);
-                const in14Str  = in14.toISOString().slice(0,10);
 
-                // Upcoming: not completed, has end_date, within next 14 days
-                const upcoming = activities
-                  .filter(a=>a.end_date && a.end_date >= todayStr && a.end_date <= in14Str && a.status!=="Completed")
-                  .sort((a,b)=>a.end_date.localeCompare(b.end_date));
+                {/* ── Team Utilization + Task Distribution ── */}
+                <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:14}}>
 
-                // Overdue: past end_date, not completed, not on hold
-                const overdue = activities
-                  .filter(a=>a.end_date && a.end_date < todayStr && a.status!=="Completed" && a.status!=="On Hold")
-                  .sort((a,b)=>a.end_date.localeCompare(b.end_date));
-
-                // Workload forecast: current month remaining workdays × 8h target per engineer
-                const today2    = new Date();
-                const daysLeft  = (()=>{
-                  let count=0;
-                  const t=new Date(today2);
-                  const end=new Date(year,month+1,0);
-                  while(t<=end){if(t.getDay()!==5&&t.getDay()!==6)count++;t.setDate(t.getDate()+1);}
-                  return count;
-                })();
-                const hrsLeft = daysLeft*8;
-
-                // Per-engineer: hours logged this month vs target, and remaining capacity
-                const engWorkload = engStats.map(eng=>{
-                  const logged  = eng.workHrs;
-                  const target  = eng.targetHrs||0;
-                  const remaining = Math.max(0, target - logged);
-                  const availPct  = target>0 ? Math.round(remaining/target*100) : 0;
-                  return {...eng, logged, target, remaining, availPct};
-                }).filter(e=>e.target>0).sort((a,b)=>b.availPct-a.availPct);
-
-                const fmtDeadlineDate = d => {
-                  const dt = new Date(d+"T12:00:00");
-                  const diff = Math.round((dt-new Date(todayStr+"T12:00:00"))/(1000*60*60*24));
-                  if(diff===0) return {label:"Today",c:"#f87171"};
-                  if(diff===1) return {label:"Tomorrow",c:"#fb923c"};
-                  if(diff<=7)  return {label:`In ${diff}d`,c:"#fb923c"};
-                  return {label:`In ${diff}d`,c:"var(--text3)"};
-                };
-
-                return(
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
-
-                  {/* Upcoming Deadlines widget */}
+                  {/* Team Utilization */}
                   <div className="card" style={{padding:0,overflow:"hidden"}}>
-                    <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border3)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                      <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>
-                        📅 Upcoming Deadlines
-                        <span style={{fontSize:12,color:"var(--text4)",fontWeight:400,marginLeft:8}}>Next 14 days</span>
-                      </div>
-                      {overdue.length>0&&(
-                        <span style={{fontSize:12,padding:"2px 8px",borderRadius:10,background:"#f8711820",border:"1px solid #f8711840",color:"#f87171",fontWeight:700}}>
-                          ⚠ {overdue.length} overdue
-                        </span>
-                      )}
+                    <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Team Utilization</div>
+                      <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year}</div>
                     </div>
-                    <div style={{maxHeight:280,overflowY:"auto"}}>
-                      {overdue.length===0&&upcoming.length===0&&(
-                        <div style={{padding:"24px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>No deadlines in next 14 days</div>
-                      )}
-                      {/* Overdue items first */}
-                      {overdue.slice(0,5).map(a=>{
-                        const proj=projects.find(p=>p.id===a.project_id);
-                        return(
-                        <div key={a.id} style={{padding:"9px 16px",borderBottom:"1px solid var(--border3)",background:"#f8711808",display:"flex",gap:10,alignItems:"flex-start"}}>
-                          <div style={{width:3,flexShrink:0,alignSelf:"stretch",background:"#f87171",borderRadius:2}}/>
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</div>
-                            <div style={{fontSize:12,color:"var(--text4)",marginTop:2}}>
-                              <span style={{color:"var(--info)"}}>{proj?.name||a.project_id}</span>
-                              {a.assigned_to&&<span> · 👤 {a.assigned_to}</span>}
-                            </div>
-                          </div>
-                          <div style={{textAlign:"right",flexShrink:0}}>
-                            <div style={{fontSize:12,fontWeight:700,color:"#f87171"}}>OVERDUE</div>
-                            <div style={{fontSize:11,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{a.end_date}</div>
-                          </div>
-                        </div>);
-                      })}
-                      {/* Upcoming items */}
-                      {upcoming.map(a=>{
-                        const proj=projects.find(p=>p.id===a.project_id);
-                        const dl=fmtDeadlineDate(a.end_date);
-                        const pct=Math.round((a.progress||0)*100);
-                        return(
-                        <div key={a.id} style={{padding:"9px 16px",borderBottom:"1px solid var(--border3)",display:"flex",gap:10,alignItems:"flex-start"}}>
-                          <div style={{width:3,flexShrink:0,alignSelf:"stretch",background:dl.c,borderRadius:2}}/>
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</div>
-                            <div style={{fontSize:12,color:"var(--text4)",marginTop:2}}>
-                              <span style={{color:"var(--info)"}}>{proj?.name||a.project_id}</span>
-                              {a.assigned_to&&<span> · 👤 {a.assigned_to}</span>}
-                              <span style={{marginLeft:6,fontFamily:"'IBM Plex Mono',monospace",color:pct>=75?"#34d399":pct>=40?"var(--info)":"var(--text4)"}}>{pct}%</span>
-                            </div>
-                          </div>
-                          <div style={{textAlign:"right",flexShrink:0}}>
-                            <div style={{fontSize:12,fontWeight:700,color:dl.c}}>{dl.label}</div>
-                            <div style={{fontSize:11,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{a.end_date}</div>
-                          </div>
-                        </div>);
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Engineer Workload Forecast widget */}
-                  <div className="card" style={{padding:0,overflow:"hidden"}}>
-                    <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border3)"}}>
-                      <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>
-                        📊 Workload Forecast
-                        <span style={{fontSize:12,color:"var(--text4)",fontWeight:400,marginLeft:8}}>{MONTHS[month]} remaining capacity</span>
-                      </div>
-                      <div style={{fontSize:12,color:"var(--text4)",marginTop:2}}>{daysLeft} working days left · {hrsLeft}h per engineer target</div>
-                    </div>
-                    <div style={{maxHeight:280,overflowY:"auto"}}>
-                      {engWorkload.length===0&&(
-                        <div style={{padding:"24px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>No engineer data</div>
-                      )}
-                      {engWorkload.map(eng=>{
-                        const loadColor = eng.availPct>=60?"#34d399":eng.availPct>=30?"#fb923c":"#f87171";
-                        const status    = eng.availPct>=60?"Available":eng.availPct>=30?"Busy":"Near Full";
-                        return(
-                        <div key={eng.id} style={{padding:"10px 16px",borderBottom:"1px solid var(--border3)"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
-                            <div className="av" style={{width:26,height:26,fontSize:11,flexShrink:0}}>{eng.name?.slice(0,2).toUpperCase()}</div>
+                    <div style={{padding:"16px 20px",display:"grid",gap:12}}>
+                      {engStats.length===0&&<p style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:16}}>No hours logged yet.</p>}
+                      {engStats.map(eng=>(
+                        <div key={eng.id}>
+                          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                            <div className="av" style={{width:30,height:30,fontSize:12,flexShrink:0}}>{eng.name?.slice(0,2).toUpperCase()}</div>
                             <div style={{flex:1,minWidth:0}}>
                               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                                <span style={{fontSize:13,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{eng.name}</span>
-                                <span style={{fontSize:11,padding:"1px 6px",borderRadius:8,background:loadColor+"20",border:`1px solid ${loadColor}40`,color:loadColor,fontWeight:700,flexShrink:0}}>{status}</span>
+                                <span style={{fontSize:14,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{eng.name}</span>
+                                <div style={{display:"flex",gap:12,alignItems:"center",flexShrink:0,marginLeft:8}}>
+                                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:"var(--info)"}}>{eng.workHrs}h</span>
+                                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:eng.utilization>=80?"#34d399":eng.utilization>=60?"#fb923c":"#f87171"}}>{fmtPct(eng.utilization)}</span>
+                                  {(isAdmin||isAcct)&&<span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#a78bfa",minWidth:36,textAlign:"right"}}>{fmtPct(eng.billability)}</span>}
+                                </div>
                               </div>
                             </div>
                           </div>
-                          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                            <div style={{flex:1,background:"var(--bg3)",borderRadius:3,height:6,overflow:"hidden"}}>
-                              <div style={{height:"100%",width:`${Math.min(100,100-eng.availPct)}%`,background:`linear-gradient(90deg,var(--info),${loadColor})`,borderRadius:3}}/>
-                            </div>
-                            <div style={{fontSize:12,fontFamily:"'IBM Plex Mono',monospace",color:"var(--text3)",whiteSpace:"nowrap",minWidth:90,textAlign:"right"}}>
-                              {eng.logged}h / {eng.target}h
-                              <span style={{color:loadColor,marginLeft:4,fontWeight:700}}>{eng.remaining}h left</span>
-                            </div>
+                          <div style={{background:"var(--bg3)",height:8,borderRadius:4,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${Math.min(100,eng.utilization)}%`,borderRadius:4,transition:"width .6s ease",
+                              background:eng.utilization>=80?"linear-gradient(90deg,#34d399,#10b981)":eng.utilization>=60?"linear-gradient(90deg,#fb923c,#f59e0b)":"linear-gradient(90deg,#f87171,#ef4444)"}}/>
+                          </div>
+                        </div>
+                      ))}
+                      {(isAdmin||isAcct)&&engStats.length>0&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,textAlign:"right"}}>Hours · Utilization% · <span style={{color:"#a78bfa"}}>Billability%</span></div>}
+                    </div>
+                  </div>
+
+                  {/* Task Distribution */}
+                  <div className="card" style={{padding:0,overflow:"hidden"}}>
+                    <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Task Distribution</div>
+                      <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{dWorkHrs}h total</div>
+                    </div>
+                    <div style={{padding:"16px 20px",display:"grid",gap:12}}>
+                      {taskStats.length===0&&<p style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:16}}>No tasks logged.</p>}
+                      {taskStats.map((cat,i)=>{
+                        const pct=totalWorkHrs?Math.round(cat.hours/totalWorkHrs*100):0;
+                        const catColors=["var(--info)","#a78bfa","#34d399","#fb923c","#f472b6","#f59e0b"];
+                        const c=catColors[i%catColors.length];
+                        return(
+                        <div key={cat.category}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                            <span style={{fontSize:13,fontWeight:500,color:"var(--text1)"}}>{cat.category}</span>
+                            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:c}}>{cat.hours}h · {pct}%</span>
+                          </div>
+                          <div style={{background:"var(--bg3)",height:8,borderRadius:4,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${pct}%`,borderRadius:4,background:c,transition:"width .6s ease"}}/>
                           </div>
                         </div>);
                       })}
                     </div>
                   </div>
+                </div>
 
-                </div>);
-              })()}
+                {/* ── Active Projects ── */}
+                <div className="card" style={{padding:0,overflow:"hidden"}}>
+                  <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>
+                      Active Projects
+                      {dashProjFilter!=="ALL"&&<span style={{fontSize:13,fontWeight:400,color:"var(--text3)",marginLeft:8}}>· Filtered</span>}
+                    </div>
+                    <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year}</div>
+                  </div>
+                  <table>
+                    <thead><tr>
+                      <th>Project</th><th>No.</th><th>Phase</th><th style={{textAlign:"right"}}>Hours</th>
+                      {(isAdmin||isAcct)&&<><th>Type</th><th style={{textAlign:"right"}}>Revenue</th></>}
+                    </tr></thead>
+                    <tbody>
+                      {projStats.filter(p=>p.hours>0&&(dashProjFilter==="ALL"||p.id===dashProjFilter)).map(p=>(
+                        <tr key={p.id}>
+                          <td style={{fontWeight:600,color:"var(--text0)"}}>{p.name||p.id}</td>
+                          <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{p.id}</td>
+                          <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{p.phase||"—"}</span></td>
+                          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--text0)"}}>{p.hours}h</td>
+                          {(isAdmin||isAcct)&&<>
+                            <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"#05603a30":"#1a0a00",color:p.billable?"#34d399":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
+                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:600}}>{p.billable?fmtCurrency(p.revenue):"—"}</td>
+                          </>}
+                        </tr>
+                      ))}
+                      {projStats.filter(p=>p.hours>0&&(dashProjFilter==="ALL"||p.id===dashProjFilter)).length===0&&(
+                        <tr><td colSpan={(isAdmin||isAcct)?6:4} style={{textAlign:"center",color:"var(--text4)",padding:24}}>No hours logged for {MONTHS[month]} {year}</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
-              </>;})()}
+                {/* ── Deadlines + Workload ── */}
+                {(isAdmin||isLead)&&activitiesLoaded&&(()=>{
+                  const todayStr=new Date().toISOString().slice(0,10);
+                  const in14=new Date();in14.setDate(in14.getDate()+14);
+                  const in14Str=in14.toISOString().slice(0,10);
+                  const upcoming=activities.filter(a=>a.end_date&&a.end_date>=todayStr&&a.end_date<=in14Str&&a.status!=="Completed").sort((a,b)=>a.end_date.localeCompare(b.end_date));
+                  const overdue=activities.filter(a=>a.end_date&&a.end_date<todayStr&&a.status!=="Completed"&&a.status!=="On Hold").sort((a,b)=>a.end_date.localeCompare(b.end_date));
+                  const engWorkload=engStats.map(eng=>{const logged=eng.workHrs,target=eng.targetHrs||0,remaining=Math.max(0,target-logged),availPct=target>0?Math.round(remaining/target*100):0;return{...eng,logged,target,remaining,availPct};}).filter(e=>e.target>0).sort((a,b)=>b.availPct-a.availPct);
+                  const fmtDl=d=>{const dt=new Date(d+"T12:00:00"),diff=Math.round((dt-new Date(todayStr+"T12:00:00"))/(864e5));return diff===0?{label:"Today",c:"#f87171"}:diff===1?{label:"Tomorrow",c:"#fb923c"}:diff<=7?{label:`In ${diff}d`,c:"#fb923c"}:{label:`In ${diff}d`,c:"var(--text3)"};};
+                  const daysLeft=(()=>{let n=0,t=new Date(),e=new Date(year,month+1,0);while(t<=e){if(t.getDay()!==5&&t.getDay()!==6)n++;t.setDate(t.getDate()+1);}return n;})();
+                  return(
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+
+                    {/* Deadlines */}
+                    <div className="card" style={{padding:0,overflow:"hidden"}}>
+                      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>📅 Upcoming Deadlines
+                          <span style={{fontSize:13,fontWeight:400,color:"var(--text3)",marginLeft:8}}>Next 14 days</span>
+                        </div>
+                        {overdue.length>0&&<span style={{fontSize:12,padding:"3px 10px",borderRadius:10,background:"#f8711820",border:"1px solid #f8711840",color:"#f87171",fontWeight:700}}>⚠ {overdue.length} overdue</span>}
+                      </div>
+                      <div style={{maxHeight:300,overflowY:"auto"}}>
+                        {overdue.length===0&&upcoming.length===0&&<div style={{padding:"28px 20px",textAlign:"center",color:"var(--text4)",fontSize:14}}>No deadlines in the next 14 days ✓</div>}
+                        {overdue.slice(0,5).map(a=>{const proj=projects.find(p=>p.id===a.project_id);return(
+                          <div key={a.id} style={{padding:"11px 20px",borderBottom:"1px solid var(--border)",background:"#f8711808",display:"flex",gap:12,alignItems:"center"}}>
+                            <div style={{width:4,alignSelf:"stretch",background:"#f87171",borderRadius:2,flexShrink:0}}/>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:14,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</div>
+                              <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}><span style={{color:"var(--info)"}}>{proj?.name||a.project_id}</span>{a.assigned_to&&<span style={{color:"var(--text4)"}}> · {a.assigned_to}</span>}</div>
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontSize:13,fontWeight:700,color:"#f87171"}}>OVERDUE</div>
+                              <div style={{fontSize:12,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{a.end_date}</div>
+                            </div>
+                          </div>);})}
+                        {upcoming.map(a=>{const proj=projects.find(p=>p.id===a.project_id),dl=fmtDl(a.end_date),pct=Math.round((a.progress||0)*100);return(
+                          <div key={a.id} style={{padding:"11px 20px",borderBottom:"1px solid var(--border)",display:"flex",gap:12,alignItems:"center"}}>
+                            <div style={{width:4,alignSelf:"stretch",background:dl.c,borderRadius:2,flexShrink:0}}/>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:14,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</div>
+                              <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
+                                <span style={{color:"var(--info)"}}>{proj?.name||a.project_id}</span>
+                                {a.assigned_to&&<span style={{color:"var(--text4)"}}> · {a.assigned_to}</span>}
+                                <span style={{marginLeft:8,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:pct>=75?"#34d399":pct>=40?"var(--info)":"var(--text3)"}}>{pct}%</span>
+                              </div>
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontSize:13,fontWeight:700,color:dl.c}}>{dl.label}</div>
+                              <div style={{fontSize:12,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{a.end_date}</div>
+                            </div>
+                          </div>);})}
+                      </div>
+                    </div>
+
+                    {/* Workload Forecast */}
+                    <div className="card" style={{padding:0,overflow:"hidden"}}>
+                      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
+                        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>📊 Workload Forecast</div>
+                        <div style={{fontSize:13,color:"var(--text3)",marginTop:3}}>{daysLeft} working days left in {MONTHS[month]}</div>
+                      </div>
+                      <div style={{maxHeight:300,overflowY:"auto"}}>
+                        {engWorkload.length===0&&<div style={{padding:"28px 20px",textAlign:"center",color:"var(--text4)",fontSize:14}}>No engineer data</div>}
+                        {engWorkload.map(eng=>{
+                          const c=eng.availPct>=60?"#34d399":eng.availPct>=30?"#fb923c":"#f87171";
+                          const status=eng.availPct>=60?"Available":eng.availPct>=30?"Busy":"Near Full";
+                          return(
+                          <div key={eng.id} style={{padding:"12px 20px",borderBottom:"1px solid var(--border)"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:7}}>
+                              <div className="av" style={{width:30,height:30,fontSize:12,flexShrink:0}}>{eng.name?.slice(0,2).toUpperCase()}</div>
+                              <div style={{flex:1,minWidth:0,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                <span style={{fontSize:14,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:140}}>{eng.name}</span>
+                                <span style={{fontSize:12,padding:"2px 8px",borderRadius:8,background:c+"20",border:`1px solid ${c}40`,color:c,fontWeight:700,flexShrink:0}}>{status}</span>
+                              </div>
+                            </div>
+                            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                              <div style={{flex:1,background:"var(--bg3)",borderRadius:4,height:8,overflow:"hidden"}}>
+                                <div style={{height:"100%",width:`${Math.min(100,100-eng.availPct)}%`,background:`linear-gradient(90deg,var(--info),${c})`,borderRadius:4}}/>
+                              </div>
+                              <div style={{fontSize:13,fontFamily:"'IBM Plex Mono',monospace",color:"var(--text2)",whiteSpace:"nowrap",minWidth:100,textAlign:"right"}}>
+                                {eng.logged}h · <span style={{color:c,fontWeight:700}}>{eng.remaining}h free</span>
+                              </div>
+                            </div>
+                          </div>);
+                        })}
+                      </div>
+                    </div>
+
+                  </div>);
+                })()}
+
+                </>;})()}
             </div>
           )}
 
           {/* ════ TIMESHEET ════ */}
           {view==="timesheet"&&(
             <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:14}}>
                 <div>
-                  <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>{isAcct?"Hours Review":"Post Hours"}</h1>
-                  <p style={{color:"var(--text4)",fontSize:14,marginTop:3}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>{isAcct?"REVIEW":"POST HOURS"}</div>
+                  <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>{isAcct?"Hours Review":"Post Hours"}</h1>
+                  <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
                     Allowed: {minPostDate()} → {maxPostDate()}
                     {canEdit&&" · Lead/Admin can browse all engineers"}
                   </p>
@@ -9584,11 +9604,12 @@ export default function App(){
             const selectedEng=filterEngineer!=="ALL"?engStats.find(e=>e.id===+filterEngineer):null;
             return(
             <div>
-              {/* Filter bar */}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:12}}>
+              {/* Header + Filter bar */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18,flexWrap:"wrap",gap:14}}>
                 <div>
-                  <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>Team</h1>
-                  <p style={{color:"var(--text4)",fontSize:14,marginTop:3}}>{engineers.filter(e=>isEngActive(e)).length} active · {engineers.length} total · {MONTHS[month]} {year}</p>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>ENGINEERING TEAM</div>
+                  <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Team</h1>
+                  <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{engineers.filter(e=>isEngActive(e)).length} active · {engineers.length} total · {MONTHS[month]} {year}</p>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
                   <div><Lbl>Engineer</Lbl>
