@@ -6507,16 +6507,42 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   // Approve/reject vacation
   const approveVacation=async(entryId,notifId)=>{
     if(!supabase) return;
+    // Get entry details before updating
+    const entry=entries.find(e=>e.id===entryId);
     await supabase.from("time_entries").update({activity:null}).eq("id",entryId);
     setEntries&&setEntries(prev=>prev.map(e=>e.id===entryId?{...e,activity:null}:e));
     if(notifId){ await supabase.from("notifications").delete().eq("id",notifId); setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId)); }
+    // Notify the requester
+    if(entry){
+      const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
+      const feedback={
+        type:"vacation_approved", read:false,
+        message:`✓ Your Annual Leave on ${entry.date} has been approved`,
+        created_at:new Date().toISOString(),
+        meta:JSON.stringify({engineer_id:entry.engineer_id,date:entry.date,entry_id:entryId})
+      };
+      const{data:nd}=await supabase.from("notifications").insert(feedback).select().single();
+      if(nd) setNotifications&&setNotifications(prev=>[nd,...prev]);
+    }
     showToast("Vacation approved ✓");
   };
   const rejectVacation=async(entryId,notifId)=>{
     if(!supabase) return;
+    const entry=entries.find(e=>e.id===entryId);
     await supabase.from("time_entries").delete().eq("id",entryId);
     setEntries&&setEntries(prev=>prev.filter(e=>e.id!==entryId));
     if(notifId){ await supabase.from("notifications").delete().eq("id",notifId); setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId)); }
+    // Notify the requester
+    if(entry){
+      const feedback={
+        type:"vacation_rejected", read:false,
+        message:`✕ Your Annual Leave request on ${entry.date} was not approved`,
+        created_at:new Date().toISOString(),
+        meta:JSON.stringify({engineer_id:entry.engineer_id,date:entry.date,entry_id:entryId})
+      };
+      const{data:nd}=await supabase.from("notifications").insert(feedback).select().single();
+      if(nd) setNotifications&&setNotifications(prev=>[nd,...prev]);
+    }
     showToast("Vacation request rejected",false);
   };
 
@@ -7262,9 +7288,17 @@ export default function App(){
         const isRestrictedRole = !["admin","lead","accountant","senior_management"].includes(profRole);
         const filtered = isRestrictedRole
           ? deduped.filter(n=>{
-              // Engineers only see notifications about themselves
-              try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
-              catch{ return false; }
+              // Engineers see notifications about themselves (vacation approval/rejection)
+              if(['vacation_approved','vacation_rejected'].includes(n.type)){
+                try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
+                catch{ return false; }
+              }
+              // Vacation requests they submitted (their own pending entries)
+              if(n.type==='vacation_request'){
+                try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
+                catch{ return false; }
+              }
+              return false;
             })
           : deduped;
         setNotifications(filtered);
@@ -9570,6 +9604,35 @@ export default function App(){
                 );
               })()}
 
+              {/* Vacation outcome notifications — approved or rejected */}
+              {(()=>{
+                const myOutcomes=notifications.filter(n=>
+                  (n.type==="vacation_approved"||n.type==="vacation_rejected")&&
+                  (()=>{try{return String(JSON.parse(n.meta||"{}").engineer_id)===String(viewEngId);}catch{return false;}})()
+                );
+                if(!myOutcomes.length) return null;
+                return(
+                  <div style={{display:"grid",gap:6,marginBottom:10}}>
+                    {myOutcomes.map(n=>{
+                      const approved=n.type==="vacation_approved";
+                      return(
+                        <div key={n.id} style={{display:"flex",alignItems:"center",gap:12,
+                          background:approved?"#05603a20":"#7f1d1d20",
+                          border:`1px solid ${approved?"#34d39950":"#f8717150"}`,
+                          borderRadius:10,padding:"10px 16px"}}>
+                          <span style={{fontSize:18}}>{approved?"✓":"✕"}</span>
+                          <div style={{flex:1,fontSize:14,fontWeight:600,color:approved?"#34d399":"#f87171"}}>{n.message}</div>
+                          <button onClick={async()=>{
+                            await supabase.from("notifications").delete().eq("id",n.id);
+                            setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                          }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:15,padding:"0 4px"}}>✕</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
               {/* 7-day week grid */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:7}}>
                 {weekDays.map(day=>{
@@ -9921,108 +9984,76 @@ export default function App(){
                   showToast("Moved ✓");
                 };
 
-                // OrgCard component
-                const OrgCard = ({node}) => {
-                  // Use raw engineers (not engStats) so accountants/senior_mgmt are included
+                // OrgCard — plain render function (NOT a React component) to avoid
+                // the "new component type each render" reconciliation bug
+                const renderOrgCard = (node) => {
                   const eng = node.engineer_id ? engineers.find(e=>e.id===node.engineer_id) : null;
                   const active = eng ? isEngActive(eng) : true;
-                  const isDragging = orgDragId===node.id;
                   const rc = eng ? (ROLE_COLORS[eng.role_type]||"var(--text3)") : "var(--text4)";
                   const initials = (node.name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
-
                   return(
-                    <div
-                      draggable={orgEditing}
-                      onDragStart={orgEditing?()=>setOrgDragId(node.id):undefined}
-                      onDragEnd={orgEditing?()=>setOrgDragId(null):undefined}
-                      onDragOver={orgEditing?e=>e.preventDefault():undefined}
-                      onDrop={orgEditing?e=>{e.preventDefault();e.stopPropagation();if(orgDragId&&orgDragId!==node.id) moveNode(orgDragId,node.id);}:undefined}
-                      style={{
-                        background: node.is_external?"transparent":"var(--bg1)",
-                        border: node.is_external
-                          ? "1px dashed #2a4a6a"
-                          : orgEditing
-                            ? `1px solid ${rc}60`
-                            : `1px solid ${rc}35`,
-                        borderRadius:12,
-                        padding:"16px 14px 14px",
-                        textAlign:"center",
-                        width:152,
-                        cursor: orgEditing?"grab":"default",
-                        opacity: isDragging?0.3:!active?0.5:1,
-                        filter: !active?"grayscale(0.7)":"none",
-                        transition:"border-color .2s, box-shadow .2s",
-                        position:"relative",
-                        boxShadow: orgEditing?`0 0 0 1px ${rc}25, 0 4px 16px #00000060`:`0 4px 16px #00000050, 0 0 0 1px ${rc}20`,
-                      }}
-                    >
-                      {/* Edit/delete buttons — only in edit mode */}
+                    <div style={{
+                      background: node.is_external?"transparent":"var(--bg1)",
+                      border: node.is_external
+                        ? `1px dashed ${isDark?"#2a4a6a":"#94b4d0"}`
+                        : orgEditing ? `2px dashed ${rc}80` : `1px solid ${rc}40`,
+                      borderRadius:12,
+                      padding:"16px 14px 14px",
+                      textAlign:"center",
+                      width:170,
+                      boxSizing:"border-box",
+                      opacity: !active?0.5:1,
+                      filter: !active?"grayscale(0.7)":"none",
+                      transition:"border-color .2s, box-shadow .2s",
+                      position:"relative",
+                      boxShadow: isDark
+                        ? `0 4px 16px #00000060, 0 0 0 1px ${rc}20`
+                        : `0 2px 12px #00000018, 0 0 0 1px ${rc}15`,
+                    }}>
+                      {/* Edit/delete — edit mode only */}
                       {orgEditing&&isAdmin&&(
                         <div style={{position:"absolute",top:6,right:6,display:"flex",gap:4,zIndex:20}}>
-                          <button onClick={e=>{e.stopPropagation();e.preventDefault();setOrgEditNode({...node});}}
-                            style={{background:"var(--bg1)",border:"1px solid #38bdf830",color:"var(--info)",width:20,height:20,
-                              borderRadius:4,fontSize:12,cursor:"pointer",padding:0,zIndex:20,lineHeight:"20px"}}>✎</button>
-                          <button onClick={e=>{e.stopPropagation();e.preventDefault();deleteNode(node.id);}}
-                            style={{background:"var(--bg1)",border:"1px solid #f8717130",color:"#f87171",width:20,height:20,
-                              borderRadius:4,fontSize:12,cursor:"pointer",padding:0,zIndex:20,lineHeight:"20px"}}>✕</button>
+                          <button onClick={e=>{e.stopPropagation();setOrgEditNode({...node});}}
+                            style={{background:"var(--bg1)",border:"1px solid #38bdf840",color:"var(--info)",
+                              width:22,height:22,borderRadius:5,fontSize:13,cursor:"pointer",padding:0,lineHeight:"22px"}}>✎</button>
+                          <button onClick={e=>{e.stopPropagation();deleteNode(node.id);}}
+                            style={{background:"var(--bg1)",border:"1px solid #f8717140",color:"#f87171",
+                              width:22,height:22,borderRadius:5,fontSize:13,cursor:"pointer",padding:0,lineHeight:"22px"}}>✕</button>
                         </div>
                       )}
-
-                      {/* Avatar circle with role color ring */}
+                      {/* Avatar */}
                       <div style={{
-                        width:50, height:50, borderRadius:"50%",
-                        background:`linear-gradient(135deg, ${rc}28, ${rc}12)`,
-                        border:`2px solid ${rc}55`,
-                        display:"flex", alignItems:"center", justifyContent:"center",
-                        margin:"0 auto 11px",
-                        fontSize:17, fontWeight:800, color:rc,
-                        letterSpacing:".03em",
-                        boxShadow:`0 0 0 4px ${rc}15, 0 2px 8px #00000040`,
+                        width:52,height:52,borderRadius:"50%",
+                        background:`linear-gradient(135deg,${rc}30,${rc}12)`,
+                        border:`2px solid ${rc}60`,
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        margin:"0 auto 10px",
+                        fontSize:17,fontWeight:800,color:rc,
+                        boxShadow:`0 0 0 4px ${rc}15`,
                       }}>
                         {initials}
                       </div>
-
                       {/* Name */}
-                      <div style={{
-                        fontSize:14, fontWeight:700,
-                        color: node.is_external?"#4e6a82":"var(--text0)",
-                        lineHeight:1.3, marginBottom:4,
-                        letterSpacing:"-.01em",
-                      }}>
+                      <div style={{fontSize:14,fontWeight:700,color:node.is_external?"var(--text3)":"var(--text0)",
+                        lineHeight:1.3,marginBottom:3,letterSpacing:"-.01em"}}>
                         {node.name}
-                        {!active&&eng&&(
-                          <div style={{fontSize:11,color:"#f87171",marginTop:2,letterSpacing:".06em",fontWeight:700}}>INACTIVE</div>
-                        )}
+                        {!active&&eng&&<div style={{fontSize:11,color:"#f87171",letterSpacing:".06em",fontWeight:700,marginTop:1}}>INACTIVE</div>}
                       </div>
-
-                      {/* Title + role — always shown when linked or title set */}
-                      <div style={{marginTop:2,minHeight:18}}>
-                        {/* job title: node.title (manual) or eng.role (from DB) or ROLE_LABELS fallback */}
-                        {(node.title||eng?.role||eng)&&(
-                          <div style={{
-                            fontSize:13, color: node.is_external?"var(--text3)":"var(--text2)",
-                            lineHeight:1.4, letterSpacing:".01em",
-                            fontStyle: node.is_external?"italic":"normal",
-                            fontWeight:500,
-                          }}>
-                            {node.title||(eng?.role)||(eng?ROLE_LABELS[eng.role_type]||"":"")}
-                          </div>
-                        )}
-                        {/* role type badge — colored chip below title */}
-                        {eng&&!node.is_external&&(
-                          <div style={{
-                            display:"inline-block",
-                            marginTop:4,
-                            padding:"1px 6px",
-                            borderRadius:3,
-                            fontSize:11, fontWeight:700,
-                            letterSpacing:".06em", textTransform:"uppercase",
-                            background:`${rc}18`, color:rc,
-                          }}>
-                            {ROLE_LABELS[eng.role_type]||eng.role_type}
-                          </div>
-                        )}
-                      </div>
+                      {/* Title */}
+                      {(node.title||eng?.role||eng)&&(
+                        <div style={{fontSize:12,color:node.is_external?"var(--text4)":"var(--text3)",
+                          lineHeight:1.4,fontStyle:node.is_external?"italic":"normal",fontWeight:500}}>
+                          {node.title||(eng?.role)||(eng?ROLE_LABELS[eng.role_type]||"":"")}
+                        </div>
+                      )}
+                      {/* Role badge */}
+                      {eng&&!node.is_external&&(
+                        <div style={{display:"inline-block",marginTop:5,padding:"2px 7px",borderRadius:4,
+                          fontSize:11,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",
+                          background:`${rc}18`,color:rc}}>
+                          {ROLE_LABELS[eng.role_type]||eng.role_type}
+                        </div>
+                      )}
                     </div>
                   );
                 };
@@ -10164,7 +10195,7 @@ export default function App(){
                             return(
                               <div key={node.id}
                                 draggable={orgEditing}
-                                onDragStart={orgEditing?()=>setOrgDragId(node.id):undefined}
+                                onDragStart={orgEditing?e=>{e.stopPropagation();setOrgDragId(node.id);}:undefined}
                                 onDragEnd={orgEditing?()=>setOrgDragId(null):undefined}
                                 onDragOver={orgEditing?e=>e.preventDefault():undefined}
                                 onDrop={orgEditing?e=>{e.preventDefault();e.stopPropagation();if(orgDragId&&orgDragId!==node.id) moveNode(orgDragId,node.id);}:undefined}
@@ -10175,9 +10206,10 @@ export default function App(){
                                   cursor:orgEditing?"grab":"default",
                                   opacity:orgDragId===node.id?0.25:1,
                                   transition:"opacity .2s",
-                                  zIndex:orgDragId===node.id?1:2,
+                                  zIndex:2,
+                                  userSelect:"none",
                                 }}>
-                                <OrgCard node={node}/>
+                                {renderOrgCard(node)}
                                 {orgEditing&&isAdmin&&(
                                   <button
                                     onClick={()=>setOrgEditNode({id:null,name:"",title:"",engineer_id:null,parent_id:node.id,is_external:false,sort_order:children(node.id).length})}
@@ -10828,6 +10860,9 @@ export default function App(){
                                       await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
                                       setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
                                       if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
+                                      // Send notification to requester
+                                      const fb={type:"vacation_approved",read:false,message:`✓ Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})};
+                                      supabase.from("notifications").insert(fb).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
                                       showToast(`${eng?.name||"Vacation"} approved ✓`);
                                     }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:7,padding:"6px 14px",color:"#34d399",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
                                       ✓ Approve
@@ -10836,6 +10871,9 @@ export default function App(){
                                       await supabase.from("time_entries").delete().eq("id",e.id);
                                       setEntries(prev=>prev.filter(x=>x.id!==e.id));
                                       if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
+                                      // Send notification to requester
+                                      const fb={type:"vacation_rejected",read:false,message:`✕ Your Annual Leave request on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})};
+                                      supabase.from("notifications").insert(fb).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
                                       showToast(`${eng?.name||"Vacation"} request rejected`,false);
                                     }} style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:7,padding:"6px 14px",color:"#f87171",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
                                       ✕ Reject
