@@ -2579,21 +2579,43 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     });
     return(<>
     <div style={{display:"grid",gap:14}}>
-      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}}>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <div><div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:2}}>PROJECT TRACKER</div><div style={{fontSize:22,fontWeight:800,color:"var(--text0)"}}>{allTrackerProjects.length} <span style={{fontSize:14,fontWeight:400,color:"var(--text3)"}}>projects · {activities.length} activities</span></div></div>
+      <div style={{display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",justifyContent:"space-between"}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>PROJECT TRACKER</div>
+          <div style={{fontSize:22,fontWeight:800,color:"var(--text0)"}}>{allTrackerProjects.length} <span style={{fontSize:14,fontWeight:400,color:"var(--text3)"}}>projects · {activities.length} activities</span></div>
         </div>
-        <div style={{display:"flex",gap:8}}>
-          <input value={trackerSearch_} onChange={e=>setTrackerSearch_(e.target.value)}
-            placeholder="🔍 Search projects…"
-            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,width:190}}/>
-          <select value={trackerStatusF} onChange={e=>setTrackerStatusF(e.target.value)}
-            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
-            <option value="ALL">All Statuses</option>
-            <option value="Active">Active</option>
-            <option value="On Hold">On Hold</option>
-            <option value="Completed">Completed</option>
-          </select>
+        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+          {/* Search */}
+          <div>
+            <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>SEARCH</div>
+            <input value={trackerSearch_} onChange={e=>setTrackerSearch_(e.target.value)}
+              placeholder="Search projects…" style={{width:180}}/>
+          </div>
+          {/* Status chips */}
+          <div>
+            <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>STATUS</div>
+            <div style={{display:"flex",gap:4}}>
+              {[
+                {v:"ALL",      l:"All",     c:"var(--text2)"},
+                {v:"Active",   l:"Active",  c:"#34d399"},
+                {v:"On Hold",  l:"On Hold", c:"#fb923c"},
+                {v:"Completed",l:"Done",    c:"#a78bfa"},
+              ].map(chip=>{
+                const cnt=chip.v==="ALL"?baseProjects.length:baseProjects.filter(p=>p.status===chip.v).length;
+                const active=trackerStatusF===chip.v;
+                return(
+                  <button key={chip.v} onClick={()=>setTrackerStatusF(chip.v)}
+                    style={{padding:"6px 12px",borderRadius:20,border:`1px solid ${active?chip.c+"90":"var(--border)"}`,
+                      background:active?chip.c+"18":"transparent",color:active?chip.c:"var(--text3)",
+                      fontSize:13,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
+                      display:"flex",alignItems:"center",gap:5,transition:"all .15s",whiteSpace:"nowrap"}}>
+                    {chip.l}
+                    <span style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",opacity:.8}}>{cnt}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
