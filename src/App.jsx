@@ -10173,390 +10173,427 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
 
           {/* ════ REPORTS ════ */}
           {view==="reports"&&canReport&&(
-            <div>
-              <div style={{marginBottom:20}}>
-                <h1 style={{fontSize:21,fontWeight:700,color:"var(--text0)"}}>Reports & PDF Export</h1>
-                <p style={{color:"var(--text4)",fontSize:14,marginTop:3}}>{MONTHS[month]} {year}</p>
+            <div style={{display:"grid",gap:20}}>
+
+              {/* ── Page header ── */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>REPORTING</div>
+                  <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Reports & PDF Export</h1>
+                  <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year} · Select a report to preview and export</p>
+                </div>
               </div>
 
-              {/* Report type cards */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:18}}>
-                {[
-                  {id:"utilization",icon:"◉",label:"Team Utilization",desc:"All engineers utilization & billability",show:isAdmin||isAcct||isSenior},
-                  {id:"individual",icon:"👤",label:"Individual Timesheet",desc:"One engineer — full monthly timesheet PDF",show:true},
-                  {id:"task",icon:"⊟",label:"Task Analysis",desc:"Task categories & activity log",show:true},
-                  {id:"projtasks",icon:"◈",label:"Project Analysis",desc:"Per-project hours, tasks & engineer breakdown",show:isAdmin||isAcct||isLead||isSenior},
-                  {id:"tracker",icon:"📊",label:"Tracker Report",desc:"Activity progress — status, notes & phases by project",show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"vacation",icon:"✈",label:"Vacation Report",desc:"Leave & absence summary per engineer",show:true},
-                  {id:"monthly",icon:"⊞",label:"Monthly Mgmt",desc:"Full executive summary",show:isAdmin||isAcct||isSenior},
-                  {id:"assignment",icon:"👥",label:"Assignment Report",desc:"Who is working on what this month",show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"invoice",icon:"🧾",label:"Invoice Export",desc:"Billable invoice per month",show:canInvoice},
-                ].filter(r=>r.show).map(r=>(
-                  <div key={r.id} className={`rpt-card ${activeRpt===r.id?"sel":""}`} onClick={()=>setActiveRpt(r.id)}>
-                    <div style={{fontSize:18,marginBottom:5}}>{r.icon}</div>
-                    <div style={{fontSize:14,fontWeight:700,marginBottom:3}}>{r.label}</div>
-                    <div style={{fontSize:13,color:"var(--text4)",lineHeight:1.4}}>{r.desc}</div>
-                  </div>
-                ))}
-              </div>
+              {/* ── Two-panel layout ── */}
+              <div style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:16,alignItems:"start"}}>
 
-              {/* Individual timesheet export */}
-              {activeRpt==="individual"&&(
-                <div>
-                  <div className="card" style={{marginBottom:14}}>
-                    <h3 style={{fontSize:15,fontWeight:600,color:"var(--text0)",marginBottom:14}}>👤 Timesheet Export — {MONTHS[month]} {year}</h3>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr auto auto",gap:12,alignItems:"flex-end",marginBottom:6}}>
-                      <div><Lbl>Select Engineer (or export all)</Lbl>
-                        <select value={rptEngId||"ALL"} onChange={e=>setRptEngId(e.target.value==="ALL"?null:+e.target.value)}>
-                          <option value="ALL">📋 All Engineers (separate PDFs)</option>
-                          {engineers.map(e=><option key={e.id} value={e.id}>{e.name} · {e.role}</option>)}
-                        </select>
-                      </div>
-                      <button className="bp" onClick={()=>{
-                        if(!rptEngId){
-                          // Build a single merged PDF with all engineers — one window, no popup blocking
-                          const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-                          const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-                          let body=`<h2 style="text-align:center;font-family:'IBM Plex Sans',sans-serif;color:#1e3a5f;margin-bottom:4px">ENEVO GROUP — All Timesheets</h2>
-<p style="text-align:center;font-size:12px;color:#64748b;font-family:sans-serif;margin-bottom:24px">${MONTHS_[month]} ${year} · Generated ${now} · ${engineers.length} engineers</p>`;
-                          engineers.forEach((eng,i)=>{
-                            const we=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date));
-                            const le=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave");
-                            const totalW=we.reduce((s,e)=>s+e.hours,0);
-                            const rows=we.map(e=>{const p=projects.find(x=>x.id===e.project_id);return`<tr><td style="font-family:monospace">${e.date}</td><td style="color:#0ea5e9">${e.project_id||""}</td><td>${p?.name||""}</td><td>${e.task_type||""}</td><td style="font-style:italic;color:#64748b">${e.activity||""}</td><td style="font-family:monospace;font-weight:700;color:#0ea5e9">${e.hours}h</td></tr>`;}).join("");
-                            body+=`<div style="page-break-before:${i===0?"avoid":"always"};margin-bottom:24px">
-<div style="background:#1e3a5f;color:#fff;padding:10px 16px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between">
-<div><div style="font-size:16px;font-weight:700">${eng.name}</div><div style="font-size:11px;color:#93c5fd">${eng.role||""} · ${MONTHS_[month]} ${year}</div></div>
-<div style="font-size:22px;font-weight:800;color:#38bdf8">${totalW}h</div></div>
-<table style="width:100%;border-collapse:collapse;font-size:12px;font-family:sans-serif;border:1px solid #e2e8f0;border-top:none">
-<thead><tr style="background:#f1f5f9"><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">DATE</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJ ID</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJECT</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">TASK</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">ACTIVITY</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">HRS</th></tr></thead>
-<tbody>${rows||`<tr><td colspan="6" style="padding:12px;text-align:center;color:#94a3b8">No entries for ${MONTHS_[month]} ${year}</td></tr>`}</tbody>
-<tfoot><tr style="background:#f8fafc"><td colspan="5" style="padding:6px 8px;font-weight:700;font-size:12px;font-family:sans-serif">Total · ${le.length} leave day${le.length!==1?"s":""}</td><td style="padding:6px 8px;font-family:monospace;font-weight:700;color:#0ea5e9">${totalW}h</td></tr></tfoot>
-</table></div>`;
-                          });
-                          const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>All Timesheets — ${MONTHS_[month]} ${year}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;color:#1e293b;padding:20px}@media print{body{padding:0}@page{margin:14mm}tr{page-break-inside:avoid}}</style></head><body>${body}<div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP · ${now}</div></body></html>`;
-                          const w=window.open("","pdf_merged_"+Date.now());
-                          if(w){w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),600);}
-                          else showToast("Allow popups to export — or use individual PDFs below",false);
-                        } else {
-                          const eng=engineers.find(e=>e.id===rptEngId);
-                          if(eng) buildTimesheetPDF(eng,monthEntries,projects,month,year);
-                        }
-                      }}>⬇ Export PDF{!rptEngId?" (All — Merged)":""}</button>
-                    </div>
-                    <div style={{fontSize:13,color:"var(--text4)"}}>
-                      {!rptEngId?"All engineers in one PDF — single browser tab, no popup issues":"Select an engineer above to preview their timesheet"}
-                    </div>
-                  </div>
-                  <div className="card">
-                  <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:14}}>{rptEngId?"Timesheet Preview":"All Engineers Summary"}</h3>
-                  {!rptEngId&&(
-                    <table>
-                      <thead><tr><th>Engineer</th><th>Role</th><th>Work Hrs</th><th>Projects</th><th>Leave Days</th><th>Quick Export</th></tr></thead>
-                      <tbody>{engineers.map(eng=>{
-                        const ee=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id));
-                        const wh=ee.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
-                        const ld=ee.filter(e=>e.entry_type==="leave").length;
-                        const prjs=[...new Set(ee.filter(e=>e.entry_type==="work").map(e=>e.project_id))].length;
-                        return<tr key={eng.id}>
-                          <td><div style={{display:"flex",alignItems:"center",gap:7}}><div className="av" style={{fontSize:12,width:24,height:24}}>{eng.name?.slice(0,2).toUpperCase()}</div><span style={{fontWeight:500}}>{eng.name}</span></div></td>
-                          <td style={{fontSize:13,color:"var(--text2)"}}>{eng.role}</td>
-                          <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{wh}h</td>
-                          <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{prjs}</td>
-                          <td style={{color:ld>0?"#fb923c":"var(--text4)"}}>{ld}</td>
-                          <td><button className="be" style={{fontSize:13}} onClick={()=>buildTimesheetPDF(eng,monthEntries,projects,month,year)}>⬇ PDF</button></td>
-                        </tr>;
-                      })}</tbody>
-                    </table>
-                  )}
-                  {rptEngId&&(()=>{
-                    const eng=engineers.find(e=>e.id===rptEngId);
-                    const engEntries=monthEntries.filter(e=>e.engineer_id===rptEngId);
-                    const wh=engEntries.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
-                    const ld=engEntries.filter(e=>e.entry_type==="leave").length;
-                    const projs=[...new Set(engEntries.filter(e=>e.entry_type==="work").map(e=>e.project_id))];
+                {/* Left: report navigator */}
+                <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,overflow:"hidden",position:"sticky",top:24}}>
+                  {[
+                    {group:"Team",items:[
+                      {id:"utilization",icon:"◉",label:"Team Utilization",show:isAdmin||isAcct||isSenior},
+                      {id:"assignment", icon:"👥",label:"Assignment",      show:isAdmin||isLead||isAcct||isSenior},
+                    ]},
+                    {group:"Hours",items:[
+                      {id:"individual",icon:"👤",label:"Timesheets",  show:true},
+                      {id:"task",      icon:"⊟",label:"Task Analysis",show:true},
+                      {id:"projtasks", icon:"◈",label:"Project Analysis",show:isAdmin||isAcct||isLead||isSenior},
+                    ]},
+                    {group:"Projects",items:[
+                      {id:"tracker",icon:"📊",label:"Tracker Progress",show:isAdmin||isLead||isAcct||isSenior},
+                    ]},
+                    {group:"HR",items:[
+                      {id:"vacation",icon:"✈",label:"Vacation & Leave",show:true},
+                    ]},
+                    {group:"Finance",items:[
+                      {id:"monthly",icon:"⊞",label:"Monthly Mgmt",show:isAdmin||isAcct||isSenior},
+                      {id:"invoice",icon:"🧾",label:"Invoice Export", show:canInvoice},
+                    ]},
+                  ].map(grp=>{
+                    const visible=grp.items.filter(i=>i.show);
+                    if(!visible.length) return null;
                     return(
-                      <div style={{background:"var(--bg2)",borderRadius:8,padding:"14px 16px"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-                          <div className="av" style={{width:40,height:40,fontSize:15}}>{eng?.name?.slice(0,2).toUpperCase()}</div>
-                          <div><div style={{fontSize:16,fontWeight:600}}>{eng?.name}</div><div style={{fontSize:13,color:"var(--text4)"}}>{eng?.role} · {eng?.level}</div></div>
-                          <div style={{marginLeft:"auto",display:"flex",gap:20,textAlign:"center"}}>
-                            {[{l:"Work Hrs",v:wh+"h",c:"var(--info)"},{l:"Leave Days",v:ld+"d",c:"#fb923c"},{l:"Projects",v:projs.length,c:"#a78bfa"}].map((s,i)=>(
-                              <div key={i}><div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c}}>{s.v}</div><div style={{fontSize:12,color:"var(--text4)"}}>{s.l}</div></div>
-                            ))}
-                          </div>
-                        </div>
-                        <table>
-                          <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th></tr></thead>
-                          <tbody>{engEntries.filter(e=>e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
-                            const proj=projects.find(p=>p.id===e.project_id);
-                            return<tr key={e.id}>
-                              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                              <td style={{fontSize:13,color:"var(--info)"}}>{proj?.name||proj?.id} ({proj?.id})</td>
-                              <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type}</td>
-                              <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
-                              <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
-                            </tr>;})}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })()}
-                  </div>
-                </div>
-              )}
-
-              {/* Utilization preview */}
-              {activeRpt==="utilization"&&(
-                <div className="card">
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                    <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)"}}>Team Utilization Preview</h3>
-                    <button className="bp" onClick={buildUtilizationPDF}>⬇ Export PDF</button>
-                  </div>
-                  <table>
-                    <thead><tr><th>Engineer</th><th>Level</th><th>Target Hrs</th><th>Work Hrs</th><th>Billable</th><th>Leave</th><th>Utilization</th><th>Billability</th><th>Revenue</th></tr></thead>
-                    <tbody>{engStats.map(e=>(
-                      <tr key={e.id}>
-                        <td><div style={{display:"flex",alignItems:"center",gap:7}}><div className="av" style={{fontSize:12,width:24,height:24}}>{e.name?.slice(0,2).toUpperCase()}</div><div><div style={{fontWeight:500,fontSize:14}}>{e.name}</div><div style={{fontSize:12,color:"var(--text4)"}}>{e.role}</div></div></div></td>
-                        <td><span style={{fontSize:12,padding:"1px 5px",borderRadius:3,background:"var(--border)",color:"var(--text3)"}}>{e.level}</span></td>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--text4)"}}>{e.targetHrs}h{e.join_date&&(()=>{const j=new Date(e.join_date+"T12:00:00");if(j.getFullYear()===year&&j.getMonth()===month)return <span style={{fontSize:11,color:"#34d399",marginLeft:4}}>joined {j.getDate()}</span>;return null;})()}</td>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.workHrs}h</td>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{e.billableHrs}h</td>
-                        <td style={{color:e.leaveDays>0?"#fb923c":"var(--text4)"}}>{e.leaveDays}</td>
-                        <td><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{background:"var(--bg3)",height:4,borderRadius:3,width:60,overflow:"hidden"}}><div style={{height:"100%",width:`${e.utilization}%`,background:e.utilization>=80?"linear-gradient(90deg,#34d399,#10b981)":e.utilization>=60?"linear-gradient(90deg,#fb923c,#f59e0b)":"linear-gradient(90deg,#f87171,#ef4444)",borderRadius:3}}/></div><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{fmtPct(e.utilization)}</span></div></td>
-                        <td><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{background:"var(--bg3)",height:4,borderRadius:3,width:50,overflow:"hidden"}}><div style={{height:"100%",width:`${e.billability}%`,background:"linear-gradient(90deg,#a78bfa,#7c3aed)",borderRadius:3}}/></div><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{fmtPct(e.billability)}</span></div></td>
-                        <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa"}}>{fmtCurrency(e.revenue)}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Task analysis */}
-              {activeRpt==="task"&&(()=>{
-                const GC={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
-                return(
-                <div className="card">
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                    <div>
-                      <h3 style={{fontSize:15,fontWeight:700,color:"var(--text0)",margin:0}}>Task Analysis</h3>
-                      <p style={{fontSize:13,color:"var(--text4)",marginTop:2,marginBottom:0}}>{MONTHS[month]} {year} · {totalWorkHrs}h work logged</p>
-                    </div>
-                    <button className="bp" onClick={buildTaskPDF}>⬇ Export PDF</button>
-                  </div>
-
-                  {taskStats.length===0&&<p style={{color:"var(--text4)",fontSize:14}}>No work hours logged for this period.</p>}
-
-                  {taskStats.map(grp=>{
-                    const pct=totalWorkHrs?Math.round(grp.hours/totalWorkHrs*100):0;
-                    const gc=GC[grp.category]||"var(--info)";
-                    return(
-                    <div key={grp.category} style={{marginBottom:18,paddingBottom:18,borderBottom:"1px solid #0d1a2d"}}>
-                      {/* Group header + bar */}
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <div style={{width:10,height:10,borderRadius:3,background:gc,flexShrink:0}}/>
-                          <span style={{fontWeight:700,fontSize:15,color:gc}}>{grp.category}</span>
-                        </div>
-                        <div style={{display:"flex",gap:14,fontSize:13}}>
-                          <span style={{fontFamily:"'IBM Plex Mono',monospace",color:gc,fontWeight:700}}>{grp.hours}h</span>
-                          <span style={{color:"var(--text3)"}}>{pct}%</span>
-                          <span style={{color:"#34d399"}}>{grp.hours?Math.round(grp.billable/grp.hours*100):0}% billable</span>
-                        </div>
-                      </div>
-                      {/* Group progress bar */}
-                      <div style={{background:"var(--bg3)",height:6,borderRadius:4,overflow:"hidden",marginBottom:10}}>
-                        <div style={{height:"100%",width:`${pct}%`,background:gc,borderRadius:4,transition:"width .4s"}}/>
-                      </div>
-                      {/* Category pills with activity drill-down */}
-                      <div style={{display:"grid",gap:6}}>
-                        {Object.entries(grp.tasks).sort((a,b)=>b[1].hrs-a[1].hrs).map(([cat,catData])=>{
-                          const catPct=grp.hours?Math.round(catData.hrs/grp.hours*100):0;
-                          const topActs=Object.entries(catData.activities||{}).sort((a,b)=>b[1]-a[1]).slice(0,4);
+                      <div key={grp.group}>
+                        <div style={{padding:"10px 14px 6px",fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".08em",borderTop:"1px solid var(--border)"}}>{grp.group}</div>
+                        {visible.map(r=>{
+                          const active=activeRpt===r.id;
                           return(
-                          <div key={cat} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 10px"}}>
-                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:topActs.length?4:0}}>
-                              <span style={{fontSize:13,fontWeight:600,color:"var(--text2)"}}>{cat}</span>
-                              <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                                <div style={{background:"var(--bg3)",height:4,borderRadius:3,width:50,overflow:"hidden"}}>
-                                  <div style={{height:"100%",width:`${catPct}%`,background:gc+"80",borderRadius:3}}/>
-                                </div>
-                                <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:gc}}>{catData.hrs}h</span>
-                                <span style={{fontSize:12,color:"var(--text4)"}}>{catPct}%</span>
-                              </div>
-                            </div>
-                            {topActs.length>0&&(
-                              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                                {topActs.map(([act,hrs])=>(
-                                  <span key={act} style={{background:"var(--bg0)",border:"1px solid #0d1a2d",borderRadius:4,
-                                    padding:"2px 6px",fontSize:12,color:"var(--text3)"}}>
-                                    {act.length>30?act.slice(0,28)+"…":act}
-                                    <span style={{color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace",marginLeft:4}}>{hrs}h</span>
-                                  </span>
-                                ))}
-                                {Object.keys(catData.activities||{}).length>4&&(
-                                  <span style={{fontSize:12,color:"var(--text4)",padding:"2px 4px"}}>
-                                    +{Object.keys(catData.activities).length-4} more
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>);
-                        })}
-                      </div>
-                    </div>
-                  );})}
-                </div>);
-              })()}
-
-              {/* ════ PROJECT TASKS ANALYSIS ════ */}
-              {activeRpt==="projtasks"&&<ProjectTasksReport allEntries={entries} projects={projects} engineers={engineers} MONTHS={MONTHS} fmtCurrency={fmtCurrency} fmtPct={fmtPct} isAdmin={isAdmin} isAcct={isAcct}/>}
-
-              {activeRpt==="tracker"&&(
-                <TrackerProgressReport activities={activities} projects={projects} subprojects={subprojects} engineers={engineers}/>
-              )}
-
-              {activeRpt==="assignment"&&(
-                <AssignmentReport entries={entries} projects={projects} engineers={engineers} month={month} year={year}/>
-              )}
-
-           {/* Vacation Report */}
-              {activeRpt==="vacation"&&<VacationReport
-                engineers={engineers} leaveEntries={leaveEntries} allEntries={entries}
-                month={month} year={year} MONTHS={MONTHS}
-                isAdmin={isAdmin}
-                vacationBalances={vacationBalances}
-                setVacBalance={setVacBalance}
-                showToast={showToast}
-                onExport={()=>buildVacationPDF(engineers,entries,leaveEntries,projects,month,year)}
-              />}
-
-              {/* Monthly mgmt */}
-              {activeRpt==="monthly"&&(
-                <div className="card" style={{textAlign:"center",padding:40}}>
-                  <div style={{fontSize:36,marginBottom:10}}>📊</div>
-                  <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>Monthly Management Report</div>
-                  <div style={{fontSize:14,color:"var(--text4)",marginBottom:18}}>Full executive summary for {MONTHS[month]} {year}</div>
-                  <button className="bp" onClick={buildMonthlyPDF}>⬇ Export PDF</button>
-                </div>
-              )}
-
-              {/* Invoice */}
-              {activeRpt==="invoice"&&canInvoice&&(()=>{
-                // All projects with hours — billable ones count toward invoice total
-                const allWithHours=projStats.filter(p=>p.hours>0);
-                const billableActive=allWithHours.filter(p=>p.billable);
-                const filteredProjs=invoiceProjId==="ALL"?allWithHours:allWithHours.filter(p=>p.id===invoiceProjId);
-                const invTotal=filteredProjs.filter(p=>p.billable).reduce((s,p)=>s+p.revenue,0);
-                const invHrs=filteredProjs.filter(p=>p.billable).reduce((s,p)=>s+p.hours,0);
-                return(
-                <div>
-                  {/* Invoice selector */}
-                  <div className="card" style={{marginBottom:14}}>
-                    <h3 style={{fontSize:15,fontWeight:600,color:"var(--text0)",marginBottom:14}}>🧾 Invoice Export — {MONTHS[month]} {year}</h3>
-                    {/* Quick-fix: bulk mark all active projects as billable */}
-                    {allWithHours.some(p=>!p.billable)&&(
-                      <div style={{background:"#1a0f00",border:"1px solid #fb923c40",borderRadius:6,padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                        <span style={{fontSize:13,color:"#fb923c"}}>
-                          ⚠ {allWithHours.filter(p=>!p.billable).length} project(s) marked as non-billable — excluded from invoice
-                        </span>
-                        <button className="bg" style={{fontSize:13,borderColor:"#fb923c",color:"#fb923c",whiteSpace:"nowrap"}} onClick={async()=>{
-                          const ids=allWithHours.filter(p=>!p.billable).map(p=>p.id);
-                          for(const id of ids){
-                            await supabase.from("projects").update({billable:true}).eq("id",id);
-                          }
-                          await loadAll();
-                          showToast(`Marked ${ids.length} project(s) as billable ✓`);
-                        }}>Mark all as billable</button>
-                      </div>
-                    )}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:12,alignItems:"flex-end",marginBottom:16}}>
-                      <div><Lbl>Invoice Scope</Lbl>
-                        <select value={invoiceProjId} onChange={e=>setInvoiceProjId(e.target.value)}>
-                          <option value="ALL">📋 All Billable Projects (Combined Invoice)</option>
-                          {allWithHours.filter(p=>p.billable).map(p=><option key={p.id} value={p.id}>{p.name} ({p.id}) · {p.hours}h · {fmtCurrency(p.revenue)}</option>)}
-                        </select>
-                      </div>
-                      <button className="bp" style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)",whiteSpace:"nowrap"}}
-                        onClick={()=>buildInvoicePDF(projects,entries,engineers,month,year,invoiceProjId==="ALL"?undefined:invoiceProjId)}>
-                        🧾 Export PDF
-                      </button>
-                    </div>
-                    {/* KPI strip */}
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-                      {[
-                        {l:invoiceProjId==="ALL"?"Total Billable":"Project Total",v:fmtCurrency(invTotal),c:"#a78bfa"},
-                        {l:"Billable Hours",v:invHrs+"h",c:"var(--info)"},
-                        {l:invoiceProjId==="ALL"?"Projects":"Engineers",v:invoiceProjId==="ALL"?filteredProjs.length:[...new Set(entries.filter(e=>e.project_id===invoiceProjId&&new Date(e.date).getMonth()===month&&new Date(e.date).getFullYear()===year).map(e=>e.engineer_id))].length,c:"#34d399"},
-                      ].map((s,i)=><div key={i} className="metric" style={{textAlign:"center"}}>
-                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:s.c}}>{s.v}</div>
-                        <div style={{fontSize:13,color:"var(--text4)",marginTop:4}}>{s.l}</div>
-                      </div>)}
-                    </div>
-                  </div>
-                  {/* Preview table */}
-                  <div className="card">
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                      <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",margin:0}}>
-                        {invoiceProjId==="ALL"?`All Projects — ${MONTHS[month]} ${year} (billable highlighted)`:"Project Invoice Preview"}
-                      </h3>
-                      {allWithHours.filter(p=>!p.billable||p.rate_per_hour===0).length>0&&(
-                        <span style={{fontSize:13,color:"#fb923c",background:"#2a1a0a",border:"1px solid #fb923c40",borderRadius:4,padding:"2px 8px"}}>
-                          ⚠ {allWithHours.filter(p=>!p.billable||p.rate_per_hour===0).length} projects need rate set — go to Projects page to edit
-                        </span>
-                      )}
-                    </div>
-                    <table>
-                      <thead><tr><th>Name</th><th>No.</th><th>Client</th><th>Hours</th><th>Rate</th><th>Amount</th><th>Status</th></tr></thead>
-                      <tbody>
-                        {filteredProjs.map(p=>{
-                          const needsRate=p.billable&&p.rate_per_hour===0;
-                          const notBillable=!p.billable;
-                          const rowStyle={cursor:"pointer",opacity:notBillable?0.45:1,background:notBillable?"var(--bg0)":"inherit"};
-                          return(
-                          <tr key={p.id} style={rowStyle} onClick={()=>setInvoiceProjId(p.id)}>
-                            <td style={{fontSize:13,fontWeight:600,color:notBillable?"var(--text3)":"var(--text0)"}}>{p.name||p.id}</td>
-                      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:notBillable?"var(--text3)":"var(--info)"}}>{p.id}</td>
-                            <td style={{fontSize:13,fontWeight:500,color:notBillable?"var(--text3)":"var(--text0)"}}>{p.name}</td>
-                            <td style={{fontSize:13,color:"var(--text2)"}}>{p.client}</td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"var(--text3)":"var(--text0)"}}>{p.hours}h</td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:needsRate?"#fb923c":notBillable?"var(--text3)":"var(--text2)"}}>
-                              {notBillable?"—":`$${p.rate_per_hour}/h`}
-                            </td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",color:notBillable?"var(--text3)":"#a78bfa",fontWeight:700}}>
-                              {notBillable?"—":fmtCurrency(p.revenue)}
-                            </td>
-                            <td style={{fontSize:13}}>
-                              {notBillable&&<span style={{color:"var(--text3)",background:"var(--border)",borderRadius:3,padding:"1px 5px"}}>not billable</span>}
-                              {needsRate&&<span style={{color:"#fb923c",background:"#2a1a0a",borderRadius:3,padding:"1px 5px"}}>set rate ⚠</span>}
-                              {p.billable&&p.rate_per_hour>0&&<span style={{color:"#34d399",background:"var(--bg2)",borderRadius:3,padding:"1px 5px"}}>✓ billable</span>}
-                            </td>
-                          </tr>
+                            <button key={r.id} onClick={()=>setActiveRpt(r.id)}
+                              style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:active?"var(--nb-hover)":"transparent",border:"none",borderLeft:active?"3px solid var(--info)":"3px solid transparent",color:active?"var(--info)":"var(--text2)",cursor:"pointer",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:active?600:400,textAlign:"left",transition:"all .15s"}}>
+                              <span style={{fontSize:16,flexShrink:0}}>{r.icon}</span>
+                              {r.label}
+                            </button>
                           );
                         })}
-                        {filteredProjs.filter(p=>p.billable).length>0&&(
-                          <tr style={{background:"var(--bg3)"}}>
-                            <td colSpan={3} style={{fontWeight:700,color:"var(--text0)"}}>BILLABLE TOTAL</td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{invHrs}h</td>
-                            <td></td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa",fontSize:15}}>{fmtCurrency(invTotal)}</td>
-                            <td></td>
-                          </tr>
-                        )}
-                        {filteredProjs.length===0&&<tr><td colSpan={7} style={{textAlign:"center",color:"var(--text4)",padding:20}}>No hours logged for {MONTHS[month]} {year}</td></tr>}
-                      </tbody>
-                    </table>
-                    {invoiceProjId!=="ALL"&&allWithHours.length>1&&(
-                      <div style={{marginTop:10,textAlign:"right"}}>
-                        <button className="bg" style={{fontSize:13}} onClick={()=>setInvoiceProjId("ALL")}>← Back to All Projects</button>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
-              );})()}
+
+                {/* Right: content area */}
+                <div style={{minWidth:0}}>
+
+                  {/* ── Individual timesheet ── */}
+                  {activeRpt==="individual"&&(
+                    <div style={{display:"grid",gap:14}}>
+                      <div className="card" style={{padding:0,overflow:"hidden"}}>
+                        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div>
+                            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>👤 Individual Timesheets</div>
+                            <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · Select engineer or export all</div>
+                          </div>
+                          <button className="bp" onClick={()=>{
+                            if(!rptEngId){
+                              const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+                              const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                              let body=`<h2 style="text-align:center;font-family:'IBM Plex Sans',sans-serif;color:#1e3a5f;margin-bottom:4px">ENEVO GROUP — All Timesheets</h2><p style="text-align:center;font-size:12px;color:#64748b;font-family:sans-serif;margin-bottom:24px">${MONTHS_[month]} ${year} · Generated ${now} · ${engineers.length} engineers</p>`;
+                              engineers.forEach((eng,i)=>{
+                                const we=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date));
+                                const le=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave");
+                                const totalW=we.reduce((s,e)=>s+e.hours,0);
+                                const rows=we.map(e=>{const p=projects.find(x=>x.id===e.project_id);return`<tr><td style="font-family:monospace">${e.date}</td><td style="color:#0ea5e9">${e.project_id||""}</td><td>${p?.name||""}</td><td>${e.task_type||""}</td><td style="font-style:italic;color:#64748b">${e.activity||""}</td><td style="font-family:monospace;font-weight:700;color:#0ea5e9">${e.hours}h</td></tr>`;}).join("");
+                                body+=`<div style="page-break-before:${i===0?"avoid":"always"};margin-bottom:24px"><div style="background:#1e3a5f;color:#fff;padding:10px 16px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between"><div><div style="font-size:16px;font-weight:700">${eng.name}</div><div style="font-size:11px;color:#93c5fd">${eng.role||""} · ${MONTHS_[month]} ${year}</div></div><div style="font-size:22px;font-weight:800;color:#38bdf8">${totalW}h</div></div><table style="width:100%;border-collapse:collapse;font-size:12px;font-family:sans-serif;border:1px solid #e2e8f0;border-top:none"><thead><tr style="background:#f1f5f9"><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">DATE</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJ ID</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJECT</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">TASK</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">ACTIVITY</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">HRS</th></tr></thead><tbody>${rows||`<tr><td colspan="6" style="padding:12px;text-align:center;color:#94a3b8">No entries for ${MONTHS_[month]} ${year}</td></tr>`}</tbody><tfoot><tr style="background:#f8fafc"><td colspan="5" style="padding:6px 8px;font-weight:700;font-size:12px">Total · ${le.length} leave day${le.length!==1?"s":""}</td><td style="padding:6px 8px;font-family:monospace;font-weight:700;color:#0ea5e9">${totalW}h</td></tr></tfoot></table></div>`;
+                              });
+                              const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>All Timesheets — ${MONTHS_[month]} ${year}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;color:#1e293b;padding:20px}@media print{body{padding:0}@page{margin:14mm}tr{page-break-inside:avoid}}</style></head><body>${body}<div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP · ${now}</div></body></html>`;
+                              const w=window.open("","pdf_merged_"+Date.now());
+                              if(w){w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),600);}
+                              else showToast("Allow popups to export",false);
+                            } else {
+                              const eng=engineers.find(e=>e.id===rptEngId);
+                              if(eng) buildTimesheetPDF(eng,monthEntries,projects,month,year);
+                            }
+                          }}>⬇ {!rptEngId?"All — Merged PDF":"Export PDF"}</button>
+                        </div>
+                        <div style={{padding:"16px 20px"}}>
+                          <select value={rptEngId||"ALL"} onChange={e=>setRptEngId(e.target.value==="ALL"?null:+e.target.value)}
+                            style={{marginBottom:14,width:"100%",maxWidth:340}}>
+                            <option value="ALL">📋 All Engineers (merged PDF)</option>
+                            {engineers.map(e=><option key={e.id} value={e.id}>{e.name} · {e.role}</option>)}
+                          </select>
+                          {!rptEngId&&(
+                            <table>
+                              <thead><tr><th>Engineer</th><th>Role</th><th style={{textAlign:"right"}}>Work Hrs</th><th style={{textAlign:"right"}}>Projects</th><th style={{textAlign:"right"}}>Leave</th><th></th></tr></thead>
+                              <tbody>{engineers.map(eng=>{
+                                const ee=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id));
+                                const wh=ee.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
+                                const ld=ee.filter(e=>e.entry_type==="leave").length;
+                                const prjs=[...new Set(ee.filter(e=>e.entry_type==="work").map(e=>e.project_id))].length;
+                                return<tr key={eng.id}>
+                                  <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="av" style={{width:28,height:28,fontSize:12}}>{eng.name?.slice(0,2).toUpperCase()}</div><div><div style={{fontWeight:600}}>{eng.name}</div><div style={{fontSize:12,color:"var(--text4)"}}>{eng.role}</div></div></div></td>
+                                  <td style={{color:"var(--text3)"}}>{eng.level}</td>
+                                  <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{wh}h</td>
+                                  <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace"}}>{prjs}</td>
+                                  <td style={{textAlign:"right",color:ld>0?"#fb923c":"var(--text4)"}}>{ld}d</td>
+                                  <td><button className="be" onClick={()=>buildTimesheetPDF(eng,monthEntries,projects,month,year)}>⬇ PDF</button></td>
+                                </tr>;
+                              })}</tbody>
+                            </table>
+                          )}
+                          {rptEngId&&(()=>{
+                            const eng=engineers.find(e=>e.id===rptEngId);
+                            const engEntries=monthEntries.filter(e=>e.engineer_id===rptEngId);
+                            const wh=engEntries.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
+                            const ld=engEntries.filter(e=>e.entry_type==="leave").length;
+                            const projs=[...new Set(engEntries.filter(e=>e.entry_type==="work").map(e=>e.project_id))];
+                            return(
+                              <div>
+                                <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14,background:"var(--bg2)",borderRadius:10,padding:"14px 16px"}}>
+                                  <div className="av" style={{width:44,height:44,fontSize:15}}>{eng?.name?.slice(0,2).toUpperCase()}</div>
+                                  <div style={{flex:1}}>
+                                    <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{eng?.name}</div>
+                                    <div style={{fontSize:13,color:"var(--text3)"}}>{eng?.role} · {eng?.level}</div>
+                                  </div>
+                                  <div style={{display:"flex",gap:20}}>
+                                    {[{l:"Work Hrs",v:wh+"h",c:"var(--info)"},{l:"Leave",v:ld+"d",c:"#fb923c"},{l:"Projects",v:projs.length,c:"#a78bfa"}].map((s,i)=>(
+                                      <div key={i} style={{textAlign:"center"}}>
+                                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div>
+                                        <div style={{fontSize:12,color:"var(--text4)"}}>{s.l}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <table>
+                                  <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th style={{textAlign:"right"}}>Hrs</th></tr></thead>
+                                  <tbody>{engEntries.filter(e=>e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date)).map(e=>{
+                                    const proj=projects.find(p=>p.id===e.project_id);
+                                    return<tr key={e.id}>
+                                      <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.date}</td>
+                                      <td style={{color:"var(--info)",fontWeight:600}}>{proj?.name||proj?.id}</td>
+                                      <td style={{color:"var(--text2)"}}>{e.task_type}</td>
+                                      <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                                      <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
+                                    </tr>;})}
+                                  </tbody>
+                                </table>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Team Utilization ── */}
+                  {activeRpt==="utilization"&&(
+                    <div className="card" style={{padding:0,overflow:"hidden"}}>
+                      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>◉ Team Utilization</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · {engStats.length} engineers</div>
+                        </div>
+                        <button className="bp" onClick={buildUtilizationPDF}>⬇ Export PDF</button>
+                      </div>
+                      <table>
+                        <thead><tr><th>Engineer</th><th>Level</th><th style={{textAlign:"right"}}>Target</th><th style={{textAlign:"right"}}>Work</th><th style={{textAlign:"right"}}>Billable</th><th style={{textAlign:"right"}}>Leave</th><th>Utilization</th><th>Billability</th>{(isAdmin||isAcct)&&<th style={{textAlign:"right"}}>Revenue</th>}</tr></thead>
+                        <tbody>{engStats.map(e=>(
+                          <tr key={e.id}>
+                            <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="av" style={{width:30,height:30,fontSize:12}}>{e.name?.slice(0,2).toUpperCase()}</div><div><div style={{fontWeight:600}}>{e.name}</div><div style={{fontSize:12,color:"var(--text4)"}}>{e.role}</div></div></div></td>
+                            <td><span style={{fontSize:12,padding:"2px 7px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{e.level}</span></td>
+                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--text3)"}}>{e.targetHrs}h</td>
+                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{e.workHrs}h</td>
+                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.billableHrs}h</td>
+                            <td style={{textAlign:"right",color:e.leaveDays>0?"#fb923c":"var(--text4)"}}>{e.leaveDays}d</td>
+                            <td style={{minWidth:140}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <div style={{flex:1,background:"var(--bg3)",height:7,borderRadius:4,overflow:"hidden"}}>
+                                  <div style={{height:"100%",width:`${Math.min(100,e.utilization)}%`,borderRadius:4,background:e.utilization>=80?"linear-gradient(90deg,#34d399,#10b981)":e.utilization>=60?"linear-gradient(90deg,#fb923c,#f59e0b)":"linear-gradient(90deg,#f87171,#ef4444)"}}/>
+                                </div>
+                                <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,minWidth:38,color:e.utilization>=80?"#34d399":e.utilization>=60?"#fb923c":"#f87171"}}>{fmtPct(e.utilization)}</span>
+                              </div>
+                            </td>
+                            <td style={{minWidth:130}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <div style={{flex:1,background:"var(--bg3)",height:7,borderRadius:4,overflow:"hidden"}}>
+                                  <div style={{height:"100%",width:`${Math.min(100,e.billability)}%`,background:"linear-gradient(90deg,#a78bfa,#7c3aed)",borderRadius:4}}/>
+                                </div>
+                                <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,minWidth:38,color:"#a78bfa"}}>{fmtPct(e.billability)}</span>
+                              </div>
+                            </td>
+                            {(isAdmin||isAcct)&&<td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:600}}>{fmtCurrency(e.revenue)}</td>}
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* ── Task Analysis ── */}
+                  {activeRpt==="task"&&(()=>{
+                    const GC={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+                    return(
+                    <div className="card" style={{padding:0,overflow:"hidden"}}>
+                      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>⊟ Task Analysis</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · {totalWorkHrs}h work logged</div>
+                        </div>
+                        <button className="bp" onClick={buildTaskPDF}>⬇ Export PDF</button>
+                      </div>
+                      <div style={{padding:"20px"}}>
+                        {taskStats.length===0&&<p style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:24}}>No work hours logged for this period.</p>}
+                        {taskStats.map(grp=>{
+                          const pct=totalWorkHrs?Math.round(grp.hours/totalWorkHrs*100):0;
+                          const gc=GC[grp.category]||"var(--info)";
+                          return(
+                          <div key={grp.category} style={{marginBottom:20,paddingBottom:20,borderBottom:"1px solid var(--border)"}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                <div style={{width:12,height:12,borderRadius:3,background:gc,flexShrink:0}}/>
+                                <span style={{fontWeight:700,fontSize:16,color:gc}}>{grp.category}</span>
+                              </div>
+                              <div style={{display:"flex",gap:16,fontSize:13,alignItems:"center"}}>
+                                <span style={{fontFamily:"'IBM Plex Mono',monospace",color:gc,fontWeight:700,fontSize:15}}>{grp.hours}h</span>
+                                <span style={{color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{pct}%</span>
+                                <span style={{color:"#34d399",fontWeight:600}}>{grp.hours?Math.round(grp.billable/grp.hours*100):0}% billable</span>
+                              </div>
+                            </div>
+                            <div style={{background:"var(--bg3)",height:8,borderRadius:4,overflow:"hidden",marginBottom:12}}>
+                              <div style={{height:"100%",width:`${pct}%`,background:gc,borderRadius:4,transition:"width .4s"}}/>
+                            </div>
+                            <div style={{display:"grid",gap:6}}>
+                              {Object.entries(grp.tasks).sort((a,b)=>b[1].hrs-a[1].hrs).map(([cat,catData])=>{
+                                const catPct=grp.hours?Math.round(catData.hrs/grp.hours*100):0;
+                                const topActs=Object.entries(catData.activities||{}).sort((a,b)=>b[1]-a[1]).slice(0,4);
+                                return(
+                                <div key={cat} style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px"}}>
+                                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:topActs.length?6:0}}>
+                                    <span style={{fontSize:14,fontWeight:600,color:"var(--text1)"}}>{cat}</span>
+                                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                                      <div style={{background:"var(--bg3)",height:6,borderRadius:3,width:60,overflow:"hidden"}}>
+                                        <div style={{height:"100%",width:`${catPct}%`,background:gc+"80",borderRadius:3}}/>
+                                      </div>
+                                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,color:gc,fontWeight:700}}>{catData.hrs}h</span>
+                                      <span style={{fontSize:13,color:"var(--text4)"}}>{catPct}%</span>
+                                    </div>
+                                  </div>
+                                  {topActs.length>0&&(
+                                    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                                      {topActs.map(([act,hrs])=>(
+                                        <span key={act} style={{background:"var(--bg0)",border:"1px solid var(--border)",borderRadius:5,padding:"3px 8px",fontSize:12,color:"var(--text3)"}}>
+                                          {act.length>30?act.slice(0,28)+"…":act}
+                                          <span style={{color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace",marginLeft:5,fontWeight:700}}>{hrs}h</span>
+                                        </span>
+                                      ))}
+                                      {Object.keys(catData.activities||{}).length>4&&<span style={{fontSize:12,color:"var(--text4)",padding:"3px 4px"}}>+{Object.keys(catData.activities).length-4} more</span>}
+                                    </div>
+                                  )}
+                                </div>);
+                              })}
+                            </div>
+                          </div>
+                        );})}
+                      </div>
+                    </div>);
+                  })()}
+
+                  {/* ── Project Tasks Analysis ── */}
+                  {activeRpt==="projtasks"&&(
+                    <div>
+                      <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
+                        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>◈ Project Analysis</div>
+                          <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year}</div>
+                        </div>
+                      </div>
+                      <ProjectTasksReport allEntries={entries} projects={projects} engineers={engineers} MONTHS={MONTHS} fmtCurrency={fmtCurrency} fmtPct={fmtPct} isAdmin={isAdmin} isAcct={isAcct}/>
+                    </div>
+                  )}
+
+                  {/* ── Tracker Progress ── */}
+                  {activeRpt==="tracker"&&(
+                    <div>
+                      <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
+                        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>📊 Tracker Progress Report</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Activity status, progress and phases by project</div>
+                        </div>
+                      </div>
+                      <TrackerProgressReport activities={activities} projects={projects} subprojects={subprojects} engineers={engineers}/>
+                    </div>
+                  )}
+
+                  {/* ── Assignment ── */}
+                  {activeRpt==="assignment"&&(
+                    <div>
+                      <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
+                        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>👥 Assignment Report</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · Who is working on what</div>
+                        </div>
+                      </div>
+                      <AssignmentReport entries={entries} projects={projects} engineers={engineers} month={month} year={year}/>
+                    </div>
+                  )}
+
+                  {/* ── Vacation ── */}
+                  {activeRpt==="vacation"&&<VacationReport
+                    engineers={engineers} leaveEntries={leaveEntries} allEntries={entries}
+                    month={month} year={year} MONTHS={MONTHS}
+                    isAdmin={isAdmin}
+                    vacationBalances={vacationBalances}
+                    setVacBalance={setVacBalance}
+                    showToast={showToast}
+                    onExport={()=>buildVacationPDF(engineers,entries,leaveEntries,projects,month,year)}
+                  />}
+
+                  {/* ── Monthly Management ── */}
+                  {activeRpt==="monthly"&&(
+                    <div className="card" style={{padding:0,overflow:"hidden"}}>
+                      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>⊞ Monthly Management Report</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Full executive summary — {MONTHS[month]} {year}</div>
+                        </div>
+                        <button className="bp" onClick={buildMonthlyPDF}>⬇ Export PDF</button>
+                      </div>
+                      <div style={{padding:"32px 20px",textAlign:"center"}}>
+                        <div style={{fontSize:48,marginBottom:12}}>📊</div>
+                        <div style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:6}}>Ready to generate</div>
+                        <div style={{fontSize:14,color:"var(--text3)",marginBottom:24,maxWidth:400,margin:"0 auto 24px"}}>Includes team utilization, billability, revenue, project breakdown, and engineer summary for {MONTHS[month]} {year}.</div>
+                        <button className="bp" style={{fontSize:15,padding:"10px 28px"}} onClick={buildMonthlyPDF}>⬇ Export PDF</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Invoice ── */}
+                  {activeRpt==="invoice"&&canInvoice&&(()=>{
+                    const allWithHours=projStats.filter(p=>p.hours>0);
+                    const filteredProjs=invoiceProjId==="ALL"?allWithHours:allWithHours.filter(p=>p.id===invoiceProjId);
+                    const invTotal=filteredProjs.filter(p=>p.billable).reduce((s,p)=>s+p.revenue,0);
+                    const invHrs=filteredProjs.filter(p=>p.billable).reduce((s,p)=>s+p.hours,0);
+                    return(
+                    <div style={{display:"grid",gap:14}}>
+                      <div className="card" style={{padding:0,overflow:"hidden"}}>
+                        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div>
+                            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>🧾 Invoice Export</div>
+                            <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · Billable projects only</div>
+                          </div>
+                          <div style={{display:"flex",gap:8}}>
+                            <select value={invoiceProjId} onChange={e=>setInvoiceProjId(e.target.value)} style={{width:200}}>
+                              <option value="ALL">All Billable Projects</option>
+                              {allWithHours.filter(p=>p.billable).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        {allWithHours.some(p=>!p.billable)&&(
+                          <div style={{padding:"10px 20px",background:"#1a0f00",borderBottom:"1px solid #fb923c30",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                            <span style={{fontSize:13,color:"#fb923c"}}>⚠ Some projects have hours but are not marked billable</span>
+                            <button className="bg" style={{fontSize:12,borderColor:"#fb923c50",color:"#fb923c",flexShrink:0,padding:"4px 10px"}}
+                              onClick={async()=>{
+                                const toMark=allWithHours.filter(p=>!p.billable);
+                                for(const p of toMark){
+                                  await supabase.from("projects").update({billable:true}).eq("id",p.id);
+                                  setProjects(prev=>prev.map(pr=>pr.id===p.id?{...pr,billable:true}:pr));
+                                }
+                                showToast(`${toMark.length} projects marked billable ✓`);
+                              }}>Mark all billable</button>
+                          </div>
+                        )}
+                        <div style={{padding:"16px 20px"}}>
+                          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
+                            {[
+                              {l:"Billable Hours",v:invHrs+"h",c:"var(--info)"},
+                              {l:"Total Revenue",v:fmtCurrency(invTotal),c:"#a78bfa"},
+                              {l:"Projects",v:filteredProjs.filter(p=>p.billable).length,c:"#34d399"},
+                            ].map((s,i)=>(
+                              <div key={i} style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",borderTop:`3px solid ${s.c}`}}>
+                                <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>{s.l}</div>
+                                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:24,fontWeight:800,color:s.c}}>{s.v}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <table>
+                            <thead><tr><th>Project</th><th>No.</th><th style={{textAlign:"right"}}>Hours</th><th style={{textAlign:"right"}}>Rate</th><th style={{textAlign:"right"}}>Revenue</th><th style={{textAlign:"right"}}>Type</th><th></th></tr></thead>
+                            <tbody>{filteredProjs.map(p=>(
+                              <tr key={p.id}>
+                                <td style={{fontWeight:600}}>{p.name||p.id}</td>
+                                <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{p.id}</td>
+                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{p.hours}h</td>
+                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--text3)"}}>{p.billable?`$${p.rate_per_hour}/h`:"—"}</td>
+                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:700}}>{p.billable?fmtCurrency(p.revenue):"—"}</td>
+                                <td style={{textAlign:"right"}}><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:p.billable?"#05603a30":"#1a0a00",color:p.billable?"#34d399":"#fb923c",fontWeight:700}}>{p.billable?"BILL":"NON"}</span></td>
+                                <td><button className="be" style={{fontSize:12,whiteSpace:"nowrap"}} onClick={()=>{const eng=engineers[0];if(eng)buildTimesheetPDF(eng,monthEntries,projects,month,year);}}>⬇ PDF</button></td>
+                              </tr>
+                            ))}</tbody>
+                            {filteredProjs.filter(p=>p.billable).length>0&&(
+                              <tfoot><tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)"}}>
+                                <td colSpan={2} style={{fontWeight:700,color:"var(--text0)"}}>BILLABLE TOTAL</td>
+                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{invHrs}h</td>
+                                <td></td>
+                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa",fontSize:15}}>{fmtCurrency(invTotal)}</td>
+                                <td colSpan={2}></td>
+                              </tr></tfoot>
+                            )}
+                          </table>
+                        </div>
+                      </div>
+                    </div>);
+                  })()}
+
+                </div>{/* end right panel */}
+              </div>{/* end two-panel grid */}
             </div>
           )}
-
           {/* ════ ADMIN / LEAD PANEL ════ */}
           {view==="admin"&&(
             <div>
