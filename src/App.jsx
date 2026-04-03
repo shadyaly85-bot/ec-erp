@@ -5658,55 +5658,70 @@ const projProfit=projects.map(p=>{
   const MONTHS_ = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
   return(
-<div style={{padding:"16px 0"}}>
+<div style={{display:"grid",gap:20,padding:"4px 0"}}>
 
-  {/* ── Finance sub-tabs ── */}
-  <div style={{display:"flex",gap:4,marginBottom:16,background:"var(--bg2)",borderRadius:8,padding:4,width:"fit-content",flexWrap:"wrap"}}>
+  {/* ── Page header ── */}
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
+    <div>
+      <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>FINANCE & ACCOUNTING</div>
+      <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Finance Panel</h1>
+      <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
+        {isAdmin?"Full accounting access · journal, payroll, P&L":"Read-only · all figures from posted journal entries"}
+      </p>
+    </div>
+    {/* EGP rate + month/year controls — always visible */}
+    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+      <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:6}}>
+        <span style={{fontSize:12,color:"var(--text4)",whiteSpace:"nowrap"}}>EGP / $</span>
+        <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value))}
+          title="Used for EGP salary → USD conversion only"
+          style={{width:64,background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"right",outline:"none"}}/>
+      </div>
+      <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:6}}>
+        <select value={finMonth} onChange={e=>setFinMonth(+e.target.value)}
+          style={{background:"transparent",border:"none",color:"var(--text0)",fontSize:14,fontWeight:600,outline:"none",cursor:"pointer"}}>
+          {MONTHS_.map((m,i)=><option key={i} value={i}>{m}</option>)}
+        </select>
+        <select value={finYear} onChange={e=>setFinYear(+e.target.value)}
+          style={{background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,outline:"none",cursor:"pointer"}}>
+          {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+        </select>
+      </div>
+      {(finSubTab==="pl"||finSubTab==="salaries")&&(
+        <button className="bp" style={{padding:"8px 16px",fontSize:14}} onClick={()=>{
+          buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
+          logAction("EXPORT","Finance",`Exported Finance PDF — ${MONTHS_[finMonth]} ${finYear}`,{month:finMonth,year:finYear,tab:finSubTab});
+        }}>⬇ Export PDF</button>
+      )}
+    </div>
+  </div>
+
+  {/* ── Sub-tab navigation ── */}
+  <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",flexWrap:"wrap"}}>
     {[
-      {id:"journal",  label:"📒 Journal"},
-      {id:"balance",  label:"⚖ Balance Sheet"},
-      {id:"expenses", label:"🧾 Expenses"},
-      {id:"custody",  label:"💵 Cash Custody"},
-      {id:"assets",   label:"🏗 Fixed Assets"},
-      {id:"tax",      label:"🧾 Tax & Social"},
-      {id:"reports",  label:"📋 Reports"},
-      {id:"workflow", label:"📖 Workflow Guide"},
-      {id:"pl",       label:"📈 P&L Operations"},
-      {id:"salaries", label:"👤 Salaries"},
-    ].map(t=>(
-      <button key={t.id} className={`atab ${finSubTab===t.id?"a":""}`} onClick={()=>setFinSubTab(t.id)}>{t.label}</button>
-    ))}
+      {id:"journal",  label:"📒 Journal",     group:"Ledger"},
+      {id:"balance",  label:"⚖ Balance Sheet",group:"Ledger"},
+      {id:"expenses", label:"🧾 Expenses",     group:"Ledger"},
+      {id:"custody",  label:"💵 Cash Custody", group:"Ledger"},
+      {id:"pl",       label:"📈 P&L",          group:"Analysis"},
+      {id:"salaries", label:"👤 Payroll",       group:"Analysis"},
+      {id:"assets",   label:"🏗 Fixed Assets",  group:"Analysis"},
+      {id:"tax",      label:"📊 Tax & Social",  group:"Analysis"},
+      {id:"reports",  label:"📋 Reports",       group:"Output"},
+      {id:"workflow", label:"📖 Guide",         group:"Output"},
+    ].map(t=>{
+      const active=finSubTab===t.id;
+      return(
+        <button key={t.id} onClick={()=>setFinSubTab(t.id)}
+          style={{padding:"8px 14px",borderRadius:7,border:"none",cursor:"pointer",fontSize:14,fontWeight:active?700:500,
+            fontFamily:"'IBM Plex Sans',sans-serif",transition:"all .15s",
+            background:active?"linear-gradient(135deg,#0ea5e9,#0369a1)":"transparent",
+            color:active?"#fff":"var(--text2)"}}>
+          {t.label}
+        </button>
+      );
+    })}
   </div>
-
-  {/* EGP rate + PDF — only for P&L / Salaries tabs */}
-  {(finSubTab==="pl"||finSubTab==="salaries")&&(
-  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
-    <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,padding:"6px 12px",display:"flex",alignItems:"center",gap:8}}>
-      <span style={{fontSize:13,color:"var(--text4)"}}>EGP/$ rate (salaries only)</span>
-      <input title="Used for EGP salary → USD conversion only. Journal expenses use their own per-entry rate."
-        type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value))}
-        style={{width:70,background:"transparent",border:"none",color:"var(--text0)",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",textAlign:"right"}}/>
-    </div>
-    <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,padding:"6px 12px",display:"flex",alignItems:"center",gap:8}}>
-      <select value={finMonth} onChange={e=>setFinMonth(+e.target.value)}
-        style={{background:"transparent",border:"none",color:"var(--text0)",fontSize:13}}>
-        {MONTHS_.map((m,i)=><option key={i} value={i}>{m}</option>)}
-      </select>
-      <select value={finYear} onChange={e=>setFinYear(+e.target.value)}
-        style={{background:"transparent",border:"none",color:"var(--text0)",fontSize:13}}>
-        {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
-      </select>
-    </div>
-    <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
-      if(finSubTab==="pl"||finSubTab==="salaries"){
-        buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
-      } else {
-        buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
-      }
-      logAction("EXPORT","Finance",`Exported Finance PDF — ${MONTHS_[finMonth]} ${finYear}`,{month:finMonth,year:finYear,tab:finSubTab});
-    }}>⬇ Export PDF</button>
-  </div>
-  )}
 
   {/* ── JOURNAL TAB ── */}
   {finSubTab==="journal"&&(
@@ -5768,7 +5783,8 @@ const projProfit=projects.map(p=>{
   {/* ── BALANCE SHEET TAB ── */}
   {finSubTab==="balance"&&(
     <div>
-      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
+        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>⚖ Balance Sheet</div>
         <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
           // Build Balance Sheet PDF from journal entries
           const bsE=journalEntries.filter(e=>e.statement_type==="Balance Sheet");
@@ -5799,7 +5815,8 @@ const projProfit=projects.map(p=>{
   {/* ── EXPENSES TAB ── */}
   {finSubTab==="expenses"&&(
     <div>
-      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
+        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>🧾 Expenses</div>
         <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
           const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
           const plE=journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet"&&+e.debit>0);
@@ -5828,7 +5845,8 @@ const projProfit=projects.map(p=>{
   {/* ── CASH CUSTODY TAB ── */}
   {finSubTab==="custody"&&(
     <div>
-      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
+        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>💵 Cash Custody</div>
         <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
           const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
           const custMap={};
@@ -5923,24 +5941,26 @@ const projProfit=projects.map(p=>{
     const adminCosts = expByCategory["Administrative expenses"]?.total||0;
 
     return(
-    <div style={{display:"grid",gap:14}}>
+    <div style={{display:"grid",gap:16}}>
 
-      {/* ── TOP: EGP P&L from journal — authoritative ── */}
-      <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,padding:"8px 14px",fontSize:13,color:"var(--text3)"}}>
-        📒 <strong style={{color:"var(--text1)"}}>Journal-based P&L</strong> — figures sourced directly from posted journal entries (EGP). This is the official accounting view.
+      {/* ── Info banner ── */}
+      <div style={{background:"var(--bg1)",border:"1px solid #38bdf830",borderRadius:10,padding:"10px 16px",fontSize:13,color:"var(--text3)",display:"flex",alignItems:"center",gap:10}}>
+        📒 <span><strong style={{color:"var(--text1)"}}>Journal-based P&L</strong> — All figures sourced directly from posted journal entries (EGP). This is the official accounting view for {MONTHS_[finMonth]} {finYear}.</span>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+      {/* ── Hero metrics ── */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
         {[
-          {l:"Revenue (EGP)",       v:fmtEGP(jRevenue),         c:"#34d399"},
-          {l:"Operating Costs",     v:fmtEGP(opCosts),           c:"#f87171"},
-          {l:"Administrative",      v:fmtEGP(adminCosts),        c:"#fb923c"},
-          {l:"Total Expenses",      v:fmtEGP(jTotalExp),         c:"#f87171"},
-          {l:"Net P&L (EGP)",       v:fmtEGP(jNetPL),            c:netColor},
+          {l:"Revenue",          v:fmtEGP(jRevenue),   c:"#34d399",  sub:"From journal credits"},
+          {l:"Operating Costs",  v:fmtEGP(opCosts),    c:"#fb923c",  sub:"Operations & direct"},
+          {l:"Admin Expenses",   v:fmtEGP(adminCosts), c:"#f59e0b",  sub:"Administrative"},
+          {l:"Total Expenses",   v:fmtEGP(jTotalExp),  c:"#f87171",  sub:"All debit entries"},
+          {l:"Net P&L",          v:fmtEGP(jNetPL),     c:netColor,   sub:jNetPL>=0?"Profitable":"Loss"},
         ].map((k,i)=>(
-          <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:k.c}}>{k.v}</div>
-            <div style={{fontSize:12,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginTop:4}}>{k.l}</div>
+          <div key={i} style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,padding:"18px 16px",borderTop:`3px solid ${k.c}`}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:10}}>{k.l}</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:800,color:k.c,lineHeight:1.1,marginBottom:6,wordBreak:"break-all"}}>{k.v}</div>
+            <div style={{fontSize:12,color:"var(--text4)"}}>{k.sub}</div>
           </div>
         ))}
       </div>
@@ -5956,10 +5976,13 @@ const projProfit=projects.map(p=>{
         </div>
       )}
 
-      {/* Expense breakdown */}
+      {/* ── Expense breakdown ── */}
       <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"#f8711815",borderBottom:"2px solid #f87171",padding:"10px 16px",fontSize:13,fontWeight:700,color:"#f87171"}}>EXPENSE BREAKDOWN (Journal)</div>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Expense Breakdown</div>
+          <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{fmtEGP(jTotalExp)} total</div>
+        </div>
+        <table>
           <thead><tr style={{background:"var(--bg2)"}}>
             <th style={{padding:"7px 14px",textAlign:"left",color:"var(--text3)",fontSize:13}}>Category</th>
             <th style={{padding:"7px 14px",textAlign:"left",color:"var(--text3)",fontSize:13}}>Account</th>
@@ -6139,19 +6162,20 @@ const projProfit=projects.map(p=>{
     const reconcileOK = Math.abs(reconcileDiff) < 100;
 
     return(
-    <div style={{display:"grid",gap:14}}>
+    <div style={{display:"grid",gap:16}}>
 
-      {/* KPI strip */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+      {/* ── Hero metrics ── */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
         {[
-          {l:"Active Staff",        v:activeSt.length,                              c:"var(--info)"},
-          {l:"Total EGP Salary",    v:fmtEGP(totalEGP),                             c:"#fb923c"},
-          {l:"Total USD Salary",    v:totalUSD>0?`$${totalUSD.toLocaleString("en-US",{minimumFractionDigits:2})}`:"—", c:"#38bdf8"},
-          {l:"Journal vs Staff",    v:reconcileOK?"✓ Match":`Δ ${fmtEGP(Math.abs(reconcileDiff))}`, c:reconcileOK?"#34d399":"#f87171"},
+          {l:"Active Staff",      v:activeSt.length,                                                               c:"var(--info)",   sub:"Current headcount"},
+          {l:"Total EGP Payroll", v:fmtEGP(totalEGP),                                                             c:"#fb923c",       sub:"Monthly gross"},
+          {l:"Total USD Payroll", v:totalUSD>0?`$${totalUSD.toLocaleString("en-US",{minimumFractionDigits:2})}`:"—",c:"#38bdf8",    sub:"Monthly USD"},
+          {l:"Journal vs Staff",  v:reconcileOK?"✓ Match":`Δ ${fmtEGP(Math.abs(reconcileDiff))}`,                c:reconcileOK?"#34d399":"#f87171",sub:reconcileOK?"Last accrual matches":"Check journal"},
         ].map((k,i)=>(
-          <div key={i} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:k.c}}>{k.v}</div>
-            <div style={{fontSize:12,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginTop:4}}>{k.l}</div>
+          <div key={i} style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,padding:"18px 16px",borderTop:`3px solid ${k.c}`}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:10}}>{k.l}</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:800,color:k.c,lineHeight:1.1,marginBottom:6,wordBreak:"break-all"}}>{k.v}</div>
+            <div style={{fontSize:12,color:"var(--text4)"}}>{k.sub}</div>
           </div>
         ))}
       </div>
@@ -6166,8 +6190,9 @@ const projProfit=projects.map(p=>{
       {/* Monthly accrual history */}
       {accrualByMonth.length>0&&(
         <div className="card" style={{padding:0,overflow:"hidden"}}>
-          <div style={{background:"#a78bfa15",borderBottom:"2px solid #a78bfa",padding:"10px 16px",fontSize:13,fontWeight:700,color:"#a78bfa"}}>
-            MONTHLY PAYROLL ACCRUALS (from journal)
+          <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Monthly Payroll Accruals</div>
+            <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>From journal · {accrualByMonth.length} month{accrualByMonth.length!==1?"s":""}</div>
           </div>
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
@@ -6207,13 +6232,16 @@ const projProfit=projects.map(p=>{
         </div>
       )}
 
-      {/* Dept breakdown from staff table */}
+      {/* Staff salary table */}
       <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"var(--bg2)",borderBottom:"2px solid var(--border)",padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-          <span style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>STAFF TABLE — Current Salaries</span>
+        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Staff Table — Current Salaries</div>
+            <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{activeSt.length} active staff members</div>
+          </div>
           <input value={staffSearch} onChange={e=>setStaffSearch(e.target.value)}
             placeholder="🔍 Search name, dept, role…"
-            style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,width:220}}/>
+            style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:7,padding:"7px 12px",color:"var(--text0)",fontSize:14,width:230,outline:"none"}}/>
         </div>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{background:"var(--bg2)"}}>
