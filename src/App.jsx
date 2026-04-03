@@ -6496,9 +6496,15 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   const selKPI=effectiveEngId?engKPIs.find(k=>String(k.eng.id)===String(effectiveEngId)):null;
 
   // Pending vacation requests
-  const pendingVacations=useMemo(()=>
-    entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL"),
-  [entries]);
+  const pendingVacations=useMemo(()=>{
+    // Scope to engineers visible to this user (lead sees only their subtree via props)
+    const scopedEngIds=new Set(engineers.map(e=>String(e.id)));
+    return entries.filter(e=>
+      e.entry_type==="leave" &&
+      e.activity==="PENDING_APPROVAL" &&
+      scopedEngIds.has(String(e.engineer_id))
+    );
+  },[entries,engineers]);
 
   const alertNotifs=(notifications||[]).filter(n=>n.type==="timesheet_alert"&&!n.read);
   const overdueNotif=(notifications||[]).find(n=>n.type==="overdue_alert");
@@ -7420,10 +7426,16 @@ export default function App(){
 
   const unreadCount=useMemo(()=>{
     const notifCount=notifications.length;
-    // Also count pending vacation entries that haven't been notified yet
-    const pendingVacCount=isAdmin?entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL").length:0;
+    // Pending vacation count: admin sees all, lead sees only their subtree
+    const pendingVacCount=(isAdmin||isLead)
+      ? entries.filter(e=>
+          e.entry_type==="leave" &&
+          e.activity==="PENDING_APPROVAL" &&
+          (!mySubEngIds||mySubEngIds.has(String(e.engineer_id)))
+        ).length
+      : 0;
     return Math.max(notifCount, pendingVacCount);
-  },[notifications,entries,isAdmin]);
+  },[notifications,entries,isAdmin,isLead,mySubEngIds]);
 
   // Dismiss = permanently delete from DB so they never come back on refresh
   const dismissNotification=useCallback(async(id)=>{
@@ -8646,6 +8658,11 @@ export default function App(){
     return totalTarget?Math.min(100,Math.round(totalWorkHrs/totalTarget*100)):0;
   })();
 
+  // Lead-scoped engStats: leads see only their org subtree; admins/others see all
+  const visibleEngStats = useMemo(()=>
+    mySubEngIds ? engStats.filter(e=>mySubEngIds.has(String(e.id))) : engStats,
+  [mySubEngIds,engStats]);
+
   const projStats=useMemo(()=>projects.map(p=>{
     const pe=monthEntries.filter(e=>e.project_id===p.id&&e.entry_type==="work");
     const hrs=pe.reduce((s,e)=>s+e.hours,0);
@@ -9308,8 +9325,8 @@ export default function App(){
                       <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year}</div>
                     </div>
                     <div style={{padding:"16px 20px",display:"grid",gap:12}}>
-                      {engStats.length===0&&<p style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:16}}>No hours logged yet.</p>}
-                      {engStats.map(eng=>(
+                      {visibleEngStats.length===0&&<p style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:16}}>No hours logged yet.</p>}
+                      {visibleEngStats.map(eng=>(
                         <div key={eng.id}>
                           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
                             <div className="av" style={{width:30,height:30,fontSize:12,flexShrink:0}}>{eng.name?.slice(0,2).toUpperCase()}</div>
@@ -9330,7 +9347,7 @@ export default function App(){
                           </div>
                         </div>
                       ))}
-                      {(isAdmin||isAcct)&&engStats.length>0&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,textAlign:"right"}}>Hours · Utilization% · <span style={{color:"#a78bfa"}}>Billability%</span></div>}
+                      {(isAdmin||isAcct)&&visibleEngStats.length>0&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,textAlign:"right"}}>Hours · Utilization% · <span style={{color:"#a78bfa"}}>Billability%</span></div>}
                     </div>
                   </div>
 
@@ -9402,7 +9419,7 @@ export default function App(){
                   const in14Str=in14.toISOString().slice(0,10);
                   const upcoming=activities.filter(a=>a.end_date&&a.end_date>=todayStr&&a.end_date<=in14Str&&a.status!=="Completed").sort((a,b)=>a.end_date.localeCompare(b.end_date));
                   const overdue=activities.filter(a=>a.end_date&&a.end_date<todayStr&&a.status!=="Completed"&&a.status!=="On Hold").sort((a,b)=>a.end_date.localeCompare(b.end_date));
-                  const engWorkload=engStats.map(eng=>{const logged=eng.workHrs,target=eng.targetHrs||0,remaining=Math.max(0,target-logged),availPct=target>0?Math.round(remaining/target*100):0;return{...eng,logged,target,remaining,availPct};}).filter(e=>e.target>0).sort((a,b)=>b.availPct-a.availPct);
+                  const engWorkload=visibleEngStats.map(eng=>{const logged=eng.workHrs,target=eng.targetHrs||0,remaining=Math.max(0,target-logged),availPct=target>0?Math.round(remaining/target*100):0;return{...eng,logged,target,remaining,availPct};}).filter(e=>e.target>0).sort((a,b)=>b.availPct-a.availPct);
                   const fmtDl=d=>{const dt=new Date(d+"T12:00:00"),diff=Math.round((dt-new Date(todayStr+"T12:00:00"))/(864e5));return diff===0?{label:"Today",c:"#f87171"}:diff===1?{label:"Tomorrow",c:"#fb923c"}:diff<=7?{label:`In ${diff}d`,c:"#fb923c"}:{label:`In ${diff}d`,c:"var(--text3)"};};
                   const daysLeft=(()=>{let n=0,t=new Date(),e=new Date(year,month+1,0);while(t<=e){if(t.getDay()!==5&&t.getDay()!==6)n++;t.setDate(t.getDate()+1);}return n;})();
                   return(
@@ -9885,7 +9902,7 @@ export default function App(){
                 const totalNB=totalW-totalB;
                 const totalL=fLeave.length;
                 // Target hours based on filtered engineers — respects join/termination dates
-                const filtEngs=filterEngineer==="ALL"?engStats:engStats.filter(e=>e.id===+filterEngineer);
+                const filtEngs=filterEngineer==="ALL"?scopedEngStats:scopedEngStats.filter(e=>e.id===+filterEngineer);
                 const targetW=filtEngs.reduce((s,eng)=>s+(eng.targetHrs||0),0);
                 const util=targetW?Math.round(totalW/targetW*100):0;
                 const selProjName=filterProject!=="ALL"?projects.find(p=>p.id===filterProject)?.name:"";
@@ -10943,7 +10960,12 @@ export default function App(){
                     {/* ── Vacation Approval Requests — most prominent, actionable ── */}
                     {(()=>{
                       const vacNotifs=notifications.filter(n=>n.type==="vacation_request");
-                      const pendingVacs=entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL");
+                      // Leads only see their org subtree; admins see all
+                      const pendingVacs=entries.filter(e=>
+                        e.entry_type==="leave" &&
+                        e.activity==="PENDING_APPROVAL" &&
+                        (!mySubEngIds||mySubEngIds.has(String(e.engineer_id)))
+                      );
                       if(pendingVacs.length===0&&vacNotifs.length===0) return null;
                       return(
                         <div>
