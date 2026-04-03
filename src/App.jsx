@@ -5331,7 +5331,7 @@ function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, set
   setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
   deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior, isAcct,
   journalEntries, setJournalEntries, fixedAssets, journalLoading, assetsLoading,
-  finSubTab, setFinSubTab, accounts, showToast, logAction, supabase}){
+  finSubTab, setFinSubTab, accounts, showToast, logAction, supabase, showConfirm}){
 
   // staffSearch lives here (function scope) so it's not inside the salaries IIFE
   const [staffSearch, setStaffSearch] = React.useState("");
@@ -10138,7 +10138,8 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   journalEntries={journalEntries} setJournalEntries={setJournalEntries}
                   fixedAssets={fixedAssets} journalLoading={journalLoading}
                   assetsLoading={assetsLoading} finSubTab={finSubTab} setFinSubTab={setFinSubTab}
-                  accounts={accounts} showToast={showToast} logAction={logAction} supabase={supabase}/>
+                  accounts={accounts} showToast={showToast} logAction={logAction} supabase={supabase}
+                  showConfirm={showConfirm}/>
               )}
 
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
