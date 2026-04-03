@@ -9981,6 +9981,50 @@ export default function App(){
                   showToast("Moved ✓");
                 };
 
+                const exportOrgPDF = () => {
+                  const getKids = pid => orgNodes.filter(n=>Number(n.parent_id)===Number(pid)).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+                  const buildCard = node => {
+                    const eng = node.engineer_id ? engineers.find(e=>e.id===node.engineer_id) : null;
+                    const rc  = eng ? (ROLE_COLORS[eng.role_type]||"#1a5276") : "#1a5276";
+                    const ini = (node.name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+                    return `<div style="width:140px;background:${node.is_external?"#f0f4f8":"#eef4fb"};border:2px solid ${node.is_external?"#8aa":"#1a5276"};border-style:${node.is_external?"dashed":"solid"};border-radius:10px;padding:12px 8px 10px;text-align:center;display:inline-block;box-shadow:0 2px 6px #0002">
+                      <div style="width:40px;height:40px;border-radius:50%;background:${rc}22;border:2.5px solid ${rc};color:${rc};font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 7px">${ini}</div>
+                      <div style="font-size:13px;font-weight:800;color:#0b1f38;line-height:1.3;margin-bottom:3px">${node.name}</div>
+                      ${node.title?`<div style="font-size:11px;color:#2a4a6a;font-weight:600">${node.title}</div>`:""}
+                      ${eng?`<div style="font-size:10px;color:#4a6a8a;text-transform:uppercase;letter-spacing:.05em;margin-top:2px">${ROLE_LABELS[eng.role_type]||""}</div>`:""}
+                    </div>`;
+                  };
+                  const buildTable = (nodes, isRoot) => {
+                    if (!nodes.length) return "";
+                    const solo = nodes.length===1;
+                    return `<table style="border-collapse:separate;border-spacing:0;margin:0 auto"><tbody><tr>${
+                      nodes.map(n=>{
+                        const kids=getKids(n.id);
+                        return `<td style="padding:0 10px;vertical-align:top;text-align:center;${(!isRoot&&!solo)?"border-top:2px solid #1a5276;":""}">
+                          ${(!isRoot&&!solo)?`<div style="width:2px;height:16px;background:#1a5276;margin:0 auto"></div>`:""}
+                          ${buildCard(n)}
+                          ${kids.length?`<div style="width:2px;height:18px;background:#1a5276;margin:0 auto"></div>${buildTable(kids,false)}`:""}
+                        </td>`;
+                      }).join("")
+                    }</tr></tbody></table>`;
+                  };
+                  const rts = orgNodes.filter(n=>!n.parent_id).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+                  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+                    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;padding:24px;-webkit-print-color-adjust:exact}
+                    .hdr{display:flex;align-items:center;gap:14px;margin-bottom:28px;padding-bottom:14px;border-bottom:2px solid #0e2a4a}
+                    @media print{@page{margin:6mm;size:A4 landscape}body{zoom:0.65}}</style>
+                  </head><body>
+                  <div class="hdr"><img src="${LOGO_SRC}" style="width:44px;height:44px;border-radius:8px">
+                    <div><h1 style="font-size:18px;font-weight:800;color:#0b1f38">Organization Chart</h1>
+                    <p style="font-size:11px;color:#4a6a8a;text-transform:uppercase;letter-spacing:.06em;font-weight:600">ENEVO Group · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div>
+                  <div style="display:flex;justify-content:center">${buildTable(rts,true)}</div>
+                  <script>window.onload=()=>setTimeout(()=>window.print(),400)</script>
+                  </body></html>`;
+                  const w = window.open("","org_pdf_"+Date.now());
+                  if(w){w.document.write(html);w.document.close();}
+                  else showToast("Allow popups to export PDF",false);
+                };
+
                 // OrgCard — plain render function (NOT a React component) to avoid
                 // the "new component type each render" reconciliation bug
                 const renderOrgCard = (node) => {
