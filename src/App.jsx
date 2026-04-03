@@ -643,6 +643,25 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                   {isAdmin&&<button style={{background:"#ef4444",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:12,cursor:"pointer"}} onClick={()=>deleteProject(p.id)}>✕</button>}
                 </div>
               </div>
+              {/* Tracker completion bar */}
+              {(()=>{
+                const pActs=(activities||[]).filter(a=>a.project_id===p.id);
+                if(!pActs.length) return null;
+                const pct=Math.round(pActs.reduce((s,a)=>s+(a.progress||0),0)/pActs.length*100);
+                const done=pActs.filter(a=>a.status==="Completed").length;
+                const barColor=pct===100?"#34d399":pct>=60?"var(--info)":"#fb923c";
+                return(
+                  <div style={{marginBottom:10}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                      <span style={{fontSize:11,color:"var(--text4)"}}>Tracker Progress · {done}/{pActs.length} activities</span>
+                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:700,color:barColor}}>{pct}%</span>
+                    </div>
+                    <div style={{background:"var(--bg3)",height:5,borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${pct}%`,background:barColor,borderRadius:3,transition:"width .4s"}}/>
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,fontSize:13,marginBottom:10,color:"var(--text1)"}}>
                 {p.pm&&<div><span style={{color:"var(--text4)"}}>PM: </span><span style={{color:"#a78bfa",fontWeight:600}}>{p.pm}</span></div>}
                 {p.client&&<div><span style={{color:"var(--text4)"}}>Client: </span>{p.client}</div>}
@@ -1689,6 +1708,52 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
         }
       </div>
 
+      {/* ── ANNUAL LEAVE BALANCE TRACKER ── */}
+      {(()=>{
+        const ANNUAL_ALLOWANCE = 21; // configurable — Egyptian labor law standard
+        const annualOnly = allEntries.filter(e=>
+          e.entry_type==="leave" && (e.leave_type==="Annual Leave"||!e.leave_type) &&
+          new Date(e.date).getFullYear()===year
+        );
+        const balances = engineers
+          .filter(eng=>isBillableRole?isBillableRole(eng.role_type):true)
+          .map(eng=>{
+            const used = annualOnly.filter(e=>String(e.engineer_id)===String(eng.id)).length;
+            const remaining = Math.max(0, ANNUAL_ALLOWANCE - used);
+            const pct = Math.round(used/ANNUAL_ALLOWANCE*100);
+            return{...eng, used, remaining, pct};
+          });
+        if(!balances.length) return null;
+        return(
+          <div className="card" style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",margin:0}}>🏖 Annual Leave Balance — {year}</h4>
+              <span style={{fontSize:12,color:"var(--text4)"}}>Allowance: {ANNUAL_ALLOWANCE} days/year (Egyptian labor law)</span>
+            </div>
+            <div style={{display:"grid",gap:8}}>
+              {balances.map(eng=>{
+                const barColor = eng.pct>=90?"#f87171":eng.pct>=60?"#fb923c":"#34d399";
+                return(
+                  <div key={eng.id} style={{display:"grid",gridTemplateColumns:"180px 1fr 80px 80px",gap:10,alignItems:"center"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:7}}>
+                      <div style={{width:24,height:24,borderRadius:"50%",background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"var(--info)",flexShrink:0}}>{(eng.name||"?").slice(0,2).toUpperCase()}</div>
+                      <span style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{eng.name}</span>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{flex:1,background:"var(--bg3)",height:7,borderRadius:4,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:`${Math.min(100,eng.pct)}%`,background:barColor,borderRadius:4}}/>
+                      </div>
+                    </div>
+                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:barColor,fontWeight:700,textAlign:"right"}}>{eng.used}d used</div>
+                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"#34d399",fontWeight:700,textAlign:"right"}}>{eng.remaining}d left</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Per-engineer day detail */}
       {monthly.length>0&&<div>
         <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:10}}>📋 Detail — Leave Days {MONTHS[month]} {year}</h4>
@@ -2232,7 +2297,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
 
 
 /* ── Single activity row ── */
-function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete}){
+function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect}){
   const pct      = Math.round(a.progress*100);
   const sc       = STATUS_COLOR[a.status]||"var(--text3)";
   const today    = new Date(); today.setHours(0,0,0,0);
@@ -2240,7 +2305,11 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete}){
   const isOverdue= endDt && endDt < today && a.status!=="Completed";
   const fmtDate  = d => d ? new Date(d).toLocaleDateString("en-GB",{day:"2-digit",month:"short"}) : null;
   return(
-  <tr style={{cursor:"pointer"}} onClick={()=>onEdit(a)}>
+  <tr style={{cursor:"pointer",background:isSelected?"#0ea5e910":undefined}} onClick={()=>onEdit(a)}>
+    {onSelect&&<td style={{width:28,paddingLeft:8}} onClick={e=>e.stopPropagation()}>
+      <input type="checkbox" checked={!!isSelected} onChange={()=>onSelect(a.id)}
+        style={{cursor:"pointer",width:14,height:14,accentColor:"var(--info)"}}/>
+    </td>}
     <td style={{maxWidth:200}}>
       <div style={{fontWeight:600,fontSize:13}}>{a.activity_name}</div>
       {a.remarks&&<div style={{fontSize:11,color:"#f87171",fontStyle:"italic",marginTop:1,maxWidth:190,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.remarks}</div>}
@@ -2282,6 +2351,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   const [trackerSearch_, setTrackerSearch_] = useState("");
   const [trackerStatusF, setTrackerStatusF] = useState("ALL");
   const [expandedCats, setExpandedCats] = useState({});    // {catName: bool}
+  const [bulkSelected, setBulkSelected] = useState(new Set()); // activity ids selected for bulk
+  const [bulkStatus,   setBulkStatus]   = useState("Completed"); // target status for bulk op
 
   // ── Memoised lookups ──
   const activityHrsMap = useMemo(()=>{
@@ -2363,6 +2434,19 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     showToast("Activity added ✓");
     if(category) setExpandedCats(p=>({...p,[category]:true}));
   },[addModal,actsByProj,setActivities,showToast,logAction,engineers,projects,setProjects]);
+
+  const bulkUpdateStatus = useCallback(async()=>{
+    if(!bulkSelected.size) return;
+    const ids=[...bulkSelected];
+    const prog=bulkStatus==="Completed"?1:bulkStatus==="In Progress"?0.5:0;
+    const{error}=await supabase.from("project_activities")
+      .update({status:bulkStatus,progress:prog}).in("id",ids);
+    if(error){showToast("Bulk update failed: "+error.message,false);return;}
+    setActivities(prev=>prev.map(a=>ids.includes(a.id)?{...a,status:bulkStatus,progress:prog}:a));
+    setBulkSelected(new Set());
+    showToast(`${ids.length} activit${ids.length===1?"y":"ies"} → ${bulkStatus} ✓`);
+    logAction("UPDATE","Tracker",`Bulk set ${ids.length} activities to ${bulkStatus}`,{count:ids.length,status:bulkStatus});
+  },[bulkSelected,bulkStatus,showToast,logAction]);
 
   const deleteActivity = useCallback(async(id)=>{
     const act=activities.find(a=>a.id===id);
@@ -2549,6 +2633,18 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     </div>)}
 
     {/* Category accordion sections — grouped by TAXONOMY order */}
+    {canEdit&&bulkSelected.size>0&&(
+      <div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 14px",background:"#0ea5e915",border:"1px solid #0ea5e930",borderRadius:8}}>
+        <span style={{fontSize:13,fontWeight:700,color:"var(--info)"}}>{bulkSelected.size} selected</span>
+        <span style={{color:"var(--text4)",fontSize:13}}>→ Set to:</span>
+        <select value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)}
+          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:13}}>
+          {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
+        </select>
+        <button className="bp" style={{fontSize:13,padding:"4px 14px"}} onClick={bulkUpdateStatus}>Apply</button>
+        <button className="bg" style={{fontSize:13,padding:"4px 10px"}} onClick={()=>setBulkSelected(new Set())}>✕ Clear</button>
+      </div>
+    )}
     <div style={{display:"grid",gap:8}}>
       {catNames.map(cat=>{
         const catActs=getActsForCat(cat);
@@ -2581,6 +2677,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           {isOpen&&(
           <table style={{margin:0}}>
             <thead><tr>
+              {canEdit&&<th style={{width:28}}></th>}
               <th>Activity</th><th>Status</th><th>Progress</th>
               <th>Assigned</th><th>Dates</th><th>Hours</th>
               {canEdit&&<th style={{width:36}}></th>}
@@ -2588,7 +2685,9 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
             <tbody>
               {catActs.map(a=>(
                 <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)}
-                  isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}/>
+                  isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}
+                  isSelected={bulkSelected.has(a.id)}
+                  onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}/>
               ))}
             </tbody>
           </table>)}
@@ -2602,6 +2701,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         <div style={{padding:"8px 14px",background:"var(--bg0)",fontSize:12,color:"var(--text3)",fontWeight:700}}>UNCATEGORISED</div>
         <table style={{margin:0}}>
           <thead><tr>
+            {canEdit&&<th style={{width:28}}></th>}
             <th>Activity</th><th>Status</th><th>Progress</th>
             <th>Assigned</th><th>Dates</th><th>Hours</th>
             {canEdit&&<th style={{width:36}}></th>}
@@ -2609,7 +2709,9 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           <tbody>
             {uncategorised.map(a=>(
               <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)}
-                isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}/>
+                isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}
+                isSelected={bulkSelected.has(a.id)}
+                onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}/>
             ))}
           </tbody>
         </table>
@@ -5585,17 +5687,93 @@ const projProfit=projects.map(p=>{
 
   {/* ── BALANCE SHEET TAB ── */}
   {finSubTab==="balance"&&(
-    <BalanceSheetView journalEntries={journalEntries}/>
+    <div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+        <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
+          // Build Balance Sheet PDF from journal entries
+          const bsE=journalEntries.filter(e=>e.statement_type==="Balance Sheet");
+          const byAcct={};
+          bsE.forEach(e=>{
+            if(!byAcct[e.main_account])byAcct[e.main_account]={cat:e.main_account,items:{},dr:0,cr:0};
+            if(!byAcct[e.main_account].items[e.account_name])byAcct[e.main_account].items[e.account_name]={name:e.account_name,dr:0,cr:0};
+            byAcct[e.main_account].items[e.account_name].dr+=(+e.debit||0);
+            byAcct[e.main_account].items[e.account_name].cr+=(+e.credit||0);
+            byAcct[e.main_account].dr+=(+e.debit||0);
+            byAcct[e.main_account].cr+=(+e.credit||0);
+          });
+          const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+          const rows=Object.values(byAcct).sort((a,b)=>a.cat.localeCompare(b.cat)).map(cat=>{
+            const itemRows=Object.values(cat.items).map((item,i)=>`<tr style="${i%2?"background:#f8fafc":""}"><td style="padding:6px 16px 6px 28px;color:#334155">${item.name}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399">${item.dr>0?fmtEGP(item.dr):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${item.cr>0?fmtEGP(item.cr):""}</td></tr>`).join("");
+            return `<tr style="background:#f0f7ff"><td colspan="3" style="padding:7px 16px;font-weight:700;color:#0f2a50">${cat.cat}</td></tr>${itemRows}<tr style="background:#e8f4fd"><td style="padding:6px 16px;font-style:italic;color:#64748b">Subtotal — ${cat.cat}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#34d399">${cat.dr>0?fmtEGP(cat.dr):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171">${cat.cr>0?fmtEGP(cat.cr):""}</td></tr>`;
+          }).join("");
+          generatePDF("Balance Sheet",
+            [`<div class="section"><div class="st">Balance Sheet — As of ${now}</div><table><thead><tr><th>Account</th><th style="text-align:right">Debit (EGP)</th><th style="text-align:right">Credit (EGP)</th></tr></thead><tbody>${rows||"<tr><td colspan='3' style='text-align:center;color:#94a3b8;padding:20px'>No balance sheet entries in journal</td></tr>"}</tbody></table></div>`],
+            `Balance Sheet · Enevo Egypt LLC · ${now}`);
+          logAction("EXPORT","Finance",`Exported Balance Sheet PDF`,{tab:"balance"});
+        }}>⬇ Export PDF</button>
+      </div>
+      <BalanceSheetView journalEntries={journalEntries}/>
+    </div>
   )}
 
   {/* ── EXPENSES TAB ── */}
   {finSubTab==="expenses"&&(
-    <ExpensesView journalEntries={journalEntries} oldExpenses={expenses} egpRate={egpRate}/>
+    <div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+        <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
+          const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+          const plE=journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet"&&+e.debit>0);
+          const catMap={};
+          plE.forEach(e=>{
+            if(!catMap[e.main_account])catMap[e.main_account]={cat:e.main_account,items:{},total:0};
+            if(!catMap[e.main_account].items[e.account_name])catMap[e.main_account].items[e.account_name]={name:e.account_name,total:0};
+            catMap[e.main_account].items[e.account_name].total+=(+e.debit||0);
+            catMap[e.main_account].total+=(+e.debit||0);
+          });
+          const grandTotal=plE.reduce((s,e)=>s+(+e.debit||0),0);
+          const rows=Object.values(catMap).sort((a,b)=>b.total-a.total).map(cat=>{
+            const items=Object.values(cat.items).sort((a,b)=>b.total-a.total).map((item,i)=>`<tr style="${i%2?"background:#f8fafc":""}"><td style="padding:6px 16px 6px 28px;color:#334155">${item.name}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#fb923c">${fmtEGP(item.total)}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8">${grandTotal?(item.total/grandTotal*100).toFixed(1)+"%":""}</td></tr>`).join("");
+            return`<tr style="background:#fff7ed"><td colspan="3" style="padding:7px 16px;font-weight:700;color:#9a3412">${cat.cat} — ${fmtEGP(cat.total)}</td></tr>${items}`;
+          }).join("");
+          generatePDF("Expenses Report",
+            [`<div class="section"><div class="st">Expense Breakdown (P&L Entries) — ${now}</div><table><thead><tr><th>Account</th><th style="text-align:right">Amount (EGP)</th><th style="text-align:right">% of Total</th></tr></thead><tbody>${rows||"<tr><td colspan='3' style='text-align:center;color:#94a3b8;padding:20px'>No expense entries in journal</td></tr>"}<tr style="background:#0f2a50"><td style="padding:8px 16px;font-weight:700;color:#fff">TOTAL EXPENSES</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171;padding:8px 16px">${fmtEGP(grandTotal)}</td><td></td></tr></tbody></table></div>`],
+            `Expense Report · Enevo Egypt LLC · ${now}`);
+          logAction("EXPORT","Finance",`Exported Expenses PDF`,{tab:"expenses"});
+        }}>⬇ Export PDF</button>
+      </div>
+      <ExpensesView journalEntries={journalEntries} oldExpenses={expenses} egpRate={egpRate}/>
+    </div>
   )}
 
   {/* ── CASH CUSTODY TAB ── */}
   {finSubTab==="custody"&&(
-    <CashCustodyView journalEntries={journalEntries}/>
+    <div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+        <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
+          const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+          const custMap={};
+          journalEntries.filter(e=>e.main_account==="Cash Custody").forEach(e=>{
+            const n=e.account_name.trim();
+            if(!custMap[n])custMap[n]={name:n,lines:[],totalOut:0,totalBack:0};
+            custMap[n].lines.push(e);
+            custMap[n].totalOut+=(+e.credit||0);
+            custMap[n].totalBack+=(+e.debit||0);
+          });
+          const sections=Object.values(custMap).map(p=>{
+            let runBal=0;
+            const rows=p.lines.sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date))).map((e,i)=>{
+              runBal+=(+e.credit||0)-(+e.debit||0);
+              return`<tr style="${i%2?"background:#f8fafc":""}"><td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${String(e.entry_date||"").slice(0,10)}</td><td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#94a3b8">${e.entry_no||""}</td><td>${e.description||""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${+e.credit>0.01?fmtEGP(+e.credit):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399">${+e.debit>0.01?fmtEGP(+e.debit):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${runBal>0?"#34d399":"#64748b"}">${fmtEGP(runBal)}</td></tr>`;
+            }).join("");
+            return`<div class="section"><div class="st">💵 ${p.name} — Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div><table><thead><tr><th>Date</th><th>Entry#</th><th>Description</th><th style="text-align:right">Cash Out</th><th style="text-align:right">Back/Spent</th><th style="text-align:right">Balance</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+          });
+          if(!sections.length)sections.push(`<div class="section"><p style="text-align:center;color:#94a3b8;padding:20px">No custody entries found</p></div>`);
+          generatePDF("Cash Custody Ledger",sections,`Cash Custody · Enevo Egypt LLC · ${now}`);
+          logAction("EXPORT","Finance",`Exported Custody Ledger PDF`,{tab:"custody"});
+        }}>⬇ Export PDF</button>
+      </div>
+      <CashCustodyView journalEntries={journalEntries}/>
+    </div>
   )}
 
   {/* ── FIXED ASSETS TAB ── */}
@@ -9841,17 +10019,38 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                       </div>
                       <button className="bp" onClick={()=>{
                         if(!rptEngId){
-                          // Export all engineers one by one
-                          engineers.forEach((eng,i)=>setTimeout(()=>buildTimesheetPDF(eng,monthEntries,projects,month,year),i*600));
-                          showToast(`Exporting ${engineers.length} timesheets — check your browser tabs`);
+                          // Build a single merged PDF with all engineers — one window, no popup blocking
+                          const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+                          const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                          let body=`<h2 style="text-align:center;font-family:'IBM Plex Sans',sans-serif;color:#1e3a5f;margin-bottom:4px">ENEVO GROUP — All Timesheets</h2>
+<p style="text-align:center;font-size:12px;color:#64748b;font-family:sans-serif;margin-bottom:24px">${MONTHS_[month]} ${year} · Generated ${now} · ${engineers.length} engineers</p>`;
+                          engineers.forEach((eng,i)=>{
+                            const we=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date));
+                            const le=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave");
+                            const totalW=we.reduce((s,e)=>s+e.hours,0);
+                            const rows=we.map(e=>{const p=projects.find(x=>x.id===e.project_id);return`<tr><td style="font-family:monospace">${e.date}</td><td style="color:#0ea5e9">${e.project_id||""}</td><td>${p?.name||""}</td><td>${e.task_type||""}</td><td style="font-style:italic;color:#64748b">${e.activity||""}</td><td style="font-family:monospace;font-weight:700;color:#0ea5e9">${e.hours}h</td></tr>`;}).join("");
+                            body+=`<div style="page-break-before:${i===0?"avoid":"always"};margin-bottom:24px">
+<div style="background:#1e3a5f;color:#fff;padding:10px 16px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between">
+<div><div style="font-size:16px;font-weight:700">${eng.name}</div><div style="font-size:11px;color:#93c5fd">${eng.role||""} · ${MONTHS_[month]} ${year}</div></div>
+<div style="font-size:22px;font-weight:800;color:#38bdf8">${totalW}h</div></div>
+<table style="width:100%;border-collapse:collapse;font-size:12px;font-family:sans-serif;border:1px solid #e2e8f0;border-top:none">
+<thead><tr style="background:#f1f5f9"><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">DATE</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJ ID</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJECT</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">TASK</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">ACTIVITY</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">HRS</th></tr></thead>
+<tbody>${rows||`<tr><td colspan="6" style="padding:12px;text-align:center;color:#94a3b8">No entries for ${MONTHS_[month]} ${year}</td></tr>`}</tbody>
+<tfoot><tr style="background:#f8fafc"><td colspan="5" style="padding:6px 8px;font-weight:700;font-size:12px;font-family:sans-serif">Total · ${le.length} leave day${le.length!==1?"s":""}</td><td style="padding:6px 8px;font-family:monospace;font-weight:700;color:#0ea5e9">${totalW}h</td></tr></tfoot>
+</table></div>`;
+                          });
+                          const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>All Timesheets — ${MONTHS_[month]} ${year}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;color:#1e293b;padding:20px}@media print{body{padding:0}@page{margin:14mm}tr{page-break-inside:avoid}}</style></head><body>${body}<div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP · ${now}</div></body></html>`;
+                          const w=window.open("","pdf_merged_"+Date.now());
+                          if(w){w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),600);}
+                          else showToast("Allow popups to export — or use individual PDFs below",false);
                         } else {
                           const eng=engineers.find(e=>e.id===rptEngId);
                           if(eng) buildTimesheetPDF(eng,monthEntries,projects,month,year);
                         }
-                      }}>⬇ Export PDF{!rptEngId?" (All)":""}</button>
+                      }}>⬇ Export PDF{!rptEngId?" (All — Merged)":""}</button>
                     </div>
                     <div style={{fontSize:13,color:"var(--text4)"}}>
-                      {!rptEngId?"Will open one PDF per engineer in separate browser tabs — allow popups if prompted":"Select an engineer above to preview their timesheet"}
+                      {!rptEngId?"All engineers in one PDF — single browser tab, no popup issues":"Select an engineer above to preview their timesheet"}
                     </div>
                   </div>
                   <div className="card">
