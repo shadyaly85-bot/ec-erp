@@ -417,6 +417,30 @@ function buildInvoicePDF(projects, entries, engineers, m, y, filterId){
 }
 
 /* ─── SIGNUP SCREEN ─── */
+/* ── CONFIRM DIALOG — replaces window.confirm everywhere ── */
+function ConfirmModal({dlg}){
+  if(!dlg) return null;
+  return(
+    <div style={{position:"fixed",inset:0,background:"#00000099",backdropFilter:"blur(6px)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}
+      onClick={e=>{if(e.target===e.currentTarget)dlg.onCancel&&dlg.onCancel();}}>
+      <div style={{background:"var(--bg1)",border:`1px solid ${dlg.danger?"#f8711860":"var(--border3)"}`,borderRadius:12,padding:"28px 28px 22px",width:390,maxWidth:"92vw",boxShadow:"0 24px 60px #00000090"}}>
+        <div style={{fontSize:22,marginBottom:8,lineHeight:1}}>{dlg.icon||"⚠"}</div>
+        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:8}}>{dlg.title||"Are you sure?"}</div>
+        <div style={{fontSize:13,color:"var(--text3)",marginBottom:24,lineHeight:1.6}}>{dlg.message}</div>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <button className="bg" style={{padding:"8px 22px",fontSize:14}} onClick={()=>dlg.onCancel&&dlg.onCancel()}>Cancel</button>
+          <button onClick={()=>dlg.onConfirm&&dlg.onConfirm()}
+            style={{padding:"8px 22px",borderRadius:6,border:"none",cursor:"pointer",
+              fontFamily:"'IBM Plex Sans',sans-serif",fontSize:14,fontWeight:700,
+              background:dlg.danger?"#dc2626":"var(--accent)",color:"#fff"}}>
+            {dlg.confirmLabel||"Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SignupScreen({onBack}){
   const [form,setForm]=useState({email:"",password:"",name:"",role:ROLES_LIST[0],level:"Mid"});
   const [err,setErr]=useState(""); const [loading,setLoading]=useState(false);
@@ -536,10 +560,11 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
     if(showToast)showToast("Activity added ✓");
   };
   const delPvAct=async(id)=>{
-    if(!window.confirm("Delete this activity?"))return;
-    await supabase.from("project_activities").delete().eq("id",id);
-    if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id));
-    if(showToast)showToast("Activity deleted");
+    showConfirm("Delete this activity?", async()=>{
+      await supabase.from("project_activities").delete().eq("id",id);
+      if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id));
+      if(showToast)showToast("Activity deleted");
+    },{title:"Delete Activity",confirmLabel:"Delete"});
   };
   const filteredProjects=projects.filter(p=>{
     const ms=projStatusFilter==="ALL"||p.status===projStatusFilter;
@@ -2075,7 +2100,7 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
     </div>
   </div>);
 }
-function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast, projects, setProjects}){
+function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast, projects, setProjects, showConfirm}){
   const [addModal, setAddModal] = React.useState(false);
   const [editAct, setEditAct]  = React.useState(null);
   const projActs = (activities||[]).filter(a=>a.project_id===projId);
@@ -2119,10 +2144,11 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
     if(showToast)showToast("Activity saved ✓");
   };
   const delAct = async(id)=>{
-    if(!window.confirm("Delete this activity?"))return;
-    await supabase.from("project_activities").delete().eq("id",id);
-    if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id));
-    if(showToast)showToast("Activity deleted");
+    showConfirm("Delete this activity?", async()=>{
+      await supabase.from("project_activities").delete().eq("id",id);
+      if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id));
+      if(showToast)showToast("Activity deleted");
+    },{title:"Delete Activity",confirmLabel:"Delete"});
   };
 
   const GROUP_COLORS={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
@@ -2219,7 +2245,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete}){
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component
    ════════════════════════════════════════════════════════ */
-function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, showToast, logAction}){
+function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, showToast, logAction, showConfirm}){
   const canEdit = isAdmin || isLead;
   const [trackerProj,  setTrackerProj]  = useState(null);
   const [trackerSub,   setTrackerSub]   = useState(null);
@@ -2311,12 +2337,13 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   },[addModal,actsByProj,setActivities,showToast,logAction,engineers,projects,setProjects]);
 
   const deleteActivity = useCallback(async(id)=>{
-    if(!window.confirm("Delete this activity?")) return;
     const act=activities.find(a=>a.id===id);
-    await supabase.from("project_activities").delete().eq("id",id);
-    setActivities(prev=>prev.filter(a=>a.id!==id));
-    logAction("DELETE","Tracker",`Deleted activity: ${act?.activity_name||id} on ${act?.project_id||""}`,{id,project_id:act?.project_id,activity:act?.activity_name});
-  },[setActivities,activities,logAction]);
+    showConfirm(`Delete activity "${act?.activity_name||id}"?`, async()=>{
+      await supabase.from("project_activities").delete().eq("id",id);
+      setActivities(prev=>prev.filter(a=>a.id!==id));
+      logAction("DELETE","Tracker",`Deleted activity: ${act?.activity_name||id} on ${act?.project_id||""}`,{id,project_id:act?.project_id,activity:act?.activity_name});
+    },{title:"Delete Activity",confirmLabel:"Delete"});
+  },[setActivities,activities,logAction,showConfirm]);
 
   // ── Loading ──
   if(!activitiesLoaded) return(
@@ -2689,7 +2716,7 @@ function SubProjectModal({projectId, sub, engineers, onSave, onClose}){
    ════════════════════════════════════════════════════════ */
 function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, setExpandedProj,
   setShowProjModal, setEditProjModal, setSubProjModal, deleteProject, deleteSubProject,
-  activities, setActivities, supabase, showToast, isAdmin, isLead, isAcct}){
+  activities, setActivities, supabase, showToast, isAdmin, isLead, isAcct, showConfirm}){
   const [actModal,setActModal] = React.useState(null); // {projId, act:null|object}
   const [actDraft,setActDraft] = React.useState({});
   const [projSearch,setProjSearch] = React.useState("");
@@ -2716,10 +2743,11 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
     if(showToast)showToast("Activity saved ✓");
   };
   const delAct=async(id)=>{
-    if(!window.confirm("Delete this activity?")) return;
-    await supabase.from("project_activities").delete().eq("id",id);
-    if(setActivities) setActivities(prev=>prev.filter(a=>a.id!==id));
-    if(showToast)showToast("Activity deleted");
+    showConfirm("Delete this activity?", async()=>{
+      await supabase.from("project_activities").delete().eq("id",id);
+      if(setActivities) setActivities(prev=>prev.filter(a=>a.id!==id));
+      if(showToast)showToast("Activity deleted");
+    },{title:"Delete Activity",confirmLabel:"Delete"});
   };
 
   const projHrsMap = useMemo(()=>{
@@ -3494,7 +3522,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                     <div style={{display:"flex",gap:2}}>
                       <button onClick={ev=>{ev.stopPropagation();setEditLine({...e});}} title="Edit"
                         style={{background:"transparent",border:"none",color:"var(--info)",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✎</button>
-                      <button onClick={ev=>{ev.stopPropagation();if(window.confirm("Delete this line?"))onDelete(e.id);}} title="Delete"
+                      <button onClick={ev=>{ev.stopPropagation();onDelete(e.id);}} title="Delete"
                         style={{background:"transparent",border:"none",color:"#f87171",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✕</button>
                     </div>
                   )}
@@ -4237,6 +4265,8 @@ function TaxSocialView({journalEntries}) {
    ══════════════════════════════════════════════════════════ */
 function FixedAssetsView({fixedAssets, loading}) {
   const TODAY = new Date();
+  const [assetSearch, setAssetSearch] = React.useState("");
+
   const assetsWithDepr = React.useMemo(()=>fixedAssets.map(a=>{
     const purchased=new Date(a.purchase_date+"T12:00:00");
     const yrs=Math.max(0,(TODAY-purchased)/(365.25*24*3600*1000));
@@ -4246,9 +4276,19 @@ function FixedAssetsView({fixedAssets, loading}) {
     return {...a,annual,acc,net,pct:+a.cost_egp>0?(acc/+a.cost_egp*100):0};
   }),[fixedAssets]);
 
+  const filteredAssets = React.useMemo(()=>{
+    if(!assetSearch) return assetsWithDepr;
+    const q=assetSearch.toLowerCase();
+    return assetsWithDepr.filter(a=>
+      (a.asset_name||"").toLowerCase().includes(q)||
+      (a.category||"").toLowerCase().includes(q)||
+      (a.purchase_date||"").includes(q)
+    );
+  },[assetsWithDepr,assetSearch]);
+
   const byCategory=React.useMemo(()=>{
     const m={};
-    assetsWithDepr.forEach(a=>{
+    filteredAssets.forEach(a=>{
       if(!m[a.category]) m[a.category]={cat:a.category,assets:[],cost:0,depr:0,net:0};
       m[a.category].assets.push(a);
       m[a.category].cost+=+a.cost_egp;
@@ -4256,11 +4296,11 @@ function FixedAssetsView({fixedAssets, loading}) {
       m[a.category].net+=a.net;
     });
     return m;
-  },[assetsWithDepr]);
+  },[filteredAssets]);
 
-  const totCost=assetsWithDepr.reduce((s,a)=>s+(+a.cost_egp),0);
-  const totDepr=assetsWithDepr.reduce((s,a)=>s+a.acc,0);
-  const totNet=assetsWithDepr.reduce((s,a)=>s+a.net,0);
+  const totCost=filteredAssets.reduce((s,a)=>s+(+a.cost_egp),0);
+  const totDepr=filteredAssets.reduce((s,a)=>s+a.acc,0);
+  const totNet=filteredAssets.reduce((s,a)=>s+a.net,0);
   const cColor=c=>({
     "Computers & Programs":"#38bdf8","Furniture":"#a78bfa",
     "Aircondition":"#34d399","Decoration & Furnishing":"#fb923c","Electrical Equipment":"#facc15"
@@ -4269,14 +4309,22 @@ function FixedAssetsView({fixedAssets, loading}) {
   if(loading) return <div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>Loading assets…</div>;
   return(
     <div style={{display:"grid",gap:14}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-        {[{l:"Total at Cost",v:fmtEGP(totCost),c:"#38bdf8"},{l:"Accumulated Depr.",v:fmtEGP(totDepr),c:"#fb923c"},{l:"Net Book Value",v:fmtEGP(totNet),c:"#34d399"}].map((k,i)=>(
-          <div key={i} className="card" style={{textAlign:"center",padding:"14px 8px"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
-            <div style={{fontSize:11,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{k.l}</div>
-          </div>
-        ))}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,flex:1}}>
+          {[{l:"Total at Cost",v:fmtEGP(totCost),c:"#38bdf8"},{l:"Accumulated Depr.",v:fmtEGP(totDepr),c:"#fb923c"},{l:"Net Book Value",v:fmtEGP(totNet),c:"#34d399"}].map((k,i)=>(
+            <div key={i} className="card" style={{textAlign:"center",padding:"14px 8px"}}>
+              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
+              <div style={{fontSize:11,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{k.l}</div>
+            </div>
+          ))}
+        </div>
+        <input value={assetSearch} onChange={e=>setAssetSearch(e.target.value)}
+          placeholder="🔍 Search assets…"
+          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"7px 12px",color:"var(--text0)",fontSize:13,width:200,flexShrink:0}}/>
       </div>
+      {filteredAssets.length===0&&assetSearch&&(
+        <div style={{textAlign:"center",padding:24,color:"var(--text4)",fontSize:13}}>No assets match "{assetSearch}"</div>
+      )}
       {Object.values(byCategory).sort((a,b)=>b.cost-a.cost).map(cat=>(
         <div key={cat.cat} className="card" style={{padding:0,overflow:"hidden"}}>
           <div style={{background:cColor(cat.cat)+"15",borderBottom:`2px solid ${cColor(cat.cat)}`,padding:"10px 16px",display:"flex",justifyContent:"space-between"}}>
@@ -5453,9 +5501,12 @@ const projProfit=projects.map(p=>{
       }}
       onDelete={async(id)=>{
         if(!isAcct&&!isAdmin) return;
-        await supabase.from("journal_entries").delete().eq("id",id);
-        setJournalEntries(prev=>prev.filter(e=>e.id!==id));
-        logAction("DELETE","Journal",`Deleted journal entry id:${id}`,{id});
+        const entry=journalEntries.find(e=>e.id===id);
+        showConfirm(`Delete journal entry #${entry?.entry_no||id} — ${entry?.account_name||""}? This cannot be undone.`, async()=>{
+          await supabase.from("journal_entries").delete().eq("id",id);
+          setJournalEntries(prev=>prev.filter(e=>e.id!==id));
+          logAction("DELETE","Journal",`Deleted journal entry id:${id}`,{id});
+        },{title:"Delete Journal Entry",confirmLabel:"Delete Entry"});
       }}
       onEdit={async(entry)=>{
         if(!isAcct&&!isAdmin) return;
@@ -5771,6 +5822,12 @@ const projProfit=projects.map(p=>{
 
     // Staff table totals
     const activeSt = staff.filter(s=>s.active!==false);
+    const [staffSearch, setStaffSearch] = React.useState("");
+    const filteredSt = staffSearch
+      ? activeSt.filter(s=>(s.name||"").toLowerCase().includes(staffSearch.toLowerCase())
+          ||(s.department||"").toLowerCase().includes(staffSearch.toLowerCase())
+          ||(s.role||"").toLowerCase().includes(staffSearch.toLowerCase()))
+      : activeSt;
     const totalEGP = activeSt.reduce((s,x)=>s+(+x.salary_egp||0),0);
     const totalUSD = activeSt.reduce((s,x)=>s+(+x.salary_usd||0),0);
 
@@ -5851,8 +5908,11 @@ const projProfit=projects.map(p=>{
 
       {/* Dept breakdown from staff table */}
       <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"var(--bg2)",borderBottom:"2px solid var(--border)",padding:"10px 16px",fontSize:13,fontWeight:700,color:"var(--text2)"}}>
-          STAFF TABLE — Current Salaries (reference for journal entries)
+        <div style={{background:"var(--bg2)",borderBottom:"2px solid var(--border)",padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+          <span style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>STAFF TABLE — Current Salaries</span>
+          <input value={staffSearch} onChange={e=>setStaffSearch(e.target.value)}
+            placeholder="🔍 Search name, dept, role…"
+            style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,width:220}}/>
         </div>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead><tr style={{background:"var(--bg2)"}}>
@@ -5861,7 +5921,7 @@ const projProfit=projects.map(p=>{
             ))}
           </tr></thead>
           <tbody>
-            {activeSt.sort((a,b)=>(b.salary_egp||0)-(a.salary_egp||0)).map((s,i)=>(
+            {filteredSt.sort((a,b)=>(b.salary_egp||0)-(a.salary_egp||0)).map((s,i)=>(
               <tr key={i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
                 <td style={{padding:"6px 12px",fontWeight:600,color:"var(--text1)"}}>{s.name}</td>
                 <td style={{padding:"6px 12px",color:"var(--text3)"}}>{s.department}</td>
@@ -5878,7 +5938,9 @@ const projProfit=projects.map(p=>{
               </tr>
             ))}
             <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)",fontWeight:700}}>
-              <td colSpan={3} style={{padding:"8px 12px",color:"var(--text0)"}}>TOTAL ({activeSt.length} staff)</td>
+              <td colSpan={3} style={{padding:"8px 12px",color:"var(--text0)"}}>
+                {staffSearch?`${filteredSt.length} of ${activeSt.length} staff`:`TOTAL (${activeSt.length} staff)`}
+              </td>
               <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#fb923c",fontSize:14}}>{fmtEGP(totalEGP)}</td>
               <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#38bdf8"}}>{totalUSD>0?`$${totalUSD.toLocaleString("en-US",{minimumFractionDigits:2})}`:""}</td>
               <td colSpan={2}/>
@@ -6372,6 +6434,28 @@ export default function App(){
     if(isDark){ document.body.classList.remove("light"); localStorage.setItem("erp_theme","dark"); }
     else{ document.body.classList.add("light"); localStorage.setItem("erp_theme","light"); }
   },[isDark]);
+
+  // Global Escape key — closes topmost open modal
+  useEffect(()=>{
+    const handler=e=>{
+      if(e.key!=="Escape") return;
+      if(confirmDlg)       { setConfirmDlg(null); return; }
+      if(showPwdModal)     { setShowPwdModal(false); return; }
+      if(subProjModal)     { setSubProjModal(null); return; }
+      if(editProjModal)    { setEditProjModal(null); return; }
+      if(showProjModal)    { setShowProjModal(false); return; }
+      if(editEngModal)     { setEditEngModal(null); return; }
+      if(showEngModal)     { setShowEngModal(false); return; }
+      if(showStaffModal)   { setShowStaffModal(false); setEditStaff(null); return; }
+      if(showExpModal)     { setShowExpModal(false); setEditExp(null); return; }
+      if(showFuncModal)    { setShowFuncModal(false); return; }
+      if(editEntry)        { setEditEntry(null); return; }
+      if(modalDate)        { setModalDate(null); return; }
+    };
+    document.addEventListener("keydown",handler);
+    return ()=>document.removeEventListener("keydown",handler);
+  },[confirmDlg,showPwdModal,subProjModal,editProjModal,showProjModal,
+     editEngModal,showEngModal,showStaffModal,showExpModal,showFuncModal,editEntry,modalDate]);
   const toggleTheme = ()=>setIsDark(d=>!d);
 
   const [authEmail,setAuthEmail]     = useState("");
@@ -6472,6 +6556,15 @@ export default function App(){
   const [showExpModal,setShowExpModal]     = useState(false);
   const [editExp,setEditExp]               = useState(null);
   const [showPwdModal,setShowPwdModal]     = useState(false);
+  const [confirmDlg,  setConfirmDlg]       = useState(null);
+
+  // Styled in-app confirm — replaces window.confirm everywhere
+  const showConfirm = useCallback((message, onConfirm, {title, confirmLabel="Delete", danger=true, icon}={})=>{
+    setConfirmDlg({message, title, confirmLabel, danger, icon:icon||(danger?"🗑":"⚠"),
+      onConfirm:()=>{ setConfirmDlg(null); onConfirm(); },
+      onCancel: ()=>setConfirmDlg(null),
+    });
+  },[]);
   const [pwdForm,setPwdForm]               = useState({newPwd:"",confirmPwd:""});
   const [pwdMsg,setPwdMsg]                 = useState(null); // {ok:bool, text:string}
   const [newStaff,setNewStaff]             = useState({name:"",department:"Engineering",role:"",salary_usd:0,salary_egp:0,type:"full_time",active:true,join_date:null,termination_date:null,email:"",level:"Mid",role_type:"engineer",notes:""});
@@ -6934,14 +7027,15 @@ export default function App(){
 
   const deleteEntry=async(id, engineerId)=>{
     if(!canEditAny && String(engineerId)!==String(myProfile?.id)) { showToast("You can only delete your own entries",false); return; }
-    if(!window.confirm("Delete this entry?")) return;
-    const {error}=await supabase.from("time_entries").delete().eq("id",id);
-    if(error){showToast("Error",false);return;}
-    setEntries(prev=>prev.filter(e=>e.id!==id));
-    const _delEngName = engineers.find(e=>String(e.id)===String(engineerId))?.name||engineerId;
-    const _delOnBehalf = String(engineerId)!==String(myProfile?.id) ? ` on behalf of ${_delEngName}` : "";
-    showToast("Deleted",false);
-    logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_delOnBehalf}`,{id,engineer_id:engineerId,engineer_name:_delEngName});
+    showConfirm("This time entry will be permanently removed.", async()=>{
+      const {error}=await supabase.from("time_entries").delete().eq("id",id);
+      if(error){showToast("Error",false);return;}
+      setEntries(prev=>prev.filter(e=>e.id!==id));
+      const _delEngName = engineers.find(e=>String(e.id)===String(engineerId))?.name||engineerId;
+      const _delOnBehalf = String(engineerId)!==String(myProfile?.id) ? ` on behalf of ${_delEngName}` : "";
+      showToast("Deleted",false);
+      logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_delOnBehalf}`,{id,engineer_id:engineerId,engineer_name:_delEngName});
+    },{title:"Delete Time Entry",confirmLabel:"Delete"});
   };
 
   /* ── FUNCTION ENTRIES & KPI ALERTS ── */
@@ -7132,12 +7226,13 @@ export default function App(){
   },[editStaff,newStaff,engineers,showToast]);
 
   const deleteStaff=useCallback(async(id)=>{
-    if(!window.confirm("Delete this staff member?")) return;
     const name=staff.find(s=>s.id===id)?.name||id;
-    await supabase.from("staff").delete().eq("id",id);
-    setStaff(prev=>prev.filter(s=>s.id!==id));
-    logAction("DELETE","Staff",`Deleted staff member: ${name}`,{id,name});
-  },[staff,logAction]);
+    showConfirm(`Remove ${name} from the staff salary table? This does not delete their engineer account.`, async()=>{
+      await supabase.from("staff").delete().eq("id",id);
+      setStaff(prev=>prev.filter(s=>s.id!==id));
+      logAction("DELETE","Staff",`Deleted staff member: ${name}`,{id,name});
+    },{title:"Remove Staff Member",confirmLabel:"Remove"});
+  },[staff,logAction,showConfirm]);
 
   const saveExpense=useCallback(async()=>{
     const payload=editExp?{...editExp}:{...newExp};
@@ -7163,12 +7258,13 @@ export default function App(){
   },[editExp,newExp,showToast]);
 
   const deleteExpense=useCallback(async(id)=>{
-    if(!window.confirm("Delete this expense?")) return;
     const exp=expenses.find(e=>e.id===id);
-    await supabase.from("expenses").delete().eq("id",id);
-    setExpenses(prev=>prev.filter(e=>e.id!==id));
-    logAction("DELETE","Expense",`Deleted expense: ${exp?.description||id}`,{id,description:exp?.description});
-  },[expenses,logAction]);
+    showConfirm(`Delete "${exp?.description||"this expense"}"? This cannot be undone.`, async()=>{
+      await supabase.from("expenses").delete().eq("id",id);
+      setExpenses(prev=>prev.filter(e=>e.id!==id));
+      logAction("DELETE","Expense",`Deleted expense: ${exp?.description||id}`,{id,description:exp?.description});
+    },{title:"Delete Expense",confirmLabel:"Delete"});
+  },[expenses,logAction,showConfirm]);
 
   /* ── EXCEL IMPORT ── */
   const importTimesheets=async files=>{
@@ -7533,14 +7629,15 @@ export default function App(){
 
   const bulkDeleteEntries=async()=>{
     if(selectedEntries.size===0) return;
-    if(!window.confirm(`Delete ${selectedEntries.size} selected entries?`)) return;
-    const ids=[...selectedEntries];
-    const {error}=await supabase.from("time_entries").delete().in("id",ids);
-    if(error){showToast("Error: "+error.message,false);return;}
-    setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id)));
-    setSelectedEntries(new Set());
-    showToast(`Deleted ${ids.length} entries`);
-    logAction("DELETE","TimeEntry",`Bulk deleted ${ids.length} time entries`,{count:ids.length});
+    showConfirm(`Permanently delete ${selectedEntries.size} selected time entr${selectedEntries.size===1?"y":"ies"}? This cannot be undone.`, async()=>{
+      const ids=[...selectedEntries];
+      const {error}=await supabase.from("time_entries").delete().in("id",ids);
+      if(error){showToast("Error: "+error.message,false);return;}
+      setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id)));
+      setSelectedEntries(new Set());
+      showToast(`Deleted ${ids.length} entries`);
+      logAction("DELETE","TimeEntry",`Bulk deleted ${ids.length} time entries`,{count:ids.length});
+    },{title:"Bulk Delete Entries",confirmLabel:`Delete ${selectedEntries.size}`});
   };
 
   /* ── PROJECT CRUD ── */
@@ -7604,17 +7701,19 @@ export default function App(){
     }
   };
   const deleteProject=async id=>{
-    if(!window.confirm(`Delete ${id} and all its entries? This also removes all activities and sub-sites.`)) return;
-    await supabase.from("time_entries").delete().eq("project_id",id);
-    await supabase.from("project_activities").delete().eq("project_id",id).then(()=>{});
-    await supabase.from("project_subprojects").delete().eq("project_id",id).then(()=>{});
-    await supabase.from("projects").delete().eq("id",id);
-    setProjects(prev=>prev.filter(p=>p.id!==id));
-    setEntries(prev=>prev.filter(e=>e.project_id!==id));
-    setActivities(prev=>prev.filter(a=>a.project_id!==id));
-    setSubprojects(prev=>prev.filter(s=>s.project_id!==id));
-    showToast("Project deleted",false);
-    logAction("DELETE","Project",`Deleted project ${id}`,{project_id:id});
+    const proj=projects.find(p=>p.id===id);
+    showConfirm(`Delete project "${proj?.name||id}"? This will also remove all its time entries, activities, and sub-sites. This cannot be undone.`, async()=>{
+      await supabase.from("time_entries").delete().eq("project_id",id);
+      await supabase.from("project_activities").delete().eq("project_id",id).then(()=>{});
+      await supabase.from("project_subprojects").delete().eq("project_id",id).then(()=>{});
+      await supabase.from("projects").delete().eq("id",id);
+      setProjects(prev=>prev.filter(p=>p.id!==id));
+      setEntries(prev=>prev.filter(e=>e.project_id!==id));
+      setActivities(prev=>prev.filter(a=>a.project_id!==id));
+      setSubprojects(prev=>prev.filter(s=>s.project_id!==id));
+      showToast("Project deleted",false);
+      logAction("DELETE","Project",`Deleted project ${id}`,{project_id:id});
+    },{title:"Delete Project",confirmLabel:"Delete Project",icon:"🗑"});
   };
 
   /* ── SUB-PROJECT CRUD ── */
@@ -7641,15 +7740,15 @@ export default function App(){
     logAction("UPDATE","Project",`Updated sub-project: ${data.name}`,{subproject_id:data.id,name:data.name});
   };
   const deleteSubProject=async(id)=>{
-    if(!window.confirm("Delete this sub-project and unlink its activities?")) return;
     const sub=subprojects.find(s=>s.id===id);
-    // Unlink activities (set subproject_id to null)
-    await supabase.from("project_activities").update({subproject_id:null}).eq("subproject_id",id);
-    await supabase.from("project_subprojects").delete().eq("id",id);
-    setSubprojects(prev=>prev.filter(s=>s.id!==id));
-    setActivities(prev=>prev.map(a=>String(a.subproject_id)===String(id)?{...a,subproject_id:null}:a));
-    showToast("Sub-project deleted",false);
-    logAction("DELETE","Project",`Deleted sub-project: ${sub?.name||id}`,{subproject_id:id,name:sub?.name});
+    showConfirm(`Delete sub-site "${sub?.name||id}"? Its activities will be unlinked but not deleted.`, async()=>{
+      await supabase.from("project_activities").update({subproject_id:null}).eq("subproject_id",id);
+      await supabase.from("project_subprojects").delete().eq("id",id);
+      setSubprojects(prev=>prev.filter(s=>s.id!==id));
+      setActivities(prev=>prev.map(a=>String(a.subproject_id)===String(id)?{...a,subproject_id:null}:a));
+      showToast("Sub-site deleted",false);
+      logAction("DELETE","Project",`Deleted sub-project: ${sub?.name||id}`,{subproject_id:id,name:sub?.name});
+    },{title:"Delete Sub-Site",confirmLabel:"Delete Sub-Site"});
   };
 
   /* ── ENGINEER CRUD ── */
@@ -7762,18 +7861,17 @@ export default function App(){
     logAction("UPDATE","Engineer",`Updated engineer: ${merged.name}${_changes.length?" — "+_changes.join(", "):""}`,{id,name:merged.name,role_type:merged.role_type,is_active:merged.is_active,termination_date:merged.termination_date||null,changes:_changes});
   };
   const deleteEngineer=async id=>{
-    if(!window.confirm("Delete this engineer and all their entries?")) return;
     const eng=engineers.find(e=>e.id===id);
-    await supabase.from("time_entries").delete().eq("engineer_id",id);
-    await supabase.from("engineers").delete().eq("id",id);
-    setEngineers(prev=>prev.filter(e=>e.id!==id));
-    setEntries(prev=>prev.filter(e=>e.engineer_id!==id));
-    // Remove from all project assigned_engineers lists
-    setProjects(prev=>prev.map(p=>({...p,assigned_engineers:(p.assigned_engineers||[]).filter(x=>String(x)!==String(id))})));
-    // Clear from activities assigned_to
-    if(eng) setActivities(prev=>prev.map(a=>a.assigned_to===eng.name?{...a,assigned_to:""}:a));
-    showToast("Removed",false);
-    logAction("DELETE","Engineer",`Deleted engineer: ${eng?.name||id}`,{id,name:eng?.name});
+    showConfirm(`Delete engineer "${eng?.name||id}" and all their time entries? This cannot be undone.`, async()=>{
+      await supabase.from("time_entries").delete().eq("engineer_id",id);
+      await supabase.from("engineers").delete().eq("id",id);
+      setEngineers(prev=>prev.filter(e=>e.id!==id));
+      setEntries(prev=>prev.filter(e=>e.engineer_id!==id));
+      setProjects(prev=>prev.map(p=>({...p,assigned_engineers:(p.assigned_engineers||[]).filter(x=>String(x)!==String(id))})));
+      if(eng) setActivities(prev=>prev.map(a=>a.assigned_to===eng.name?{...a,assigned_to:""}:a));
+      showToast("Removed",false);
+      logAction("DELETE","Engineer",`Deleted engineer: ${eng?.name||id}`,{id,name:eng?.name});
+    },{title:"Delete Engineer",confirmLabel:"Delete Engineer"});
   };
 
   /* ── DERIVED STATS ── */
@@ -8930,10 +9028,12 @@ export default function App(){
                 };
 
                 const deleteNode = async(id) => {
-                  if(!window.confirm("Delete this node? Children will become unattached.")) return;
-                  await supabase.from("org_chart").delete().eq("id",id);
-                  setOrgNodes(prev=>prev.filter(n=>n.id!==id));
-                  showToast("Deleted");
+                  const node=orgNodes.find(n=>n.id===id);
+                  showConfirm(`Delete "${node?.name||"this node"}"? Its children will become unattached.`, async()=>{
+                    await supabase.from("org_chart").delete().eq("id",id);
+                    setOrgNodes(prev=>prev.filter(n=>n.id!==id));
+                    showToast("Deleted");
+                  },{title:"Delete Org Node",confirmLabel:"Delete"});
                 };
 
                 const moveNode = async(nodeId, newParentId) => {
@@ -9642,7 +9742,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   <div className="card">
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                       <h3 style={{fontSize:14,fontWeight:600,color:"var(--text2)",margin:0}}>
-                        {invoiceProjId==="ALL"?"All Projects — Feb "+year+" (billable highlighted)":"Project Invoice Preview"}
+                        {invoiceProjId==="ALL"?`All Projects — ${MONTHS[month]} ${year} (billable highlighted)`:"Project Invoice Preview"}
                       </h3>
                       {allWithHours.filter(p=>!p.billable||p.rate_per_hour===0).length>0&&(
                         <span style={{fontSize:12,color:"#fb923c",background:"#2a1a0a",border:"1px solid #fb923c40",borderRadius:4,padding:"2px 8px"}}>
@@ -9922,6 +10022,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   isAdmin={isAdmin}
                   isLead={isLead}
                   isAcct={isAcct}
+                  showConfirm={showConfirm}
                 />
               )}
 
@@ -10081,6 +10182,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                   setProjects={setProjects}
                   showToast={showToast}
                   logAction={logAction}
+                  showConfirm={showConfirm}
                 />
               )}
 
@@ -10126,18 +10228,17 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                       .then(({data})=>{ if(data) setActivityLog(data); setLogLoading(false); });
                   }}
                   onArchive={async()=>{
-                    if(!window.confirm(`Move logs older than ${retentionDays} days to archive?`)) return;
-                    const {data,error} = await supabase.rpc("archive_activity_log",{retention_days:retentionDays});
-                    if(error){ alert("Archive error: "+error.message); return; }
-                    const r = data?.[0]||{};
-                    showToast(`Archived ${r.archived_count||0} events, removed ${r.deleted_count||0} from live log`);
-                    logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:r.archived_count,deleted:r.deleted_count});
-                    // Reload live log after archive
-                    setLogLoading(true);
-                    supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
-                      .then(({data:liveData})=>{ if(liveData) setActivityLog(liveData); setLogLoading(false); });
-                    // Reset archive cache so next "Load Archive" gets fresh data
-                    setArchiveLog([]); setArchiveLoaded(false);
+                    showConfirm(`Move activity log entries older than ${retentionDays} days to the archive? The live log will be faster afterwards.`, async()=>{
+                      const {data,error} = await supabase.rpc("archive_activity_log",{retention_days:retentionDays});
+                      if(error){ showToast("Archive error: "+error.message,false); return; }
+                      const r = data?.[0]||{};
+                      showToast(`Archived ${r.archived_count||0} events, removed ${r.deleted_count||0} from live log`);
+                      logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:r.archived_count,deleted:r.deleted_count});
+                      setLogLoading(true);
+                      supabase.from("activity_log").select("*").order("created_at",{ascending:false}).limit(2000)
+                        .then(({data:liveData})=>{ if(liveData) setActivityLog(liveData); setLogLoading(false); });
+                      setArchiveLog([]); setArchiveLoaded(false);
+                    },{title:"Archive Activity Log",confirmLabel:"Archive Now",danger:false,icon:"🗄"});
                   }}
                   onLoadArchive={()=>{
                     setArchiveLoading(true);
@@ -10149,12 +10250,13 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
                       });
                   }}
                   onPruneArchive={async()=>{
-                    if(!window.confirm("Delete archive entries older than 1 year? This cannot be undone.")) return;
-                    const {data,error} = await supabase.rpc("prune_activity_archive",{max_age_days:365});
-                    if(error){alert("Prune error: "+error.message);return;}
-                    showToast(`Pruned ${data||0} archive entries older than 1 year`);
-                    logAction("DELETE","Auth",`Pruned activity archive — entries older than 365d`,{pruned:data});
-                    setArchiveLog([]); setArchiveLoaded(false);
+                    showConfirm("Permanently delete all archive entries older than 1 year? This cannot be undone.", async()=>{
+                      const {data,error} = await supabase.rpc("prune_activity_archive",{max_age_days:365});
+                      if(error){showToast("Prune error: "+error.message,false);return;}
+                      showToast(`Pruned ${data||0} archive entries older than 1 year`);
+                      logAction("DELETE","Auth",`Pruned activity archive — entries older than 365d`,{pruned:data});
+                      setArchiveLog([]); setArchiveLoaded(false);
+                    },{title:"Prune Archive",confirmLabel:"Prune Now"});
                   }}
                 />
               )}
@@ -10780,6 +10882,7 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
               engineers={engineers} isEngActive={isEngActive}
               supabase={supabase} showToast={showToast}
               projects={projects} setProjects={setProjects}
+              showConfirm={showConfirm}
             />}
                         </div>
             {epTab!=="activities"&&<div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",borderTop:"1px solid var(--border3)",paddingTop:14}}>
@@ -11145,6 +11248,9 @@ body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;padding:24px 20px;-
           </div>
         </div>
       )}
+
+      {/* Confirm Dialog — replaces window.confirm */}
+      <ConfirmModal dlg={confirmDlg}/>
 
       {/* Toast */}
       {toast&&(
