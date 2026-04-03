@@ -5457,8 +5457,10 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
       if(modFilter!=="ALL"  && l.module!==modFilter)    return false;
       if(actFilter!=="ALL"  && l.action!==actFilter)    return false;
       if(userFilter!=="ALL" && l.user_name!==userFilter) return false;
-      if(dateFrom && l.created_at < dateFrom)           return false;
-      if(dateTo   && l.created_at > dateTo+"T23:59:59") return false;
+      // Compare date portion only — avoids timezone-suffix corruption in ISO strings
+      const entryDate = l.created_at ? l.created_at.slice(0,10) : "";
+      if(dateFrom && entryDate && entryDate < dateFrom) return false;
+      if(dateTo   && entryDate && entryDate > dateTo)   return false;
       if(search && !`${l.detail||""} ${l.user_name||""} ${l.module} ${l.action}`.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
@@ -7248,6 +7250,7 @@ export default function App(){
       user_role:myProfile?.role_type||"unknown",
       action,module,detail,
       meta:JSON.stringify(meta),
+      created_at:new Date().toISOString(),  // explicit — don't rely on DB default
     };
     supabase.from("activity_log").insert(entry).select()
       .then(({data,error})=>{
@@ -11728,8 +11731,10 @@ export default function App(){
                   onArchive={async()=>{
                     showConfirm(`Move activity log entries older than ${retentionDays} days to the archive? The live log will be faster afterwards.`, async()=>{
                       const cutoff=new Date();cutoff.setDate(cutoff.getDate()-retentionDays);
-                      const cutoffISO=cutoff.toISOString();
-                      // Fetch entries to archive in batches
+                      const cutoffISO=cutoff.toISOString();           // full ISO for timestamptz column
+                      const cutoffDate=cutoff.toISOString().slice(0,10); // YYYY-MM-DD fallback
+
+                      // Strategy 1: fetch by created_at < cutoff (works when column has real timestamps)
                       const toArchive=[];let from=0;
                       while(true){
                         const{data,error}=await supabase.from("activity_log")
@@ -11741,8 +11746,30 @@ export default function App(){
                         if(data.length<1000) break;
                         from+=1000;
                       }
+
+                      // Strategy 2 fallback — fetch ALL and filter client-side
+                      // covers legacy rows where created_at was NULL (now set from local state)
+                      if(!toArchive.length){
+                        const allRows=[];let af=0;
+                        while(true){
+                          const{data,error}=await supabase.from("activity_log")
+                            .select("*").order("created_at",{ascending:true}).range(af,af+999);
+                          if(error||!data?.length) break;
+                          allRows.push(...data);
+                          if(data.length<1000) break;
+                          af+=1000;
+                          if(allRows.length>=5000) break;
+                        }
+                        // Filter client-side by date portion
+                        allRows.forEach(r=>{
+                          if(!r.created_at) return; // skip truly null
+                          if(r.created_at.slice(0,10)<cutoffDate) toArchive.push(r);
+                        });
+                      }
+
                       if(!toArchive.length){showToast(`No entries older than ${retentionDays} days to archive`,false);return;}
-                      // Insert into archive (strip id to get new one)
+
+                      // Insert into archive table (strip id so DB assigns a new one)
                       let insertOk=0;
                       for(let i=0;i<toArchive.length;i+=500){
                         const chunk=toArchive.slice(i,i+500).map(({id,...rest})=>rest);
@@ -11750,7 +11777,7 @@ export default function App(){
                         if(error){showToast("Archive insert error: "+error.message,false);return;}
                         insertOk+=chunk.length;
                       }
-                      // Delete from live log
+                      // Delete from live log by id
                       const ids=toArchive.map(r=>r.id);
                       let deletedOk=0;
                       for(let i=0;i<ids.length;i+=500){
