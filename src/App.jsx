@@ -7163,6 +7163,33 @@ export default function App(){
   const viewEngId = canEditAny ? (browseEngId||myProfile?.id) : myProfile?.id;
   const viewEng   = engineers.find(e=>e.id===viewEngId);
 
+  // Lead scoping: compute which engineer IDs the current lead can see
+  // Admin/accountant/senior: unrestricted (null = all)
+  // Lead: only self + org chart descendants
+  const mySubEngIds = useMemo(()=>{
+    if(isAdmin||isAcct||isSenior) return null; // unrestricted
+    if(!isLead||!myProfile) return new Set([String(myProfile?.id||"")]);
+    // Find lead's node in org chart
+    const myNode = orgNodes.find(n=>String(n.engineer_id)===String(myProfile.id));
+    const result  = new Set([String(myProfile.id)]);
+    if(!myNode) return result; // not in org chart → only self
+    // BFS down from lead's node
+    const q    = [myNode.id];
+    const seen = new Set([myNode.id]);
+    while(q.length){
+      const nid  = q.shift();
+      const kids = orgNodes.filter(n=>Number(n.parent_id)===Number(nid));
+      kids.forEach(k=>{
+        if(!seen.has(k.id)){
+          seen.add(k.id);
+          q.push(k.id);
+          if(k.engineer_id) result.add(String(k.engineer_id));
+        }
+      });
+    }
+    return result;
+  },[isAdmin,isAcct,isSenior,isLead,myProfile,orgNodes]);
+
   // Hash routing — sync URL hash ↔ view state so refresh restores position
   useEffect(()=>{
     const hash = window.location.hash.slice(1);
@@ -9478,7 +9505,10 @@ export default function App(){
                   {canBrowseAll&&(
                     <div><Lbl>Browse Engineer</Lbl>
                       <select style={{width:190}} value={viewEngId||""} onChange={e=>setBrowseEngId(+e.target.value)}>
-                        {engineers.filter(e=>isEngActive(e)&&isBillableRole(e.role_type)).map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
+                        {engineers
+                          .filter(e=>isEngActive(e)&&isBillableRole(e.role_type))
+                          .filter(e=>!mySubEngIds||mySubEngIds.has(String(e.id)))
+                          .map(eng=><option key={eng.id} value={eng.id}>{eng.name}</option>)}
                       </select>
                     </div>
                   )}
@@ -9807,9 +9837,13 @@ export default function App(){
 
           {/* ════ TEAM ════ */}
           {view==="team"&&(()=>{
-            const filteredTeam=filterEngineer==="ALL"?engStats:engStats.filter(e=>e.id===+filterEngineer);
+            // Scope engStats to lead's org subtree; admins see all
+            const scopedEngStats = mySubEngIds
+              ? engStats.filter(e=>mySubEngIds.has(String(e.id)))
+              : engStats;
+            const filteredTeam=filterEngineer==="ALL"?scopedEngStats:scopedEngStats.filter(e=>e.id===+filterEngineer);
             const teamMonthEntries=monthEntries.filter(e=>filterProject==="ALL"||e.project_id===filterProject);
-            const selectedEng=filterEngineer!=="ALL"?engStats.find(e=>e.id===+filterEngineer):null;
+            const selectedEng=filterEngineer!=="ALL"?scopedEngStats.find(e=>e.id===+filterEngineer):null;
             return(
             <div>
               {/* Header + Filter bar */}
@@ -9817,13 +9851,13 @@ export default function App(){
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>ENGINEERING TEAM</div>
                   <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Team</h1>
-                  <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{engineers.filter(e=>isEngActive(e)).length} active · {engineers.length} total · {MONTHS[month]} {year}</p>
+                  <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{scopedEngStats.filter(e=>isEngActive(e)).length} active · {scopedEngStats.length} total · {MONTHS[month]} {year}</p>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
                   <div><Lbl>Engineer</Lbl>
                     <select style={{width:160}} value={filterEngineer} onChange={e=>setFilterEngineer(e.target.value)}>
                       <option value="ALL">All Engineers</option>
-                      {engineers.map(e=><option key={e.id} value={e.id}>{e.name}{!isEngActive(e)?" (inactive)":""}</option>)}
+                      {scopedEngStats.map(e=><option key={e.id} value={e.id}>{e.name}{!isEngActive(e)?" (inactive)":""}</option>)}
                     </select>
                   </div>
                   <div><Lbl>Project</Lbl>
@@ -10112,9 +10146,9 @@ export default function App(){
 
                 // ── Layout: iterative BFS — no recursion, guaranteed termination ──
                 const CARD_W  = 170;
-                const CARD_H  = 120;
-                const H_GAP   = 36;
-                const V_GAP   = 72;
+                const CARD_H  = 165;  // actual card content is ~165px tall
+                const H_GAP   = 40;   // horizontal gap between siblings
+                const V_GAP   = 88;   // vertical gap between levels
                 const LEVEL_H = CARD_H + V_GAP;
                 const PAD_X   = 52;
                 const PAD_Y   = 28;
@@ -11323,7 +11357,9 @@ export default function App(){
               {/* ══ KPI DASHBOARD ══ */}
               {adminTab==="kpis"&&(
                 <KPIsTab
-                  entries={entries} engineers={engineers} projects={projects}
+                  entries={entries}
+                  engineers={mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers}
+                  projects={projects}
                   kpiYear={kpiYear} setKpiYear={setKpiYear}
                   kpiEngId={kpiEngId} setKpiEngId={setKpiEngId}
                   kpiNotes={kpiNotes} setKpiNotes={setKpiNotes}
