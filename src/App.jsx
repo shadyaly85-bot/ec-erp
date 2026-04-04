@@ -1426,7 +1426,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
         <div>
-          <h2 style={{fontSize:18,fontWeight:700,color:"var(--text0)",margin:0}}>◈ Project Tasks Analysis</h2>
+          <h2 style={{fontSize:18,fontWeight:700,color:"var(--text0)",margin:0}}>Project Tasks Analysis</h2>
           <p style={{fontSize:14,color:"var(--text4)",marginTop:4}}>
             {filterMonth==="ALL"?"All Time":filterMonth} · {projList.length} projects · {grandTotal}h total
           </p>
@@ -1660,7 +1660,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
         <div>
-          <h2 style={{fontSize:18,fontWeight:700,color:"var(--text0)",margin:0}}>✈ Vacation & Leave Report</h2>
+          <h2 style={{fontSize:18,fontWeight:700,color:"var(--text0)",margin:0}}>Vacation & Leave Report</h2>
           <p style={{fontSize:14,color:"var(--text4)",marginTop:4}}>{MONTHS[month]} {year} · {monthly.length} engineers with leave recorded</p>
         </div>
         <button style={{background:"#0ea5e9",border:"none",borderRadius:6,padding:"8px 16px",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={onExport}>⬇ Export PDF</button>
@@ -1709,7 +1709,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
       {/* YTD summary */}
       <div className="card" style={{marginBottom:14,overflowX:"auto"}}>
-        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>📊 Year-to-Date {year} — All Leave</h4>
+        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Year-to-Date {year} — All Leave</h4>
         {ytd.length===0
           ? <p style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:20}}>No leave recorded for {year}.</p>
           : <table style={{minWidth:600}}>
@@ -1861,7 +1861,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
       {/* Per-engineer day detail */}
       {monthly.length>0&&<div>
-        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:10}}>📋 Detail — Leave Days {MONTHS[month]} {year}</h4>
+        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:10}}>Detail — Leave Days {MONTHS[month]} {year}</h4>
         {monthly.map(eng=>(
           <div key={eng.id} className="card" style={{marginBottom:8}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -2729,35 +2729,43 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           const pending=projActs.filter(a=>a.status==="Not Started").length;
           return(
           <div key={p.id} onClick={()=>setTrackerProj(p.id)}
-            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:10,padding:"14px 16px",cursor:"pointer"}}
+            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:10,padding:"14px 16px",cursor:"pointer",transition:"border-color .15s"}}
             onMouseEnter={e=>e.currentTarget.style.borderColor="var(--info)"}
-            onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-              <div>
-                <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>{p.name||p.id}</div>
-                <div style={{fontSize:13,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{p.id}</div>
-                {p.pm&&<div style={{fontSize:12,color:"#a78bfa",marginTop:2}}>PM: <span style={{fontWeight:600}}>{p.pm}</span></div>}
+            onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border3)"}>
+            {/* Header */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+              <div style={{flex:1,minWidth:0,paddingRight:8}}>
+                <div style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name||p.id}</div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</span>
+                  {p.status!=="Active"&&<span style={{fontSize:11,fontWeight:600,padding:"1px 6px",borderRadius:3,
+                    background:p.status==="On Hold"?"#fb923c15":"#a78bfa15",
+                    color:p.status==="On Hold"?"#fb923c":"#a78bfa"}}>{p.status}</span>}
+                </div>
+                {p.pm&&<div style={{fontSize:12,color:"#a78bfa",marginTop:3}}>PM: <span style={{fontWeight:600}}>{p.pm}</span></div>}
               </div>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:18,fontWeight:700,color:barColor}}>{overallPct}%</div>
-                <div style={{fontSize:12,color:"var(--text4)"}}>{totalHrs}h logged</div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:800,color:barColor,lineHeight:1}}>{overallPct}%</div>
+                <div style={{fontSize:11,color:"var(--text4)",marginTop:2}}>{totalHrs}h logged</div>
               </div>
             </div>
-            <div style={{background:"var(--bg1)",borderRadius:4,height:6,overflow:"hidden",marginBottom:8}}>
-              <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4}}/>
+            {/* Progress bar */}
+            <div style={{background:"var(--bg1)",borderRadius:4,height:5,overflow:"hidden",marginBottom:10}}>
+              <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4,transition:"width .4s"}}/>
             </div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {done>0&&<span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"#34d399",fontWeight:700}}>{done} Done</span>}
-              {active>0&&<span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)",fontWeight:700}}>{active} Active</span>}
-              {pending>0&&<span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--text3)",fontWeight:700}}>{pending} Pending</span>}
-              {hasSubs&&<span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"#a78bfa",fontWeight:700}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-sites</span>}
+            {/* Activity chips */}
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {done>0&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"#34d39915",color:"#34d399",fontWeight:600,border:"1px solid #34d39930"}}>{done} Done</span>}
+              {active>0&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"var(--info)15",color:"var(--info)",fontWeight:600,border:"1px solid var(--info)30"}}>{active} Active</span>}
+              {pending>0&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text3)",fontWeight:600}}>{pending} Pending</span>}
+              {hasSubs&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"#a78bfa15",color:"#a78bfa",fontWeight:600,border:"1px solid #a78bfa30"}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-sites</span>}
               {projActs.length===0&&canEdit&&(
-                <span style={{fontSize:12,padding:"2px 8px",borderRadius:3,background:"var(--bg3)",color:"var(--info)",border:"1px dashed var(--border3)",cursor:"pointer"}}
+                <span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"transparent",color:"var(--info)",border:"1px dashed var(--border3)",cursor:"pointer"}}
                   onClick={e=>{e.stopPropagation();setTrackerProj(p.id);}}>
                   + Add activities
                 </span>
               )}
-              {projActs.length===0&&!canEdit&&<span style={{fontSize:12,color:"var(--text4)",fontStyle:"italic"}}>No activities yet</span>}
+              {projActs.length===0&&!canEdit&&<span style={{fontSize:11,color:"var(--text4)",fontStyle:"italic"}}>No activities yet</span>}
             </div>
           </div>);
         })}
@@ -2853,7 +2861,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     {/* ── Activity Clipboard Paste Bar ── */}
     {actClipboard&&canEdit&&(
       <div style={{display:"flex",gap:10,alignItems:"center",padding:"12px 16px",background:"#a78bfa15",border:"1px solid #a78bfa40",borderRadius:10,flexWrap:"wrap"}}>
-        <span style={{fontSize:20}}>📋</span>
+        
         <div style={{flex:1,minWidth:200}}>
           <div style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>
             {actClipboard.acts.length} activit{actClipboard.acts.length===1?"y":"ies"} in clipboard
@@ -2986,7 +2994,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
 
       {visActs.length===0&&(
         <div style={{textAlign:"center",padding:"40px 24px",background:"var(--bg2)",borderRadius:8,border:"1px dashed var(--border3)"}}>
-          <div style={{fontSize:28,marginBottom:10}}>📋</div>
+          
           <div style={{fontSize:15,fontWeight:600,color:"var(--text0)",marginBottom:6}}>No activities yet</div>
           <div style={{fontSize:13,color:"var(--text4)",marginBottom:canEdit?18:0}}>
             {trackerSub
@@ -3166,7 +3174,7 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
   <div style={{display:"grid",gap:12}}>
     <div className="card" style={{padding:0,overflow:"hidden"}}>
       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
-        <div><div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>◈ Projects</div><div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{projects.length} total</div></div>
+        <div><div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Projects</div><div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{projects.length} total</div></div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="🔍 Search projects…" style={{width:200,padding:"7px 12px",borderRadius:7,border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text0)",fontSize:14}}/>
           {canEdit&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
@@ -3434,7 +3442,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
 
         // Activities not assigned to any sub-site
         var unRows=Object.keys(g.cats).length>0?
-          '<tr style="background:#f9fafb"><td colspan="7" style="padding:6px 10px;font-weight:700;color:#64748b;font-size:11px;border-top:2px solid #cbd5e1">📋 No Sub-site Assigned</td></tr>'
+          '<tr style="background:#f9fafb"><td colspan="7" style="padding:6px 10px;font-weight:700;color:#64748b;font-size:11px;border-top:2px solid #cbd5e1"No Sub-site Assigned</td></tr>'
           +buildCatRows(g.cats,22):"";
 
         body=summaryRow
@@ -3626,7 +3634,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
         {/* Activities not assigned to any sub-site */}
         {Object.keys(g.cats).length>0&&(
           <div>
-            {hasSubs&&<div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,padding:"4px 8px",background:"var(--bg2)",borderRadius:4}}>📋 No Sub-site Assigned</div>}
+            {hasSubs&&<div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,padding:"4px 8px",background:"var(--bg2)",borderRadius:4}}>No Sub-site Assigned</div>}
             {Object.entries(g.cats).map(function(entry){
               const cat=entry[0]; const catActs=entry[1];
               const gc=GC[catActs[0]?catActs[0].group_name:""]||"var(--info)";
@@ -4142,7 +4150,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
 
               {/* USD / Exchange Rate section */}
               <div style={{background:"var(--bg2)",borderRadius:6,padding:12,marginTop:12}}>
-                <div style={{fontSize:13,fontWeight:600,color:"var(--text2)",marginBottom:8}}>💵 USD Entry (optional — for foreign currency transactions)</div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--text2)",marginBottom:8}}>USD Entry (optional — for foreign currency transactions)</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <div>
                     <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Amount (USD)</div>
@@ -5039,7 +5047,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
             <td style="text-align:right;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:${runBal>0?"#34d399":"#64748b"}">${fmtEGP(runBal)}</td>
           </tr>`;
         }).join("");
-        return `<div class="section"><div class="st">💵 ${p.name} — Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div>
+        return `<div class="section"><div class="st">${p.name} — Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div>
           <table>
             <thead><tr><th>Date</th><th>Entry#</th><th>Description</th><th style="text-align:right">Cash Out</th><th style="text-align:right">Back/Spent</th><th style="text-align:right">Running Bal.</th></tr></thead>
             <tbody>${rows}</tbody>
@@ -5108,11 +5116,11 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
     <div style={{display:"grid",gap:14}}>
       {/* Report selector + filter + export */}
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-        <button style={btnStyle("pl")}     onClick={()=>setReportType("pl")}>📊 P&L Statement</button>
-        <button style={btnStyle("payroll")}onClick={()=>setReportType("payroll")}>👥 Payroll Summary</button>
+        <button style={btnStyle("pl")}     onClick={()=>setReportType("pl")}>P&L Statement</button>
+        <button style={btnStyle("payroll")}onClick={()=>setReportType("payroll")}>Payroll Summary</button>
         <button style={btnStyle("cashflow")}onClick={()=>setReportType("cashflow")}>💧 Cash Flow</button>
-        <button style={btnStyle("custody")}onClick={()=>setReportType("custody")}>💵 Custody Ledger</button>
-        <button style={btnStyle("assets")} onClick={()=>setReportType("assets")}>🏗 Asset Schedule</button>
+        <button style={btnStyle("custody")}onClick={()=>setReportType("custody")}>Custody Ledger</button>
+        <button style={btnStyle("assets")} onClick={()=>setReportType("assets")}>Asset Schedule</button>
         <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
           <span style={{fontSize:13,color:"var(--text4)"}}>Filter:</span>
           <select value={repMonth} onChange={e=>setRepMonth(+e.target.value)}
@@ -5376,16 +5384,16 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
 
   const steps = [
     {id:"monthly",   label:"📅 Monthly Close"},
-    {id:"custody",   label:"💵 Custody Expense"},
-    {id:"salary",    label:"👥 Salary Accrual"},
+    {id:"custody",   label:"Custody Expense"},
+    {id:"salary",    label:"Salary Accrual"},
     {id:"revenue",   label:"💰 Revenue Invoice"},
-    {id:"asset",     label:"🏗 Asset Purchase"},
+    {id:"asset",     label:"Asset Purchase"},
   ];
 
   return(
     <div style={{display:"grid",gap:14}}>
       <div style={{background:"#38bdf810",border:"1px solid #38bdf840",borderRadius:8,padding:"12px 16px"}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#38bdf8",marginBottom:4}}>📖 Accountant Workflow Guide — How to use the Journal</div>
+        <div style={{fontSize:14,fontWeight:700,color:"#38bdf8",marginBottom:4}}>Accountant Workflow Guide — How to use the Journal</div>
         <div style={{fontSize:13,color:"var(--text2)"}}>Next suggested Entry No: <strong style={{color:"#38bdf8"}}>#{nextEntryNo}</strong> · Last salary posted: {MO[lastPostedMonth]||"none"} · Next to post: {MO[nextMonth]}</div>
       </div>
 
@@ -5406,12 +5414,12 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
         <div className="card">
           <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>Monthly Close Checklist</div>
           {[
-            {n:1,title:"Post Salary Accrual",desc:"Go to 📒 Journal → Post Entry Line. Use entry type 'Accrued Salaries'. Must post 8 lines per month (see Salary Accrual guide).",done:postedMonths.includes(nextMonth)},
+            {n:1,title:"Post Salary Accrual",desc:"Go to Journal → Post Entry Line. Use entry type 'Accrued Salaries'. Must post 8 lines per month (see Salary Accrual guide).",done:postedMonths.includes(nextMonth)},
             {n:2,title:"Post Custody Expenses",desc:"For every petty cash receipt, post a line: Dr=expense account, Cr=Cash Custody (the person who paid). Use entry type 'Custody'.",done:false},
             {n:3,title:"Post Revenue Invoice",desc:"When invoice is issued to Enevo Group S.R.L., post Dr=Customers, Cr=Revenue. Enter USD amount + exchange rate.",done:false},
-            {n:4,title:"Verify Journal Balance",desc:"In 📒 Journal, filter by month. Check Debit = Credit strip at top. Must be ✓ Balanced.",done:false},
-            {n:5,title:"Review Balance Sheet",desc:"Check ⚖ Balance Sheet — Assets = Liabilities + Equity (+ current year profit). No unexplained gaps.",done:false},
-            {n:6,title:"Review Tax Position",desc:"Check 🧾 Tax tab — confirm payroll tax and social insurance liabilities match payroll accrual.",done:false},
+            {n:4,title:"Verify Journal Balance",desc:"In Journal, filter by month. Check Debit = Credit strip at top. Must be ✓ Balanced.",done:false},
+            {n:5,title:"Review Balance Sheet",desc:"Check Balance Sheet — Assets = Liabilities + Equity (+ current year profit). No unexplained gaps.",done:false},
+            {n:6,title:"Review Tax Position",desc:"Check Tax tab — confirm payroll tax and social insurance liabilities match payroll accrual.",done:false},
           ].map(item=>(
             <div key={item.n} style={{display:"flex",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border3)",alignItems:"flex-start"}}>
               <div style={{width:28,height:28,borderRadius:"50%",background:item.done?"#34d39920":"var(--bg2)",border:`2px solid ${item.done?"#34d399":"var(--border3)"}`,display:"flex",alignItems:"center",justifyContent:"center",color:item.done?"#34d399":"var(--text4)",fontWeight:700,fontSize:13,flexShrink:0}}>
@@ -5435,7 +5443,7 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
           </div>
           <div style={{display:"grid",gap:8}}>
             {[
-              {step:"Open 📒 Journal → click + Post Entry Line",detail:""},
+              {step:"Open Journal → click + Post Entry Line",detail:""},
               {step:"Entry No",detail:`${nextEntryNo} (next available)`},
               {step:"Date",detail:"Date on the receipt"},
               {step:"Entry Type",detail:"Custody"},
@@ -5498,7 +5506,7 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
             </table>
           </div>
           <div style={{marginTop:12,background:"#a78bfa15",border:"1px solid #a78bfa40",borderRadius:6,padding:"10px 14px",fontSize:13,color:"#a78bfa"}}>
-            💡 The Payroll Report (under 📋 Reports) shows you last month's posted amounts to use as reference. Compare staff table salaries to the accrual each month.
+            💡 The Payroll Report (under Reports) shows you last month's posted amounts to use as reference. Compare staff table salaries to the accrual each month.
           </div>
         </div>
       )}
@@ -5544,7 +5552,7 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
           ))}
           <div style={{fontSize:13,color:"var(--text3)",margin:"12px 0 8px"}}>Step 2 — Add to Fixed Asset Register (contact admin to add row to finance_fixed_assets table with asset name, category, cost, purchase date, useful life).</div>
           <div style={{background:"#34d39915",border:"1px solid #34d39940",borderRadius:6,padding:"10px 14px",fontSize:13,color:"#34d399"}}>
-            ✅ The 🏗 Fixed Assets tab calculates depreciation automatically from the asset register. No manual entry needed for depreciation — it's calculated in real-time.
+            ✅ The Fixed Assets tab calculates depreciation automatically from the asset register. No manual entry needed for depreciation — it's calculated in real-time.
           </div>
         </div>
       )}
@@ -5637,8 +5645,8 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
       {/* ── Pill nav ── */}
       <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",width:"fit-content"}}>
         {[
-          {id:"live",    label:`📋 Live Log`,    count:activityLog.length},
-          {id:"archive", label:`🗄 Archive`,     count:archiveLog.length},
+          {id:"live",    label:"Live Log",    count:activityLog.length},
+          {id:"archive", label:"Archive",     count:archiveLog.length},
         ].map(t=>{
           const active=tab===t.id;
           return(
@@ -5664,7 +5672,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
         return(
         <div className="card" style={{padding:0,overflow:"hidden"}}>
           <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"12px 20px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>🗄 Archive Management</div>
+            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Archive Management</div>
             <div style={{fontSize:13,color:"var(--text3)",marginLeft:"auto"}}>Live table stays fast · Archive keeps data forever</div>
           </div>
           <div style={{padding:"12px 20px",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
@@ -5719,7 +5727,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
       <div className="card" style={{padding:0,overflow:"hidden"}}>
         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>
-            {tab==="live"?`📋 Live Log`:`🗄 Archive`}
+            {tab==="live"?"Live Log":"Archive"}
             <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:400,color:"var(--text3)",marginLeft:8}}>{filtered.length} of {source.length} entries</span>
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -5992,16 +6000,16 @@ const projProfit=projects.map(p=>{
   {/* ── Sub-tab navigation ── */}
   <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",flexWrap:"wrap"}}>
     {[
-      {id:"journal",  label:"📒 Journal",     group:"Ledger"},
-      {id:"balance",  label:"⚖ Balance Sheet",group:"Ledger"},
-      {id:"expenses", label:"🧾 Expenses",     group:"Ledger"},
-      {id:"custody",  label:"💵 Cash Custody", group:"Ledger"},
-      {id:"pl",       label:"📈 P&L",          group:"Analysis"},
-      {id:"salaries", label:"👤 Payroll",       group:"Analysis"},
-      {id:"assets",   label:"🏗 Fixed Assets",  group:"Analysis"},
-      {id:"tax",      label:"📊 Tax & Social",  group:"Analysis"},
-      {id:"reports",  label:"📋 Reports",       group:"Output"},
-      {id:"workflow", label:"📖 Guide",         group:"Output"},
+      {id:"journal",  label:"Journal",     group:"Ledger"},
+      {id:"balance",  label:"Balance Sheet",group:"Ledger"},
+      {id:"expenses", label:"Expenses",     group:"Ledger"},
+      {id:"custody",  label:"Cash Custody", group:"Ledger"},
+      {id:"pl",       label:"P&L",          group:"Analysis"},
+      {id:"salaries", label:"Payroll",       group:"Analysis"},
+      {id:"assets",   label:"Fixed Assets",  group:"Analysis"},
+      {id:"tax",      label:"Tax & Social",  group:"Analysis"},
+      {id:"reports",  label:"Reports",       group:"Output"},
+      {id:"workflow", label:"Guide",         group:"Output"},
     ].map(t=>{
       const active=finSubTab===t.id;
       return(
@@ -6077,7 +6085,7 @@ const projProfit=projects.map(p=>{
   {finSubTab==="balance"&&(
     <div>
       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
-        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>⚖ Balance Sheet</div>
+        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Balance Sheet</div>
         <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
           // Build Balance Sheet PDF from journal entries
           const bsE=journalEntries.filter(e=>e.statement_type==="Balance Sheet");
@@ -6109,7 +6117,7 @@ const projProfit=projects.map(p=>{
   {finSubTab==="expenses"&&(
     <div>
       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
-        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>🧾 Expenses</div>
+        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Expenses</div>
         <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
           const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
           const plE=journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet"&&+e.debit>0);
@@ -6139,7 +6147,7 @@ const projProfit=projects.map(p=>{
   {finSubTab==="custody"&&(
     <div>
       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
-        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>💵 Cash Custody</div>
+        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Cash Custody</div>
         <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
           const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
           const custMap={};
@@ -6156,7 +6164,7 @@ const projProfit=projects.map(p=>{
               runBal+=(+e.credit||0)-(+e.debit||0);
               return`<tr style="${i%2?"background:#f8fafc":""}"><td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${String(e.entry_date||"").slice(0,10)}</td><td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#94a3b8">${e.entry_no||""}</td><td>${e.description||""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${+e.credit>0.01?fmtEGP(+e.credit):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399">${+e.debit>0.01?fmtEGP(+e.debit):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${runBal>0?"#34d399":"#64748b"}">${fmtEGP(runBal)}</td></tr>`;
             }).join("");
-            return`<div class="section"><div class="st">💵 ${p.name} — Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div><table><thead><tr><th>Date</th><th>Entry#</th><th>Description</th><th style="text-align:right">Cash Out</th><th style="text-align:right">Back/Spent</th><th style="text-align:right">Balance</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+            return`<div class="section"><div class="st">${p.name} — Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div><table><thead><tr><th>Date</th><th>Entry#</th><th>Description</th><th style="text-align:right">Cash Out</th><th style="text-align:right">Back/Spent</th><th style="text-align:right">Balance</th></tr></thead><tbody>${rows}</tbody></table></div>`;
           });
           if(!sections.length)sections.push(`<div class="section"><p style="text-align:center;color:#94a3b8;padding:20px">No custody entries found</p></div>`);
           generatePDF("Cash Custody Ledger",sections,`Cash Custody · Enevo Egypt LLC · ${now}`);
@@ -6238,7 +6246,7 @@ const projProfit=projects.map(p=>{
 
       {/* ── Info banner ── */}
       <div style={{background:"var(--bg1)",border:"1px solid #38bdf830",borderRadius:10,padding:"10px 16px",fontSize:13,color:"var(--text3)",display:"flex",alignItems:"center",gap:10}}>
-        📒 <span><strong style={{color:"var(--text1)"}}>Journal-based P&L</strong> — All figures sourced directly from posted journal entries (EGP). This is the official accounting view for {MONTHS_[finMonth]} {finYear}.</span>
+        <span><strong style={{color:"var(--text1)"}}>Journal-based P&L</strong> — All figures sourced directly from posted journal entries (EGP). This is the official accounting view for {MONTHS_[finMonth]} {finYear}.</span>
       </div>
 
       {/* ── Hero metrics ── */}
@@ -6934,7 +6942,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   );
 
   const kpiRatingColor=s=>s>=96?"#34d399":s>=76?"var(--info)":s>=41?"#fb923c":"#f87171";
-  const kpiRatingLabel=s=>s>=96?"🏆 High Performer":s>=76?"⭐ Performer":s>=41?"👍 Competent":"📈 Under Performer";
+  const kpiRatingLabel=s=>s>=96?"High Performer":s>=76?"Performer":s>=41?"Competent":"Under Performer";
 
   return(
   <div style={{display:"grid",gap:16}}>
@@ -6974,9 +6982,9 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
     {isAdmin&&pendingVacations.length>0&&(
       <div className="card" style={{borderColor:"#f59e0b50",padding:0,overflow:"hidden"}}>
         <div style={{background:"var(--bg0)",borderBottom:"1px solid #f59e0b40",padding:"14px 20px",display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:15,fontWeight:700,color:"#f59e0b"}}>⏳ Pending Vacation Approvals</span>
+          <span style={{fontSize:15,fontWeight:700,color:"#f59e0b"}}>Pending Vacation Approvals</span>
           <span style={{fontSize:13,background:"#f59e0b20",border:"1px solid #f59e0b40",color:"#f59e0b",padding:"2px 9px",borderRadius:8,fontWeight:700}}>{pendingVacations.length}</span>
-          <span style={{fontSize:13,color:"var(--text3)",marginLeft:"auto"}}>Also visible in 🔔 notifications bell at top of Admin panel</span>
+          <span style={{fontSize:13,color:"var(--text3)",marginLeft:"auto"}}>Also visible in notifications bell at top of Admin panel</span>
         </div>
         <div style={{display:"grid",gap:0}}>
           {pendingVacations.map(e=>{
@@ -10930,43 +10938,65 @@ export default function App(){
               {/* ── GRID VIEW ── */}
               {teamViewMode==="grid"&&<div className="stats-5col" style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
                 {filteredTeam.map(eng=>(
-                  <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",
-                    opacity:!isEngActive(eng)?0.5:1,
-                    border:filterEngineer===String(eng.id)?"1px solid #38bdf8":!isEngActive(eng)?"1px solid var(--border2)":"1px solid var(--border3)"}}
+                  <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",padding:"16px 12px",
+                    opacity:!isEngActive(eng)?0.5:1,transition:"border-color .15s",
+                    border:filterEngineer===String(eng.id)?"1px solid var(--info)":!isEngActive(eng)?"1px solid var(--border2)":"1px solid var(--border3)"}}
                     onClick={()=>setFilterEngineer(filterEngineer===String(eng.id)?"ALL":String(eng.id))}>
-                    <div className="av" style={{width:44,height:44,fontSize:15,margin:"0 auto 8px",filter:!isEngActive(eng)?"grayscale(1)":"none"}}>{eng.name?.slice(0,2).toUpperCase()}</div>
-                    <div style={{fontSize:15,fontWeight:600}}>{eng.name}{!isEngActive(eng)&&<span style={{fontSize:12,marginLeft:5,color:"#f87171",background:"#f8717115",padding:"1px 4px",borderRadius:3}}>LEFT</span>}</div>
-                    <div style={{fontSize:13,color:"var(--text4)",marginBottom:4}}>{eng.role}</div>
-                    <div style={{marginBottom:8}}><span className="role-badge" style={{background:ROLE_COLORS[eng.role_type]+"20",color:ROLE_COLORS[eng.role_type]||"var(--text3)"}}>{ROLE_LABELS[eng.role_type]||eng.role_type}</span></div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:7}}>
-                      <div style={{background:"var(--bg2)",borderRadius:5,padding:"6px 4px"}}>
-                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:"var(--info)"}}>{(filterProject==="ALL"?eng.workHrs:teamMonthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0))}h</div>
-                        <div style={{fontSize:12,color:"var(--text4)"}}>work hrs</div>
+                    {/* Avatar */}
+                    <div className="av" style={{width:44,height:44,fontSize:15,margin:"0 auto 10px",filter:!isEngActive(eng)?"grayscale(1)":"none"}}>{eng.name?.slice(0,2).toUpperCase()}</div>
+                    {/* Name + status */}
+                    <div style={{fontSize:14,fontWeight:700,color:"var(--text0)",lineHeight:1.2,marginBottom:2}}>
+                      {eng.name}
+                      {!isEngActive(eng)&&<span style={{fontSize:11,marginLeft:5,color:"#f87171",background:"#f8717115",padding:"1px 5px",borderRadius:3,fontWeight:600}}>LEFT</span>}
+                    </div>
+                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:6}}>{eng.role}</div>
+                    {/* Role badge */}
+                    <div style={{marginBottom:10}}><span className="role-badge" style={{background:ROLE_COLORS[eng.role_type]+"20",color:ROLE_COLORS[eng.role_type]||"var(--text3)"}}>{ROLE_LABELS[eng.role_type]||eng.role_type}</span></div>
+                    {/* Utilization bar */}
+                    {(()=>{
+                      const u=eng.utilization||0;
+                      const barC=u>=80?"#34d399":u>=60?"#fb923c":"#f87171";
+                      return(
+                        <div style={{marginBottom:10}}>
+                          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--text4)",marginBottom:3}}>
+                            <span>Util.</span><span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:barC}}>{u}%</span>
+                          </div>
+                          <div style={{background:"var(--bg3)",borderRadius:4,height:5,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${Math.min(100,u)}%`,background:barC,borderRadius:4,transition:"width .3s"}}/>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    {/* Stats row */}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:8}}>
+                      <div style={{background:"var(--bg2)",borderRadius:6,padding:"7px 4px"}}>
+                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:"var(--info)"}}>
+                          {(filterProject==="ALL"?eng.workHrs:teamMonthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0))}h
+                        </div>
+                        <div style={{fontSize:11,color:"var(--text4)"}}>Work Hrs</div>
                       </div>
-                      <div style={{background:"var(--bg2)",borderRadius:5,padding:"6px 4px"}}>
-                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:eng.utilization>=80?"#34d399":eng.utilization>=60?"#fb923c":"#f87171"}}>{fmtPct(eng.utilization)}</div>
-                        <div style={{fontSize:12,color:"var(--text4)"}}>util.</div>
+                      <div style={{background:"var(--bg2)",borderRadius:6,padding:"7px 4px"}}>
+                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:"#a78bfa"}}>
+                          {(isAdmin||isAcct)?fmtPct(eng.billability):"—"}
+                        </div>
+                        <div style={{fontSize:11,color:"var(--text4)"}}>Billability</div>
                       </div>
                     </div>
-                    <div style={{fontSize:13,display:"flex",justifyContent:"space-between",color:"var(--text3)",paddingBottom:6}}>
-                      {(isAdmin||isAcct)&&<span>Bill: <span style={{color:"#a78bfa",fontWeight:600}}>{fmtPct(eng.billability)}</span></span>}
-                      {eng.leaveDays>0&&<span style={{color:"#fb923c"}}>✈{eng.leaveDays}d</span>}
+                    {/* Leave + revenue */}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:eng.leaveDays>0?6:0}}>
+                      {eng.leaveDays>0&&<span style={{fontSize:12,color:"#fb923c",background:"#fb923c12",padding:"2px 8px",borderRadius:4,fontWeight:600}}>{eng.leaveDays}d leave</span>}
+                      {(isAdmin||isAcct)&&<span style={{fontSize:12,fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",marginLeft:"auto"}}>{fmtCurrency(eng.revenue)}</span>}
                     </div>
-                    {(isAdmin||isAcct)&&<div style={{fontSize:13,fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",marginBottom:5}}>{fmtCurrency(eng.revenue)}</div>}
-                    <div style={{fontSize:12,padding:"1px 6px",borderRadius:3,background:"var(--border)",color:"var(--text3)",display:"inline-block"}}>{eng.level}</div>
+                    {/* Level */}
+                    <div style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"var(--border)",color:"var(--text3)",display:"inline-block",marginBottom:eng.leaveDays>0||((isAdmin||isAcct)&&eng.revenue>0)?4:0}}>{eng.level||"—"}</div>
                     {/* Assigned projects */}
                     {(()=>{
-                      const myProjs=projects.filter(p=>
-                        p.status==="Active"&&
-                        (p.assigned_engineers||[]).map(String).includes(String(eng.id))
-                      );
-                      if(!myProjs.length) return(
-                        <div style={{fontSize:12,color:"var(--border)",marginTop:6}}>no assigned projects</div>
-                      );
+                      const myProjs=projects.filter(p=>p.status==="Active"&&(p.assigned_engineers||[]).map(String).includes(String(eng.id)));
+                      if(!myProjs.length) return(<div style={{fontSize:11,color:"var(--border)",marginTop:6}}>no active projects</div>);
                       return(
                         <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:3,justifyContent:"center"}}>
                           {myProjs.slice(0,4).map(p=>(
-                            <span key={p.id} title={(p.name||p.id)+" ("+p.id+")"} style={{fontSize:11,padding:"1px 5px",borderRadius:3,
+                            <span key={p.id} title={(p.name||p.id)+" ("+p.id+")"} style={{fontSize:11,padding:"2px 6px",borderRadius:4,
                               background:"var(--bg2)",border:"1px solid var(--border3)",color:"var(--info)",
                               whiteSpace:"nowrap",maxWidth:90,overflow:"hidden",textOverflow:"ellipsis"}}>
                               {p.name||p.id}
@@ -11149,7 +11179,7 @@ export default function App(){
                     <div className="card" style={{padding:0,overflow:"hidden"}}>
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <div>
-                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>◉ Team Utilization</div>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Team Utilization</div>
                           <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · {visibleEngStats.length} engineers</div>
                         </div>
                         <button className="bp" onClick={buildUtilizationPDF}>⬇ Export PDF</button>
@@ -11261,7 +11291,7 @@ export default function App(){
                     <div>
                       <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
                         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>◈ Project Analysis</div>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Project Analysis</div>
                           <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year}</div>
                         </div>
                       </div>
@@ -11291,7 +11321,7 @@ export default function App(){
                     <div>
                       <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
                         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
-                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>👥 Assignment Report</div>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Assignment Report</div>
                           <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · Who is working on what</div>
                         </div>
                       </div>
@@ -11348,7 +11378,7 @@ export default function App(){
                       <div className="card" style={{padding:0,overflow:"hidden"}}>
                         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                           <div>
-                            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>🧾 Invoice Export</div>
+                            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Invoice Export</div>
                             <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · Billable projects only</div>
                           </div>
                           <div style={{display:"flex",gap:8}}>
@@ -11463,7 +11493,9 @@ export default function App(){
                 <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,overflow:"hidden"}}>
                   <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 18px",cursor:"pointer",userSelect:"none",background:"var(--bg0)",borderBottom:notifPanelOpen?"1px solid var(--border)":"none"}}
                     onClick={toggleNotifPanel}>
-                    <span style={{fontSize:16}}>🔔</span>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--info)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M8 1.5a4.5 4.5 0 014.5 4.5c0 2.5.8 3.5 1.5 4.5H2c.7-1 1.5-2 1.5-4.5A4.5 4.5 0 018 1.5z"/><path d="M6.5 13.5a1.5 1.5 0 003 0"/>
+                    </svg>
                     <span style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>Notifications</span>
                     <span style={{background:"#ef444420",color:"#f87171",fontSize:13,fontWeight:700,padding:"2px 8px",borderRadius:10}}>{totalCount}</span>
                     <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
@@ -11626,7 +11658,7 @@ export default function App(){
                   {/* Card header */}
                   <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
                     <div>
-                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>👥 Engineers & Access Control</div>
+                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Engineers & Access Control</div>
                       <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{engineers.filter(e=>isEngActive(e)).length} active · {engineers.length} total members</div>
                     </div>
                     <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -11747,7 +11779,7 @@ export default function App(){
                   {/* Filter card */}
                   <div className="card" style={{padding:0,overflow:"hidden"}}>
                     <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
-                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>⏱ All Time Entries</div>
+                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>All Time Entries</div>
                       <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Browse, filter and audit all engineer entries</div>
                     </div>
                     <div style={{padding:"14px 20px",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
@@ -12684,7 +12716,7 @@ export default function App(){
             <h3 style={{fontSize:17,fontWeight:700,marginBottom:12}}>Edit Project — {editProjModal._origId||editProjModal.id}</h3>
             {/* Tab bar */}
             <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid var(--border3)"}}>
-              {(isAdmin?[["details","⚙ Details"],["team","👥 Team"],["activities","📋 Activities"]]:[["details","⚙ Details"],["team","👥 Team"],["activities","📋 Activities"]]).map(([t,l])=>(
+              {(isAdmin?[["details","Details"],["team","Team"],["activities","Activities"]]:[["details","Details"],["team","Team"],["activities","Activities"]]).map(([t,l])=>(
                 <button key={t} onClick={()=>setEpTab(t)}
                   style={{padding:"6px 14px",border:"none",borderBottom:epTab===t?"2px solid #38bdf8":"2px solid transparent",
                     background:"transparent",color:epTab===t?"var(--info)":"var(--text3)",fontSize:13,fontWeight:600,cursor:"pointer"}}>
