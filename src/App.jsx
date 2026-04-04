@@ -7706,6 +7706,7 @@ export default function App(){
     setNotifPanelOpen(prev=>!prev);
   },[]);
   const [myProfile,setMyProfile]     = useState(null);
+  const myProfileRef = React.useRef(null); // always current — used inside stale closures (realtime handler)
   const [loading,setLoading]         = useState(false);
 
   const [view,setView]               = useState("dashboard");
@@ -8022,7 +8023,15 @@ export default function App(){
       })
       // notifications — live bell updates without refresh
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications"},({new:row})=>{
-        if(row.read) return; // skip pre-read notifications
+        if(row.read) return;
+        // For activity_comment: recipient is in meta.recipient_engineer_id
+        // For other types (vacation): show to admins/leads (non-restricted roles catch-all)
+        if(row.type==="activity_comment"){
+          try{
+            const m=JSON.parse(row.meta||"{}");
+            if(String(m.recipient_engineer_id)!==String(myProfileRef.current?.id)) return;
+          }catch{ return; }
+        }
         setNotifications(prev=>prev.some(n=>n.id===row.id)?prev:[row,...prev]);
       })
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"notifications"},({new:row})=>{
@@ -8067,7 +8076,7 @@ export default function App(){
         setEntries(entrR.data);
         setLoadedYears(new Set([today.getFullYear(), today.getFullYear()-1]));
       }
-      if(profR.data){ setMyProfile(profR.data); setBrowseEngId(profR.data.id); }
+      if(profR.data){ setMyProfile(profR.data); myProfileRef.current=profR.data; setBrowseEngId(profR.data.id); }
       if(notifR.data){
         // Deduplicate timesheet alerts by alert_key — keep only newest per key, delete duplicates
         const all = notifR.data;
@@ -8102,13 +8111,13 @@ export default function App(){
         const isRestrictedRole = !["admin","lead","accountant","senior_management"].includes(profRole);
         const filtered = isRestrictedRole
           ? deduped.filter(n=>{
-              // Engineers see notifications about themselves (vacation approval/rejection)
-              if(['vacation_approved','vacation_rejected'].includes(n.type)){
-                try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
+              // activity_comment: recipient stored in meta.recipient_engineer_id
+              if(n.type==="activity_comment"){
+                try{ const m=JSON.parse(n.meta||"{}"); return String(m.recipient_engineer_id)===String(profId); }
                 catch{ return false; }
               }
-              // Vacation requests they submitted (their own pending entries)
-              if(n.type==='vacation_request'){
+              // Vacation approval/rejection keyed in meta
+              if(["vacation_approved","vacation_rejected"].includes(n.type)){
                 try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
                 catch{ return false; }
               }
@@ -8241,7 +8250,7 @@ export default function App(){
     setNotifications(prev=>prev.filter(x=>x.id!==id));
   },[notifications]);
 
-  // ── Activity comment handler — lifted to App scope so ALL surfaces (Tracker + EditProjActivities) share one notification path ──
+  // ── Activity comment handler — lifted to App scope so ALL surfaces share one notification path ──
   const appHandleActivityComment=useCallback(async(actId, comments, notifyCtx)=>{
     const{error}=await supabase.from("project_activities").update({comments}).eq("id",actId);
     if(!error){
@@ -8250,41 +8259,53 @@ export default function App(){
       if(notifyCtx?.isNewComment && notifyCtx.commenterName){
         const newComment=comments[comments.length-1];
         const excerpt=(newComment?.text||"").slice(0,80);
-        const msg=`${notifyCtx.commenterName} commented on "${notifyCtx.activityName}": "${excerpt}${excerpt.length>=80?"…":""}"`;
-        const meta=JSON.stringify({activity_id:actId,activity_name:notifyCtx.activityName,commenter:notifyCtx.commenterName,project_id:notifyCtx.projectId});
-
-        const toNotify=new Set();
+        const msgText=`${notifyCtx.commenterName} commented on "${notifyCtx.activityName}": "${excerpt}${excerpt.length>=80?"…":""}"`;
         const isCommenter=e=>e.name===notifyCtx.commenterName;
 
-        // 1. Assigned engineer
-        const assignedEng=notifyCtx.assignedTo
-          ? engineers.find(e=>e.name===notifyCtx.assignedTo)
-          : null;
-        if(assignedEng&&!isCommenter(assignedEng)) toNotify.add(assignedEng.id);
+        // Build recipient list: assigned engineer + project leader + all admins
+        const recipientIds=new Set();
 
-        // 2. Project Leader
+        // 1. Assigned engineer on the activity
+        if(notifyCtx.assignedTo){
+          const eng=engineers.find(e=>e.name===notifyCtx.assignedTo);
+          if(eng&&!isCommenter(eng)) recipientIds.add(String(eng.id));
+        }
+        // 2. Project Leader (stored on project record)
         const proj=projects.find(p=>p.id===notifyCtx.projectId);
         if(proj?.project_leader){
-          const leaderEng=engineers.find(e=>e.name===proj.project_leader);
-          if(leaderEng&&!isCommenter(leaderEng)) toNotify.add(leaderEng.id);
+          const ldr=engineers.find(e=>e.name===proj.project_leader);
+          if(ldr&&!isCommenter(ldr)) recipientIds.add(String(ldr.id));
         }
-
         // 3. All admins
         engineers.forEach(e=>{
-          if(e.role_type==="admin"&&!isCommenter(e)) toNotify.add(e.id);
+          if(e.role_type==="admin"&&!isCommenter(e)) recipientIds.add(String(e.id));
         });
 
-        if(toNotify.size>0){
-          const now=new Date().toISOString();
-          const notifs=[...toNotify].map(eid=>({
-            engineer_id:eid, type:"activity_comment", read:false,
-            message:msg, created_at:now, meta
-          }));
-          const{data:inserted}=await supabase.from("notifications").insert(notifs).select();
-          if(inserted){
-            const myId=String(myProfile?.id);
-            const mine=inserted.filter(n=>String(n.engineer_id)===myId);
-            if(mine.length) setNotifications(prev=>[...mine,...prev]);
+        // Insert one notification row per recipient
+        // Schema matches existing notifications table: type, read, message, created_at, meta
+        const now=new Date().toISOString();
+        for(const recipId of recipientIds){
+          const notif={
+            type:"activity_comment",
+            read:false,
+            message:msgText,
+            created_at:now,
+            meta:JSON.stringify({
+              recipient_engineer_id:recipId,
+              activity_id:actId,
+              activity_name:notifyCtx.activityName,
+              commenter:notifyCtx.commenterName,
+              project_id:notifyCtx.projectId
+            })
+          };
+          const{data:nd,error:ne}=await supabase.from("notifications").insert(notif).select().single();
+          if(nd){
+            // Immediately show in bell if this notification is for the current user
+            if(String(recipId)===String(myProfile?.id)){
+              setNotifications(prev=>[nd,...prev]);
+            }
+          } else if(ne){
+            console.error("Notification insert error:",ne.message);
           }
         }
       }
