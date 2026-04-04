@@ -7900,7 +7900,14 @@ export default function App(){
         .then(({data:nd})=>{ if(nd) setNotifications(prev=>[nd,...prev]); });
       showToast("Vacation request submitted — pending admin approval ✓");
     } else {
-      showToast("Hours posted ✓");
+      const hasNote = !!(newEntry.activity && newEntry.activity.trim().length > 2);
+      const isWorkEntry = !isLeave && !isFunc;
+      if(isWorkEntry && !hasNote){
+        // Post succeeded but no description — show amber warning
+        showToast("Hours posted — no description added. Add a note to improve your KPI score.",false);
+      } else {
+        showToast("Hours posted ✓");
+      }
     }
     setModalDate(null);
     setNewEntry({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
@@ -12406,10 +12413,11 @@ export default function App(){
                         onChange={e=>setNewEntry(p=>({...p,hours:+e.target.value}))} style={INP}/>
                     </div>
                     <div>
-                      <label style={LBL}>DESCRIPTION</label>
+                      <label style={LBL}>DESCRIPTION <span style={{fontSize:11,color:"#fb923c",fontWeight:400}}>(recommended)</span></label>
                       <textarea rows={2} value={newEntry.activity}
                         onChange={e=>setNewEntry(p=>({...p,activity:e.target.value}))}
-                        placeholder="Describe the activity…" style={{...INP,resize:"vertical"}}/>
+                        placeholder="Describe the activity…"
+                        style={{...INP,resize:"vertical",borderColor:(!newEntry.activity||newEntry.activity.trim().length<=2)?"#fb923c50":"var(--input-border)"}}/>
                     </div>
                   </div>
                 </div>
@@ -12553,11 +12561,11 @@ export default function App(){
                         onChange={e=>setNewEntry(p=>({...p,hours:+e.target.value}))} style={INP}/>
                     </div>
                     <div>
-                      <label style={LBL}>NOTES <span style={{color:"var(--text3)",fontWeight:400}}>(optional)</span></label>
+                      <label style={LBL}>NOTES <span style={{fontSize:11,color:"#fb923c",fontWeight:400}}>(recommended)</span></label>
                       <textarea rows={2} value={newEntry.activity}
                         onChange={e=>setNewEntry(p=>({...p,activity:e.target.value}))}
                         placeholder="e.g. Completed BESS display animations…"
-                        style={{...INP,resize:"vertical"}}/>
+                        style={{...INP,resize:"vertical",borderColor:(!newEntry.activity||newEntry.activity.trim().length<=2)?"#fb923c50":"var(--input-border)"}}/>
                     </div>
                   </div>
                 </div>
