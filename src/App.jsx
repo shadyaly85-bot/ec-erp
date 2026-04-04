@@ -3808,6 +3808,76 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
     if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
   };
 
+  // ── Build sub-site focused PDF ──
+  const buildSubPDF=function(subId,subName){
+    var now=today.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+    var label=PERIOD_LABEL[period];
+    var stBgMap={"Completed":"#dcfce7","In Progress":"#dbeafe","Not Started":"#f1f5f9","On Hold":"#fff7ed"};
+    var stCMap={"Completed":"#166534","In Progress":"#1d4ed8","Not Started":"#64748b","On Hold":"#9a3412"};
+    // Find project info
+    var projGroup=grouped.find(function(g){return Object.values(g.subs).some(function(s){return s.subId===subId;});});
+    var proj=projGroup?projects.find(function(p){return p.id===projGroup.pid;}):null;
+    var sub=projGroup?projGroup.subs[subId]:null;
+    if(!sub) return;
+    var sActs=Object.values(sub.cats).flat();
+    var sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
+    var sd=sActs.filter(function(a){return a.status==="Completed";}).length;
+    var bc=sp2===100?"#22c55e":sp2>=50?"#3b82f6":"#f97316";
+    var tableHead='<thead><tr style="background:#f1f5f9">'
+      +'<th style="padding:5px 6px 5px 12px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ACTIVITY</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">STATUS</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">PROGRESS</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ASSIGNED</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">START</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">DEADLINE</th>'
+      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">NOTES</th>'
+      +'</tr></thead>';
+    var bodyRows="";
+    Object.entries(sub.cats).forEach(function(entry){
+      var cat=entry[0]; var catActs=entry[1];
+      bodyRows+='<tr style="background:#f0f4f8"><td colspan="7" style="padding:4px 6px 4px 12px;font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.08em;border-top:1px solid #e2e8f0">'+cat+'</td></tr>';
+      catActs.forEach(function(a){
+        var pct=Math.round((a.progress||0)*100);
+        var ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
+        var stBg=stBgMap[a.status]||"#f1f5f9"; var stC=stCMap[a.status]||"#64748b";
+        var pctCol=pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b";
+        var barCol=pct===100?"#22c55e":pct>=50?"#3b82f6":"#f97316";
+        var bar='<div style="display:inline-block;vertical-align:middle;width:55px;height:4px;background:#e2e8f0;border-radius:2px;margin-left:4px"><div style="width:'+pct+'%;height:100%;background:'+barCol+';border-radius:2px"></div></div>';
+        var cs=a.comments?Array.isArray(a.comments)?a.comments:(function(){try{return JSON.parse(a.comments);}catch(e){return[];}})():[];
+        var commentHTML=cs.length?'<div style="margin-top:4px;border-top:1px solid #e2e8f0;padding-top:3px">'+cs.map(function(c){var tsStr=c.ts?new Date(c.ts).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";return'<div style="font-size:9px;color:#334155;margin-bottom:2px"><b>'+c.author+'</b><span style="color:#94a3b8;float:right">'+tsStr+'</span><br>'+c.text+'</div>';}).join('')+'</div>':'';
+        bodyRows+='<tr><td style="padding:5px 6px 5px 12px;font-size:11px">'+a.activity_name+'</td>'
+          +'<td style="padding:5px 6px"><span style="background:'+stBg+';color:'+stC+';padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">'+a.status+'</span></td>'
+          +'<td style="padding:5px 6px;white-space:nowrap"><b style="font-size:11px;color:'+pctCol+'">'+pct+'%</b>'+bar+'</td>'
+          +'<td style="padding:5px 6px;font-size:10px;color:#475569">'+(a.assigned_to||"—")+'</td>'
+          +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap">'+fmtD(a.start_date)+'</td>'
+          +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap;color:'+(ov?"#dc2626":"#475569")+';font-weight:'+(ov?"700":"400")+'">'+fmtD(a.end_date)+(ov?" ⚠":"")+'</td>'
+          +'<td style="padding:5px 6px;font-size:10px;color:#64748b">'+(a.remarks||"")+(cs.length?' '+commentHTML:'')+'</td></tr>';
+      });
+    });
+    var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+subName+' — Progress Report</title>'
+      +'<style>body{font-family:\'Segoe UI\',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}'
+      +'@media print{body{padding:0}@page{margin:14mm}table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f">'
+      +'<div><div style="font-size:20px;font-weight:800;color:#1e3a5f">ENEVO GROUP</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#334155;margin-top:2px">Sub-site Report — '+subName+'</div>'
+      +'<div style="font-size:12px;color:#7c3aed;font-weight:600;margin-top:2px">Part of: '+(proj?proj.name:projGroup?.pid||"")+(proj&&proj.id?' ('+proj.id+')':'')+'</div>'
+      +'<div style="font-size:11px;color:#64748b;margin-top:3px">Period: <b>'+label+'</b> · Generated: '+now+'</div></div>'
+      +'<div style="text-align:right;font-size:11px;color:#64748b;line-height:1.8">'
+      +'<div style="font-size:22px;font-weight:800;color:'+bc+'">'+sp2+'%</div>'
+      +'<div>'+sd+'/'+sActs.length+' completed</div></div></div>'
+      +'<div style="height:6px;background:#e2e8f0;border-radius:3px;margin-bottom:16px"><div style="width:'+sp2+'%;height:100%;background:'+bc+';border-radius:3px"></div></div>'
+      +'<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0">'
+      +tableHead+'<tbody>'+bodyRows+'</tbody></table>'
+      +'<div style="margin-top:20px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP · '+subName+' · '+now+'</div>'
+      +'</body></html>';
+    var w=window.open("","subpdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
+    if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
+  };
+
+  // Detect sub-sites for the selected project
+  const selectedProjGroup = selProj!=="ALL" ? grouped.find(function(g){return g.pid===selProj;}) : null;
+  const selectedProjSubs  = selectedProjGroup ? Object.values(selectedProjGroup.subs) : [];
+
   return(
   <div>
     <div className="card" style={{marginBottom:14}}>
@@ -3859,7 +3929,29 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
             <span style={{fontSize:13,color:"var(--text3)",userSelect:"none"}}>Include On Hold & Completed projects</span>
           </label>
         </div>
-        <button className="bp" onClick={buildPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>⬇ Export PDF</button>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <button className="bp" onClick={buildPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>⬇ Export PDF</button>
+          {/* Sub-site individual exports — only shown when a single project with sub-sites is selected */}
+          {selectedProjSubs.length>0&&(
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+              <span style={{fontSize:12,color:"var(--text4)",fontWeight:600,whiteSpace:"nowrap"}}>Sub-sites:</span>
+              {selectedProjSubs.map(function(s){
+                const sActs=Object.values(s.cats).flat();
+                const sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
+                const sc=sp2===100?"#34d399":sp2>=50?"var(--info)":"#fb923c";
+                return(
+                  <button key={s.subId} onClick={function(){buildSubPDF(s.subId,s.subName);}}
+                    style={{height:36,padding:"0 14px",borderRadius:6,border:"1px solid #a78bfa50",
+                      background:"#a78bfa12",color:"#a78bfa",cursor:"pointer",fontSize:13,
+                      fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+                    ⬇ {s.subName}
+                    <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:sc,fontWeight:700}}>{sp2}%</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
@@ -12015,7 +12107,7 @@ export default function App(){
                   {id:"functions",label:"Functions",    show:isAdmin||isLead||isAcct||isSenior},
                   {id:"kpis",     label:"KPIs",         show:true},
                   {id:"tracker",  label:"Tracker",      show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"settings", label:"Info",         show:isAdmin},
+                  {id:"settings", label:"Info",         show:true},
                   {id:"actlog",   label:"Activity Log", show:isAdmin},
                 ].filter(t=>t.show).map(t=>{
                   const active=adminTab===t.id;
@@ -12374,27 +12466,119 @@ export default function App(){
               )}
 
               {/* SETTINGS */}
-              {adminTab==="settings"&&isAdmin&&(
-                <div style={{maxWidth:600,display:"grid",gap:14}}>
+              {adminTab==="settings"&&(
+                <div style={{maxWidth:760,display:"grid",gap:16}}>
+
+                  {/* ── YOUR ROLE ── */}
+                  {(()=>{
+                    const roleMap={
+                      admin:      {label:"Admin",           color:"#34d399", desc:"Full system access. You can manage all engineers, projects, entries, Finance, and system settings. You are the only role that can approve vacations, delete records, and access the Activity Log."},
+                      lead:       {label:"Lead Engineer",   color:"var(--info)", desc:"You manage your direct-report engineers. You can post and edit hours for your team, access tracker activities, view scoped reports (your subtree only), and add comments on activities."},
+                      accountant: {label:"Accountant",      color:"#a78bfa", desc:"You have full Finance module access — journal entries, payroll, P&L, balance sheet, fixed assets, and invoice export. You can view all engineer hours and reports but cannot post timesheet entries."},
+                      senior_management:{label:"Senior Management",color:"#fb923c",desc:"Read-only access to all dashboards, reports, and tracker data. You can export PDFs and review utilization and project progress but cannot edit any data."},
+                      engineer:   {label:"Engineer",        color:"var(--text3)", desc:"You can post your own hours on projects you are assigned to, view your vacation balance and KPI score, and track your activities. You cannot view other engineers' data."},
+                    };
+                    const me=roleMap[myProfile?.role_type]||roleMap.engineer;
+                    return(
+                    <div className="card" style={{border:`1px solid ${me.color}30`,padding:"18px 20px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                        <span className="role-badge" style={{background:me.color+"20",color:me.color,fontSize:13,padding:"3px 10px"}}>{me.label}</span>
+                        <span style={{fontSize:14,color:"var(--text3)"}}>Your current role</span>
+                      </div>
+                      <div style={{fontSize:14,color:"var(--text1)",lineHeight:1.65}}>{me.desc}</div>
+                    </div>);
+                  })()}
+
+                  {/* ── HOW TO USE THIS APP ── */}
                   <div className="card">
-                    <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",margin:"-20px -20px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Access Role Descriptions</div><div style={{fontSize:13,color:"var(--text3)"}}>Role → feature access control</div></div>
-                    <div style={{display:"grid",gap:8}}>
+                    <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>How to Use EC-ERP</div>
+                    <div style={{display:"grid",gap:10}}>
                       {[
-                        {role:"engineer",label:"Engineer",color:"var(--text3)",perms:"Post own hours on assigned projects only · View dashboard, projects & team · No reports access"},
-                        {role:"lead",    label:"Lead Engineer",color:"var(--info)",perms:"Post & edit any engineer's hours · View all reports · Export individual timesheets · Manage project tracker"},
-                        {role:"accountant",label:"Accountant",color:"#a78bfa",perms:"Full Finance tab access · Add/edit/delete expenses · Export all reports & invoices · View rates & revenue"},
-                        {role:"senior_management",label:"Senior Management",color:"#fb923c",perms:"View-only admin access · Export all reports · No data entry or editing allowed"},
-                        {role:"admin",   label:"Admin",color:"#34d399",perms:"Full access · Manage engineers & projects · All reports & invoices · Configure system settings"},
-                      ].map(r=>(
-                        <div key={r.role} style={{background:"var(--bg2)",border:`1px solid ${r.color}30`,borderRadius:8,padding:"10px 14px"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                            <span className="role-badge" style={{background:r.color+"20",color:r.color}}>{r.label}</span>
-                          </div>
-                          <div style={{fontSize:13,color:"var(--text3)",lineHeight:1.5}}>{r.perms}</div>
+                        {title:"Post Hours (Timesheet)",    show:!isAcct&&!isSenior, color:"var(--info)",   text:"Go to Post Hours → click any working day cell → choose entry type (Work / Leave / Function). Select project, task, hours and add a description (required for KPI score). Press Enter or click the green cell to save."},
+                        {title:"Vacation Leave",            show:!isAcct&&!isSenior, color:"#34d399",      text:"In Post Hours, click a day → select Leave → Annual Leave. Your request goes to admin for approval. You can track your remaining balance in the stats bar at the top (21 days default). Annual leave from other engineers shows as pending in your notifications if you are admin."},
+                        {title:"Project Tracker",           show:isAdmin||isLead,    color:"#a78bfa",      text:"Admin › Tracker. Each project shows activity cards grouped by category. Click any activity to edit status, progress, dates, and assigned engineer. Use the comment thread inside Edit Activity to follow up with engineers — comments are timestamped and attributed. Export a full project PDF or individual sub-site PDFs from the Tracker Progress Report."},
+                        {title:"Activity Comments",         show:isAdmin||isLead,    color:"#fb923c",      text:"Open Edit Activity → scroll to COMMENTS at the bottom. Type your note and press Enter to send. If the activity had a Remarks entry, a migration banner appears — click 'Move to Comments' to preserve it in the thread. Comments appear in the Tracker Progress Report PDF with full timestamps."},
+                        {title:"Reports & PDF Export",      show:!isEngineer,        color:"var(--info)",  text:"Go to Reports & PDF in the sidebar. Choose from: Team Utilization, Assignment Report, Timesheets, Task Analysis, Tracker Progress, Vacation & Leave, Monthly Management, and Invoice Export. Most reports respect your role scope (leads see their subtree only)."},
+                        {title:"Assignment Report",         show:!isEngineer,        color:"#34d399",      text:"Reports › Assignment. Shows which engineers are assigned to which projects, including engineers with 0 hours logged that month. Active projects only by default — check 'Include On Hold & Completed' to see all. Engineers from project's assigned_engineers list always appear even with no hours."},
+                        {title:"Finance Module",            show:isAdmin||isAcct,    color:"#a78bfa",      text:"Admin › Finance. Tabs: Journal (double-entry bookkeeping), Balance Sheet, Expenses, Cash Custody, P&L, Payroll, Fixed Assets, Tax & Social, and Reports. All figures are EGP. Use the EGP Rate override to convert USD salary entries. The Guide tab has step-by-step month-close instructions."},
+                        {title:"KPI Score",                 show:!isAcct&&!isSenior, color:"#fb923c",      text:"Admin › KPIs (or My KPIs for engineers). Your score is out of 120 — covering billable hours, coverage, note quality, function entries, project diversity, and timesheet compliance. Posting hours without a description reduces your note quality score. Aim for 96+ for High Performer."},
+                        {title:"Org Chart",                 show:isAdmin,            color:"var(--info)",  text:"Team page → Org Chart tab. Click Edit Chart to drag cards into place. Engineers are shown with their reporting line. The org chart also controls lead scoping — a lead sees only engineers in their org subtree."},
+                      ].filter(function(i){return i.show!==false;}).map(function(item){return(
+                        <div key={item.title} style={{background:"var(--bg2)",borderRadius:8,padding:"12px 14px",borderLeft:`3px solid ${item.color}`}}>
+                          <div style={{fontSize:13,fontWeight:700,color:item.color,marginBottom:5}}>{item.title}</div>
+                          <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.6}}>{item.text}</div>
                         </div>
-                      ))}
+                      );})}
                     </div>
                   </div>
+
+                  {/* ── WHAT'S NEW ── */}
+                  <div className="card">
+                    <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>What's New</div>
+                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>Features added in the latest release — April 2026</div>
+                    <div style={{display:"grid",gap:8}}>
+                      {[
+                        {tag:"Tracker",   color:"#a78bfa", text:"Activity comment threads — open Edit Activity to see the Comments section. Timestamped, attributed to author, supports threaded follow-up between admin and leads. Migrates existing Remarks automatically."},
+                        {tag:"Tracker",   color:"#a78bfa", text:"Sub-site PDF export — in Tracker Progress Report, select a project to reveal per-sub-site export buttons. Each sub-site generates its own focused PDF with activities, progress, comments and timestamps."},
+                        {tag:"Tracker",   color:"#a78bfa", text:"Tracker Progress Report now shows Active projects only by default. Toggle 'Include On Hold & Completed projects' to see all."},
+                        {tag:"Comments",  color:"#fb923c", text:"Comments appear in the Tracker Progress Report PDF with author, role, and full timestamp (date + time)."},
+                        {tag:"Timesheet", color:"var(--info)", text:"Vacation balance visible to every user in the stats bar at the top of Post Hours. Shows days used, total entitlement, and pending count."},
+                        {tag:"Timesheet", color:"var(--info)", text:"Paste Undo — after pasting entries (⎙ Paste or ⎘ Copy Last Week), a toast with an Undo button appears for 5 seconds. Click to remove the pasted entries from both UI and database."},
+                        {tag:"Timesheet", color:"var(--info)", text:"Warning shown when posting work hours without a description — adds a note to improve your KPI score."},
+                        {tag:"Reports",   color:"#34d399", text:"Assignment Report redesigned — now sourced from assigned_engineers list (not just logged hours), so engineers assigned to a project always appear even with 0 hours. Month filter fixed (was showing wrong month)."},
+                        {tag:"Reports",   color:"#34d399", text:"Assignment Report: Active projects only by default. Toggle to include On Hold & Completed for historical review."},
+                        {tag:"Scoping",   color:"var(--text3)", text:"Lead role now correctly scoped across All Entries, Functions, Task Analysis, Assignment Report, Utilization screen, and all PDF exports — leads see only their team's data."},
+                        {tag:"UI",        color:"#60a5fa", text:"Navigation modernized — main sidebar uses custom SVG icons (consistent stroke weight). All emoji removed from section headers, dropdowns, finance tabs, admin tabs, and report navigator. Clean text-only labels throughout."},
+                        {tag:"UI",        color:"#60a5fa", text:"Team cards redesigned — utilization progress bar, cleaner stats layout, leave shown as text badge. Tracker project cards refined with coloured status chips and border styling."},
+                      ].map(function(item,i){return(
+                        <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"8px 0",borderBottom:"1px solid var(--border3)"}}>
+                          <span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:item.color+"18",color:item.color,fontWeight:700,flexShrink:0,marginTop:1}}>{item.tag}</span>
+                          <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.55}}>{item.text}</div>
+                        </div>
+                      );})}
+                    </div>
+                  </div>
+
+                  {/* ── ROLE ACCESS TABLE ── */}
+                  <div className="card">
+                    <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>Role Access Reference</div>
+                    <div style={{display:"grid",gap:8}}>
+                      {[
+                        {role:"Engineer",          color:"var(--text3)", perms:"Post own hours · View own vacation balance & KPI · View assigned projects"},
+                        {role:"Lead Engineer",      color:"var(--info)",  perms:"All engineer permissions · Post/edit team hours · Activity tracker & comments · Scoped reports for own team"},
+                        {role:"Accountant",         color:"#a78bfa",      perms:"Finance module (full) · View all reports & hours · Invoice export · Cannot post timesheet entries"},
+                        {role:"Senior Management",  color:"#fb923c",      perms:"Read-only: all dashboards, reports, tracker · Export PDFs · No data entry"},
+                        {role:"Admin",              color:"#34d399",      perms:"Full access · Manage engineers & projects · Approve vacations · Finance & all reports · System settings · Activity Log"},
+                      ].map(function(r){return(
+                        <div key={r.role} style={{background:"var(--bg2)",border:`1px solid ${r.color}25`,borderRadius:7,padding:"9px 13px",display:"flex",gap:12,alignItems:"flex-start"}}>
+                          <span className="role-badge" style={{background:r.color+"20",color:r.color,flexShrink:0,marginTop:1}}>{r.role}</span>
+                          <div style={{fontSize:13,color:"var(--text3)",lineHeight:1.5}}>{r.perms}</div>
+                        </div>
+                      );})}
+                    </div>
+                  </div>
+
+                  {/* ── SQL MIGRATIONS (admin only) ── */}
+                  {isAdmin&&(
+                  <div className="card" style={{borderColor:"#f59e0b40"}}>
+                    <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>Required SQL Migrations</div>
+                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>Run these once in your Supabase SQL editor — safe to re-run (IF NOT EXISTS)</div>
+                    {[
+                      {label:"Activity Comments column",  sql:"ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';",    desc:"Enables the threaded comment system on activities."},
+                      {label:"Assigned Engineers column", sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS assigned_engineers JSONB DEFAULT '[]';",       desc:"Enables assignment tracking and auto-assign on activity creation."},
+                    ].map(function(m){return(
+                      <div key={m.label} style={{background:"var(--bg2)",borderRadius:7,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border3)"}}>
+                        <div style={{fontSize:13,fontWeight:700,color:"var(--text1)",marginBottom:3}}>{m.label}</div>
+                        <div style={{fontSize:12,color:"var(--text3)",marginBottom:6}}>{m.desc}</div>
+                        <code style={{display:"block",background:"var(--bg0)",padding:"8px 12px",borderRadius:5,fontSize:12,
+                          color:"#34d399",fontFamily:"'IBM Plex Mono',monospace",lineHeight:1.5,
+                          border:"1px solid var(--border3)",userSelect:"all",cursor:"text"}}>
+                          {m.sql}
+                        </code>
+                      </div>
+                    );})}
+                  </div>)}
+
                 </div>
               )}
 
