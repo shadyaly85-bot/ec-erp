@@ -8034,8 +8034,7 @@ export default function App(){
       // notifications — live bell updates without refresh
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications"},({new:row})=>{
         if(row.read) return;
-        // For activity_comment: recipient is in meta.recipient_engineer_id
-        // For other types (vacation): show to admins/leads (non-restricted roles catch-all)
+        // activity_comment: only add to state if addressed to current user (ALL roles)
         if(row.type==="activity_comment"){
           try{
             const m=JSON.parse(row.meta||"{}");
@@ -8114,26 +8113,27 @@ export default function App(){
         all.filter(n=>n.read).forEach(n=>toDelete.push(n.id));
         if(toDelete.length) supabase.from("notifications").delete().in("id",[...new Set(toDelete)]).then(()=>{});
         const deduped = all.filter(n=>!n.read && !toDelete.includes(n.id));
-        // Role-based filter: engineers only see notifications relevant to them
-        // Admin/lead/accountant/senior see all
         const profId = profR.data?.id;
         const profRole = profR.data?.role_type||"engineer";
         const isRestrictedRole = !["admin","lead","accountant","senior_management"].includes(profRole);
-        const filtered = isRestrictedRole
-          ? deduped.filter(n=>{
-              // activity_comment: recipient stored in meta.recipient_engineer_id
-              if(n.type==="activity_comment"){
-                try{ const m=JSON.parse(n.meta||"{}"); return String(m.recipient_engineer_id)===String(profId); }
-                catch{ return false; }
-              }
-              // Vacation approval/rejection keyed in meta
-              if(["vacation_approved","vacation_rejected"].includes(n.type)){
-                try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
-                catch{ return false; }
-              }
-              return false;
-            })
-          : deduped;
+
+        // activity_comment: ALWAYS filter by recipient regardless of role
+        // (each row is addressed to one recipient — no role should see other people's comments)
+        // All other notification types: restricted roles see only their own; admins/leads see all
+        const filtered = deduped.filter(n=>{
+          if(n.type==="activity_comment"){
+            try{ const m=JSON.parse(n.meta||"{}"); return String(m.recipient_engineer_id)===String(profId); }
+            catch{ return false; }
+          }
+          if(isRestrictedRole){
+            if(["vacation_approved","vacation_rejected"].includes(n.type)){
+              try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
+              catch{ return false; }
+            }
+            return false; // engineers don't see other notification types
+          }
+          return true; // admins/leads see all other types (vacation_request, signup, alerts, etc.)
+        });
         setNotifications(filtered);
       }
       if(staffR.data){
