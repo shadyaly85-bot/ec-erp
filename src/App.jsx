@@ -2515,7 +2515,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
         const _addIsAdmin=myProfile?.role_type==="admin";
         // Notify engineer — fire-and-forget
         supabase.from("notifications").insert({
-          type:"activity_assigned",read:false,
+          type:"activity_assigned",engineer_id:aEng.id,read:false,
           message:`You were assigned to "${activity_name}"${aProj?" · "+aProj.name:""}`,
           created_at:_addNow,
           meta:JSON.stringify({recipient_engineer_id:String(aEng.id),project_id:projId,assigned_by:myProfile?.name})
@@ -2525,7 +2525,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
           const _adminAddMsg=`${myProfile?.name||"Lead"} assigned "${activity_name}" to ${aEng.name}${aProj?" · "+aProj.name:""}`;
           engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
             supabase.from("notifications").insert({
-              type:"activity_assigned",read:false,message:_adminAddMsg,created_at:_addNow,
+              type:"activity_assigned",engineer_id:adminEng.id,read:false,message:_adminAddMsg,created_at:_addNow,
               meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),project_id:projId,assigned_to:aEng.name,assigned_by:myProfile?.name})
             }).select().single().then(({data:nd})=>{
               if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
@@ -2872,13 +2872,13 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         const assignMsg=`You were assigned to "${fields.activity_name||data.activity_name}"${_proj?" · "+_proj.name:""}`;
         const assignMeta={recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,assigned_by:myProfile?.name};
         // Notify engineer — fire-and-forget (engineer gets via RT/loadAll; don't add to assigner state)
-        supabase.from("notifications").insert({type:"activity_assigned",read:false,message:assignMsg,created_at:_now,meta:JSON.stringify(assignMeta)});
+        supabase.from("notifications").insert({type:"activity_assigned",engineer_id:assignedEng.id,read:false,message:assignMsg,created_at:_now,meta:JSON.stringify(assignMeta)});
         // If lead is assigning, also notify all admins
         if(!_changerIsAdmin){
           const adminMsg=`${myProfile?.name||"Lead"} assigned "${fields.activity_name||data.activity_name}" to ${assignedEng.name}${_proj?" · "+_proj.name:""}`;
           engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
             supabase.from("notifications").insert({
-              type:"activity_assigned",read:false,message:adminMsg,created_at:_now,
+              type:"activity_assigned",engineer_id:adminEng.id,read:false,message:adminMsg,created_at:_now,
               meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,assigned_to:assignedEng.name,assigned_by:myProfile?.name})
             }).select().single().then(({data:nd})=>{
               if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
@@ -2898,7 +2898,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
           // Fire-and-forget for engineer
           supabase.from("notifications").insert({
-            type:"activity_status_changed",read:false,message:statusMsg,created_at:_now,
+            type:"activity_status_changed",engineer_id:assignedEng.id,read:false,message:statusMsg,created_at:_now,
             meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})
           });
         }
@@ -2908,8 +2908,65 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         const adminStatusMsg=`${myProfile?.name||"Lead"} marked "${actName}" as ${fields.status}${_proj?" · "+_proj.name:""}`;
         engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
           supabase.from("notifications").insert({
-            type:"activity_status_changed",read:false,message:adminStatusMsg,created_at:_now,
+            type:"activity_status_changed",engineer_id:adminEng.id,read:false,message:adminStatusMsg,created_at:_now,
             meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})
+          }).select().single().then(({data:nd})=>{
+            if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
+          });
+        });
+      }
+    }
+
+    // ── Notification: activity_progress_changed ──
+    // Notify assigned engineer + admins (when lead changes) when progress % is updated
+    if(fields.progress!==undefined && fields.progress!==prevActivity?.progress && prevActivity?.assigned_to){
+      const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
+      const actName=fields.activity_name||data.activity_name;
+      const pct=Math.round((fields.progress||0)*100);
+      // Notify engineer
+      if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
+        const progMsg=`"${actName}" progress updated to ${pct}%${_proj?" · "+_proj.name:""}`;
+        supabase.from("notifications").insert({
+          type:"activity_progress_changed",engineer_id:assignedEng.id,read:false,message:progMsg,created_at:_now,
+          meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name})
+        });
+      }
+      // If lead changed progress, notify all admins
+      if(!_changerIsAdmin){
+        const adminProgMsg=`${myProfile?.name||"Lead"} updated "${actName}" to ${pct}%${_proj?" · "+_proj.name:""}`;
+        engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
+          supabase.from("notifications").insert({
+            type:"activity_progress_changed",engineer_id:adminEng.id,read:false,message:adminProgMsg,created_at:_now,
+            meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name})
+          }).select().single().then(({data:nd})=>{
+            if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
+          });
+        });
+      }
+    }
+
+    // ── Notification: activity_deadline_changed ──
+    // Notify assigned engineer AND admins (when lead changes) when deadline moves
+    if(fields.end_date!==undefined && fields.end_date!==prevActivity?.end_date && prevActivity?.assigned_to){
+      const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
+      const actName=fields.activity_name||data.activity_name;
+      const newDeadline=fields.end_date
+        ? new Date(fields.end_date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})
+        : "removed";
+      if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
+        const dlMsg=`Deadline for "${actName}" changed to ${newDeadline}${_proj?" · "+_proj.name:""}`;
+        supabase.from("notifications").insert({
+          type:"activity_deadline_changed",engineer_id:assignedEng.id,read:false,message:dlMsg,created_at:_now,
+          meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})
+        });
+      }
+      // If lead changed deadline, notify admins too
+      if(!_changerIsAdmin){
+        const adminDlMsg=`${myProfile?.name||"Lead"} changed deadline for "${actName}" to ${newDeadline}${_proj?" · "+_proj.name:""}`;
+        engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
+          supabase.from("notifications").insert({
+            type:"activity_deadline_changed",engineer_id:adminEng.id,read:false,message:adminDlMsg,created_at:_now,
+            meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})
           }).select().single().then(({data:nd})=>{
             if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
           });
@@ -2936,7 +2993,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       }
     }
     showToast("Activity saved ✓");
-  },[setActivities,showToast,logAction,engineers,projects,setProjects]);
+  },[setActivities,showToast,logAction,engineers,projects,setProjects,setNotifications,myProfile]);
 
   const confirmAdd = useCallback(async({category,activity_name,start_date,end_date,assigned_to})=>{
     if(!addModal) return;
@@ -2970,7 +3027,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     setAddModal(null);
     showToast("Activity added ✓");
     if(category) setExpandedCats(p=>({...p,[category]:true}));
-  },[addModal,actsByProj,setActivities,showToast,logAction,engineers,projects,setProjects]);
+  },[addModal,actsByProj,setActivities,showToast,logAction,engineers,projects,setProjects,setNotifications,myProfile]);
 
   const bulkUpdateStatus = useCallback(async()=>{
     if(!bulkSelected.size) return;
@@ -7377,7 +7434,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
       const feedback={
-        type:"vacation_approved", read:false,
+        type:"vacation_approved",engineer_id:entry.engineer_id,read:false,
         message:`✓ Your Annual Leave on ${entry.date} has been approved`,
         created_at:new Date().toISOString(),
         meta:JSON.stringify({engineer_id:entry.engineer_id,date:entry.date,entry_id:entryId})
@@ -7398,7 +7455,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
       const feedback={
-        type:"vacation_rejected", read:false,
+        type:"vacation_rejected",engineer_id:entry.engineer_id,read:false,
         message:`✕ Your Annual Leave request on ${entry.date} was not approved`,
         created_at:new Date().toISOString(),
         meta:JSON.stringify({engineer_id:entry.engineer_id,date:entry.date,entry_id:entryId})
@@ -8129,24 +8186,15 @@ export default function App(){
         const _meRole=myProfileRef.current?.role_type||"engineer";
         const _isAdminRT=_meRole==="admin";
         const _isLeadRT=["admin","lead"].includes(_meRole);
-        // Recipient-scoped types — only show if addressed to this user
-        if(["activity_comment","activity_assigned","activity_status_changed"].includes(row.type)){
-          try{ const m=JSON.parse(row.meta||"{}"); if(String(m.recipient_engineer_id)!==_meId) return; }
-          catch{ return; }
+        // ── Server-side scoped: every personal notification has engineer_id = recipient ──
+        // Check top-level engineer_id column (set on all personal notifications)
+        if(row.engineer_id!==null&&row.engineer_id!==undefined){
+          // Personal notification — only add to state if addressed to this user
+          if(String(row.engineer_id)!==_meId) return;
+        } else {
+          // Broadcast (engineer_id=null): only admin/lead see these (new_signup, alerts, overdue)
+          if(!_isLeadRT) return;
         }
-        // Personal outcome types
-        if(["vacation_approved","vacation_rejected","vacation_cancelled"].includes(row.type)){
-          try{ const m=JSON.parse(row.meta||"{}"); if(String(m.engineer_id)!==_meId) return; }
-          catch{ return; }
-        }
-        // vacation_request: admin always, lead only if notify_lead flag set
-        if(row.type==="vacation_request"){
-          if(_isAdminRT) {}// pass through
-          else if(_isLeadRT){ try{ const m=JSON.parse(row.meta||"{}"); if(!m.notify_lead||String(m.lead_id)!==_meId) return; }catch{ return; } }
-          else return;
-        }
-        // Admin/lead-only broadcast types
-        if(["new_signup","timesheet_alert","overdue_alert"].includes(row.type)&&!_isLeadRT) return;
         setNotifications(prev=>prev.some(n=>n.id===row.id)?prev:[row,...prev]);
       })
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"notifications"},({new:row})=>{
@@ -8172,13 +8220,12 @@ export default function App(){
   const loadAll=useCallback(async()=>{
     setLoading(true);
     try{
-      const [engsR,projR,entrR,profR,notifR,staffR,expR,journalR,assetsR,accountsR]=await Promise.all([
+      const [engsR,projR,entrR,profR,staffR,expR,journalR,assetsR,accountsR]=await Promise.all([
         supabase.from("engineers").select("*").order("name"),
         supabase.from("projects").select("*").order("id"),
         supabase.from("time_entries").select("*").order("date",{ascending:false})
           .gte("date",`${today.getFullYear()-1}-01-01`),
         supabase.from("engineers").select("*").eq("user_id",session.user.id).single(),
-        supabase.from("notifications").select("*").order("created_at",{ascending:false}),
         supabase.from("staff").select("*").order("name"),
         supabase.from("expenses").select("*").order("year",{ascending:false}).order("month",{ascending:false}),
         supabase.from("journal_entries").select("*").order("entry_date",{ascending:true}),
@@ -8192,66 +8239,49 @@ export default function App(){
         setLoadedYears(new Set([today.getFullYear(), today.getFullYear()-1]));
       }
       if(profR.data){ setMyProfile(profR.data); myProfileRef.current=profR.data; setBrowseEngId(profR.data.id); }
-      if(notifR.data){
-        // Deduplicate timesheet alerts by alert_key — keep only newest per key, delete duplicates
-        const all = notifR.data;
-        const seenKeys = new Map(); // alert_key -> keep newest (highest id)
-        const toDelete = [];
-        // Load dismissed keys from localStorage
-        const dismissedKeys = new Set(JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"));
-        // First pass: group by alert_key for timesheet_alert type
-        all.forEach(n=>{
+      // ── Notification loading — server-side scoped ──
+      // The notifications table has a top-level engineer_id column (the recipient).
+      // Personal: fetch only rows addressed to this user.
+      // Broadcast (admin/lead): also fetch rows with engineer_id=null (alerts, signups).
+      if(profR.data){
+        const _profId=profR.data.id;
+        const _profRole=profR.data?.role_type||"engineer";
+        const _isLeadOrAdmin=["admin","lead"].includes(_profRole);
+        const dismissedKeys=new Set(JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"));
+
+        // 1. Personal notifications: addressed to this engineer specifically
+        const {data:personalNotifs}=await supabase.from("notifications")
+          .select("*").eq("engineer_id",_profId).eq("read",false)
+          .order("created_at",{ascending:false}).limit(80);
+
+        // 2. Broadcast notifications: new_signup, timesheet_alert, overdue_alert (engineer_id=null)
+        let broadcastNotifs=[];
+        if(_isLeadOrAdmin){
+          const {data:bcast}=await supabase.from("notifications")
+            .select("*").is("engineer_id",null).eq("read",false)
+            .order("created_at",{ascending:false}).limit(40);
+          broadcastNotifs=bcast||[];
+        }
+
+        // 3. Deduplicate timesheet_alert by alert_key; delete dismissed + duplicates
+        const allNotifs=[...(personalNotifs||[]),...broadcastNotifs];
+        const seenKeys=new Map();
+        const toDelete=[];
+        allNotifs.forEach(n=>{
           if(n.type==="timesheet_alert"){
-            let key=null;
-            try{ key=JSON.parse(n.meta||"{}").alert_key; }catch{}
+            let key=null; try{key=JSON.parse(n.meta||"{}").alert_key;}catch{}
             if(key){
-              // If already dismissed by user — delete from DB entirely
-              if(dismissedKeys.has(key)){ toDelete.push(n.id); return; }
+              if(dismissedKeys.has(key)){toDelete.push(n.id);return;}
               if(seenKeys.has(key)){
                 const prev=seenKeys.get(key);
-                if(n.id>prev.id){ toDelete.push(prev.id); seenKeys.set(key,n); }
-                else { toDelete.push(n.id); }
-              } else { seenKeys.set(key,n); }
+                if(n.id>prev.id){toDelete.push(prev.id);seenKeys.set(key,n);}
+                else{toDelete.push(n.id);}
+              }else{seenKeys.set(key,n);}
             }
           }
         });
-        // Also delete read rows (legacy)
-        all.filter(n=>n.read).forEach(n=>toDelete.push(n.id));
         if(toDelete.length) supabase.from("notifications").delete().in("id",[...new Set(toDelete)]).then(()=>{});
-        const deduped = all.filter(n=>!n.read && !toDelete.includes(n.id));
-        const profId = profR.data?.id;
-        const profRole = profR.data?.role_type||"engineer";
-        const isRestrictedRole = !["admin","lead","accountant","senior_management"].includes(profRole);
-
-        // activity_comment: ALWAYS filter by recipient regardless of role
-        // vacation_approved/rejected: ALWAYS filter to the engineer who requested it
-        // (admins must not load other engineers' approval notifications — they can accidentally dismiss them)
-        // All other notification types: restricted roles see only their own; admins/leads see all
-        const isAdminRole=["admin"].includes(profRole);
-        const isLeadRole= ["admin","lead"].includes(profRole);
-        const filtered = deduped.filter(n=>{
-          // Personal addressed notifications — scoped to recipient regardless of role
-          if(["activity_comment","activity_assigned","activity_status_changed"].includes(n.type)){
-            try{ const m=JSON.parse(n.meta||"{}"); return String(m.recipient_engineer_id)===String(profId); }
-            catch{ return false; }
-          }
-          // Personal outcome notifications — scoped to the requesting engineer
-          if(["vacation_approved","vacation_rejected","vacation_cancelled"].includes(n.type)){
-            try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
-            catch{ return false; }
-          }
-          // vacation_request: admin sees all; lead sees only their team's (keyed by lead_id)
-          if(n.type==="vacation_request"){
-            if(isAdminRole) return true;
-            if(isLeadRole){ try{ const m=JSON.parse(n.meta||"{}"); return m.notify_lead&&String(m.lead_id)===String(profId); }catch{return false;} }
-            return false;
-          }
-          // Admin/lead-only types
-          if(["new_signup","timesheet_alert","overdue_alert"].includes(n.type)) return isLeadRole;
-          if(isRestrictedRole) return false;
-          return true;
-        });
-        setNotifications(filtered);
+        setNotifications(allNotifs.filter(n=>!toDelete.includes(n.id)));
       }
       if(staffR.data){
         const sData=staffR.data;
@@ -8416,6 +8446,7 @@ export default function App(){
         for(const recipId of recipientIds){
           const notif={
             type:"activity_comment",
+            engineer_id:parseInt(recipId,10)||recipId,
             read:false,
             message:msgText,
             created_at:now,
@@ -8567,8 +8598,13 @@ export default function App(){
         created_at:new Date().toISOString(),
         meta:JSON.stringify({entry_id:data.id,engineer_id:engId,engineer_name:_reqEng?.name,date,leave_type:newEntry.leaveType})
       };
-      supabase.from("notifications").insert(notif).select().single()
-        .then(({data:nd})=>{ if(nd) setNotifications(prev=>[nd,...prev]); });
+      // Insert one vacation_request notification per admin (with their engineer_id)
+      // so each admin's server-side scoped load query picks it up
+      engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
+        const adminNotif={...notif,engineer_id:adminEng.id};
+        supabase.from("notifications").insert(adminNotif).select().single()
+          .then(({data:nd})=>{ if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]); });
+      });
       // Also notify the engineer's direct lead (if any) — lead manages team schedule
       (async()=>{
         const leadEng=engineers.find(e=>e.role_type==="lead"&&(()=>{
@@ -8580,12 +8616,14 @@ export default function App(){
           }catch{return false;}
         })());
         if(leadEng){
-          const leadNotif={type:"vacation_request",read:false,
+          const leadNotif={
+            type:"vacation_request",engineer_id:leadEng.id,read:false,
             message:`${_reqEng?.name||"Someone"} requested Annual Leave on ${date} (your team)`,
             created_at:new Date().toISOString(),
             meta:JSON.stringify({entry_id:data.id,engineer_id:engId,engineer_name:_reqEng?.name,date,leave_type:newEntry.leaveType,notify_lead:true,lead_id:String(leadEng.id)})
           };
-          supabase.from("notifications").insert(leadNotif).then(()=>{});
+          supabase.from("notifications").insert(leadNotif)
+            .select().single().then(({data:nd})=>{if(nd&&String(leadEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);});
         }
       })();
       showToast("Vacation request submitted — pending admin approval ✓");
@@ -8737,7 +8775,7 @@ export default function App(){
     if(isApprovedLeave && canEditAny){
       const cancelMsg=`Your approved Annual Leave on ${entry.date} has been cancelled by admin`;
       supabase.from("notifications").insert({
-        type:"vacation_cancelled",read:false,message:cancelMsg,
+        type:"vacation_cancelled",engineer_id:entry.engineer_id,read:false,message:cancelMsg,
         created_at:new Date().toISOString(),
         meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:id,cancelled_by:myProfile?.name})
       }).then(()=>{});
@@ -9636,7 +9674,14 @@ export default function App(){
     showConfirm(`Delete engineer "${eng?.name||id}" and all their time entries?`,()=>{
       applyUndo(
         showToast,`Engineer "${eng?.name||id}" deleted`,
-        ()=>{ setEngineers(prev=>prev.filter(e=>e.id!==id)); setEntries(prev=>prev.filter(e=>e.engineer_id!==id)); setProjects(prev=>prev.map(p=>({...p,assigned_engineers:(p.assigned_engineers||[]).filter(x=>String(x)!==String(id))}))); if(eng)setActivities(prev=>prev.map(a=>a.assigned_to===eng.name?{...a,assigned_to:""}:a)); setNotifications(prev=>prev.filter(n=>{try{return String(JSON.parse(n.meta||"{}").engineer_id)!==String(id);}catch{return true;}})); },
+        ()=>{ setEngineers(prev=>prev.filter(e=>e.id!==id)); setEntries(prev=>prev.filter(e=>e.engineer_id!==id)); setProjects(prev=>prev.map(p=>({...p,assigned_engineers:(p.assigned_engineers||[]).filter(x=>String(x)!==String(id))}))); if(eng)setActivities(prev=>prev.map(a=>a.assigned_to===eng.name?{...a,assigned_to:""}:a)); setNotifications(prev=>prev.filter(n=>{
+          // Use top-level engineer_id (current schema) with meta fallback (legacy rows)
+          const topLevel=n.engineer_id!=null?String(n.engineer_id)!==String(id):true;
+          if(!topLevel) return false;
+          // Also check meta.engineer_id for legacy notification rows
+          try{ const m=JSON.parse(n.meta||"{}"); if(m.engineer_id&&String(m.engineer_id)===String(id)) return false; }catch{}
+          return true;
+        })); },
         ()=>{ setEngineers(prev=>[...prev,eng].sort((a,b)=>a.name.localeCompare(b.name))); setEntries(prev=>[...savedEntries,...prev]); },
         async()=>{
           await supabase.from("time_entries").delete().eq("engineer_id",id);
@@ -10270,15 +10315,134 @@ export default function App(){
       <div style={{display:"flex"}}>
         {/* ── Sidebar ── */}
         <div className={`app-sidebar${menuOpen?" sidebar-open":""}`} style={{width:215,background:"var(--sidebar)",borderRight:`1px solid var(--sidebar-border)`,minHeight:"100vh",padding:"20px 10px",position:"fixed",top:0,left:0,bottom:0,overflowY:"auto",zIndex:menuOpen?200:50,transition:"background .3s, transform .25s"}}>
-          <div style={{marginBottom:20,paddingLeft:6}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <div style={{marginBottom:16,paddingLeft:6,paddingRight:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
               <LogoImg/>
-              <div>
+              <div style={{flex:1,minWidth:0}}>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",letterSpacing:".15em",fontWeight:600}}>ENEVO-ERP</div>
                 <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",lineHeight:1.1}}>ENEVO GROUP</div>
               </div>
+              {/* ── Bell notification button — lives in sidebar header, no overlap ── */}
+              {session&&!loading&&(()=>{
+                const bellCount=unreadCount;
+                const typeIcon=t=>t==="activity_comment"?"💬":t==="vacation_approved"?"✓":t==="vacation_rejected"?"✕":t==="vacation_request"?"⏳":t==="timesheet_alert"?"⏰":t==="overdue_alert"?"⚠":t==="activity_assigned"?"📋":t==="activity_status_changed"?"↺":t==="activity_progress_changed"?"◉":t==="activity_deadline_changed"?"📅":t==="vacation_cancelled"?"✕":t==="new_signup"?"👤":"•";
+                const typeColor=t=>t==="activity_comment"?"#a78bfa":t==="vacation_approved"?"#34d399":t==="vacation_rejected"?"#f87171":t==="vacation_request"?"#f59e0b":t==="timesheet_alert"?"#f87171":t==="overdue_alert"?"#fb923c":t==="activity_assigned"?"#0ea5e9":t==="activity_status_changed"?"#22d3ee":t==="activity_progress_changed"?"#34d399":t==="activity_deadline_changed"?"#fb923c":t==="vacation_cancelled"?"#f87171":t==="new_signup"?"#fb923c":"var(--text3)";
+                const typeLabel=t=>t==="activity_comment"?"Comment":t==="vacation_approved"?"Approved":t==="vacation_rejected"?"Rejected":t==="vacation_request"?"Leave Request":t==="timesheet_alert"?"Timesheet":t==="overdue_alert"?"Overdue":t==="activity_assigned"?"Assigned":t==="activity_status_changed"?"Status":t==="activity_progress_changed"?"Progress":t==="activity_deadline_changed"?"Deadline":t==="vacation_cancelled"?"Cancelled":t==="new_signup"?"New Signup":"";
+                const fmtAgo=ts=>{if(!ts)return"";const diff=Date.now()-new Date(ts).getTime();const m=Math.floor(diff/60000);if(m<1)return"just now";if(m<60)return m+"m ago";const h=Math.floor(m/60);if(h<24)return h+"h ago";return Math.floor(h/24)+"d ago";};
+                const sorted=[...notifications].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+                return(
+                  <div style={{position:"relative",flexShrink:0}}>
+                    {/* Bell button */}
+                    <button onClick={()=>setBellOpen(o=>!o)}
+                      style={{position:"relative",background:bellOpen?"var(--bg3)":"transparent",border:`1px solid ${bellOpen?"var(--info)":"var(--border)"}`,borderRadius:8,padding:"6px 7px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}
+                      title={bellCount>0?`${bellCount} notification${bellCount!==1?"s":""}`:"No new notifications"}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={bellCount>0?"#f59e0b":"var(--text3)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+                      </svg>
+                      {bellCount>0&&<span style={{position:"absolute",top:-5,right:-5,background:"#ef4444",color:"#fff",fontSize:10,fontWeight:800,minWidth:16,height:16,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",border:"2px solid var(--sidebar)",fontFamily:"'IBM Plex Mono',monospace",lineHeight:1}}>
+                        {bellCount>99?"99+":bellCount}
+                      </span>}
+                    </button>
+                    {/* Dropdown — opens to the right of sidebar */}
+                    {bellOpen&&(
+                      <div style={{position:"fixed",top:72,left:220,width:370,maxHeight:520,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:14,boxShadow:"0 8px 32px #00000060",overflow:"hidden",display:"flex",flexDirection:"column",zIndex:601}}>
+                        {/* Header */}
+                        <div style={{padding:"12px 16px 10px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+                          <div>
+                            <span style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>Notifications</span>
+                            {bellCount>0&&<span style={{marginLeft:8,fontSize:11,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>{bellCount} unread</span>}
+                          </div>
+                          {notifications.length>0&&(
+                            <button onClick={async()=>{
+                              const ids=notifications.map(n=>n.id).filter(id=>id!=null);
+                              if(ids.length) await supabase.from("notifications").delete().in("id",ids);
+                              try{const al=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");const ods=notifications.filter(n=>n.type==="overdue_alert").map(n=>{try{return JSON.parse(n.meta||"{}").alert_key;}catch{return null;}}).filter(Boolean);if(ods.length)localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...al,...ods])]));}catch{}
+                              setNotifications([]);setBellOpen(false);
+                            }} style={{background:"transparent",border:"none",color:"var(--text4)",fontSize:12,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",padding:"2px 6px",borderRadius:4}}
+                              onMouseEnter={e=>e.currentTarget.style.color="var(--info)"}
+                              onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>
+                              Dismiss all
+                            </button>
+                          )}
+                        </div>
+                        {/* List */}
+                        <div style={{overflowY:"auto",flex:1}}>
+                          {sorted.length===0&&!isAdmin&&(
+                            <div style={{padding:"28px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
+                              <div style={{fontSize:24,marginBottom:6}}>🔔</div>All caught up
+                            </div>
+                          )}
+                          {/* Vacation approval queue — admin only */}
+                          {isAdmin&&(()=>{
+                            const pendingVacs=entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL");
+                            if(!pendingVacs.length&&sorted.length===0) return(
+                              <div style={{padding:"28px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
+                                <div style={{fontSize:24,marginBottom:6}}>🔔</div>All caught up
+                              </div>
+                            );
+                            return pendingVacs.map(e=>{
+                              const eng=engineers.find(x=>String(x.id)===String(e.engineer_id));
+                              const matchedNotif=notifications.find(n=>{try{return n.type==="vacation_request"&&JSON.parse(n.meta||"{}").entry_id===e.id;}catch{return false;}});
+                              return(
+                                <div key={e.id} style={{padding:"11px 16px",borderBottom:"1px solid var(--border3)",display:"flex",gap:10,alignItems:"flex-start",background:"#78350f08"}}>
+                                  <div style={{width:28,height:28,borderRadius:"50%",background:"#f59e0b20",color:"#f59e0b",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700}}>⏳</div>
+                                  <div style={{flex:1,minWidth:0}}>
+                                    <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:2}}><span style={{color:"#f59e0b"}}>{eng?.name||"Engineer"}</span> — Annual Leave</div>
+                                    <div style={{fontSize:11,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace",marginBottom:7}}>{e.date}</div>
+                                    <div style={{display:"flex",gap:5}}>
+                                      <button onClick={async()=>{
+                                        await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
+                                        setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
+                                        if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
+                                        supabase.from("notifications").insert({type:"vacation_approved",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
+                                        showToast(`${eng?.name||"Vacation"} approved ✓`);
+                                      }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:5,padding:"3px 10px",color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✓ Approve</button>
+                                      <button onClick={async()=>{
+                                        await supabase.from("time_entries").delete().eq("id",e.id);
+                                        setEntries(prev=>prev.filter(x=>x.id!==e.id));
+                                        if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
+                                        supabase.from("notifications").insert({type:"vacation_rejected",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
+                                        showToast(`${eng?.name||"Vacation"} rejected`,false);
+                                      }} style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:5,padding:"3px 10px",color:"#f87171",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✕ Reject</button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            });
+                          })()}
+                          {/* All other notifications */}
+                          {sorted.map(n=>{
+                            const ic=typeIcon(n.type);const cl=typeColor(n.type);const lbl=typeLabel(n.type);
+                            return(
+                              <div key={n.id} style={{padding:"10px 16px",borderBottom:"1px solid var(--border3)",display:"flex",gap:10,alignItems:"flex-start"}}
+                                onMouseEnter={e=>e.currentTarget.style.background="var(--bg2)"}
+                                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                                <div style={{width:28,height:28,borderRadius:"50%",background:cl+"18",color:cl,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700,border:`1px solid ${cl}25`}}>{ic}</div>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}}>
+                                    <span style={{fontSize:10,fontWeight:700,color:cl,textTransform:"uppercase",letterSpacing:".05em"}}>{lbl}</span>
+                                    <span style={{fontSize:10,color:"var(--text4)",marginLeft:"auto",whiteSpace:"nowrap",fontFamily:"'IBM Plex Mono',monospace"}}>{fmtAgo(n.created_at)}</span>
+                                  </div>
+                                  <div style={{fontSize:12,color:"var(--text1)",lineHeight:1.45}}>{n.message}</div>
+                                </div>
+                                <button onClick={async()=>{
+                                  if(typeof n.id==="string"&&n.id.startsWith("overdue_")){try{const m=JSON.parse(n.meta||"{}");if(m.alert_key){const prev=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,m.alert_key])]));}}catch{}setNotifications(prev=>prev.filter(x=>x.id!==n.id));}
+                                  else{await supabase.from("notifications").delete().eq("id",n.id);setNotifications(prev=>prev.filter(x=>x.id!==n.id));}
+                                }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:13,padding:"2px 3px",flexShrink:0,lineHeight:1}}
+                                  onMouseEnter={e=>e.currentTarget.style.color="#f87171"}
+                                  onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>✕</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {bellOpen&&<div style={{position:"fixed",inset:0,zIndex:600}} onClick={()=>setBellOpen(false)}/>}
+                  </div>
+                );
+              })()}
             </div>
-            <div style={{fontSize:13,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>ENEVO Group</div>
+            <div style={{fontSize:12,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>ENEVO Group</div>
           </div>
           {navItems.map(n=>(
             <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>{setView(n.id);setMenuOpen(false);setBellOpen(false);}}>
@@ -10329,187 +10493,6 @@ export default function App(){
           </div>
         </div>
 
-
-        {/* ════ YOUTUBE-STYLE BELL — fixed top right ════ */}
-        {session&&!loading&&(()=>{
-          const bellCount=unreadCount;
-          // Type → icon + color mapping
-          const typeIcon=t=>t==="activity_comment"?"💬":t==="vacation_approved"?"✓":t==="vacation_rejected"?"✕":
-            t==="vacation_request"?"⏳":t==="timesheet_alert"?"⏰":t==="overdue_alert"?"⚠":
-            t==="activity_assigned"?"📋":t==="activity_status_changed"?"↺":
-            t==="vacation_cancelled"?"✕":t==="new_signup"?"👤":"•";
-          const typeColor=t=>t==="activity_comment"?"#a78bfa":t==="vacation_approved"?"#34d399":
-            t==="vacation_rejected"?"#f87171":t==="vacation_request"?"#f59e0b":
-            t==="timesheet_alert"?"#f87171":t==="overdue_alert"?"#fb923c":
-            t==="activity_assigned"?"#0ea5e9":t==="activity_status_changed"?"#22d3ee":
-            t==="vacation_cancelled"?"#f87171":t==="new_signup"?"#fb923c":"var(--text3)";
-          const typeLabel=t=>t==="activity_comment"?"Comment":t==="vacation_approved"?"Approved":
-            t==="vacation_rejected"?"Rejected":t==="vacation_request"?"Leave Request":
-            t==="timesheet_alert"?"Timesheet":t==="overdue_alert"?"Overdue":
-            t==="activity_assigned"?"Assigned":t==="activity_status_changed"?"Status Update":
-            t==="vacation_cancelled"?"Leave Cancelled":t==="new_signup"?"New Signup":"";
-          const fmtAgo=ts=>{
-            if(!ts) return "";
-            const diff=Date.now()-new Date(ts).getTime();
-            const m=Math.floor(diff/60000);
-            if(m<1) return "just now";
-            if(m<60) return m+"m ago";
-            const h=Math.floor(m/60);
-            if(h<24) return h+"h ago";
-            return Math.floor(h/24)+"d ago";
-          };
-          // Sort notifications: newest first
-          const sorted=[...notifications].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
-          return(
-            <div style={{position:"fixed",top:16,right:24,zIndex:600}}>
-              {/* Bell button */}
-              <button
-                onClick={()=>setBellOpen(o=>!o)}
-                style={{position:"relative",background:bellOpen?"var(--bg3)":"var(--bg1)",border:`1px solid ${bellOpen?"var(--info)":"var(--border)"}`,borderRadius:12,padding:"8px 10px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s",boxShadow:bellOpen?"0 0 0 2px #0ea5e930":"0 2px 8px #00000030"}}
-                title={bellCount>0?`${bellCount} notification${bellCount!==1?"s":""}`:"No new notifications"}>
-                {/* Bell SVG */}
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={bellCount>0?"#f59e0b":"var(--text3)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{transition:"stroke .2s"}}>
-                  <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                  <path d="M13.73 21a2 2 0 01-3.46 0"/>
-                  {bellCount>0&&<path d="M6 8a6 6 0 0112 0" stroke="#f59e0b" strokeWidth="2.5"/>}
-                </svg>
-                {/* Unread badge */}
-                {bellCount>0&&(
-                  <span style={{position:"absolute",top:-6,right:-6,background:"#ef4444",color:"#fff",fontSize:11,fontWeight:800,minWidth:18,height:18,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",border:"2px solid var(--bg2)",fontFamily:"'IBM Plex Mono',monospace",lineHeight:1}}>
-                    {bellCount>99?"99+":bellCount}
-                  </span>
-                )}
-              </button>
-
-              {/* Dropdown panel */}
-              {bellOpen&&(
-                <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:380,maxHeight:520,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:14,boxShadow:"0 8px 32px #00000050",overflow:"hidden",display:"flex",flexDirection:"column"}}>
-                  {/* Header */}
-                  <div style={{padding:"14px 18px 10px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-                    <div>
-                      <span style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Notifications</span>
-                      {bellCount>0&&<span style={{marginLeft:8,fontSize:12,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>{bellCount} unread</span>}
-                    </div>
-                    {notifications.length>0&&(
-                      <button onClick={async()=>{
-                        // Delete all from DB (overdue_alert now persisted, has real id)
-                        const ids=notifications.map(n=>n.id).filter(id=>id!=null);
-                        if(ids.length) await supabase.from("notifications").delete().in("id",ids);
-                        // Also clear overdue dismissed key
-                        try{ const al=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");
-                          const ods=notifications.filter(n=>n.type==="overdue_alert").map(n=>{try{return JSON.parse(n.meta||"{}").alert_key;}catch{return null;}}).filter(Boolean);
-                          if(ods.length) localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...al,...ods])]));
-                        }catch{}
-                        setNotifications([]);
-                        setBellOpen(false);
-                      }} style={{background:"transparent",border:"none",color:"var(--text4)",fontSize:12,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",padding:"2px 6px",borderRadius:4}}
-                        onMouseEnter={e=>e.currentTarget.style.color="var(--info)"}
-                        onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>
-                        Dismiss all
-                      </button>
-                    )}
-                  </div>
-
-                  {/* List */}
-                  <div style={{overflowY:"auto",flex:1}}>
-                    {sorted.length===0&&(
-                      <div style={{padding:"32px 18px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
-                        <div style={{fontSize:28,marginBottom:8}}>🔔</div>
-                        All caught up
-                      </div>
-                    )}
-
-                    {/* Vacation approval requests — admin only, with action buttons */}
-                    {isAdmin&&(()=>{
-                      const pendingVacs=entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL");
-                      if(!pendingVacs.length) return null;
-                      return pendingVacs.map(e=>{
-                        const eng=engineers.find(x=>String(x.id)===String(e.engineer_id));
-                        const matchedNotif=notifications.find(n=>{try{return n.type==="vacation_request"&&JSON.parse(n.meta||"{}").entry_id===e.id;}catch{return false;}});
-                        return(
-                          <div key={e.id} style={{padding:"12px 18px",borderBottom:"1px solid var(--border3)",display:"flex",gap:12,alignItems:"flex-start",background:"#78350f08"}}>
-                            <div style={{width:32,height:32,borderRadius:"50%",background:"#f59e0b20",color:"#f59e0b",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700}}>⏳</div>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:2}}>
-                                <span style={{color:"#f59e0b"}}>{eng?.name||"Engineer"}</span> requested Annual Leave
-                              </div>
-                              <div style={{fontSize:12,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace",marginBottom:8}}>{e.date}</div>
-                              <div style={{display:"flex",gap:6}}>
-                                <button onClick={async()=>{
-                                  await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
-                                  setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
-                                  if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
-                                  // Fire-and-forget: engineer gets via realtime or loadAll — don't add to admin state
-                                  supabase.from("notifications").insert({type:"vacation_approved",read:false,message:`Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
-                                  showToast(`${eng?.name||"Vacation"} approved ✓`);
-                                }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:6,padding:"4px 12px",color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                                  ✓ Approve
-                                </button>
-                                <button onClick={async()=>{
-                                  await supabase.from("time_entries").delete().eq("id",e.id);
-                                  setEntries(prev=>prev.filter(x=>x.id!==e.id));
-                                  if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
-                                  // Fire-and-forget: engineer gets via realtime or loadAll
-                                  supabase.from("notifications").insert({type:"vacation_rejected",read:false,message:`Your Annual Leave on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
-                                  showToast(`${eng?.name||"Vacation"} rejected`,false);
-                                }} style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:6,padding:"4px 12px",color:"#f87171",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                                  ✕ Reject
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-
-                    {/* All other notifications */}
-                    {sorted.map(n=>{
-                      const ic=typeIcon(n.type);
-                      const cl=typeColor(n.type);
-                      const lbl=typeLabel(n.type);
-                      return(
-                        <div key={n.id} style={{padding:"11px 18px",borderBottom:"1px solid var(--border3)",display:"flex",gap:12,alignItems:"flex-start",transition:"background .15s"}}
-                          onMouseEnter={e=>e.currentTarget.style.background="var(--bg2)"}
-                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                          {/* Icon */}
-                          <div style={{width:32,height:32,borderRadius:"50%",background:cl+"18",color:cl,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700,border:`1px solid ${cl}25`}}>
-                            {ic}
-                          </div>
-                          {/* Content */}
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}}>
-                              <span style={{fontSize:10,fontWeight:700,color:cl,textTransform:"uppercase",letterSpacing:".05em"}}>{lbl}</span>
-                              <span style={{fontSize:11,color:"var(--text4)",marginLeft:"auto",whiteSpace:"nowrap",fontFamily:"'IBM Plex Mono',monospace"}}>{fmtAgo(n.created_at)}</span>
-                            </div>
-                            <div style={{fontSize:13,color:"var(--text1)",lineHeight:1.45}}>{n.message}</div>
-                          </div>
-                          {/* Dismiss */}
-                          <button onClick={async()=>{
-                            if(typeof n.id==="string"&&n.id.startsWith("overdue_")){
-                              try{const m=JSON.parse(n.meta||"{}");if(m.alert_key){const prev=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,m.alert_key])]));}}catch{}
-                              setNotifications(prev=>prev.filter(x=>x.id!==n.id));
-                            } else {
-                              await supabase.from("notifications").delete().eq("id",n.id);
-                              setNotifications(prev=>prev.filter(x=>x.id!==n.id));
-                            }
-                          }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:14,padding:"2px 4px",flexShrink:0,lineHeight:1}}
-                            title="Dismiss"
-                            onMouseEnter={e=>e.currentTarget.style.color="#f87171"}
-                            onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>
-                            ✕
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Click-outside overlay */}
-              {bellOpen&&<div style={{position:"fixed",inset:0,zIndex:-1}} onClick={()=>setBellOpen(false)}/>}
-            </div>
-          );
-        })()}
 
         {/* ── Main Content ── */}
         <div className="app-content" style={{marginLeft:215,flex:1,padding:"24px 28px",maxWidth:"calc(100vw - 215px)",background:"var(--bg2)",color:"var(--text1)",minHeight:"100vh",transition:"background .3s"}}>
@@ -10842,7 +10825,7 @@ export default function App(){
                   <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>{isAcct?"Hours Review":"Post Hours"}</h1>
                   <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
                     Allowed: {minPostDate()} → {maxPostDate()}
-                    {canEdit&&" · Lead/Admin can browse all engineers"}
+                    
                   </p>
                 </div>
                 <div style={{display:"flex",gap:12,alignItems:"flex-end"}}>
