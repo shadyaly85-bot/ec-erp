@@ -3674,18 +3674,29 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
 function AssignmentReport({entries,projects,engineers,month,year}){
   const [selProj,setSelProj]=React.useState("ALL");
   const [selEng,setSelEng]=React.useState("ALL");
+  const [showInactive,setShowInactive]=React.useState(false); // default: Active projects only
   const MN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  // Active-only filter applied to projects — On Hold and Completed excluded by default
+  const visibleProjects=React.useMemo(function(){
+    return projects.filter(function(p){
+      if(showInactive) return true; // show everything when toggled
+      return (p.status||"Active")==="Active";
+    });
+  },[projects,showInactive]);
 
   // Work entries for the selected month — month is 0-based to match app state
   const workE=React.useMemo(function(){
+    const activeIds=new Set(visibleProjects.map(function(p){return p.id;}));
     return entries.filter(function(e){
       var d=new Date(e.date+"T12:00:00");
       if(d.getFullYear()!==year||d.getMonth()!==month||e.entry_type!=="work") return false;
+      if(e.project_id&&!activeIds.has(e.project_id)) return false; // exclude inactive projects
       if(selProj!=="ALL"&&e.project_id!==selProj) return false;
       if(selEng!=="ALL"&&String(e.engineer_id)!==String(selEng)) return false;
       return true;
     });
-  },[entries,year,month,selProj,selEng]);
+  },[entries,year,month,selProj,selEng,visibleProjects]);
 
   // Build hours map: {project_id: {engineer_id: {hours, tasks}}}
   const hoursMap=React.useMemo(function(){
@@ -3705,24 +3716,21 @@ function AssignmentReport({entries,projects,engineers,month,year}){
   // Build grouped list: derive from ASSIGNED engineers on each project (not just hours logged)
   // This ensures engineers assigned to a project but with 0 hours still appear
   const grouped=React.useMemo(function(){
-    // Collect all relevant project IDs:
-    // 1. Projects that have the selected engineer in assigned_engineers
-    // 2. Projects that have logged entries this month
+    // Collect all relevant project IDs from VISIBLE (status-filtered) projects only
     var projIds=new Set();
-    projects.forEach(function(p){
+    visibleProjects.forEach(function(p){
       if(selProj!=="ALL"&&p.id!==selProj) return;
       var ae=(p.assigned_engineers||[]).map(String);
-      // Include project if:
-      // - viewing ALL engineers (project has any assignee)
-      // - viewing a specific engineer who is assigned to this project
       if(selEng==="ALL"){
         if(ae.length>0||(hoursMap[p.id]&&Object.keys(hoursMap[p.id]).length>0)) projIds.add(p.id);
       } else {
         if(ae.includes(String(selEng))||(hoursMap[p.id]&&hoursMap[p.id][String(selEng)])) projIds.add(p.id);
       }
     });
-    // Also include projects that have hours but no assigned_engineers set (legacy data)
+    // Also include visible projects that have hours but no assigned_engineers set (legacy data)
+    const visibleIds=new Set(visibleProjects.map(function(p){return p.id;}));
     Object.keys(hoursMap).forEach(function(pid){
+      if(!visibleIds.has(pid)) return; // skip inactive-project entries
       if(selProj!=="ALL"&&pid!==selProj) return;
       projIds.add(pid);
     });
@@ -3751,7 +3759,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
       return{pid,engs:engMap,tot,assignedCount};
     }).filter(function(g){return Object.keys(g.engs).length>0;})
       .sort(function(a,b){return b.tot-a.tot;});
-  },[workE,hoursMap,projects,engineers,selProj,selEng]);
+  },[workE,hoursMap,visibleProjects,engineers,selProj,selEng]);
 
   var totHrs=grouped.reduce(function(s,g){return s+g.tot;},0);
   var totEngs=new Set(grouped.flatMap(function(g){return Object.keys(g.engs);})).size;
@@ -3791,7 +3799,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
       +"<div style='display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f'>"
       +"<div><div style='font-size:20px;font-weight:800;color:#1e3a5f'>ENEVO GROUP</div>"
       +"<div style='font-size:15px;font-weight:700;color:#334155;margin-top:2px'>Assignment Report — "+period+"</div>"
-      +"<div style='font-size:11px;color:#64748b;margin-top:3px'>Generated: "+now+" · Includes assigned engineers with 0 hours</div></div>"
+      +"<div style='font-size:11px;color:#64748b;margin-top:3px'>Generated: "+now+(showInactive?" · All statuses":" · Active projects only")+" · Includes assigned engineers with 0 hours</div></div>"
       +"<div style='text-align:right;font-size:11px;color:#64748b;line-height:1.9'>"
       +"<div>"+grouped.length+" projects · "+totEngs+" engineers</div>"
       +"<div>Total: <b>"+totHrs+"h</b></div></div></div>"
@@ -3805,12 +3813,12 @@ function AssignmentReport({entries,projects,engineers,month,year}){
   return(<div>
     <div className="card" style={{marginBottom:14}}>
       <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",justifyContent:"space-between"}}>
-        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
           <div><div style={{fontSize:12,fontWeight:700,color:"var(--text3)",marginBottom:5}}>PROJECT</div>
             <select value={selProj} onChange={function(e){setSelProj(e.target.value);}}
               style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:190}}>
               <option value="ALL">All Projects</option>
-              {projects.filter(function(p){
+              {visibleProjects.filter(function(p){
                 return (p.assigned_engineers||[]).length>0||Object.keys(hoursMap[p.id]||{}).length>0;
               }).map(function(p){return <option key={p.id} value={p.id}>{p.name||p.id}</option>;})}
             </select></div>
@@ -3820,6 +3828,14 @@ function AssignmentReport({entries,projects,engineers,month,year}){
               <option value="ALL">All Engineers</option>
               {engineers.map(function(e){return <option key={e.id} value={String(e.id)}>{e.name}</option>;})}
             </select></div>
+          {/* Status toggle — Active only by default */}
+          <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",paddingBottom:2}}>
+            <input type="checkbox" checked={showInactive} onChange={function(e){setShowInactive(e.target.checked);setSelProj("ALL");}}
+              style={{accentColor:"var(--info)",width:15,height:15,cursor:"pointer"}}/>
+            <span style={{fontSize:13,color:"var(--text3)",userSelect:"none"}}>
+              Include On Hold & Completed
+            </span>
+          </label>
         </div>
         <button className="bp" onClick={exportPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>&#11015; Export PDF</button>
       </div>
