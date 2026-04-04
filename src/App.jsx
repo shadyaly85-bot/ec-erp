@@ -9355,14 +9355,54 @@ export default function App(){
   /* ════════════════════════
      MAIN LAYOUT
   ════════════════════════ */
+  // ── Minimal SVG nav icons — consistent stroke weight, engineering-grade ──
+  const NavIcon=({id,active})=>{
+    const c=active?"var(--info)":"var(--text3)";
+    const s={width:17,height:17,display:"block",flexShrink:0};
+    if(id==="dashboard") return(
+      <svg style={s} viewBox="0 0 17 17" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1.5" y="1.5" width="6" height="6" rx="1.2"/><rect x="9.5" y="1.5" width="6" height="6" rx="1.2"/>
+        <rect x="1.5" y="9.5" width="6" height="6" rx="1.2"/><rect x="9.5" y="9.5" width="6" height="6" rx="1.2"/>
+      </svg>);
+    if(id==="timesheet") return(
+      <svg style={s} viewBox="0 0 17 17" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round">
+        <circle cx="8.5" cy="8.5" r="6.5"/><polyline points="8.5,4.5 8.5,8.5 11,10.5"/>
+      </svg>);
+    if(id==="projects") return(
+      <svg style={s} viewBox="0 0 17 17" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1.5 4.5h14M1.5 4.5V13a1 1 0 001 1h11a1 1 0 001-1V4.5M1.5 4.5V3a1 1 0 011-1h3l1.5 2h6a1 1 0 011 1v.5"/>
+      </svg>);
+    if(id==="team") return(
+      <svg style={s} viewBox="0 0 17 17" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="6" cy="5.5" r="2.5"/><path d="M1 14c0-2.76 2.24-5 5-5s5 2.24 5 5"/>
+        <circle cx="12.5" cy="5.5" r="2" opacity=".6"/><path d="M11 14c.16-1.3.9-2.43 1.96-3.1" opacity=".6"/>
+      </svg>);
+    if(id==="reports") return(
+      <svg style={s} viewBox="0 0 17 17" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 2h8l3 3v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><polyline points="11,2 11,5 14,5"/>
+        <line x1="5" y1="8" x2="12" y2="8"/><line x1="5" y1="11" x2="10" y2="11"/>
+      </svg>);
+    if(id==="admin") return(
+      <svg style={s} viewBox="0 0 17 17" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="8.5" cy="8.5" r="2.5"/>
+        <path d="M8.5 1.5v2M8.5 13.5v2M1.5 8.5h2M13.5 8.5h2M3.4 3.4l1.4 1.4M12.2 12.2l1.4 1.4M3.4 13.6l1.4-1.4M12.2 4.8l1.4-1.4"/>
+      </svg>);
+    if(id==="import") return(
+      <svg style={s} viewBox="0 0 17 17" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3,9 3,14 14,14 14,9"/><polyline points="5.5,5.5 8.5,2.5 11.5,5.5"/>
+        <line x1="8.5" y1="2.5" x2="8.5" y2="11.5"/>
+      </svg>);
+    return null;
+  };
+
   const navItems = [
-    {id:"dashboard", icon:"▦", label:"Dashboard"},
-    {id:"timesheet", icon:"⏱", label:(isAcct||isSenior)?"Hours Review":"Post Hours"},
-    {id:"projects",  icon:"◈", label:"Projects"},
-    {id:"team",      icon:"◉", label:"Team"},
-    ...(canReport?[{id:"reports",icon:"⊞",label:"Reports & PDF"}]:[]),
-    {id:"admin", icon:"⚙", label:isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":isLead?"Lead Panel":"My KPIs"},
-    ...(isAdmin?[{id:"import",icon:"⬆",label:"Import Excel"}]:[]),
+    {id:"dashboard", label:"Dashboard"},
+    {id:"timesheet", label:(isAcct||isSenior)?"Hours Review":"Post Hours"},
+    {id:"projects",  label:"Projects"},
+    {id:"team",      label:"Team"},
+    ...(canReport?[{id:"reports",label:"Reports & PDF"}]:[]),
+    {id:"admin", label:isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":isLead?"Lead Panel":"My KPIs"},
+    ...(isAdmin?[{id:"import",label:"Import Excel"}]:[]),
   ];
 
   return(
@@ -9506,7 +9546,8 @@ export default function App(){
           </div>
           {navItems.map(n=>(
             <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>{setView(n.id);setMenuOpen(false);}}>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16}}>{n.icon}</span>{n.label}
+              <NavIcon id={n.id} active={view===n.id}/>
+              {n.label}
               {n.id==="admin"&&unreadCount>0&&<span style={{marginLeft:"auto",background:unreadCount>0?"#ef4444":"transparent",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{unreadCount}</span>}
             </button>
           ))}
@@ -10962,23 +11003,23 @@ export default function App(){
                 <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,overflow:"hidden",position:"sticky",top:24}}>
                   {[
                     {group:"Team",items:[
-                      {id:"utilization",icon:"◉",label:"Team Utilization",show:isAdmin||isAcct||isSenior},
-                      {id:"assignment", icon:"👥",label:"Assignment",      show:isAdmin||isLead||isAcct||isSenior},
+                      {id:"utilization",label:"Team Utilization",show:isAdmin||isAcct||isSenior},
+                      {id:"assignment", label:"Assignment",       show:isAdmin||isLead||isAcct||isSenior},
                     ]},
                     {group:"Hours",items:[
-                      {id:"individual",icon:"👤",label:"Timesheets",  show:true},
-                      {id:"task",      icon:"⊟",label:"Task Analysis",show:true},
-                      {id:"projtasks", icon:"◈",label:"Project Analysis",show:isAdmin||isAcct||isLead||isSenior},
+                      {id:"individual",label:"Timesheets",       show:true},
+                      {id:"task",      label:"Task Analysis",    show:true},
+                      {id:"projtasks", label:"Project Analysis", show:isAdmin||isAcct||isLead||isSenior},
                     ]},
                     {group:"Projects",items:[
-                      {id:"tracker",icon:"📊",label:"Tracker Progress",show:isAdmin||isLead||isAcct||isSenior},
+                      {id:"tracker",   label:"Tracker Progress", show:isAdmin||isLead||isAcct||isSenior},
                     ]},
                     {group:"HR",items:[
-                      {id:"vacation",icon:"✈",label:"Vacation & Leave",show:true},
+                      {id:"vacation",  label:"Vacation & Leave", show:true},
                     ]},
                     {group:"Finance",items:[
-                      {id:"monthly",icon:"⊞",label:"Monthly Mgmt",show:isAdmin||isAcct||isSenior},
-                      {id:"invoice",icon:"🧾",label:"Invoice Export", show:canInvoice},
+                      {id:"monthly",   label:"Monthly Mgmt",     show:isAdmin||isAcct||isSenior},
+                      {id:"invoice",   label:"Invoice Export",   show:canInvoice},
                     ]},
                   ].map(grp=>{
                     const visible=grp.items.filter(i=>i.show);
@@ -10991,7 +11032,6 @@ export default function App(){
                           return(
                             <button key={r.id} onClick={()=>setActiveRpt(r.id)}
                               style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:active?"var(--nb-hover)":"transparent",border:"none",borderLeft:active?"3px solid var(--info)":"3px solid transparent",color:active?"var(--info)":"var(--text2)",cursor:"pointer",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:active?600:400,textAlign:"left",transition:"all .15s"}}>
-                              <span style={{fontSize:16,flexShrink:0}}>{r.icon}</span>
                               {r.label}
                             </button>
                           );
@@ -11557,15 +11597,15 @@ export default function App(){
               {/* ── Tab navigation ── */}
               <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",flexWrap:"wrap"}}>
                 {[
-                  {id:"engineers",label:"👥 Engineers", show:isAdmin||isAcct||isSenior},
-                  {id:"projects", label:"◈ Projects",   show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"entries",  label:"⏱ All Entries", show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"finance",  label:"💰 Finance",    show:isAdmin||isAcct||isSenior},
-                  {id:"functions",label:"⚡ Functions",   show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"kpis",     label:"📈 KPIs",        show:true},
-                  {id:"tracker",  label:"📊 Tracker",     show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"settings", label:"ℹ Info",         show:isAdmin},
-                  {id:"actlog",   label:"🪵 Activity Log", show:isAdmin},
+                  {id:"engineers",label:"Engineers",   show:isAdmin||isAcct||isSenior},
+                  {id:"projects", label:"Projects",    show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"entries",  label:"All Entries",  show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"finance",  label:"Finance",      show:isAdmin||isAcct||isSenior},
+                  {id:"functions",label:"Functions",    show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"kpis",     label:"KPIs",         show:true},
+                  {id:"tracker",  label:"Tracker",      show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"settings", label:"Info",         show:isAdmin},
+                  {id:"actlog",   label:"Activity Log", show:isAdmin},
                 ].filter(t=>t.show).map(t=>{
                   const active=adminTab===t.id;
                   return(
