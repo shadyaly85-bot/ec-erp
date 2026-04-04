@@ -2402,52 +2402,173 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
 
 
 /* ── Single activity row ── */
-function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect}){
+function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect, onComment, myProfile}){
+  const [commentOpen, setCommentOpen] = React.useState(false);
+  const [commentText, setCommentText] = React.useState("");
+  const [submitting,  setSubmitting]  = React.useState(false);
+
+  const comments = React.useMemo(()=>{
+    if(!a.comments) return [];
+    if(Array.isArray(a.comments)) return a.comments;
+    try{ return JSON.parse(a.comments); }catch{ return []; }
+  },[a.comments]);
+
+  const timeAgo = ts=>{
+    const s=(Date.now()-new Date(ts).getTime())/1000;
+    if(s<60) return "just now";
+    if(s<3600) return Math.floor(s/60)+"m ago";
+    if(s<86400) return Math.floor(s/3600)+"h ago";
+    return new Date(ts+"").toLocaleDateString("en-GB",{day:"2-digit",month:"short"});
+  };
+
+  const submitComment=async()=>{
+    if(!commentText.trim()||!onComment) return;
+    const c={
+      id:Date.now().toString(36)+Math.random().toString(36).slice(2),
+      author:myProfile?.name||"Unknown",
+      role:myProfile?.role||"",
+      text:commentText.trim(),
+      ts:new Date().toISOString()
+    };
+    setSubmitting(true);
+    const err=await onComment(a.id,[...comments,c]);
+    if(!err) setCommentText("");
+    setSubmitting(false);
+  };
+
+  const removeComment=async cid=>{
+    if(!onComment) return;
+    await onComment(a.id, comments.filter(c=>c.id!==cid));
+  };
+
   const pct      = Math.round(a.progress*100);
   const sc       = STATUS_COLOR[a.status]||"var(--text3)";
   const today    = new Date(); today.setHours(0,0,0,0);
   const endDt    = a.end_date ? new Date(a.end_date) : null;
   const isOverdue= endDt && endDt < today && a.status!=="Completed";
   const fmtDate  = d => d ? new Date(d).toLocaleDateString("en-GB",{day:"2-digit",month:"short"}) : null;
+  const hasComments=comments.length>0;
+
   return(
-  <tr style={{cursor:"pointer",background:isSelected?"#0ea5e910":undefined}} onClick={()=>onEdit(a)}>
-    {onSelect&&<td style={{width:28,paddingLeft:8}} onClick={e=>e.stopPropagation()}>
-      <input type="checkbox" checked={!!isSelected} onChange={()=>onSelect(a.id)}
-        style={{cursor:"pointer",width:14,height:14,accentColor:"var(--info)"}}/>
-    </td>}
-    <td style={{maxWidth:200}}>
-      <div style={{fontWeight:600,fontSize:13}}>{a.activity_name}</div>
-      {a.remarks&&<div style={{fontSize:12,color:"#f87171",fontStyle:"italic",marginTop:1,maxWidth:190,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.remarks}</div>}
-    </td>
-    <td><span style={{fontSize:12,padding:"2px 7px",borderRadius:3,background:STATUS_BG[a.status]||"var(--bg3)",color:sc,fontWeight:700,whiteSpace:"nowrap"}}>{a.status}</span></td>
-    <td>
-      <div style={{display:"flex",alignItems:"center",gap:7}}>
-        <div style={{width:52,height:5,background:"var(--bg1)",borderRadius:3,overflow:"hidden",flexShrink:0}}>
-          <div style={{height:"100%",width:`${pct}%`,background:sc,borderRadius:3}}/>
+  <React.Fragment>
+    <tr style={{cursor:"pointer",background:isSelected?"#0ea5e910":undefined}} onClick={()=>onEdit(a)}>
+      {onSelect&&<td style={{width:28,paddingLeft:8}} onClick={e=>e.stopPropagation()}>
+        <input type="checkbox" checked={!!isSelected} onChange={()=>onSelect(a.id)}
+          style={{cursor:"pointer",width:14,height:14,accentColor:"var(--info)"}}/>
+      </td>}
+      <td style={{maxWidth:200}}>
+        <div style={{fontWeight:600,fontSize:13}}>{a.activity_name}</div>
+        {a.remarks&&<div style={{fontSize:12,color:"#f87171",fontStyle:"italic",marginTop:1,maxWidth:190,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.remarks}</div>}
+      </td>
+      <td><span style={{fontSize:12,padding:"2px 7px",borderRadius:3,background:STATUS_BG[a.status]||"var(--bg3)",color:sc,fontWeight:700,whiteSpace:"nowrap"}}>{a.status}</span></td>
+      <td>
+        <div style={{display:"flex",alignItems:"center",gap:7}}>
+          <div style={{width:52,height:5,background:"var(--bg1)",borderRadius:3,overflow:"hidden",flexShrink:0}}>
+            <div style={{height:"100%",width:`${pct}%`,background:sc,borderRadius:3}}/>
+          </div>
+          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:sc}}>{pct}%</span>
         </div>
-        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:sc}}>{pct}%</span>
-      </div>
-    </td>
-    <td style={{fontSize:13,color:"var(--text2)",whiteSpace:"nowrap"}}>{a.assigned_to||"—"}</td>
-    <td style={{fontSize:12,whiteSpace:"nowrap"}}>
-      {(a.start_date||a.end_date)?(
-        <div style={{display:"flex",flexDirection:"column",gap:1}}>
-          {a.start_date&&<span style={{color:"var(--text3)"}}>▶ {fmtDate(a.start_date)}</span>}
-          {a.end_date&&<span style={{color:isOverdue?"#f87171":"#fb923c",fontWeight:isOverdue?700:400}}>
-            {isOverdue?"⚠ ":"■ "}{fmtDate(a.end_date)}
-          </span>}
+      </td>
+      <td style={{fontSize:13,color:"var(--text2)",whiteSpace:"nowrap"}}>{a.assigned_to||"—"}</td>
+      <td style={{fontSize:12,whiteSpace:"nowrap"}}>
+        {(a.start_date||a.end_date)?(
+          <div style={{display:"flex",flexDirection:"column",gap:1}}>
+            {a.start_date&&<span style={{color:"var(--text3)"}}>▶ {fmtDate(a.start_date)}</span>}
+            {a.end_date&&<span style={{color:isOverdue?"#f87171":"#fb923c",fontWeight:isOverdue?700:400}}>
+              {isOverdue?"⚠ ":"■ "}{fmtDate(a.end_date)}
+            </span>}
+          </div>
+        ):<span style={{color:"var(--text4)"}}>—</span>}
+      </td>
+      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:actHrs>0?"var(--info)":"var(--text4)"}}>{actHrs>0?actHrs+"h":"—"}</td>
+      {isAdmin&&<td onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",gap:3,alignItems:"center"}}>
+          {onComment&&(
+            <button title={hasComments?`${comments.length} comment${comments.length!==1?"s":""}`:("Add comment")}
+              onClick={e=>{e.stopPropagation();setCommentOpen(o=>!o);}}
+              style={{fontSize:11,padding:"1px 6px",borderRadius:4,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
+                border:`1px solid ${commentOpen||hasComments?"#a78bfa50":"var(--border)"}`,
+                background:commentOpen?"#a78bfa20":hasComments?"#a78bfa10":"transparent",
+                color:commentOpen||hasComments?"#a78bfa":"var(--text4)",
+                display:"flex",alignItems:"center",gap:3,transition:"all .15s"}}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.5 7a1 1 0 01-1 1H3.5l-2 2V2a1 1 0 011-1h7a1 1 0 011 1v5z"/>
+              </svg>
+              {hasComments&&<span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{comments.length}</span>}
+            </button>
+          )}
+          <button className="bd" style={{fontSize:13,padding:"1px 5px"}} onClick={e=>{e.stopPropagation();onDelete(a.id);}}>✕</button>
         </div>
-      ):<span style={{color:"var(--text4)"}}>—</span>}
-    </td>
-    <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:actHrs>0?"var(--info)":"var(--text4)"}}>{actHrs>0?actHrs+"h":"—"}</td>
-    {isAdmin&&<td onClick={e=>e.stopPropagation()}><button className="bd" style={{fontSize:13,padding:"1px 5px"}} onClick={()=>onDelete(a.id)}>✕</button></td>}
-  </tr>);
+      </td>}
+    </tr>
+    {/* ── Inline comment thread ── */}
+    {commentOpen&&(
+    <tr style={{background:"#a78bfa06",borderTop:"1px solid #a78bfa20"}}>
+      <td colSpan={99} style={{padding:"12px 18px 14px"}} onClick={e=>e.stopPropagation()}>
+        {/* Thread */}
+        {comments.length===0&&(
+          <div style={{fontSize:12,color:"var(--text4)",marginBottom:10,fontStyle:"italic"}}>
+            No comments yet. Start the thread.
+          </div>
+        )}
+        <div style={{display:"grid",gap:10,marginBottom:comments.length?12:0}}>
+          {comments.map(c=>{
+            const isOwn=c.author===myProfile?.name;
+            return(
+            <div key={c.id} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+              {/* Avatar */}
+              <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,
+                background:isOwn?"var(--info)25":"#a78bfa25",
+                color:isOwn?"var(--info)":"#a78bfa",
+                fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                {c.author?.slice(0,2).toUpperCase()||"?"}
+              </div>
+              {/* Bubble */}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"baseline",gap:7,marginBottom:3,flexWrap:"wrap"}}>
+                  <span style={{fontSize:13,fontWeight:700,color:"var(--text0)"}}>{c.author}</span>
+                  {c.role&&<span style={{fontSize:11,color:"var(--text4)",fontStyle:"italic"}}>{c.role}</span>}
+                  <span style={{fontSize:11,color:"var(--text4)",marginLeft:"auto",whiteSpace:"nowrap"}}>{timeAgo(c.ts)}</span>
+                  {(isAdmin||isOwn)&&(
+                    <button onClick={()=>removeComment(c.id)}
+                      style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:12,padding:"0 2px",lineHeight:1}}
+                      title="Delete comment">✕</button>
+                  )}
+                </div>
+                <div style={{fontSize:13,color:"var(--text1)",background:"var(--bg3)",borderRadius:"0 8px 8px 8px",padding:"8px 12px",lineHeight:1.5,borderLeft:`2px solid ${isOwn?"var(--info)":"#a78bfa"}`}}>
+                  {c.text}
+                </div>
+              </div>
+            </div>
+            );
+          })}
+        </div>
+        {/* Input bar */}
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,
+            background:"var(--info)20",color:"var(--info)",
+            fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {myProfile?.name?.slice(0,2).toUpperCase()||"?"}
+          </div>
+          <input value={commentText} onChange={e=>setCommentText(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submitComment();}}}
+            placeholder="Add a comment… (Enter to send)"
+            style={{flex:1,background:"var(--bg2)",border:"1px solid #a78bfa40",borderRadius:20,
+              color:"var(--text0)",padding:"6px 14px",fontSize:13,outline:"none"}}/>
+          <button className="bp" style={{fontSize:13,padding:"5px 16px",opacity:submitting||!commentText.trim()?0.5:1}}
+            disabled={submitting||!commentText.trim()} onClick={submitComment}>
+            Send
+          </button>
+        </div>
+      </td>
+    </tr>)}
+  </React.Fragment>);
 }
 
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component
    ════════════════════════════════════════════════════════ */
-function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, showToast, logAction, showConfirm,
+function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, showToast, logAction, showConfirm, myProfile,
   trackerProj,  setTrackerProj,
   trackerSub,   setTrackerSub,
   trackerSearch, setTrackerSearch,
@@ -2658,7 +2779,18 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     },{title:"Delete Activity",confirmLabel:"Delete"});
   },[setActivities,activities,logAction,showConfirm,showToast]);
 
-  // ── Loading ──
+  // ── Comment thread handler — adds/updates/removes comments on an activity ──
+  const handleActivityComment = useCallback(async(actId, comments)=>{
+    const{error}=await supabase.from("project_activities")
+      .update({comments})
+      .eq("id",actId);
+    if(!error){
+      setActivities(prev=>prev.map(a=>a.id===actId?{...a,comments}:a));
+    } else {
+      showToast("Comment error — the 'comments' column may not exist yet. Run the SQL migration in Admin → Info.",false);
+    }
+    return error||null;
+  },[supabase,setActivities,showToast]);
   if(!activitiesLoaded) return(
     <div style={{padding:32,textAlign:"center",color:"var(--text4)",fontSize:15}}>Loading project tracker…</div>
   );
@@ -2962,7 +3094,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
                 <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)}
                   isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}
                   isSelected={bulkSelected.has(a.id)}
-                  onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}/>
+                  onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}
+                  onComment={canEdit?handleActivityComment:null} myProfile={myProfile}/>
               ))}
             </tbody>
           </table>)}
@@ -2986,7 +3119,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
               <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)}
                 isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}
                 isSelected={bulkSelected.has(a.id)}
-                onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}/>
+                onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}
+                onComment={canEdit?handleActivityComment:null} myProfile={myProfile}/>
             ))}
           </tbody>
         </table>
@@ -12010,6 +12144,7 @@ export default function App(){
                   showToast={showToast}
                   logAction={logAction}
                   showConfirm={showConfirm}
+                  myProfile={myProfile}
                   trackerProj={trackerProj}   setTrackerProj={setTrackerProj}
                   trackerSub={trackerSub}     setTrackerSub={setTrackerSub}
                   trackerSearch={trackerSearch} setTrackerSearch={setTrackerSearch}
