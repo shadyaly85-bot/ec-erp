@@ -7866,11 +7866,23 @@ export default function App(){
       data=res.data; error=res.error;
     }
     if(error){showToast("Paste error: "+error.message,false);return;}
-    if(data) setEntries(prev=>[...data,...prev]);
-    const _engName2 = engineers.find(e=>String(e.id)===String(engId))?.name||engId;
-    const _onBehalf2 = String(engId)!==String(myProfile?.id) ? ` on behalf of ${_engName2}` : "";
-    showToast(`Pasted ${inserts.length} entr${inserts.length===1?"y":"ies"} to ${targetDate} ✓`);
-    logAction("CREATE","TimeEntry",`Pasted ${inserts.length} entries to ${targetDate}${_onBehalf2}`,{engineer_id:engId,engineer_name:_engName2,date:targetDate,count:inserts.length});
+    if(data){
+      const pastedIds=data.map(e=>e.id);
+      const _engName2 = engineers.find(e=>String(e.id)===String(engId))?.name||engId;
+      const _onBehalf2 = String(engId)!==String(myProfile?.id) ? ` on behalf of ${_engName2}` : "";
+      // Add to UI immediately then offer undo
+      applyUndo(
+        showToast,
+        `Pasted ${data.length} entr${data.length===1?"y":"ies"} to ${targetDate}`,
+        ()=>setEntries(prev=>[...data,...prev]),           // add to UI
+        ()=>setEntries(prev=>prev.filter(e=>!pastedIds.includes(e.id))),  // undo: remove from UI
+        async()=>{                                         // DB delete after 5s
+          const{error:de}=await supabase.from("time_entries").delete().in("id",pastedIds);
+          return de||null;
+        },
+        ()=>logAction("CREATE","TimeEntry",`Pasted ${data.length} entries to ${targetDate}${_onBehalf2}`,{engineer_id:engId,engineer_name:_engName2,date:targetDate,count:data.length})
+      );
+    }
   };
 
   const saveEditEntry=async()=>{
@@ -9807,7 +9819,8 @@ export default function App(){
                             title={`Copy all ${prevEntries.length} work entries from last week to this week`}
                             onClick={async()=>{
                               const engId=canEditAny?viewEngId:myProfile?.id;
-                              let copied=0, skipped=0;
+                              const allInserted=[];
+                              let skipped=0;
                               for(const d of weekDays){
                                 const dayOfWeek=new Date(d).getDay();
                                 const prevDay=prevWeekDays.find(pd=>new Date(pd).getDay()===dayOfWeek);
@@ -9829,10 +9842,22 @@ export default function App(){
                                   const res=await supabase.from("time_entries").insert(inserts).select();
                                   data=res.data; error=res.error;
                                 }
-                                if(!error&&data){setEntries(prev=>[...data,...prev]);copied+=data.length;}
+                                if(!error&&data) allInserted.push(...data);
                               }
-                              if(copied>0) showToast(`Copied ${copied} entries from last week ✓${skipped>0?` (${skipped} days skipped — already filled or locked)`:""}`);
-                              else showToast("No entries copied — all days already filled or locked",false);
+                              if(allInserted.length>0){
+                                const copiedIds=allInserted.map(e=>e.id);
+                                const skipMsg=skipped>0?` (${skipped} days skipped — already filled or locked)`:"";
+                                applyUndo(
+                                  showToast,
+                                  `Copied ${allInserted.length} entries from last week${skipMsg}`,
+                                  ()=>setEntries(prev=>[...allInserted,...prev]),
+                                  ()=>setEntries(prev=>prev.filter(e=>!copiedIds.includes(e.id))),
+                                  async()=>{ const{error:de}=await supabase.from("time_entries").delete().in("id",copiedIds); return de||null; },
+                                  ()=>{}
+                                );
+                              } else {
+                                showToast("No entries copied — all days already filled or locked",false);
+                              }
                             }}>
                             ⎘ Copy Last Week <span style={{fontSize:11,opacity:.7}}>({prevEntries.length})</span>
                           </button>
@@ -9849,7 +9874,7 @@ export default function App(){
                   <div style={{fontSize:16,fontWeight:600}}>{viewEng.name}</div>
                   <div style={{fontSize:13,color:"var(--text4)"}}>{viewEng.role} · {viewEng.level}</div>
                 </div>
-                <div style={{marginLeft:"auto",display:"flex",gap:20}}>
+                <div style={{marginLeft:"auto",display:"flex",gap:20,flexWrap:"wrap",alignItems:"center"}}>
                   {[
                     {l:"Week Hrs",v:weekDays.reduce((s,d)=>s+entries.filter(e=>e.date===d&&e.engineer_id===viewEngId).reduce((ss,e)=>ss+e.hours,0),0)+"h",c:"var(--info)"},
                     {l:"Month Hrs",v:monthEntries.filter(e=>e.engineer_id===viewEngId&&e.entry_type==="work").reduce((s,e)=>s+e.hours,0)+"h",c:"#34d399"},
@@ -9858,6 +9883,33 @@ export default function App(){
                     <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c}}>{s.v}</div>
                     <div style={{fontSize:13,color:"var(--text4)"}}>{s.l}</div>
                   </div>)}
+                  {/* ── Vacation balance — visible to every role for the viewed engineer ── */}
+                  {(()=>{
+                    const entitlement=(vacationBalances[year]||{})[viewEngId]??21;
+                    const used=entries.filter(e=>
+                      String(e.engineer_id)===String(viewEngId) &&
+                      e.entry_type==="leave" &&
+                      (e.leave_type==="Annual Leave"||!e.leave_type) &&
+                      e.activity!=="PENDING_APPROVAL" &&
+                      new Date(e.date+"T12:00:00").getFullYear()===year
+                    ).length;
+                    const pending=entries.filter(e=>
+                      String(e.engineer_id)===String(viewEngId) &&
+                      e.entry_type==="leave" &&
+                      (e.leave_type==="Annual Leave"||!e.leave_type) &&
+                      e.activity==="PENDING_APPROVAL" &&
+                      new Date(e.date+"T12:00:00").getFullYear()===year
+                    ).length;
+                    const remaining=Math.max(0,entitlement-used);
+                    const c=remaining>5?"#34d399":remaining>0?"#fb923c":"#f87171";
+                    return(
+                      <div style={{textAlign:"center",borderLeft:"1px solid var(--border)",paddingLeft:20}}>
+                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:c}}>{remaining}d</div>
+                        <div style={{fontSize:13,color:"var(--text4)"}}>Annual Leave Left</div>
+                        <div style={{fontSize:11,color:"var(--text4)",marginTop:1}}>{used} used · {entitlement} total{pending>0?` · ${pending} pending`:""}</div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>}
 
