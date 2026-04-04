@@ -7369,7 +7369,7 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
-function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiEngId,kpiNotes,setKpiNotes,isAdmin,isLead,isAcct,isEngineer,myProfile,year,notifications,onDismissNotif,alertDay,setAlertDay,showToast,supabase,setEntries,setNotifications}){
+function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiEngId,kpiNotes,setKpiNotes,isAdmin,isLead,isAcct,isEngineer,myProfile,year,notifications,onDismissNotif,alertDay,setAlertDay,alertTime,setAlertTime,showToast,supabase,setEntries,setNotifications}){
 
   const canManageKPI = isAdmin||isLead;
   // Engineers auto-locked to their own profile
@@ -7606,12 +7606,15 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
           </select>
         )}
         {canManageKPI&&(
-          <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px"}}>
-            <span style={{fontSize:13,color:"var(--text4)"}}>Alert day:</span>
-            <select value={alertDay} onChange={e=>setAlertDay(+e.target.value)}
-              style={{background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontWeight:700,outline:"none",cursor:"pointer"}}>
-              {[["1","Mon"],["2","Tue"],["3","Wed"],["4","Thu"],["5","Fri"]].map(([v,l])=><option key={v} value={+v}>{l}</option>)}
+          <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",flexWrap:"wrap"}}>
+            <span style={{fontSize:13,color:"var(--text4)"}}>Alert:</span>
+            <select value={alertDay} onChange={e=>{const v=+e.target.value;setAlertDay(v);localStorage.setItem("ec_alertDay",v);}}
+              style={{background:"transparent",border:"none",color:"var(--info)",fontSize:13,fontWeight:700,outline:"none",cursor:"pointer"}}>
+              {[["0","Sun"],["1","Mon"],["2","Tue"],["3","Wed"],["4","Thu"],["5","Fri"],["6","Sat"]].map(([v,l])=><option key={v} value={+v}>{l}</option>)}
             </select>
+            <span style={{fontSize:13,color:"var(--text4)"}}>at</span>
+            <input type="time" value={alertTime} onChange={e=>{setAlertTime(e.target.value);localStorage.setItem("ec_alertTime",e.target.value);}}
+              style={{background:"transparent",border:"none",color:"var(--info)",fontSize:13,fontWeight:700,outline:"none",cursor:"pointer",width:80}}/>
           </div>
         )}
       </div>
@@ -7927,7 +7930,8 @@ export default function App(){
   const [editEngModal,setEditEngModal]     = useState(null);
   const [adminTab,setAdminTab]             = useState("engineers"); // overridden per role below
   const [kpiYear,setKpiYear]               = useState(new Date().getFullYear());
-  const [alertDay,setAlertDay]             = useState(5); // 1=Mon,2=Tue,3=Wed,4=Thu,5=Fri
+  const [alertDay,setAlertDay]             = useState(()=>{ const s=parseInt(localStorage.getItem("ec_alertDay"),10); return isNaN(s)?5:s; }); // 0=Sun,1=Mon..6=Sat
+  const [alertTime,setAlertTime]           = useState(()=>localStorage.getItem("ec_alertTime")||"09:00"); // HH:MM 24h
   const [funcYear,setFuncYear]             = useState(new Date().getFullYear());
   const [funcEngId,setFuncEngId]           = useState("all");
   const [kpiEngId,setKpiEngId]            = useState(null);
@@ -8285,7 +8289,7 @@ export default function App(){
           .select("*").eq("engineer_id",_profId).eq("read",false)
           .order("created_at",{ascending:false}).limit(80);
 
-        if(pnErr&&pnErr.message&&(pnErr.message.includes("engineer_id")||pnErr.message.includes("column"))){
+        if(pnErr&&pnErr.message&&(pnErr.message.includes("engineer_id")||pnErr.message.includes("column")||pnErr.message.includes("does not exist"))){
           // ── Fallback: engineer_id column not yet created — full load + client-side meta filter ──
           console.warn("[EC-ERP] notifications.engineer_id column missing. Falling back to meta-based filter. Run SQL migration in Admin → Info.");
           const{data:allN}=await supabase.from("notifications")
@@ -8832,16 +8836,19 @@ export default function App(){
     }
     const _engName=engineers.find(e=>String(e.id)===String(engineerId))?.name||engineerId;
     const _onBehalf=String(engineerId)!==String(myProfile?.id)?` on behalf of ${_engName}`:"";
-    // If admin deletes an approved leave → notify the engineer
-    if(isApprovedLeave && canEditAny){
-      const cancelMsg=`Your approved Annual Leave on ${entry.date} has been cancelled by admin`;
-      insertNotif({
-        type:"vacation_cancelled",engineer_id:entry.engineer_id,read:false,message:cancelMsg,
-        created_at:new Date().toISOString(),
-        meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:id,cancelled_by:myProfile?.name})
-      }).then(()=>{});
-    }
-    showConfirm("This time entry will be permanently removed.",()=>{
+    const _confirmMsg=isApprovedLeave
+      ? "This will permanently cancel the approved annual leave. The engineer will be notified."
+      : "This time entry will be permanently removed.";
+    showConfirm(_confirmMsg,()=>{
+      // Notify engineer ONLY after admin confirms the deletion (never before)
+      if(isApprovedLeave && isAdmin){
+        insertNotif({
+          type:"vacation_cancelled",engineer_id:entry.engineer_id,read:false,
+          message:`Your approved Annual Leave on ${entry.date} has been cancelled by admin`,
+          created_at:new Date().toISOString(),
+          meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:id,cancelled_by:myProfile?.name})
+        });
+      }
       applyUndo(
         showToast,"Entry deleted",
         ()=>setEntries(prev=>prev.filter(e=>e.id!==id)),
@@ -8849,7 +8856,7 @@ export default function App(){
         async()=>{ const{error}=await supabase.from("time_entries").delete().eq("id",id); return error||null; },
         ()=>logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_onBehalf}`,{id,engineer_id:engineerId,engineer_name:_engName})
       );
-    },{title:"Delete Time Entry",confirmLabel:"Delete"});
+    },{title:isApprovedLeave?"Cancel Approved Leave":"Delete Time Entry",confirmLabel:"Delete"});
   };
 
   /* ── FUNCTION ENTRIES & KPI ALERTS ── */
@@ -8891,9 +8898,12 @@ export default function App(){
   const checkTimesheetAlerts=useCallback(async(engs,allE,staffList=[],currentNotifs=[])=>{
     if(!isAdmin&&!isLead) return;
     const today=new Date();
-    const dayOfWeek=today.getDay();
-    const isEndOfWeek=dayOfWeek===0||(dayOfWeek>=alertDay&&dayOfWeek<=6);
-    if(!isEndOfWeek) return;
+    const dayOfWeek=today.getDay(); // 0=Sun,1=Mon,...,6=Sat
+    // Exact day check — fire only on the configured alert day
+    if(dayOfWeek!==alertDay) return;
+    // Time check — only fire after the configured hour
+    const _alertHour=parseInt((alertTime||"09:00").split(":")[0],10);
+    if(today.getHours()<_alertHour) return;
     const mondayOffset=dayOfWeek===0?-6:1-dayOfWeek;
     const weekStart=new Date(today);weekStart.setDate(today.getDate()+mondayOffset);weekStart.setHours(0,0,0,0);
     const friday=new Date(weekStart);friday.setDate(weekStart.getDate()+4);
@@ -8904,15 +8914,18 @@ export default function App(){
     const laggards=[];
     engs.forEach(eng=>{
       if(["accountant","senior_management","admin"].includes(eng.role_type)) return;
-      if(eng.is_active===false) return;
-      if(eng.termination_date&&String(eng.termination_date).slice(0,10)<todayStr) return;
+      // Skip inactive: catches false, 0, null — but NOT undefined (column missing → treat as active)
+      if(eng.is_active!==undefined && !eng.is_active) return;
+      if(eng.termination_date&&String(eng.termination_date).slice(0,10)<=todayStr) return;
       const staffMatch=staffList.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
       if(staffMatch){
         if(staffMatch.active===false) return;
         if(staffMatch.termination_date&&String(staffMatch.termination_date).slice(0,10)<todayStr) return;
       }
-      const hasWeekHours=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||(e.entry_type==="function"||e.task_category==="Function")));
-      if(!hasWeekHours) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
+      const hasWeekHours=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||e.task_category==="Function"));
+      // Don't alert engineers who are on approved leave this week
+      const onApprovedLeave=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&e.entry_type==="leave");
+      if(!hasWeekHours&&!onApprovedLeave) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
     });
 
     if(laggards.length===0) return;
@@ -8935,7 +8948,7 @@ export default function App(){
       });
       knownKeys.add(key); // prevent double-insert within same loop
     }
-  },[isAdmin,isLead,alertDay]);
+  },[isAdmin,isLead,alertDay,alertTime]);
 
   // Run alert check once when user first logs in (engineers+entries loaded)
   const alertsRanRef = React.useRef(false);
@@ -10460,13 +10473,13 @@ export default function App(){
                         </div>
                         {/* List */}
                         <div style={{overflowY:"auto",flex:1}}>
-                          {sorted.length===0&&!isAdmin&&(
+                          {bellTab==="active"&&sorted.length===0&&!isAdmin&&(
                             <div style={{padding:"28px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
                               <div style={{fontSize:24,marginBottom:6}}>🔔</div>All caught up
                             </div>
                           )}
                           {/* Vacation approval queue — admin only */}
-                          {isAdmin&&(()=>{
+                          {isAdmin&&bellTab==="active"&&(()=>{
                             const pendingVacs=entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL");
                             if(!pendingVacs.length&&sorted.length===0) return(
                               <div style={{padding:"28px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
@@ -12869,7 +12882,7 @@ export default function App(){
                   myProfile={myProfile}
                   year={year} notifications={notifications}
                   onDismissNotif={dismissNotification}
-                  alertDay={alertDay} setAlertDay={setAlertDay}
+                  alertDay={alertDay} setAlertDay={setAlertDay} alertTime={alertTime} setAlertTime={setAlertTime}
                   showToast={showToast} supabase={supabase}
                   setEntries={setEntries} setNotifications={setNotifications}
                 />
@@ -12980,8 +12993,8 @@ export default function App(){
                     </div>
                   </div>
 
-                  {/* ── ROLE ACCESS TABLE ── */}
-                  <div className="card">
+                  {/* ── ROLE ACCESS TABLE — admin only ── */}
+                  {isAdmin&&(<div className="card">
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>Role Access Reference</div>
                     <div style={{display:"grid",gap:8}}>
                       {[
@@ -12998,6 +13011,7 @@ export default function App(){
                       );})}
                     </div>
                   </div>
+                  )}
 
                   {/* ── SQL MIGRATIONS (admin only) ── */}
                   {isAdmin&&(
