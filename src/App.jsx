@@ -10514,7 +10514,7 @@ export default function App(){
                 return(
                   <div style={{position:"relative",flexShrink:0}}>
                     {/* Bell button */}
-                    <button onClick={()=>{ setBellOpen(o=>{ if(!o) reloadNotifications(); return !o; }); }}
+                    <button onClick={()=>setBellOpen(o=>!o)}
                       style={{position:"relative",background:bellOpen?"var(--bg3)":"transparent",border:`1px solid ${bellOpen?"var(--info)":"var(--border)"}`,borderRadius:8,padding:"6px 7px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}
                       title={bellCount>0?`${bellCount} notification${bellCount!==1?"s":""}`:"No new notifications"}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={bellCount>0?"#f59e0b":"var(--text3)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
