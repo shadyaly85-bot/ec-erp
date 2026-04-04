@@ -8931,14 +8931,17 @@ export default function App(){
   },[workEntries,projects]);
 
   const adminBrowseEntries=useMemo(()=>entries.filter(e=>{
-    const d=new Date(e.date+"T12:00:00"); // noon avoids UTC midnight date shift in UTC+ timezones
+    const d=new Date(e.date+"T12:00:00");
+    // Lead: scope to subtree engineers only
+    if(mySubEngIds&&!mySubEngIds.has(String(e.engineer_id))) return false;
     return (entryFilter.engineer==="ALL"||e.engineer_id===+entryFilter.engineer)
       &&(entryFilter.project==="ALL"||e.project_id===entryFilter.project)
       &&d.getMonth()===entryFilter.month&&d.getFullYear()===entryFilter.year;
-  }),[entries,entryFilter]);
+  }),[entries,entryFilter,mySubEngIds]);
 
   /* ── PDF builds ── */
   const buildUtilizationPDF=()=>{
+    const pdfStats=visibleEngStats; // scoped for lead, full for admin/acct
     generatePDF(`Team Utilization — ${MONTHS[month]} ${year}`,[
       `<div class="section"><div class="st">KPIs</div><div class="kg">
         <div class="kp"><div class="kv">${fmtPct(overallUtil)}</div><div class="kl">Utilization</div></div>
@@ -8948,7 +8951,7 @@ export default function App(){
       </div></div>`,
       `<div class="section"><div class="st">Individual Breakdown</div>
       <table><thead><tr><th>Engineer</th><th>Level</th><th>Target Hrs</th><th>Work Hrs</th><th>Billable Hrs</th><th>Leave</th><th>Utilization</th><th>Billability</th><th>Revenue</th></tr></thead>
-      <tbody>${engStats.map(e=>{
+      <tbody>${pdfStats.map(e=>{
         const joinNote=(()=>{if(!e.join_date)return"";const j=new Date(e.join_date+"T12:00:00");if(j.getFullYear()===year&&j.getMonth()===month)return` <span style="color:#34d399;font-size:10px">(joined ${j.getDate()})</span>`;return"";})();
         return`<tr>
         <td><strong>${e.name}</strong><br><span style="color:#64748b;font-size:11px">${e.role||""}</span></td>
@@ -8991,7 +8994,7 @@ export default function App(){
     const topActivities=Object.values(actMap).sort((a,b)=>b.hrs-a.hrs).slice(0,12);
 
     // ── ENGINEER × CATEGORY MATRIX ──
-    const activeEngs=engStats.filter(e=>e.workHrs>0);
+    const activeEngs=visibleEngStats.filter(e=>e.workHrs>0); // scoped for lead
     const allCats=taskStats.map(t=>t.category);
     const engCatMatrix=activeEngs.map(eng=>{
       const catHrs={};
@@ -9205,6 +9208,7 @@ export default function App(){
     );
   };
   const buildMonthlyPDF=()=>{
+    const pdfStats=visibleEngStats; // scoped for lead, full for admin/acct
     generatePDF(`Monthly Management Report — ${MONTHS[month]} ${year}`,[
       `<div class="section"><div class="st">Summary</div><div class="kg">
         <div class="kp"><div class="kv">${fmtPct(overallUtil)}</div><div class="kl">Team Utilization</div></div>
@@ -9213,7 +9217,7 @@ export default function App(){
         <div class="kp"><div class="kv">${leaveEntries.length}</div><div class="kl">Absences</div></div>
       </div></div>`,
       `<div class="section"><div class="st">Engineer Performance</div><table><thead><tr><th>Engineer</th><th>Util.</th><th>Bill.</th><th>Work Hrs</th><th>Revenue</th><th>Leave</th></tr></thead>
-      <tbody>${engStats.map(e=>`<tr><td><strong>${e.name}</strong><br><span style="font-size:11px;color:#64748b">${e.role||""}</span></td>
+      <tbody>${pdfStats.map(e=>`<tr><td><strong>${e.name}</strong><br><span style="font-size:11px;color:#64748b">${e.role||""}</span></td>
         <td>${fmtPct(e.utilization)}</td><td>${fmtPct(e.billability)}</td><td>${e.workHrs}h</td>
         <td style="color:#0ea5e9">${fmtCurrency(e.revenue)}</td><td>${e.leaveDays}d</td></tr>`).join("")}</tbody></table></div>`,
       `<div class="section"><div class="st">Projects</div><table><thead><tr><th>No.</th><th>Project</th><th>PM</th><th>Phase</th><th>Hours</th><th>Revenue</th></tr></thead>
@@ -11012,13 +11016,13 @@ export default function App(){
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <div>
                           <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>◉ Team Utilization</div>
-                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · {engStats.length} engineers</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · {visibleEngStats.length} engineers</div>
                         </div>
                         <button className="bp" onClick={buildUtilizationPDF}>⬇ Export PDF</button>
                       </div>
                       <table>
                         <thead><tr><th>Engineer</th><th>Level</th><th style={{textAlign:"right"}}>Target</th><th style={{textAlign:"right"}}>Work</th><th style={{textAlign:"right"}}>Billable</th><th style={{textAlign:"right"}}>Leave</th><th>Utilization</th><th>Billability</th>{(isAdmin||isAcct)&&<th style={{textAlign:"right"}}>Revenue</th>}</tr></thead>
-                        <tbody>{engStats.map(e=>(
+                        <tbody>{visibleEngStats.map(e=>(
                           <tr key={e.id}>
                             <td><div style={{display:"flex",alignItems:"center",gap:8}}><div className="av" style={{width:30,height:30,fontSize:12}}>{e.name?.slice(0,2).toUpperCase()}</div><div><div style={{fontWeight:600}}>{e.name}</div><div style={{fontSize:12,color:"var(--text4)"}}>{e.role}</div></div></div></td>
                             <td><span style={{fontSize:12,padding:"2px 7px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{e.level}</span></td>
@@ -11127,7 +11131,11 @@ export default function App(){
                           <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year}</div>
                         </div>
                       </div>
-                      <ProjectTasksReport allEntries={entries} projects={projects} engineers={engineers} MONTHS={MONTHS} fmtCurrency={fmtCurrency} fmtPct={fmtPct} isAdmin={isAdmin} isAcct={isAcct}/>
+                      <ProjectTasksReport
+                        allEntries={mySubEngIds ? entries.filter(e=>mySubEngIds.has(String(e.engineer_id))) : entries}
+                        projects={projects}
+                        engineers={mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers}
+                        MONTHS={MONTHS} fmtCurrency={fmtCurrency} fmtPct={fmtPct} isAdmin={isAdmin} isAcct={isAcct}/>
                     </div>
                   )}
 
@@ -11153,7 +11161,11 @@ export default function App(){
                           <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · Who is working on what</div>
                         </div>
                       </div>
-                      <AssignmentReport entries={entries} projects={projects} engineers={engineers} month={month} year={year}/>
+                      <AssignmentReport
+                        entries={mySubEngIds ? entries.filter(e=>mySubEngIds.has(String(e.engineer_id))) : entries}
+                        projects={projects}
+                        engineers={mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers}
+                        month={month} year={year}/>
                     </div>
                   )}
 
@@ -11609,7 +11621,9 @@ export default function App(){
                         <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Engineer</div>
                         <select value={entryFilter.engineer} onChange={e=>setEntryFilter(p=>({...p,engineer:e.target.value}))}>
                           <option value="ALL">All Engineers</option>
-                          {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+                          {engineers
+                            .filter(e=>!mySubEngIds||mySubEngIds.has(String(e.id)))
+                            .map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
                         </select>
                       </div>
                       <div>
@@ -11758,7 +11772,8 @@ export default function App(){
               {/* ══ FUNCTIONS / ACTIVITIES ══ */}
               {adminTab==="functions"&&(isAdmin||isLead||isAcct||isSenior)&&(
                 <FunctionsTab
-                  entries={entries} engineers={engineers}
+                  entries={mySubEngIds ? entries.filter(e=>mySubEngIds.has(String(e.engineer_id))) : entries}
+                  engineers={mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers}
                   funcYear={funcYear} setFuncYear={setFuncYear}
                   funcEngId={funcEngId} setFuncEngId={setFuncEngId}
                   deleteEntry={deleteEntry} isAdmin={isAdmin} isLead={isLead} isAcct={isAcct} year={year}
