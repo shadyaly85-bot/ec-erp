@@ -8034,11 +8034,17 @@ export default function App(){
       // notifications — live bell updates without refresh
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications"},({new:row})=>{
         if(row.read) return;
-        // activity_comment: only add to state if addressed to current user (ALL roles)
+        // Scope personal notifications to the addressed recipient only (ALL roles)
         if(row.type==="activity_comment"){
           try{
             const m=JSON.parse(row.meta||"{}");
             if(String(m.recipient_engineer_id)!==String(myProfileRef.current?.id)) return;
+          }catch{ return; }
+        }
+        if(row.type==="vacation_approved"||row.type==="vacation_rejected"){
+          try{
+            const m=JSON.parse(row.meta||"{}");
+            if(String(m.engineer_id)!==String(myProfileRef.current?.id)) return;
           }catch{ return; }
         }
         setNotifications(prev=>prev.some(n=>n.id===row.id)?prev:[row,...prev]);
@@ -8118,20 +8124,19 @@ export default function App(){
         const isRestrictedRole = !["admin","lead","accountant","senior_management"].includes(profRole);
 
         // activity_comment: ALWAYS filter by recipient regardless of role
-        // (each row is addressed to one recipient — no role should see other people's comments)
+        // vacation_approved/rejected: ALWAYS filter to the engineer who requested it
+        // (admins must not load other engineers' approval notifications — they can accidentally dismiss them)
         // All other notification types: restricted roles see only their own; admins/leads see all
         const filtered = deduped.filter(n=>{
           if(n.type==="activity_comment"){
             try{ const m=JSON.parse(n.meta||"{}"); return String(m.recipient_engineer_id)===String(profId); }
             catch{ return false; }
           }
-          if(isRestrictedRole){
-            if(["vacation_approved","vacation_rejected"].includes(n.type)){
-              try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
-              catch{ return false; }
-            }
-            return false; // engineers don't see other notification types
+          if(n.type==="vacation_approved"||n.type==="vacation_rejected"){
+            try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
+            catch{ return false; }
           }
+          if(isRestrictedRole) return false; // engineers don't see signup/alert/overdue types
           return true; // admins/leads see all other types (vacation_request, signup, alerts, etc.)
         });
         setNotifications(filtered);
