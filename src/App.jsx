@@ -7446,8 +7446,8 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   const approveVacation=async(entryId,notifId)=>{
     if(!supabase) return;
     const entry=entries.find(e=>e.id===entryId);
-    await supabase.from("time_entries").update({activity:null}).eq("id",entryId);
     setEntries&&setEntries(prev=>prev.map(e=>e.id===entryId?{...e,activity:null}:e));
+    await supabase.from("time_entries").update({activity:null}).eq("id",entryId);
     if(notifId){ await supabase.from("notifications").delete().eq("id",notifId); setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId)); }
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
@@ -7467,8 +7467,8 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   const rejectVacation=async(entryId,notifId)=>{
     if(!supabase) return;
     const entry=entries.find(e=>e.id===entryId);
-    await supabase.from("time_entries").delete().eq("id",entryId);
     setEntries&&setEntries(prev=>prev.filter(e=>e.id!==entryId));
+    await supabase.from("time_entries").delete().eq("id",entryId);
     if(notifId){ await supabase.from("notifications").delete().eq("id",notifId); setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId)); }
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
@@ -8308,17 +8308,9 @@ export default function App(){
           .order("created_at",{ascending:false}).limit(150);
         historyNotifs=(allH||[]).filter(n=>_matchId(n));
 
-        // 3. Broadcast notifications: new_signup, timesheet_alert, overdue_alert (engineer_id=null)
-        let broadcastNotifs=[];
-        if(_isLeadOrAdmin){
-          const {data:bcast}=await supabase.from("notifications")
-            .select("*").is("engineer_id",null).eq("read",false)
-            .order("created_at",{ascending:false}).limit(40);
-          broadcastNotifs=bcast||[];
-        }
-
         // 3. Deduplicate timesheet_alert by alert_key; delete dismissed + duplicates
-        const allNotifs=[...(personalNotifs||[]),...broadcastNotifs];
+        // (personalNotifs already includes broadcasts via _isBroadcast filter above)
+        const allNotifs=[...(personalNotifs||[])];
         const seenKeys=new Map();
         const toDelete=[];
         allNotifs.forEach(n=>{
@@ -8830,27 +8822,27 @@ export default function App(){
       ? "This will permanently cancel the approved annual leave. The engineer will be notified."
       : "This time entry will be permanently removed.";
     showConfirm(_confirmMsg,async()=>{
-      // Send cancellation notification THEN delete — both only after confirm
+      // 1. INSTANT UI remove — user sees it gone immediately, no waiting for network
+      setEntries(prev=>prev.filter(e=>e.id!==id));
+      // 2. DB delete immediately
+      const{error:delErr}=await supabase.from("time_entries").delete().eq("id",id);
+      if(delErr){
+        // Restore entry if DB delete fails
+        setEntries(prev=>{const ids=new Set(prev.map(e=>e.id));return ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));});
+        showToast("Delete failed: "+delErr.message,false);
+        return;
+      }
+      // 3. Notify engineer AFTER successful delete — fire-and-forget (never blocks UI)
       if(isApprovedLeave && isAdmin){
-        await insertNotif({
+        insertNotif({
           type:"vacation_cancelled",engineer_id:entry.engineer_id,read:false,
           message:`Your approved Annual Leave on ${entry.date} has been cancelled by admin`,
           created_at:new Date().toISOString(),
           meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:id,cancelled_by:myProfile?.name})
         });
       }
-      // Immediate optimistic remove
-      setEntries(prev=>prev.filter(e=>e.id!==id));
-      // Immediate DB delete (no 5-second undo window that causes race conditions)
-      const{error:delErr}=await supabase.from("time_entries").delete().eq("id",id);
-      if(delErr){
-        // Restore entry if DB delete fails
-        setEntries(prev=>{const ids=new Set(prev.map(e=>e.id));return ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));});
-        showToast("Delete failed: "+delErr.message,false);
-      } else {
-        showToast("Entry deleted ✓");
-        logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_onBehalf}`,{id,engineer_id:engineerId,engineer_name:_engName});
-      }
+      showToast("Entry deleted ✓");
+      logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_onBehalf}`,{id,engineer_id:engineerId,engineer_name:_engName});
     },{title:isApprovedLeave?"Cancel Approved Leave":"Delete Time Entry",confirmLabel:"Delete"});
   };
 
@@ -9494,14 +9486,18 @@ export default function App(){
     if(selectedEntries.size===0) return;
     const ids=[...selectedEntries];
     const saved=entries.filter(e=>selectedEntries.has(e.id));
-    showConfirm(`Delete ${ids.length} selected time entr${ids.length===1?"y":"ies"}?`,()=>{
-      applyUndo(
-        showToast,`${ids.length} entr${ids.length===1?"y":"ies"} deleted`,
-        ()=>{ setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id))); setSelectedEntries(new Set()); },
-        ()=>setEntries(prev=>[...saved,...prev].sort((a,b)=>b.date.localeCompare(a.date))),
-        async()=>{ const{error}=await supabase.from("time_entries").delete().in("id",ids); return error||null; },
-        ()=>logAction("DELETE","TimeEntry",`Bulk deleted ${ids.length} time entries`,{count:ids.length})
-      );
+    showConfirm(`Delete ${ids.length} selected time entr${ids.length===1?"y":"ies"}?`,async()=>{
+      // Immediate UI remove
+      setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id)));
+      setSelectedEntries(new Set());
+      const{error}=await supabase.from("time_entries").delete().in("id",ids);
+      if(error){
+        setEntries(prev=>[...saved,...prev].sort((a,b)=>b.date.localeCompare(a.date)));
+        showToast("Bulk delete failed: "+error.message,false);
+      } else {
+        showToast(`${ids.length} entr${ids.length===1?"y":"ies"} deleted ✓`);
+        logAction("DELETE","TimeEntry",`Bulk deleted ${ids.length} time entries`,{count:ids.length});
+      }
     },{title:"Bulk Delete Entries",confirmLabel:`Delete ${ids.length}`});
   };
 
@@ -10492,15 +10488,15 @@ export default function App(){
                                     <div style={{fontSize:11,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace",marginBottom:7}}>{e.date}</div>
                                     <div style={{display:"flex",gap:5}}>
                                       <button onClick={async()=>{
-                                        await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
                                         setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
+                                        await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
                                         if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
                                         insertNotif({type:"vacation_approved",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
                                         showToast(`${eng?.name||"Vacation"} approved ✓`);
                                       }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:5,padding:"3px 10px",color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✓ Approve</button>
                                       <button onClick={async()=>{
-                                        await supabase.from("time_entries").delete().eq("id",e.id);
                                         setEntries(prev=>prev.filter(x=>x.id!==e.id));
+                                        await supabase.from("time_entries").delete().eq("id",e.id);
                                         if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
                                         insertNotif({type:"vacation_rejected",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
                                         showToast(`${eng?.name||"Vacation"} rejected`,false);
