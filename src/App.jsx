@@ -13048,11 +13048,11 @@ export default function App(){
                   {/* ── YOUR ROLE ── */}
                   {(()=>{
                     const roleMap={
-                      admin:      {label:"Admin",           color:"#34d399", desc:"Full system access. You can manage all engineers, projects, entries, Finance, and system settings. You are the only role that can approve vacations, delete records, and access the Activity Log."},
-                      lead:       {label:"Lead Engineer",   color:"var(--info)", desc:"You manage your direct-report engineers. You can post and edit hours for your team, access tracker activities, view scoped reports (your subtree only), and add comments on activities."},
-                      accountant: {label:"Accountant",      color:"#a78bfa", desc:"You have full Finance module access — journal entries, payroll, P&L, balance sheet, fixed assets, and invoice export. You can view all engineer hours and reports but cannot post timesheet entries."},
-                      senior_management:{label:"Senior Management",color:"#fb923c",desc:"Read-only access to all dashboards, reports, and tracker data. You can export PDFs and review utilization and project progress but cannot edit any data."},
-                      engineer:   {label:"Engineer",        color:"var(--text3)", desc:"You can post your own hours on projects you are assigned to, view your vacation balance and KPI score, and track your activities. You cannot view other engineers' data."},
+                      admin:      {label:"Admin",           color:"#34d399", desc:"Full system access. Manage engineers, projects, timesheets, Finance, and all settings. Only role that can approve/reject vacations, cancel approved leave, and access the Activity Log. Receives all broadcast alerts (new signups, overdue activities, timesheet alerts)."},
+                      lead:       {label:"Lead Engineer",   color:"var(--info)", desc:"Manage your direct-report engineers (org-chart subtree). Post and edit hours for your team, manage tracker activities, view scoped reports, and comment on project activities. Receives timesheet alerts and overdue alerts for your team."},
+                      accountant: {label:"Accountant",      color:"#a78bfa", desc:"Full Finance module access — journal entries, payroll, P&L, balance sheet, fixed assets, and invoice export. View all engineer hours and reports. You can submit your own vacation leave and will receive bell notifications when it is approved or rejected. Cannot post work timesheet entries."},
+                      senior_management:{label:"Senior Management",color:"#fb923c",desc:"Read-only access across all dashboards, reports, and the project tracker. Export PDFs. Cannot add, edit, or delete any data. No notification bell."},
+                      engineer:   {label:"Engineer",        color:"var(--text3)", desc:"Post your own hours on assigned projects, view your vacation balance and KPI score, and comment on your assigned activities. You receive bell notifications for vacation approvals/rejections and activity comments addressed to you."},
                     };
                     const me=roleMap[myProfile?.role_type]||roleMap.engineer;
                     return(
@@ -13065,54 +13065,56 @@ export default function App(){
                     </div>);
                   })()}
 
-                  {/* ── HOW TO USE THIS APP ── */}
+                  {/* ── HOW TO USE ── */}
                   <div className="card">
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>How to Use EC-ERP</div>
                     <div style={{display:"grid",gap:10}}>
                       {[
-                        {title:"Post Hours (Timesheet)",      show:!isAcct&&!isSenior,             color:"var(--info)",  text:"Go to Post Hours → click any working day cell → choose entry type (Work / Leave / Function). Select project, task, hours and add a description (required for KPI score). Press Enter or click the green cell to save."},
-                        {title:"How to Submit Vacation",      show:!isAcct&&!isSenior,             color:"#34d399",      text:"1. Go to Post Hours. 2. Click on the day you want to take off. 3. Select Leave as the entry type. 4. Choose Annual Leave from the leave type dropdown. 5. Click Save — your request is sent to admin as PENDING APPROVAL. 6. You will receive an in-app notification (green badge on Post Hours) when your leave is approved or rejected. Your remaining balance updates automatically in the stats bar once approved (21 days default per year)."},
-                        {title:"View Your Activities & Comment", show:!isAdmin&&!isLead&&!isAcct&&!isSenior, color:"#a78bfa", text:"Go to My Work › My Activities. You will see only the projects you are assigned to. Activities assigned to you show a speech-bubble button — click it to open the comment thread. Type your note and press Enter to send. The project leader and admin are notified automatically. You cannot edit activity fields (status, progress, dates) — those are managed by your lead or admin."},
-                        {title:"Project Tracker",             show:isAdmin||isLead,                color:"#a78bfa",      text:"Admin/Lead Panel › Tracker. Each project shows activity cards grouped by category. Click any activity to edit status, progress, dates, and assigned engineer. The COMMENTS section at the bottom of the edit modal is the main communication channel — comments are timestamped, attributed, and notified automatically to the assigned engineer, project leader, and all admins. Export full project PDFs or individual sub-site PDFs from Tracker Progress Report."},
-                        {title:"Activity Comments",           show:isAdmin||isLead,                color:"#fb923c",      text:"Open any activity → scroll to COMMENTS. Type and press Enter to send. The system notifies: (1) the assigned engineer, (2) the project leader, and (3) all admins — excluding the commenter. Engineers can also comment on activities assigned to them from the Tracker. Remarks (old field) can be migrated to Comments with one click."},
-                        {title:"Project Leader",              show:isAdmin,                        color:"#34d399",      text:"When editing a project (Details tab), set the Project Leader dropdown. Only leads and admins appear in this list. The selected leader is automatically added to the project team and becomes the primary contact for activity comment notifications. The leader's name appears on all project cards, reports, and PDFs."},
-                        {title:"Notifications",               show:true,                           color:"#a78bfa",      text:"Two separate notification badges: purple on Projects (activity comments addressed to you), green on Post Hours (vacation approvals/rejections). Each notification is scoped to its recipient — you never see notifications intended for other people. Click the badge or go to the relevant view to see and dismiss."},
-                        {title:"Reports & PDF Export",        show:isAdmin||isLead||isAcct||isSenior, color:"var(--info)", text:"Go to Reports & PDF in the sidebar. Includes: Team Utilization, Assignment Report, Timesheets, Task Analysis, Tracker Progress (with per-sub-site export), Vacation & Leave, Monthly Management, Invoice Export. Leads see only their team's data. Tracker Progress Report shows Active projects only by default."},
-                        {title:"Finance Module",              show:isAdmin||isAcct,                color:"#a78bfa",      text:"Admin/Finance Panel › Finance. Tabs: Journal (double-entry bookkeeping), Balance Sheet, Expenses, Cash Custody, P&L, Payroll, Fixed Assets, Tax & Social, and Reports. All figures are EGP. The Guide tab has step-by-step month-close instructions."},
-                        {title:"KPI Score",                   show:!isAcct&&!isSenior,             color:"#fb923c",      text:"My KPIs (or Admin › KPIs). Score is out of 120 — covering billable hours, coverage, note quality, function entries, project diversity, and timesheet compliance. Posting hours without a description reduces your note quality score. Aim for 96+ for High Performer."},
-                        {title:"Org Chart",                   show:isAdmin,                        color:"var(--info)",  text:"Team page → Org Chart tab. Click Edit Chart to drag cards into place. The org chart controls lead scoping — a lead sees only engineers in their subtree. Engineers' direct lead is found via the org chart for escalation purposes."},
-                      ].filter(function(i){return i.show!==false;}).map(function(item){return(
+                        {title:"Post Work Hours",           show:!isAcct&&!isSenior,             color:"var(--info)",  text:"Go to Post Hours → click any day cell → choose Work → select Project → Sub-site (optional) → Work Group & Category → Activity → enter Hours and Notes. Press ✓ Post Hours to save. A description is required for a good KPI score. You can only post on projects you are assigned to."},
+                        {title:"Submit Vacation / Leave",   show:!isSenior,                       color:"#34d399",      text:"Go to Post Hours → click the day → choose Leave → select Annual Leave (or other type) → Save. Annual Leave is submitted as PENDING APPROVAL and sent to your admin. You will receive a bell notification (🔔 top of sidebar) when your request is approved or rejected. Your remaining balance (21 days/year default) updates automatically in the stats bar once approved. Accountants follow the same process."},
+                        {title:"Notification Bell",         show:true,                            color:"#a78bfa",      text:"The 🔔 bell in the top of the sidebar shows your personal notifications. Active tab: unread notifications — click × to dismiss (moves to History). History tab: last 30 days of read notifications (up to 150). Broadcasts (timesheet alerts, new signups) are visible to admin and lead only. Notifications refresh every 15 seconds automatically."},
+                        {title:"Undo a Delete",             show:!isSenior,                       color:"#fb923c",      text:"After deleting any time entry you get a 3-second undo window. A toast appears at the bottom of the screen with an ↩ Undo button. Click it before the toast disappears to restore the entry. After 3 seconds the delete is committed to the database and cannot be undone. Vacation entries (approved or pending) follow the same 3-second window."},
+                        {title:"View & Comment on Activities", show:!isAcct&&!isSenior,          color:"#a78bfa",      text:"Engineers: My Work → My Activities — shows only your assigned projects. Click the 💬 button on any activity to open the comment thread. Type and press Enter. Lead & Admin: Tracker tab — click any activity card to edit or comment. Comments notify the assigned engineer, project leader, and all admins (excluding the commenter). Comments survive activity saves and appear in PDF exports."},
+                        {title:"Project Tracker",           show:isAdmin||isLead,                color:"#a78bfa",      text:"Admin/Lead Panel → Tracker. Each project shows activity cards grouped by category. Click any card to edit status, progress, deadline, and assignment. The COMMENTS section in the edit modal is the main communication channel — real-time, timestamped, and role-attributed. Export full project PDFs or per-sub-site PDFs from the Tracker Progress Report."},
+                        {title:"Approve / Reject Vacations",show:isAdmin||isLead,                color:"#34d399",      text:"Two paths: (1) KPIs tab → pending vacation section at top — shows all pending requests with Approve/Reject buttons. (2) Notification Bell → pending vacations appear at the top of the Active tab with inline ✓ Approve and ✕ Reject buttons. After actioning, the vacation_request notification moves to your History tab. The engineer receives a bell notification with the outcome."},
+                        {title:"Timesheet Posting Alert",   show:isAdmin||isLead,                color:"#fb923c",      text:"Admin/Lead Panel → KPIs tab → scroll to the ⏰ Timesheet Posting Alert box. Select the day of the week and the hour. On that day after that hour, if any active engineer hasn't posted hours this week, an alert fires into admin and lead bells. Engineers on approved leave are automatically skipped. Settings are saved per-browser via localStorage."},
+                        {title:"Reports & PDF Export",      show:canReport,                      color:"var(--info)",  text:"Reports & PDF in the sidebar. Includes: Team Utilization, Assignment Report, Timesheets, Task Analysis, Tracker Progress (with per-sub-site export), Vacation & Leave, Monthly Management, Invoice Export. Leads see only their team's data. Year selectors show current year ± 2 and update automatically each year."},
+                        {title:"Finance Module",            show:isAdmin||isAcct,                color:"#a78bfa",      text:"Admin/Finance Panel → Finance. Tabs: Journal (double-entry bookkeeping), Balance Sheet, Expenses, Cash Custody, P&L, Payroll, Fixed Assets, Tax & Social, and Reports. All figures are EGP. The Guide tab has step-by-step month-close instructions. Only admin and accountant can edit — senior management is view-only."},
+                        {title:"KPI Score",                 show:!isAcct&&!isSenior,             color:"#fb923c",      text:"My KPIs (or Admin → KPIs). Score is out of 120 — covering billable hours, coverage, note quality, function entries, project diversity, and timesheet compliance. Posting hours without a description reduces your note quality score. Aim for 96+ for High Performer. KPI notes are saved automatically and persist across sessions."},
+                        {title:"Org Chart & Lead Scoping",  show:isAdmin,                        color:"var(--info)",  text:"Team page → Org Chart tab → Edit Chart to arrange cards. The org chart controls lead scoping — a lead sees only engineers in their subtree across all tabs (Entries, Functions, Reports, KPIs). Engineers' direct lead is used for vacation request routing. Setting the org chart correctly is required before enabling leads."},
+                        {title:"Change Password",           show:true,                            color:"var(--text3)", text:"Your avatar / name button at the bottom of the sidebar → Change Password. Enter your new password twice and confirm. Takes effect immediately — you do not need to log out."},
+                      ].filter(i=>i.show!==false).map(item=>(
                         <div key={item.title} style={{background:"var(--bg2)",borderRadius:8,padding:"12px 14px",borderLeft:`3px solid ${item.color}`}}>
                           <div style={{fontSize:13,fontWeight:700,color:item.color,marginBottom:5}}>{item.title}</div>
                           <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.6}}>{item.text}</div>
                         </div>
-                      );})}
+                      ))}
                     </div>
                   </div>
 
                   {/* ── WHAT'S NEW ── */}
                   <div className="card">
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>What's New</div>
-                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>April 2026 — full feature release</div>
+                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>v6 — April 2026 feature release</div>
                     <div style={{display:"grid",gap:8}}>
                       {[
-                        {tag:"Comments",  color:"#a78bfa", text:"Activity comment threads on every activity — open Edit Activity and scroll to COMMENTS. Timestamped, attributed to author with role. Existing Remarks content can be migrated with one click. Comments are saved independently of activity fields and survive Save Activity."},
-                        {tag:"Comments",  color:"#a78bfa", text:"Engineers can now comment on activities assigned to them from My Work › My Activities. They see only their assigned projects and can click the speech-bubble on their activity to open the comment thread. They see only their own projects and can click the speech-bubble on their activity to open the thread. They cannot edit activity fields."},
-                        {tag:"Notify",    color:"#34d399", text:"Comment notifications — posting a comment notifies (1) the assigned engineer, (2) the project leader, and (3) all admins. Commenter is never self-notified. Each notification is scoped to its recipient — no user sees another person's notifications."},
-                        {tag:"Notify",    color:"#34d399", text:"Two notification badges: purple on Projects nav (activity comments), green on Post Hours nav (vacation approvals/rejections). Vacation approval notifications are now correctly scoped — admin can no longer accidentally dismiss an engineer's approval."},
-                        {tag:"Projects",  color:"#fb923c", text:"Project Leader field — set a lead or admin as the project's responsible leader. They are auto-added to the project team and appear on all cards, detail headers, reports, and PDFs. They receive comment notifications for all activities in their project."},
-                        {tag:"Tracker",   color:"#a78bfa", text:"Tracker Progress Report: Active projects only by default — toggle 'Include On Hold & Completed' to see all. Sub-site PDF export: select a project to reveal per-sub-site export buttons, each generating a focused PDF with activities, comments, and timestamps."},
-                        {tag:"Tracker",   color:"#a78bfa", text:"Comments visible in Tracker Progress Report — both screen view and PDF export show each activity's comment thread with author, role, and full timestamp."},
-                        {tag:"Reports",   color:"#34d399", text:"Assignment Report: sourced from assigned_engineers list so engineers appear even with 0 hours. Month filter fixed. Active-only default with toggle."},
-                        {tag:"Timesheet", color:"var(--info)", text:"Vacation balance shown in the stats bar on Post Hours. Paste Undo available after copying entries. Warning shown when posting work hours without a description."},
-                        {tag:"Scoping",   color:"var(--text3)", text:"Lead role scoped across All Entries, Functions, Task Analysis, Assignment Report, Utilization, and all PDF exports — leads see only their org subtree."},
-                        {tag:"UI",        color:"#60a5fa", text:"Navigation SVG icons, clean section headers (all emoji removed), project leader shown on all surfaces, engineer-role tracker view, two-badge notification system."},
-                      ].map(function(item,i){return(
+                        {tag:"Bell",      color:"#a78bfa", text:"Single notification bell (🔔) in the sidebar header — single bell for all notifications. Active tab shows unread, History tab shows last 30 days of dismissed notifications. Bell refreshes every 15 seconds and on login."},
+                        {tag:"Vacation",  color:"#34d399", text:"Approve and reject vacations directly from the bell dropdown or the KPIs tab. After actioning, the request moves to admin History. Engineer receives vacation_approved or vacation_rejected bell notification instantly. Admin deleting a pending vacation now also notifies the requester."},
+                        {tag:"Vacation",  color:"#34d399", text:"Approved vacation lock — only admin can delete an approved annual leave. Non-admin roles see a clear message directing them to contact admin. Engineers and leads cannot bypass this lock."},
+                        {tag:"Notify",    color:"#34d399", text:"Activity notifications: comment posted → notifies assigned engineer, project leader, and all admins (commenter excluded). Status/progress/deadline changes by lead → admin notified. Activity assigned → engineer notified. All scoped to recipient — no user sees another person's notifications."},
+                        {tag:"Notify",    color:"#34d399", text:"Timesheet posting alert: configurable day + hour. Admin and lead receive a bell notification listing engineers who haven't posted hours. Engineers on approved leave are automatically excluded. Settings saved in browser localStorage."},
+                        {tag:"Comments",  color:"#a78bfa", text:"Threaded comment system on every tracker activity — timestamped, role-attributed, survives activity saves, visible in PDFs. Engineers can comment on their assigned activities from My Work → My Activities."},
+                        {tag:"Undo",      color:"#fb923c", text:"3-second undo window on all time entry deletes (single and bulk). Entry disappears immediately, undo toast appears — click ↩ Undo within 3 seconds to restore. After 3 seconds the DB delete commits and notifications fire."},
+                        {tag:"UI",        color:"var(--info)", text:"All year selectors are now dynamic (current year ± 2) and consistent styling across all tabs. Timesheet alert box redesigned with labeled columns and full day names. Navigation uses SVG icons."},
+                        {tag:"Projects",  color:"#fb923c", text:"Project Leader field — set any lead or admin as the project's responsible leader. Auto-added to team, appears on all cards, reports, and PDFs. Receives comment notifications for all activities in their project."},
+                        {tag:"Reports",   color:"var(--info)", text:"Tracker Progress Report: Active-only default with toggle for On Hold & Completed. Per-sub-site PDF export. Assignment Report: sourced from assigned_engineers list. All reports scoped to lead's org subtree."},
+                        {tag:"Scoping",   color:"var(--text3)", text:"Lead scoping via BFS org chart — all entries, functions, reports, KPIs, and PDFs filtered to lead's subtree. Set the org chart correctly to enable this."},
+                      ].map((item,i)=>(
                         <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"8px 0",borderBottom:"1px solid var(--border3)"}}>
                           <span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:item.color+"18",color:item.color,fontWeight:700,flexShrink:0,marginTop:1}}>{item.tag}</span>
                           <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.55}}>{item.text}</div>
                         </div>
-                      );})}
+                      ))}
                     </div>
                   </div>
 
@@ -13121,17 +13123,17 @@ export default function App(){
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>Role Access Reference</div>
                     <div style={{display:"grid",gap:8}}>
                       {[
-                        {role:"Engineer",          color:"var(--text3)", perms:"Post own hours · View own vacation balance & KPI · View & comment on own activities in Tracker · Receive comment + vacation notifications"},
-                        {role:"Lead Engineer",      color:"var(--info)",  perms:"All engineer permissions · Post/edit team hours · Full tracker (edit, comment, add) · Scoped reports for own team · Comment notifications for their project activities"},
-                        {role:"Accountant",         color:"#a78bfa",      perms:"Finance module (full) · View all reports & hours · Invoice export · Cannot post timesheet entries"},
-                        {role:"Senior Management",  color:"#fb923c",      perms:"Read-only: all dashboards, reports, tracker · Export PDFs · No data entry"},
-                        {role:"Admin",              color:"#34d399",      perms:"Full access · Manage engineers & projects · Set project leaders · Approve vacations · Finance & all reports · Activity Log · All notifications"},
-                      ].map(function(r){return(
+                        {role:"Engineer",         color:"var(--text3)", perms:"Post own hours on assigned projects · Submit vacation (Annual Leave + other types) · View own vacation balance & KPI score · Comment on own assigned activities · Bell: vacation approved/rejected + activity comments"},
+                        {role:"Lead Engineer",    color:"var(--info)",  perms:"All engineer permissions · Post/edit hours for team (org subtree) · Full tracker (edit, comment, add activities) · Approve/reject vacations · Scoped reports & PDFs · Bell: all of above + timesheet alerts + overdue alerts for team"},
+                        {role:"Accountant",       color:"#a78bfa",      perms:"Finance module full access (journal, payroll, P&L, balance sheet, invoices) · View all hours & reports · Submit own vacation · Bell: vacation approved/rejected · Cannot post work timesheet entries"},
+                        {role:"Senior Management",color:"#fb923c",      perms:"Read-only: all dashboards, reports, tracker, finance · Export PDFs · No data entry · No notifications bell"},
+                        {role:"Admin",            color:"#34d399",      perms:"Full system access · Manage all engineers & projects · Approve/reject/cancel vacations · Finance & all reports · Activity Log · Timesheet posting alert · Bell: all notifications including broadcasts (new signup, alerts, overdue)"},
+                      ].map(r=>(
                         <div key={r.role} style={{background:"var(--bg2)",border:`1px solid ${r.color}25`,borderRadius:7,padding:"9px 13px",display:"flex",gap:12,alignItems:"flex-start"}}>
                           <span className="role-badge" style={{background:r.color+"20",color:r.color,flexShrink:0,marginTop:1}}>{r.role}</span>
                           <div style={{fontSize:13,color:"var(--text3)",lineHeight:1.5}}>{r.perms}</div>
                         </div>
-                      );})}
+                      ))}
                     </div>
                   </div>
                   )}
@@ -13142,12 +13144,12 @@ export default function App(){
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>Required SQL Migrations</div>
                     <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>Run these once in your Supabase SQL editor — safe to re-run (IF NOT EXISTS)</div>
                     {[
-                      {label:"Notifications engineer_id", sql:"ALTER TABLE notifications ADD COLUMN IF NOT EXISTS engineer_id BIGINT REFERENCES engineers(id); CREATE INDEX IF NOT EXISTS idx_notifications_eng ON notifications(engineer_id);", desc:"Required for the notification system. Run this first."},
-                      {label:"Backfill engineer_id", sql:"UPDATE notifications SET engineer_id = CAST(meta->>'engineer_id' AS BIGINT) WHERE engineer_id IS NULL AND meta->>'engineer_id' IS NOT NULL; UPDATE notifications SET engineer_id = CAST(meta->>'recipient_engineer_id' AS BIGINT) WHERE engineer_id IS NULL AND meta->>'recipient_engineer_id' IS NOT NULL;", desc:"Run after adding the engineer_id column to backfill existing notifications so they appear in the bell."},
-                    {label:"Activity Comments column",  sql:"ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';",    desc:"Enables the threaded comment system on activities."},
-                      {label:"Assigned Engineers column", sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS assigned_engineers JSONB DEFAULT '[]';",       desc:"Enables assignment tracking and auto-assign on activity creation."},
-                    {label:"Project Leader column",     sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_leader TEXT;",                                  desc:"Enables the Project Leader field on each project and notification routing."},
-                    ].map(function(m){return(
+                      {label:"Notifications engineer_id", sql:"ALTER TABLE notifications ADD COLUMN IF NOT EXISTS engineer_id BIGINT REFERENCES engineers(id); CREATE INDEX IF NOT EXISTS idx_notifications_eng ON notifications(engineer_id);", desc:"Required for the notification bell. Run this first."},
+                      {label:"Backfill engineer_id",      sql:"UPDATE notifications SET engineer_id = CAST(meta->>'engineer_id' AS BIGINT) WHERE engineer_id IS NULL AND meta->>'engineer_id' IS NOT NULL; UPDATE notifications SET engineer_id = CAST(meta->>'recipient_engineer_id' AS BIGINT) WHERE engineer_id IS NULL AND meta->>'recipient_engineer_id' IS NOT NULL;", desc:"Run after adding the column to backfill existing notifications."},
+                      {label:"Activity Comments column",  sql:"ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';", desc:"Enables threaded comments on activities."},
+                      {label:"Assigned Engineers column", sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS assigned_engineers JSONB DEFAULT '[]';", desc:"Enables team assignment and auto-assign on activity creation."},
+                      {label:"Project Leader column",     sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_leader TEXT;", desc:"Enables the Project Leader field and notification routing."},
+                    ].map(m=>(
                       <div key={m.label} style={{background:"var(--bg2)",borderRadius:7,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border3)"}}>
                         <div style={{fontSize:13,fontWeight:700,color:"var(--text1)",marginBottom:3}}>{m.label}</div>
                         <div style={{fontSize:12,color:"var(--text3)",marginBottom:6}}>{m.desc}</div>
@@ -13157,7 +13159,7 @@ export default function App(){
                           {m.sql}
                         </code>
                       </div>
-                    );})}
+                    ))}
                   </div>)}
 
                 </div>
