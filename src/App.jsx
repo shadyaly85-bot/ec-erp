@@ -2801,6 +2801,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   trackerSearch, setTrackerSearch,
   trackerStatus, setTrackerStatus,
   actClipboard,  setActClipboard,
+  insertNotif,
 }){
   const canEdit = isAdmin || isLead;
   // Persistent state lifted to parent (survives remounts/minimize)
@@ -2852,52 +2853,6 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   const toggleCat  = useCallback((cat)=>setExpandedCats(p=>({...p,[cat]:!p[cat]})),[]);
 
   // ── Callbacks ──
-  // ── Reload notifications on demand (refresh button + 30s poll) ──
-  // Mirrors the loadAll notification block but uses myProfile from state — no full reload needed
-  const reloadNotifications=async()=>{
-    if(!supabase||!myProfile?.id) return;
-    const _profId=myProfile.id;
-    const _profRole=myProfile.role_type||"engineer";
-    const _isLeadOrAdmin=["admin","lead"].includes(_profRole);
-    const _matchId2=n=>{
-      if(n.engineer_id!=null) return String(n.engineer_id)===String(_profId);
-      try{const m=JSON.parse(n.meta||"{}");return String(m.engineer_id||m.recipient_engineer_id||m._eng_id||"")===String(_profId);}
-      catch{return false;}
-    };
-    const _isBcast=n=>["new_signup","timesheet_alert","overdue_alert"].includes(n.type);
-    const _thirtyAgo2=new Date(Date.now()-30*24*3600*1000).toISOString();
-    const{data:rN}=await supabase.from("notifications").select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
-    setNotifications((rN||[]).filter(n=>_matchId2(n)||(_isLeadOrAdmin&&_isBcast(n))));
-    const{data:rH}=await supabase.from("notifications").select("*").eq("read",true).gte("created_at",_thirtyAgo2).order("created_at",{ascending:false}).limit(150);
-    setNotifHistory((rH||[]).filter(n=>_matchId2(n)));
-  };
-
-  // ── Notification insert helper — captures showToast for visible error feedback ──
-  // Not useCallback — needs current showToast from render closure for user-visible warnings
-  const insertNotif=async(payload)=>{
-    const{error}=await supabase.from("notifications").insert(payload);
-    if(error){
-      // If engineer_id column doesn't exist yet, retry without it (store in meta)
-      if(error.message&&(error.message.includes("engineer_id")||error.message.includes("column")||error.message.includes("does not exist"))){
-        console.warn("[EC-ERP] engineer_id column not found — retrying without it. Run 'Notifications engineer_id' migration in Admin → Info.");
-        const{engineer_id,...rest}=payload;
-        const metaObj=engineer_id!=null
-          ?{...JSON.parse(rest.meta||"{}"),_eng_id:String(engineer_id)}
-          :JSON.parse(rest.meta||"{}");
-        const{error:err2}=await supabase.from("notifications").insert({...rest,meta:JSON.stringify(metaObj)});
-        if(err2){
-          console.error("[EC-ERP] Notification insert failed (both attempts):",err2.message);
-          // Show visible warning so user knows to run SQL migration
-          showToast("⚠ Notification not sent — run SQL migration in Admin → Info",false);
-        }
-        return err2||null;
-      }
-      console.error("[EC-ERP] Notification insert failed:",payload.type,error.message);
-      showToast("⚠ Notification error: "+error.message,false);
-    }
-    return error||null;
-  };
-
   const saveActivity = useCallback(async(draft)=>{
     const {id,...fields}=draft;
     const grp = CAT_TO_GROUP[fields.category]||fields.group_name||"SCADA";
@@ -7960,6 +7915,43 @@ export default function App(){
   const [bellOpen,setBellOpen]             = useState(false);
   const [notifHistory,setNotifHistory]     = useState([]);
   const [bellTab,setBellTab]               = useState("active"); // "active" | "history"
+
+  // ── insertNotif — App scope: accessible by bell buttons, KPIsTab, poll ──
+  const insertNotif=async(payload)=>{
+    const{error}=await supabase.from("notifications").insert(payload);
+    if(error){
+      if(error.message&&(error.message.includes("engineer_id")||error.message.includes("column")||error.message.includes("does not exist"))){
+        console.warn("[EC-ERP] engineer_id column not found — retrying without it.");
+        const{engineer_id,...rest}=payload;
+        const metaObj=engineer_id!=null?{...JSON.parse(rest.meta||"{}"),_eng_id:String(engineer_id)}:JSON.parse(rest.meta||"{}");
+        const{error:err2}=await supabase.from("notifications").insert({...rest,meta:JSON.stringify(metaObj)});
+        if(err2){console.error("[EC-ERP] Notification insert failed (both attempts):",err2.message);showToast("⚠ Notification not sent — run SQL migration in Admin → Info",false);}
+        return err2||null;
+      }
+      console.error("[EC-ERP] Notification insert failed:",payload.type,error.message);
+      showToast("⚠ Notification error: "+error.message,false);
+    }
+    return error||null;
+  };
+
+  // ── reloadNotifications — App scope: accessible by poll useEffect + bell ──
+  const reloadNotifications=async()=>{
+    if(!supabase||!myProfile?.id) return;
+    const _profId=myProfile.id;
+    const _profRole=myProfile.role_type||"engineer";
+    const _isLeadOrAdmin=["admin","lead"].includes(_profRole);
+    const _matchId2=n=>{
+      if(n.engineer_id!=null) return String(n.engineer_id)===String(_profId);
+      try{const m=JSON.parse(n.meta||"{}");return String(m.engineer_id||m.recipient_engineer_id||m._eng_id||"")===String(_profId);}
+      catch{return false;}
+    };
+    const _isBcast=n=>["new_signup","timesheet_alert","overdue_alert"].includes(n.type);
+    const _thirtyAgo2=new Date(Date.now()-30*24*3600*1000).toISOString();
+    const{data:rN}=await supabase.from("notifications").select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
+    setNotifications((rN||[]).filter(n=>_matchId2(n)||(_isLeadOrAdmin&&_isBcast(n))));
+    const{data:rH}=await supabase.from("notifications").select("*").eq("read",true).gte("created_at",_thirtyAgo2).order("created_at",{ascending:false}).limit(150);
+    setNotifHistory((rH||[]).filter(n=>_matchId2(n)));
+  };
   const toggleNotifPanel = React.useCallback(()=>{
     setNotifPanelOpen(prev=>!prev);
   },[]);
@@ -13026,6 +13018,7 @@ export default function App(){
                   setNotifications={setNotifications}
                   showToast={showToast}
                   logAction={logAction}
+                  insertNotif={insertNotif}
                   showConfirm={showConfirm}
                   myProfile={myProfile}
                   isEngineerRole={!isAdmin&&!isLead&&!isAcct&&!isSenior}
