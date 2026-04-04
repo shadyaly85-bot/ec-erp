@@ -8285,38 +8285,28 @@ export default function App(){
         const _thirtyAgo=new Date(Date.now()-30*24*60*60*1000).toISOString();
         let personalNotifs=[], historyNotifs=[];
 
-        const{data:pn,error:pnErr}=await supabase.from("notifications")
-          .select("*").eq("engineer_id",_profId).eq("read",false)
-          .order("created_at",{ascending:false}).limit(80);
+        // ── Always use full-table meta-scan — works before AND after migration ──
+        // engineer_id column may exist but be null on older rows, so we can't rely on
+        // server-side filter alone. Fetch all and match by engineer_id OR meta fields.
+        const _matchId=n=>{
+          if(n.engineer_id!=null) return String(n.engineer_id)===String(_profId);
+          try{
+            const m=JSON.parse(n.meta||"{}");
+            return String(m.engineer_id||m.recipient_engineer_id||m._eng_id||"")===String(_profId);
+          }catch{return false;}
+        };
+        const _isBroadcast=n=>["new_signup","timesheet_alert","overdue_alert"].includes(n.type);
 
-        if(pnErr&&pnErr.message&&(pnErr.message.includes("engineer_id")||pnErr.message.includes("column")||pnErr.message.includes("does not exist"))){
-          // ── Fallback: engineer_id column not yet created — full load + client-side meta filter ──
-          console.warn("[EC-ERP] notifications.engineer_id column missing. Falling back to meta-based filter. Run SQL migration in Admin → Info.");
-          const{data:allN}=await supabase.from("notifications")
-            .select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
-          const{data:allH}=await supabase.from("notifications")
-            .select("*").eq("read",true).gte("created_at",_thirtyAgo)
-            .order("created_at",{ascending:false}).limit(100);
-          const _matchId=n=>{
-            if(n.engineer_id!=null) return String(n.engineer_id)===String(_profId);
-            try{
-              const m=JSON.parse(n.meta||"{}");
-              return String(m.engineer_id||m.recipient_engineer_id||m._eng_id||"")===String(_profId);
-            }catch{return false;}
-          };
-          // Broadcast types visible to admin/lead regardless of engineer_id
-          const _isBroadcast=n=>["new_signup","timesheet_alert","overdue_alert"].includes(n.type);
-          personalNotifs=(allN||[]).filter(n=>_matchId(n)||(_isLeadOrAdmin&&_isBroadcast(n)));
-          historyNotifs=(allH||[]).filter(n=>_matchId(n));
-        } else {
-          personalNotifs=pn||[];
-          // 2. Personal history (read, last 30 days)
-          const{data:hn}=await supabase.from("notifications")
-            .select("*").eq("engineer_id",_profId).eq("read",true)
-            .gte("created_at",_thirtyAgo)
-            .order("created_at",{ascending:false}).limit(50);
-          historyNotifs=hn||[];
-        }
+        // Active (unread) — fetch all unread, filter client-side
+        const{data:allN}=await supabase.from("notifications")
+          .select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
+        personalNotifs=(allN||[]).filter(n=>_matchId(n)||(_isLeadOrAdmin&&_isBroadcast(n)));
+
+        // History (read, last 30 days) — fetch all read, filter client-side
+        const{data:allH}=await supabase.from("notifications")
+          .select("*").eq("read",true).gte("created_at",_thirtyAgo)
+          .order("created_at",{ascending:false}).limit(150);
+        historyNotifs=(allH||[]).filter(n=>_matchId(n));
 
         // 3. Broadcast notifications: new_signup, timesheet_alert, overdue_alert (engineer_id=null)
         let broadcastNotifs=[];
@@ -8839,23 +8829,28 @@ export default function App(){
     const _confirmMsg=isApprovedLeave
       ? "This will permanently cancel the approved annual leave. The engineer will be notified."
       : "This time entry will be permanently removed.";
-    showConfirm(_confirmMsg,()=>{
-      // Notify engineer ONLY after admin confirms the deletion (never before)
+    showConfirm(_confirmMsg,async()=>{
+      // Send cancellation notification THEN delete — both only after confirm
       if(isApprovedLeave && isAdmin){
-        insertNotif({
+        await insertNotif({
           type:"vacation_cancelled",engineer_id:entry.engineer_id,read:false,
           message:`Your approved Annual Leave on ${entry.date} has been cancelled by admin`,
           created_at:new Date().toISOString(),
           meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:id,cancelled_by:myProfile?.name})
         });
       }
-      applyUndo(
-        showToast,"Entry deleted",
-        ()=>setEntries(prev=>prev.filter(e=>e.id!==id)),
-        ()=>setEntries(prev=>{const ids=new Set(prev.map(e=>e.id));return ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));}),
-        async()=>{ const{error}=await supabase.from("time_entries").delete().eq("id",id); return error||null; },
-        ()=>logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_onBehalf}`,{id,engineer_id:engineerId,engineer_name:_engName})
-      );
+      // Immediate optimistic remove
+      setEntries(prev=>prev.filter(e=>e.id!==id));
+      // Immediate DB delete (no 5-second undo window that causes race conditions)
+      const{error:delErr}=await supabase.from("time_entries").delete().eq("id",id);
+      if(delErr){
+        // Restore entry if DB delete fails
+        setEntries(prev=>{const ids=new Set(prev.map(e=>e.id));return ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));});
+        showToast("Delete failed: "+delErr.message,false);
+      } else {
+        showToast("Entry deleted ✓");
+        logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_onBehalf}`,{id,engineer_id:engineerId,engineer_name:_engName});
+      }
     },{title:isApprovedLeave?"Cancel Approved Leave":"Delete Time Entry",confirmLabel:"Delete"});
   };
 
@@ -13019,7 +13014,8 @@ export default function App(){
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>Required SQL Migrations</div>
                     <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>Run these once in your Supabase SQL editor — safe to re-run (IF NOT EXISTS)</div>
                     {[
-                      {label:"Notifications engineer_id", sql:"ALTER TABLE notifications ADD COLUMN IF NOT EXISTS engineer_id BIGINT REFERENCES engineers(id); CREATE INDEX IF NOT EXISTS idx_notifications_eng ON notifications(engineer_id);", desc:"Required for the notification system. Run this first — all activity, vacation and comment notifications depend on it."},
+                      {label:"Notifications engineer_id", sql:"ALTER TABLE notifications ADD COLUMN IF NOT EXISTS engineer_id BIGINT REFERENCES engineers(id); CREATE INDEX IF NOT EXISTS idx_notifications_eng ON notifications(engineer_id);", desc:"Required for the notification system. Run this first."},
+                      {label:"Backfill engineer_id", sql:"UPDATE notifications SET engineer_id = CAST(meta->>'engineer_id' AS BIGINT) WHERE engineer_id IS NULL AND meta->>'engineer_id' IS NOT NULL; UPDATE notifications SET engineer_id = CAST(meta->>'recipient_engineer_id' AS BIGINT) WHERE engineer_id IS NULL AND meta->>'recipient_engineer_id' IS NOT NULL;", desc:"Run after adding the engineer_id column to backfill existing notifications so they appear in the bell."},
                     {label:"Activity Comments column",  sql:"ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';",    desc:"Enables the threaded comment system on activities."},
                       {label:"Assigned Engineers column", sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS assigned_engineers JSONB DEFAULT '[]';",       desc:"Enables assignment tracking and auto-assign on activity creation."},
                     {label:"Project Leader column",     sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_leader TEXT;",                                  desc:"Enables the Project Leader field on each project and notification routing."},
