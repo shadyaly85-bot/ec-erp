@@ -5750,8 +5750,8 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
             {MONTHS_.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
           </select>
           <select value={repYear} onChange={e=>setRepYear(+e.target.value)}
-            style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 8px",color:"var(--text0)",fontSize:13}}>
-            {[2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
+            {Array.from({length:6},(_,i)=>new Date().getFullYear()-2+i).map(y=><option key={y}>{y}</option>)}
           </select>
           <button className="bp" onClick={handleExport} style={{padding:"6px 14px",fontSize:13,marginLeft:4}}>⬇ Export PDF</button>
         </div>
@@ -6606,8 +6606,8 @@ const projProfit=projects.map(p=>{
           {MONTHS_.map((m,i)=><option key={i} value={i}>{m}</option>)}
         </select>
         <select value={finYear} onChange={e=>setFinYear(+e.target.value)}
-          style={{background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,outline:"none",cursor:"pointer"}}>
-          {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
+          {Array.from({length:6},(_,i)=>new Date().getFullYear()-2+i).map(y=><option key={y}>{y}</option>)}
         </select>
       </div>
       {(finSubTab==="pl"||finSubTab==="salaries")&&(
@@ -7257,8 +7257,8 @@ engineers.forEach(eng=>{
     </div>
     <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
       <select value={funcYear} onChange={e=>setFuncYear(+e.target.value)}
-        style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text0)",fontSize:14,fontWeight:600}}>
-        {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+        style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
+        {Array.from({length:6},(_,i)=>new Date().getFullYear()-2+i).map(y=><option key={y}>{y}</option>)}
       </select>
       <select value={funcEngId} onChange={e=>setFuncEngId(e.target.value)}
         style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text0)",fontSize:14}}>
@@ -7631,8 +7631,8 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
         <select value={kpiYear} onChange={e=>setKpiYear(+e.target.value)}
-          style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text0)",fontSize:14,fontWeight:600}}>
-          {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
+          {Array.from({length:6},(_,i)=>new Date().getFullYear()-2+i).map(y=><option key={y}>{y}</option>)}
         </select>
         {canManageKPI&&(
           <select value={effectiveEngId||""} onChange={e=>setKpiEngId(e.target.value||null)}
@@ -7642,15 +7642,25 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
           </select>
         )}
         {canManageKPI&&(
-          <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",flexWrap:"wrap"}}>
-            <span style={{fontSize:13,color:"var(--text4)"}}>Alert:</span>
-            <select value={alertDay} onChange={e=>{const v=+e.target.value;setAlertDay(v);localStorage.setItem("ec_alertDay",v);}}
-              style={{background:"transparent",border:"none",color:"var(--info)",fontSize:13,fontWeight:700,outline:"none",cursor:"pointer"}}>
-              {[["0","Sun"],["1","Mon"],["2","Tue"],["3","Wed"],["4","Thu"],["5","Fri"],["6","Sat"]].map(([v,l])=><option key={v} value={+v}>{l}</option>)}
-            </select>
-            <span style={{fontSize:13,color:"var(--text4)"}}>at</span>
-            <input type="time" value={alertTime} onChange={e=>{setAlertTime(e.target.value);localStorage.setItem("ec_alertTime",e.target.value);}}
-              style={{background:"transparent",border:"none",color:"var(--info)",fontSize:13,fontWeight:700,outline:"none",cursor:"pointer",width:80}}/>
+          <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:10,padding:"14px 18px"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:12}}>⏰ Timesheet Posting Alert</div>
+            <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                <span style={{fontSize:11,color:"var(--text4)"}}>Day</span>
+                <select value={alertDay} onChange={e=>{{const v=+e.target.value;setAlertDay(v);localStorage.setItem("ec_alertDay",v);}}}
+                  style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer",minWidth:110}}>
+                  {[["0","Sunday"],["1","Monday"],["2","Tuesday"],["3","Wednesday"],["4","Thursday"],["5","Friday"],["6","Saturday"]].map(([v,l])=><option key={v} value={+v}>{l}</option>)}
+                </select>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                <span style={{fontSize:11,color:"var(--text4)"}}>After</span>
+                <input type="time" value={alertTime} onChange={e=>{setAlertTime(e.target.value);localStorage.setItem("ec_alertTime",e.target.value);}}
+                  style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",minWidth:110}}/>
+              </div>
+              <div style={{fontSize:11,color:"var(--text4)",alignSelf:"flex-end",paddingBottom:2}}>
+                Alerts admin &amp; lead when engineers miss posting hours
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -10715,7 +10725,7 @@ export default function App(){
             </div>
             <div><Lbl>Year</Lbl>
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                <select value={year} onChange={e=>setYear(+e.target.value)} style={{fontSize:13,padding:"5px 8px"}}>
+                <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
                   {[year-2,year-1,year,year+1].map(y=><option key={y}>{y}</option>)}
                 </select>
                 {entriesLoading&&<span style={{fontSize:12,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>⟳ {year}</span>}
@@ -10779,8 +10789,8 @@ export default function App(){
                     <select value={month} onChange={e=>setMonth(+e.target.value)} style={{background:"transparent",border:"none",color:"var(--text0)",fontSize:14,fontWeight:600,fontFamily:"'IBM Plex Sans',sans-serif",cursor:"pointer",outline:"none",padding:"0 2px"}}>
                       {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
                     </select>
-                    <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontWeight:700,fontFamily:"'IBM Plex Mono',monospace",cursor:"pointer",outline:"none",padding:"0 2px"}}>
-                      {[2023,2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+                    <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
+                      {Array.from({length:6},(_,i)=>new Date().getFullYear()-2+i).map(y=><option key={y}>{y}</option>)}
                     </select>
                     <button style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:16,padding:"0 4px",lineHeight:1}} onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}>›</button>
                   </div>
@@ -12840,7 +12850,7 @@ export default function App(){
                       </div>
                       <div>
                         <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Year</div>
-                        <select value={entryFilter.year} onChange={e=>setEntryFilter(p=>({...p,year:+e.target.value}))}>
+                        <select value={entryFilter.year} onChange={e=>setEntryFilter(p=>({...p,year:+e.target.value}))} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
                           {[year-2,year-1,year,year+1].map(y=><option key={y}>{y}</option>)}
                         </select>
                       </div>
@@ -14239,7 +14249,7 @@ export default function App(){
                 </div>
                 <div><Lbl>Year</Lbl>
                   <select value={(editExp||newExp).year} onChange={e=>editExp?setEditExp(p=>({...p,year:+e.target.value})):setNewExp(p=>({...p,year:+e.target.value}))}>
-                    {[2024,2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+                    {Array.from({length:6},(_,i)=>new Date().getFullYear()-2+i).map(y=><option key={y}>{y}</option>)}
                   </select>
                 </div>
               </div>
