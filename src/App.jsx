@@ -2478,7 +2478,7 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
     </div>
   </div>);
 }
-function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast, projects, setProjects, showConfirm, myProfile}){
+function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast, projects, setProjects, showConfirm, myProfile, onActivityComment}){
   const [addModal, setAddModal] = React.useState(false);
   const [editAct, setEditAct]  = React.useState(null);
   const projActs = (activities||[]).filter(a=>a.project_id===projId);
@@ -2581,11 +2581,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
         onSave={confirmAdd} onClose={()=>setAddModal(false)} engineers={engineers}/>}
       {editAct&&<ActivityEditModal act={editAct}
         onSave={saveAct} onClose={()=>setEditAct(null)} engineers={engineers}
-        onComment={async(actId,comments,notifyCtx)=>{
-          const{error}=await supabase.from("project_activities").update({comments}).eq("id",actId);
-          if(!error) setActivities(prev=>prev.map(a=>a.id===actId?{...a,comments}:a));
-          return error||null;
-        }}
+        onComment={onActivityComment||null}
         myProfile={myProfile}/>}
     </div>
   );
@@ -2621,15 +2617,22 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
       text:commentText.trim(),
       ts:new Date().toISOString()
     };
+    const next=[...comments,c];
     setSubmitting(true);
-    const err=await onComment(a.id,[...comments,c]);
+    const err=await onComment(a.id, next, {
+      isNewComment: true,
+      commenterName: myProfile?.name,
+      assignedTo: a.assigned_to,
+      activityName: a.activity_name,
+      projectId: a.project_id
+    });
     if(!err) setCommentText("");
     setSubmitting(false);
   };
 
   const removeComment=async cid=>{
     if(!onComment) return;
-    await onComment(a.id, comments.filter(c=>c.id!==cid));
+    await onComment(a.id, comments.filter(c=>c.id!==cid), null);
   };
 
   const pct      = Math.round(a.progress*100);
@@ -2759,7 +2762,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component
    ════════════════════════════════════════════════════════ */
-function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, setNotifications, showToast, logAction, showConfirm, myProfile,
+function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, setNotifications, showToast, logAction, showConfirm, myProfile, onActivityComment,
   trackerProj,  setTrackerProj,
   trackerSub,   setTrackerSub,
   trackerSearch, setTrackerSearch,
@@ -2970,61 +2973,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     },{title:"Delete Activity",confirmLabel:"Delete"});
   },[setActivities,activities,logAction,showConfirm,showToast]);
 
-  // ── Comment thread handler — adds/updates/removes comments on an activity ──
-  const handleActivityComment = useCallback(async(actId, comments, notifyCtx)=>{
-    const{error}=await supabase.from("project_activities")
-      .update({comments})
-      .eq("id",actId);
-    if(!error){
-      setActivities(prev=>prev.map(a=>a.id===actId?{...a,comments}:a));
-
-      // ── Notifications: fired only when a brand-new comment is added ──
-      if(notifyCtx?.isNewComment && notifyCtx.commenterName){
-        const newComment=comments[comments.length-1];
-        const excerpt=(newComment?.text||"").slice(0,80);
-        const msg=`${notifyCtx.commenterName} commented on "${notifyCtx.activityName}": "${excerpt}${excerpt.length>=80?"…":""}"`;
-        const meta=JSON.stringify({activity_id:actId,activity_name:notifyCtx.activityName,commenter:notifyCtx.commenterName,project_id:notifyCtx.projectId});
-
-        const toNotify=new Set(); // engineer IDs (exclude commenter)
-        const isCommenter=e=>e.name===notifyCtx.commenterName;
-
-        // 1. Assigned engineer on the activity
-        const assignedEng=notifyCtx.assignedTo
-          ? engineers.find(e=>e.name===notifyCtx.assignedTo)
-          : null;
-        if(assignedEng&&!isCommenter(assignedEng)) toNotify.add(assignedEng.id);
-
-        // 2. Project Leader — the designated lead for this project
-        const proj=projects.find(p=>p.id===notifyCtx.projectId);
-        if(proj?.project_leader){
-          const leaderEng=engineers.find(e=>e.name===proj.project_leader);
-          if(leaderEng&&!isCommenter(leaderEng)) toNotify.add(leaderEng.id);
-        }
-
-        // 3. ALL admins — always notified regardless of project membership
-        engineers.forEach(e=>{
-          if(e.role_type==="admin"&&!isCommenter(e)) toNotify.add(e.id);
-        });
-
-        if(toNotify.size>0){
-          const now=new Date().toISOString();
-          const notifs=[...toNotify].map(eid=>({
-            engineer_id:eid, type:"activity_comment", read:false,
-            message:msg, created_at:now, meta
-          }));
-          const{data:inserted}=await supabase.from("notifications").insert(notifs).select();
-          if(inserted&&setNotifications){
-            const myId=String(myProfile?.id);
-            const mine=inserted.filter(n=>String(n.engineer_id)===myId);
-            if(mine.length) setNotifications(prev=>[...mine,...prev]);
-          }
-        }
-      }
-    } else {
-      showToast("Comment error — the 'comments' column may not exist yet. Run the SQL migration in Admin → Info.",false);
-    }
-    return error||null;
-  },[supabase,setActivities,setNotifications,showToast,engineers,projects,myProfile]);
+  // ── Comment handler — delegates to app-level appHandleActivityComment for consistent notification routing ──
+  const handleActivityComment = onActivityComment;
   if(!activitiesLoaded) return(
     <div style={{padding:32,textAlign:"center",color:"var(--text4)",fontSize:15}}>Loading project tracker…</div>
   );
@@ -8291,6 +8241,59 @@ export default function App(){
     setNotifications(prev=>prev.filter(x=>x.id!==id));
   },[notifications]);
 
+  // ── Activity comment handler — lifted to App scope so ALL surfaces (Tracker + EditProjActivities) share one notification path ──
+  const appHandleActivityComment=useCallback(async(actId, comments, notifyCtx)=>{
+    const{error}=await supabase.from("project_activities").update({comments}).eq("id",actId);
+    if(!error){
+      setActivities(prev=>prev.map(a=>a.id===actId?{...a,comments}:a));
+
+      if(notifyCtx?.isNewComment && notifyCtx.commenterName){
+        const newComment=comments[comments.length-1];
+        const excerpt=(newComment?.text||"").slice(0,80);
+        const msg=`${notifyCtx.commenterName} commented on "${notifyCtx.activityName}": "${excerpt}${excerpt.length>=80?"…":""}"`;
+        const meta=JSON.stringify({activity_id:actId,activity_name:notifyCtx.activityName,commenter:notifyCtx.commenterName,project_id:notifyCtx.projectId});
+
+        const toNotify=new Set();
+        const isCommenter=e=>e.name===notifyCtx.commenterName;
+
+        // 1. Assigned engineer
+        const assignedEng=notifyCtx.assignedTo
+          ? engineers.find(e=>e.name===notifyCtx.assignedTo)
+          : null;
+        if(assignedEng&&!isCommenter(assignedEng)) toNotify.add(assignedEng.id);
+
+        // 2. Project Leader
+        const proj=projects.find(p=>p.id===notifyCtx.projectId);
+        if(proj?.project_leader){
+          const leaderEng=engineers.find(e=>e.name===proj.project_leader);
+          if(leaderEng&&!isCommenter(leaderEng)) toNotify.add(leaderEng.id);
+        }
+
+        // 3. All admins
+        engineers.forEach(e=>{
+          if(e.role_type==="admin"&&!isCommenter(e)) toNotify.add(e.id);
+        });
+
+        if(toNotify.size>0){
+          const now=new Date().toISOString();
+          const notifs=[...toNotify].map(eid=>({
+            engineer_id:eid, type:"activity_comment", read:false,
+            message:msg, created_at:now, meta
+          }));
+          const{data:inserted}=await supabase.from("notifications").insert(notifs).select();
+          if(inserted){
+            const myId=String(myProfile?.id);
+            const mine=inserted.filter(n=>String(n.engineer_id)===myId);
+            if(mine.length) setNotifications(prev=>[...mine,...prev]);
+          }
+        }
+      }
+    } else {
+      showToast("Comment error — the 'comments' column may not exist yet. Run the SQL migration in Admin → Info.",false);
+    }
+    return error||null;
+  },[supabase,setActivities,setNotifications,showToast,engineers,projects,myProfile]);
+
   const dismissAllOfType=useCallback(async(type)=>{
     const toRemove=notifications.filter(n=>n.type===type);
     if(!toRemove.length) return;
@@ -12512,6 +12515,7 @@ export default function App(){
                   logAction={logAction}
                   showConfirm={showConfirm}
                   myProfile={myProfile}
+                  onActivityComment={appHandleActivityComment}
                   trackerProj={trackerProj}   setTrackerProj={setTrackerProj}
                   trackerSub={trackerSub}     setTrackerSub={setTrackerSub}
                   trackerSearch={trackerSearch} setTrackerSearch={setTrackerSearch}
@@ -13447,6 +13451,7 @@ export default function App(){
               projects={projects} setProjects={setProjects}
               showConfirm={showConfirm}
               myProfile={myProfile}
+              onActivityComment={appHandleActivityComment}
             />}
                         </div>
             {epTab!=="activities"&&<div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",borderTop:"1px solid var(--border3)",paddingTop:14}}>
