@@ -8225,8 +8225,9 @@ export default function App(){
 
 
   const unreadCount=useMemo(()=>{
+    // Count all unread notifications in state — relevant to the current user
     const notifCount=notifications.length;
-    // Only admin is responsible for approving vacations
+    // Pending vacation approvals — admin responsibility only
     const pendingVacCount=isAdmin
       ? entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL").length
       : 0;
@@ -10105,7 +10106,8 @@ export default function App(){
             <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>{setView(n.id);setMenuOpen(false);}}>
               <NavIcon id={n.id} active={view===n.id}/>
               {n.label}
-              {n.id==="admin"&&unreadCount>0&&<span style={{marginLeft:"auto",background:unreadCount>0?"#ef4444":"transparent",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{unreadCount}</span>}
+              {n.id==="admin"&&unreadCount>0&&<span style={{marginLeft:"auto",background:"#ef4444",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{unreadCount}</span>}
+              {n.id==="timesheet"&&!isAdmin&&unreadCount>0&&<span style={{marginLeft:"auto",background:"#a78bfa",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{unreadCount}</span>}
             </button>
           ))}
           <div style={{marginTop:14,borderTop:`1px solid var(--border)`,paddingTop:12,paddingLeft:6,paddingRight:6}}>
@@ -10697,6 +10699,41 @@ export default function App(){
                     <span style={{fontSize:12,padding:"3px 10px",borderRadius:8,background:"#f59e0b20",border:"1px solid #f59e0b40",color:"#f59e0b",fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"}}>
                       PENDING
                     </span>
+                  </div>
+                );
+              })()}
+
+              {/* Activity comment notifications — for engineer/lead: comments on their activities */}
+              {(()=>{
+                const commentNotifs=notifications.filter(n=>{
+                  if(n.type!=="activity_comment") return false;
+                  try{
+                    const m=JSON.parse(n.meta||"{}");
+                    return String(m.recipient_engineer_id)===String(viewEngId)||String(m.recipient_engineer_id)===String(myProfile?.id);
+                  }catch{return false;}
+                });
+                if(!commentNotifs.length) return null;
+                return(
+                  <div style={{display:"grid",gap:6,marginBottom:10}}>
+                    <div style={{fontSize:13,fontWeight:700,color:"#a78bfa",marginBottom:2}}>
+                      Activity Comments ({commentNotifs.length})
+                    </div>
+                    {commentNotifs.map(n=>(
+                      <div key={n.id} style={{display:"flex",alignItems:"flex-start",gap:12,
+                        background:"#a78bfa10",border:"1px solid #a78bfa40",
+                        borderRadius:10,padding:"10px 16px"}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:14,fontWeight:600,color:"var(--text0)"}}>{n.message}</div>
+                          <div style={{fontSize:12,color:"var(--text4)",marginTop:3}}>
+                            {new Date(n.created_at).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}
+                          </div>
+                        </div>
+                        <button onClick={async()=>{
+                          await supabase.from("notifications").delete().eq("id",n.id);
+                          setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                        }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:15,padding:"0 4px",flexShrink:0}}>✕</button>
+                      </div>
+                    ))}
                   </div>
                 );
               })()}
@@ -12127,8 +12164,9 @@ export default function App(){
 
                     {[
                       {list:signupNotifs,  label:"New Signups",       color:"#fb923c", sub:"Engineers tab → set role"},
-                      {list:alertNotifs2,  label:"⏰ Timesheet Alerts",   color:"#f87171", sub:null},
-                      {list:otherNotifs.filter(n=>n.type!=="vacation_request"), label:"ℹ System", color:"var(--text3)", sub:null},
+                      {list:alertNotifs2,  label:"Timesheet Alerts",  color:"#f87171", sub:null},
+                      {list:notifications.filter(n=>n.type==="activity_comment"), label:"Activity Comments", color:"#a78bfa", sub:null},
+                      {list:otherNotifs.filter(n=>n.type!=="vacation_request"&&n.type!=="activity_comment"), label:"System", color:"var(--text3)", sub:null},
                     ].filter(g=>g.list.length>0).map(grp=>(
                       <div key={grp.label}>
                         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
