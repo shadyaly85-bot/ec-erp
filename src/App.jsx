@@ -2029,32 +2029,34 @@ const STATUS_BG={"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started"
 
 /* ── Inline category/activity editor modal ── */
 function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfile}){
-  // Derive the correct group: prefer act.group_name (stored group), fall back to CAT_TO_GROUP[category]
   const initGroup = act.group_name && TAXONOMY_GROUP_NAMES.includes(act.group_name)
     ? act.group_name
     : (CAT_TO_GROUP[act.category]||TAXONOMY_GROUP_NAMES[0]);
-  // Derive the correct category: prefer act.category if it's a known category, else use group's first cat
   const initCat = act.category && TAXONOMY_GROUPS[initGroup]?.includes(act.category)
     ? act.category
     : (TAXONOMY_GROUPS[initGroup]?.[0]||act.category||"");
-  const [draft, setDraft] = useState({...act, category: initCat});
-  const [group, setGroup] = useState(initGroup);
-  const [customName, setCustomName] = useState("");
+  const [draft,       setDraft]       = useState({...act, category: initCat});
+  const [group,       setGroup]       = useState(initGroup);
+  const [customName,  setCustomName]  = useState("");
   const [commentText, setCommentText] = useState("");
   const [submitting,  setSubmitting]  = useState(false);
-  const isCustom = draft.activity_name==="Custom…";
-  const catActs = ACTIVITY_TAXONOMY[draft.category]||[];
-  const INP = {width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13,boxSizing:"border-box"};
-  const LBL = {fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4};
-  const GROUP_COLORS = {"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
 
-  // Comments — sourced from act (updated via onComment)
-  const comments = React.useMemo(()=>{
-    const raw=act.comments;
+  // ── LOCAL COMMENTS STATE ──
+  // Must be local state (not derived from act.comments prop) so that:
+  //   a) comments accumulate visually while the modal is open
+  //   b) clicking "Save Activity" includes the latest comments in the payload
+  const parseComments = raw=>{
     if(!raw) return [];
     if(Array.isArray(raw)) return raw;
     try{ return JSON.parse(raw); }catch{ return []; }
-  },[act.comments]);
+  };
+  const [localComments, setLocalComments] = useState(()=>parseComments(act.comments));
+
+  const isCustom = draft.activity_name==="Custom…";
+  const catActs  = ACTIVITY_TAXONOMY[draft.category]||[];
+  const INP = {width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13,boxSizing:"border-box"};
+  const LBL = {fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4};
+  const GROUP_COLORS = {"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
 
   const timeAgo = ts=>{
     const s=(Date.now()-new Date(ts).getTime())/1000;
@@ -2064,10 +2066,12 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
     return new Date(ts+"").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"2-digit"});
   };
 
+  const fmtTs = ts=>new Date(ts).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+
   const submitComment=async()=>{
     if(!commentText.trim()||!onComment) return;
-    // If no comments yet but remarks exists → auto-migrate remarks as first comment before adding new one
-    const legacyBase = (comments.length===0 && act.remarks && act.remarks.trim())
+    // If no real comments yet and remarks has content → auto-migrate remarks as first entry
+    const legacyBase = (localComments.length===0 && act.remarks && act.remarks.trim())
       ? [{
           id:"legacy_"+Date.now().toString(36),
           author:"Admin",
@@ -2084,9 +2088,13 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
       text:commentText.trim(),
       ts:new Date().toISOString()
     };
+    const next=[...legacyBase,...localComments,c];
     setSubmitting(true);
-    await onComment(act.id,[...legacyBase,...comments,c]);
-    setCommentText("");
+    const err=await onComment(act.id, next);
+    if(!err){
+      setLocalComments(next);  // ← update local state so draft picks it up on Save
+      setCommentText("");
+    }
     setSubmitting(false);
   };
 
@@ -2100,16 +2108,21 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
       ts:new Date().toISOString(),
       _migrated:true
     };
+    const next=[...localComments,legacy];
     setSubmitting(true);
-    await onComment(act.id,[...comments,legacy]);
-    // Also clear remarks from the draft so the banner disappears
-    setDraft(p=>({...p,remarks:""}));
+    const err=await onComment(act.id, next);
+    if(!err){
+      setLocalComments(next);
+      setDraft(p=>({...p,remarks:""}));
+    }
     setSubmitting(false);
   };
 
   const removeComment=async cid=>{
     if(!onComment) return;
-    await onComment(act.id, comments.filter(c=>c.id!==cid));
+    const next=localComments.filter(c=>c.id!==cid);
+    const err=await onComment(act.id, next);
+    if(!err) setLocalComments(next);
   };
 
   const handleGroupChange = g => {
@@ -2118,8 +2131,9 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
     setDraft(p=>({...p, category:firstCat, activity_name:ACTIVITY_TAXONOMY[firstCat]?.[0]||p.activity_name}));
   };
 
-  // Legacy remark: exists in remarks but no comments yet → show migration banner
-  const hasLegacyRemark = act.remarks && act.remarks.trim() && comments.length===0 && onComment;
+  // Legacy remark banner: remarks has content, no comments yet, and onComment is wired
+  const hasLegacyRemark = act.remarks && act.remarks.trim() && localComments.length===0 && onComment;
+  const comments = localComments; // alias for JSX below
 
   return(
   <div className="modal-ov" onClick={onClose}>
@@ -2332,7 +2346,8 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
             ? customName.trim()
             : draft.activity_name==="Custom…" ? "" : draft.activity_name;
           if(!finalName) return;
-          onSave({...draft, activity_name: finalName});
+          // Always include the latest local comments so Save Activity never overwrites them
+          onSave({...draft, activity_name: finalName, comments: localComments});
         }}>Save Activity</button>
       </div>
     </div>
@@ -3667,13 +3682,15 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
           var pctCol=pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b";
           var barCol=pct===100?"#22c55e":pct>=50?"#3b82f6":"#f97316";
           var bar='<div style="display:inline-block;vertical-align:middle;width:55px;height:4px;background:#e2e8f0;border-radius:2px;margin-left:4px"><div style="width:'+pct+'%;height:100%;background:'+barCol+';border-radius:2px"></div></div>';
+          var cs=a.comments?Array.isArray(a.comments)?a.comments:(function(){try{return JSON.parse(a.comments);}catch(e){return[];}})():[];
+          var commentHTML=cs.length?'<div style="margin-top:5px;border-top:1px solid #e2e8f0;padding-top:4px">'+cs.map(function(c){var tsStr=c.ts?new Date(c.ts).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";return'<div style="display:flex;gap:5px;margin-bottom:3px"><div style="width:18px;height:18px;border-radius:50%;background:'+(c._migrated?"#fff7ed":"#f5f3ff")+';color:'+(c._migrated?"#c2410c":"#7c3aed")+';font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(c.author||"?").slice(0,2).toUpperCase()+'</div><div style="flex:1"><div style="font-size:9px;color:#475569;margin-bottom:1px"><b>'+c.author+'</b>'+(c.role?' · '+c.role:'')+' <span style="float:right;color:#94a3b8">'+tsStr+'</span></div><div style="font-size:10px;color:#334155;background:#f8fafc;border-left:2px solid '+(c._migrated?"#f97316":"#7c3aed")+';padding:2px 6px;border-radius:0 3px 3px 0">'+c.text+'</div></div></div>';}).join('')+'</div>':'';
           rows+='<tr><td style="padding:5px 6px 5px '+(indentPx+10)+'px;font-size:11px">'+a.activity_name+'</td>'
             +'<td style="padding:5px 6px"><span style="background:'+stBg+';color:'+stC+';padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">'+a.status+'</span></td>'
             +'<td style="padding:5px 6px;white-space:nowrap"><b style="font-size:11px;color:'+pctCol+'">'+pct+'%</b>'+bar+'</td>'
             +'<td style="padding:5px 6px;font-size:10px;color:#475569">'+(a.assigned_to||"—")+'</td>'
             +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap">'+fmtD(a.start_date)+'</td>'
             +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap;color:'+(ov?"#dc2626":"#475569")+';font-weight:'+(ov?"700":"400")+'">'+fmtD(a.end_date)+(ov?" ⚠":"")+'</td>'
-            +'<td style="padding:5px 6px;font-size:10px;color:#64748b">'+(a.remarks||"")+'</td></tr>';
+            +'<td style="padding:5px 6px;font-size:10px;color:#64748b">'+(a.remarks||"")+(cs.length?' '+commentHTML:'')+'</td></tr>';
         });
       });
       return rows;
@@ -3939,7 +3956,23 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
                             {a.start_date&&<span style={{fontSize:12,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
                             {a.end_date&&<span style={{fontSize:12,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"⚠ ":""}⏎ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
                           </div>
-                          {a.remarks&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>📝 {a.remarks}</div>}
+                          {a.remarks&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>{a.remarks}</div>}
+                          {(()=>{
+                            var cs=a.comments?Array.isArray(a.comments)?a.comments:JSON.parse(a.comments||'[]'):[];
+                            if(!cs.length) return null;
+                            return <div style={{marginTop:6,borderTop:"1px solid var(--border3)",paddingTop:6,display:"grid",gap:5}}>
+                              {cs.map(function(c){
+                                var ts=c.ts?new Date(c.ts).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";
+                                return <div key={c.id} style={{display:"flex",gap:6,alignItems:"flex-start"}}>
+                                  <div style={{width:20,height:20,borderRadius:"50%",flexShrink:0,background:c._migrated?"#fb923c20":"#a78bfa20",color:c._migrated?"#fb923c":"#a78bfa",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{(c.author||"?").slice(0,2).toUpperCase()}</div>
+                                  <div style={{flex:1,minWidth:0}}>
+                                    <div style={{fontSize:11,color:"var(--text3)",marginBottom:1}}><span style={{fontWeight:700,color:"var(--text2)"}}>{c.author}</span>{c.role?" · "+c.role:""}<span style={{float:"right",color:"var(--text4)",fontSize:10}}>{ts}</span></div>
+                                    <div style={{fontSize:12,color:"var(--text1)",background:"var(--bg3)",borderRadius:"0 5px 5px 5px",padding:"4px 8px",borderLeft:"2px solid "+(c._migrated?"#fb923c":"#a78bfa")}}>{c.text}</div>
+                                  </div>
+                                </div>;
+                              })}
+                            </div>;
+                          })()}
                         </div>
                         <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,flexShrink:0,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text3)"}}>{pct}%</div>
                       </div>
@@ -3981,7 +4014,23 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
                             {a.start_date&&<span style={{fontSize:12,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
                             {a.end_date&&<span style={{fontSize:12,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"⚠ ":""}⏎ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
                           </div>
-                          {a.remarks&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>📝 {a.remarks}</div>}
+                          {a.remarks&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>{a.remarks}</div>}
+                          {(()=>{
+                            var cs=a.comments?Array.isArray(a.comments)?a.comments:JSON.parse(a.comments||'[]'):[];
+                            if(!cs.length) return null;
+                            return <div style={{marginTop:6,borderTop:"1px solid var(--border3)",paddingTop:6,display:"grid",gap:5}}>
+                              {cs.map(function(c){
+                                var ts=c.ts?new Date(c.ts).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";
+                                return <div key={c.id} style={{display:"flex",gap:6,alignItems:"flex-start"}}>
+                                  <div style={{width:20,height:20,borderRadius:"50%",flexShrink:0,background:c._migrated?"#fb923c20":"#a78bfa20",color:c._migrated?"#fb923c":"#a78bfa",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{(c.author||"?").slice(0,2).toUpperCase()}</div>
+                                  <div style={{flex:1,minWidth:0}}>
+                                    <div style={{fontSize:11,color:"var(--text3)",marginBottom:1}}><span style={{fontWeight:700,color:"var(--text2)"}}>{c.author}</span>{c.role?" · "+c.role:""}<span style={{float:"right",color:"var(--text4)",fontSize:10}}>{ts}</span></div>
+                                    <div style={{fontSize:12,color:"var(--text1)",background:"var(--bg3)",borderRadius:"0 5px 5px 5px",padding:"4px 8px",borderLeft:"2px solid "+(c._migrated?"#fb923c":"#a78bfa")}}>{c.text}</div>
+                                  </div>
+                                </div>;
+                              })}
+                            </div>;
+                          })()}
                         </div>
                         <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,flexShrink:0,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text3)"}}>{pct}%</div>
                       </div>
