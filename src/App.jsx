@@ -2028,7 +2028,7 @@ const STATUS_COLOR={"Completed":"#34d399","In Progress":"var(--info)","Not Start
 const STATUS_BG={"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started":"#1e293b40","On Hold":"#78350f30"};
 
 /* ── Inline category/activity editor modal ── */
-function ActivityEditModal({act, onSave, onClose, engineers}){
+function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfile}){
   // Derive the correct group: prefer act.group_name (stored group), fall back to CAT_TO_GROUP[category]
   const initGroup = act.group_name && TAXONOMY_GROUP_NAMES.includes(act.group_name)
     ? act.group_name
@@ -2039,12 +2039,78 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
     : (TAXONOMY_GROUPS[initGroup]?.[0]||act.category||"");
   const [draft, setDraft] = useState({...act, category: initCat});
   const [group, setGroup] = useState(initGroup);
-  const [customName, setCustomName] = useState(""); // separate state so typing doesn't close the input
+  const [customName, setCustomName] = useState("");
+  const [commentText, setCommentText] = useState("");
+  const [submitting,  setSubmitting]  = useState(false);
   const isCustom = draft.activity_name==="Custom…";
   const catActs = ACTIVITY_TAXONOMY[draft.category]||[];
   const INP = {width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13,boxSizing:"border-box"};
   const LBL = {fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4};
   const GROUP_COLORS = {"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+
+  // Comments — sourced from act (updated via onComment)
+  const comments = React.useMemo(()=>{
+    const raw=act.comments;
+    if(!raw) return [];
+    if(Array.isArray(raw)) return raw;
+    try{ return JSON.parse(raw); }catch{ return []; }
+  },[act.comments]);
+
+  const timeAgo = ts=>{
+    const s=(Date.now()-new Date(ts).getTime())/1000;
+    if(s<60) return "just now";
+    if(s<3600) return Math.floor(s/60)+"m ago";
+    if(s<86400) return Math.floor(s/3600)+"h ago";
+    return new Date(ts+"").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"2-digit"});
+  };
+
+  const submitComment=async()=>{
+    if(!commentText.trim()||!onComment) return;
+    // If no comments yet but remarks exists → auto-migrate remarks as first comment before adding new one
+    const legacyBase = (comments.length===0 && act.remarks && act.remarks.trim())
+      ? [{
+          id:"legacy_"+Date.now().toString(36),
+          author:"Admin",
+          role:"Migrated from Remarks",
+          text:act.remarks.trim(),
+          ts:new Date().toISOString(),
+          _migrated:true
+        }]
+      : [];
+    const c={
+      id:Date.now().toString(36)+Math.random().toString(36).slice(2),
+      author:myProfile?.name||"Unknown",
+      role:myProfile?.role||"",
+      text:commentText.trim(),
+      ts:new Date().toISOString()
+    };
+    setSubmitting(true);
+    await onComment(act.id,[...legacyBase,...comments,c]);
+    setCommentText("");
+    setSubmitting(false);
+  };
+
+  const migrateRemarks=async()=>{
+    if(!onComment||!act.remarks||!act.remarks.trim()) return;
+    const legacy={
+      id:"legacy_"+Date.now().toString(36),
+      author:"Admin",
+      role:"Migrated from Remarks",
+      text:act.remarks.trim(),
+      ts:new Date().toISOString(),
+      _migrated:true
+    };
+    setSubmitting(true);
+    await onComment(act.id,[...comments,legacy]);
+    // Also clear remarks from the draft so the banner disappears
+    setDraft(p=>({...p,remarks:""}));
+    setSubmitting(false);
+  };
+
+  const removeComment=async cid=>{
+    if(!onComment) return;
+    await onComment(act.id, comments.filter(c=>c.id!==cid));
+  };
 
   const handleGroupChange = g => {
     setGroup(g);
@@ -2052,9 +2118,12 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
     setDraft(p=>({...p, category:firstCat, activity_name:ACTIVITY_TAXONOMY[firstCat]?.[0]||p.activity_name}));
   };
 
+  // Legacy remark: exists in remarks but no comments yet → show migration banner
+  const hasLegacyRemark = act.remarks && act.remarks.trim() && comments.length===0 && onComment;
+
   return(
   <div className="modal-ov" onClick={onClose}>
-    <div className="modal" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
+    <div className="modal" style={{maxWidth:520,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
       <h3 style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>Edit Activity</h3>
       <div style={{display:"grid",gap:10}}>
 
@@ -2093,7 +2162,6 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
               {catActs.map(a=><option key={a}>{a}</option>)}
               <option value="Custom…">Custom…</option>
             </select>
-            {/* Show custom input if activity_name is not in the taxonomy list */}
             {!catActs.includes(draft.activity_name)&&(
               <input autoFocus={isCustom} value={isCustom?customName:draft.activity_name}
                 onChange={e=>{
@@ -2160,11 +2228,106 @@ function ActivityEditModal({act, onSave, onClose, engineers}){
             placeholder="e.g. Waiting for IOA addresses…"
             style={{...INP,color:"var(--text2)",resize:"vertical"}}/>
         </div>
+
+        {/* ── Comment Thread ── */}
+        <div style={{borderTop:"1px solid var(--border3)",paddingTop:12,marginTop:2}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+            <label style={{...LBL,marginBottom:0}}>COMMENTS</label>
+            {comments.length>0&&<span style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",background:"#a78bfa20",color:"#a78bfa",padding:"1px 7px",borderRadius:10,fontWeight:700}}>{comments.length}</span>}
+          </div>
+
+          {/* ── Legacy Remarks Migration Banner ── */}
+          {hasLegacyRemark&&(
+            <div style={{background:"#fb923c08",border:"1px solid #fb923c40",borderRadius:8,
+              padding:"10px 12px",marginBottom:12,display:"flex",gap:10,alignItems:"flex-start"}}>
+              <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"#fb923c20",
+                color:"#fb923c",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                ADM
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4,flexWrap:"wrap"}}>
+                  <span style={{fontSize:13,fontWeight:700,color:"var(--text0)"}}>Admin</span>
+                  <span style={{fontSize:11,padding:"1px 6px",borderRadius:4,background:"#fb923c20",color:"#fb923c",fontWeight:600}}>From Remarks — not yet saved to comments</span>
+                </div>
+                <div style={{fontSize:13,color:"var(--text1)",background:"var(--bg3)",borderRadius:"0 8px 8px 8px",
+                  padding:"7px 11px",lineHeight:1.55,borderLeft:"2px solid #fb923c",marginBottom:8}}>
+                  {act.remarks}
+                </div>
+                <button onClick={migrateRemarks} disabled={submitting}
+                  style={{fontSize:12,padding:"4px 12px",borderRadius:5,border:"1px solid #fb923c50",
+                    background:"#fb923c15",color:"#fb923c",cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
+                    fontWeight:600,opacity:submitting?0.5:1}}>
+                  Move to Comments
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Thread */}
+          {comments.length===0&&!hasLegacyRemark&&!onComment&&(
+            <div style={{fontSize:12,color:"var(--text4)",fontStyle:"italic"}}>No comments yet.</div>
+          )}
+          {comments.length===0&&!hasLegacyRemark&&onComment&&(
+            <div style={{fontSize:12,color:"var(--text4)",fontStyle:"italic",marginBottom:12}}>No comments yet. Start the thread below.</div>
+          )}
+          <div style={{display:"grid",gap:10,marginBottom:onComment?12:0}}>
+            {comments.map(c=>{
+              const isOwn=c.author===myProfile?.name;
+              const isMigrated=c._migrated;
+              return(
+              <div key={c.id} style={{display:"flex",gap:9,alignItems:"flex-start"}}>
+                <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,
+                  background:isMigrated?"#fb923c20":isOwn?"var(--info)25":"#a78bfa25",
+                  color:isMigrated?"#fb923c":isOwn?"var(--info)":"#a78bfa",
+                  fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {c.author?.slice(0,2).toUpperCase()||"?"}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"baseline",gap:7,marginBottom:3,flexWrap:"wrap"}}>
+                    <span style={{fontSize:13,fontWeight:700,color:"var(--text0)"}}>{c.author}</span>
+                    {c.role&&<span style={{fontSize:11,color:isMigrated?"#fb923c":"var(--text4)",fontStyle:"italic"}}>{c.role}</span>}
+                    <span style={{fontSize:11,color:"var(--text4)",marginLeft:"auto",whiteSpace:"nowrap"}}>{timeAgo(c.ts)}</span>
+                    {onComment&&(isOwn||myProfile?.role_type==="admin")&&(
+                      <button onClick={()=>removeComment(c.id)}
+                        style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:12,padding:"0 2px"}}
+                        title="Delete comment">✕</button>
+                    )}
+                  </div>
+                  <div style={{fontSize:13,color:"var(--text1)",background:"var(--bg3)",
+                    borderRadius:"0 8px 8px 8px",padding:"7px 11px",lineHeight:1.55,
+                    borderLeft:`2px solid ${isMigrated?"#fb923c":isOwn?"var(--info)":"#a78bfa"}`}}>
+                    {c.text}
+                  </div>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+          {/* Input */}
+          {onComment&&(
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,
+              background:"var(--info)20",color:"var(--info)",
+              fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {myProfile?.name?.slice(0,2).toUpperCase()||"?"}
+            </div>
+            <input value={commentText} onChange={e=>setCommentText(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submitComment();}}}
+              placeholder="Add a comment… (Enter to send)"
+              style={{flex:1,background:"var(--bg2)",border:"1px solid #a78bfa40",borderRadius:20,
+                color:"var(--text0)",padding:"6px 14px",fontSize:13,outline:"none"}}/>
+            <button className="bp" style={{fontSize:13,padding:"5px 16px",
+              opacity:submitting||!commentText.trim()?0.5:1}}
+              disabled={submitting||!commentText.trim()} onClick={submitComment}>
+              Send
+            </button>
+          </div>)}
+        </div>
       </div>
+
       <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
         <button className="bg" onClick={onClose}>Cancel</button>
         <button className="bp" onClick={()=>{
-          // Resolve final activity name: custom input takes priority when "Custom…" is selected
           const finalName = isCustom&&customName.trim()
             ? customName.trim()
             : draft.activity_name==="Custom…" ? "" : draft.activity_name;
@@ -2293,7 +2456,7 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
     </div>
   </div>);
 }
-function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast, projects, setProjects, showConfirm}){
+function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast, projects, setProjects, showConfirm, myProfile}){
   const [addModal, setAddModal] = React.useState(false);
   const [editAct, setEditAct]  = React.useState(null);
   const projActs = (activities||[]).filter(a=>a.project_id===projId);
@@ -2395,7 +2558,13 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
       {addModal&&<AddActivityModal projId={projId} subId={null} defaultCat={null}
         onSave={confirmAdd} onClose={()=>setAddModal(false)} engineers={engineers}/>}
       {editAct&&<ActivityEditModal act={editAct}
-        onSave={saveAct} onClose={()=>setEditAct(null)} engineers={engineers}/>}
+        onSave={saveAct} onClose={()=>setEditAct(null)} engineers={engineers}
+        onComment={async(actId,comments)=>{
+          const{error}=await supabase.from("project_activities").update({comments}).eq("id",actId);
+          if(!error) setActivities(prev=>prev.map(a=>a.id===actId?{...a,comments}:a));
+          return error||null;
+        }}
+        myProfile={myProfile}/>}
     </div>
   );
 }
@@ -3168,7 +3337,9 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       act={{...editActivity, category: editActivity.category||editActivity.group_name||""}}
       onSave={saveActivity}
       onClose={()=>setEditActivity(null)}
-      engineers={engineers}/>
+      engineers={engineers}
+      onComment={handleActivityComment}
+      myProfile={myProfile}/>
   )}
 
   {/* Add modal */}
@@ -12953,6 +13124,7 @@ export default function App(){
               supabase={supabase} showToast={showToast}
               projects={projects} setProjects={setProjects}
               showConfirm={showConfirm}
+              myProfile={myProfile}
             />}
                         </div>
             {epTab!=="activities"&&<div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",borderTop:"1px solid var(--border3)",paddingTop:14}}>
