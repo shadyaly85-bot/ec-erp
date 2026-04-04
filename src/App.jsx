@@ -7572,8 +7572,6 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       showToast("⚠ Approval saved but entry not found — refresh and check",false);
     }
     showToast("Vacation approved ✓");
-    // Immediately refresh notifications so admin sees history update
-    setTimeout(()=>reloadNotifications(),1000);
   };
   const rejectVacation=async(entryId,notifId)=>{
     if(!supabase){showToast("No DB connection",false);return;}
