@@ -7456,7 +7456,13 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
     const entry=entries.find(e=>e.id===entryId);
     setEntries&&setEntries(prev=>prev.map(e=>e.id===entryId?{...e,activity:null}:e));
     await supabase.from("time_entries").update({activity:null}).eq("id",entryId);
-    if(notifId){ await supabase.from("notifications").delete().eq("id",notifId); setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId)); }
+    // Mark vacation_request notification as read → moves to admin's history (not deleted)
+    if(notifId){
+      await supabase.from("notifications").update({read:true}).eq("id",notifId);
+      const _notif=setNotifications&&(notifications||[]).find(n=>n.id===notifId);
+      setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId));
+      if(_notif) setNotifHistory&&setNotifHistory(prev=>[{..._notif,read:true},...prev].slice(0,80));
+    }
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
       const feedback={
@@ -7477,7 +7483,13 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
     const entry=entries.find(e=>e.id===entryId);
     setEntries&&setEntries(prev=>prev.filter(e=>e.id!==entryId));
     await supabase.from("time_entries").delete().eq("id",entryId);
-    if(notifId){ await supabase.from("notifications").delete().eq("id",notifId); setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId)); }
+    // Mark vacation_request notification as read → moves to admin's history (not deleted)
+    if(notifId){
+      await supabase.from("notifications").update({read:true}).eq("id",notifId);
+      const _notif=setNotifications&&(notifications||[]).find(n=>n.id===notifId);
+      setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId));
+      if(_notif) setNotifHistory&&setNotifHistory(prev=>[{..._notif,read:true},...prev].slice(0,80));
+    }
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
       const feedback={
@@ -8829,6 +8841,8 @@ export default function App(){
     const _confirmMsg=isApprovedLeave
       ? "This will permanently cancel the approved annual leave. The engineer will be notified."
       : "This time entry will be permanently removed.";
+    // Detect pending vacation (submitted but not yet approved)
+    const isPendingLeave=entry.entry_type==="leave"&&entry.leave_type==="Annual Leave"&&entry.activity==="PENDING_APPROVAL";
     showConfirm(_confirmMsg,()=>{
       // 1. INSTANT UI remove — synchronous, user sees it gone at once
       setEntries(prev=>prev.filter(e=>e.id!==id));
@@ -8839,7 +8853,7 @@ export default function App(){
         setEntries(prev=>{const _ids=new Set(prev.map(e=>e.id));return _ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));});
         showToast("Undo successful ✓");
       });
-      // 3. DB delete after 5s undo window (fire-and-forget)
+      // 3. DB delete after 5s undo window (applies to ALL entry types including vacation)
       setTimeout(async()=>{
         if(_undone) return;
         const{error:_delErr}=await supabase.from("time_entries").delete().eq("id",id);
@@ -8848,8 +8862,8 @@ export default function App(){
           showToast("Delete failed — restored: "+_delErr.message,false);
           return;
         }
-        // 4. Notify engineer after confirmed delete (fire-and-forget)
-        if(isApprovedLeave && isAdmin){
+        // 4. Send notification after DB delete confirms
+        if(isApprovedLeave&&isAdmin){
           insertNotif({
             type:"vacation_cancelled",engineer_id:entry.engineer_id,read:false,
             message:`Your approved Annual Leave on ${entry.date} has been cancelled by admin`,
@@ -8857,9 +8871,17 @@ export default function App(){
             meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:id,cancelled_by:myProfile?.name})
           });
         }
+        if(isPendingLeave&&isAdmin){
+          insertNotif({
+            type:"vacation_rejected",engineer_id:entry.engineer_id,read:false,
+            message:`Your Annual Leave request on ${entry.date} was cancelled by admin`,
+            created_at:new Date().toISOString(),
+            meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:id,cancelled_by:myProfile?.name})
+          });
+        }
         logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_onBehalf}`,{id,engineer_id:engineerId,engineer_name:_engName});
       },5100);
-    },{title:isApprovedLeave?"Cancel Approved Leave":"Delete Time Entry",confirmLabel:"Delete"});
+    },{title:isApprovedLeave?"Cancel Approved Leave":isPendingLeave?"Remove Vacation Request":"Delete Time Entry",confirmLabel:"Delete"});
   };
 
   /* ── FUNCTION ENTRIES & KPI ALERTS ── */
@@ -10514,14 +10536,24 @@ export default function App(){
                                       <button onClick={async()=>{
                                         setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
                                         await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
-                                        if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
+                                        if(matchedNotif){
+                                          // Mark as read → moves to admin's history
+                                          await supabase.from("notifications").update({read:true}).eq("id",matchedNotif.id);
+                                          setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));
+                                          setNotifHistory(prev=>[{...matchedNotif,read:true},...prev].slice(0,80));
+                                        }
                                         insertNotif({type:"vacation_approved",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
                                         showToast(`${eng?.name||"Vacation"} approved ✓`);
                                       }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:5,padding:"3px 10px",color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✓ Approve</button>
                                       <button onClick={async()=>{
                                         setEntries(prev=>prev.filter(x=>x.id!==e.id));
                                         await supabase.from("time_entries").delete().eq("id",e.id);
-                                        if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
+                                        if(matchedNotif){
+                                          // Mark as read → moves to admin's history
+                                          await supabase.from("notifications").update({read:true}).eq("id",matchedNotif.id);
+                                          setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));
+                                          setNotifHistory(prev=>[{...matchedNotif,read:true},...prev].slice(0,80));
+                                        }
                                         insertNotif({type:"vacation_rejected",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
                                         showToast(`${eng?.name||"Vacation"} rejected`,false);
                                       }} style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:5,padding:"3px 10px",color:"#f87171",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✕ Reject</button>
