@@ -1637,6 +1637,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
 
 /* ── VacationReport Component ── */
 function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onExport,isAdmin,vacationBalances={},setVacBalance,showToast}){
+  const [vacSearch,setVacSearch] = React.useState("");
   const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
   const typeColors={"Annual Leave":"var(--info)","Sick Leave":"#f87171","Public Holiday":"#fb923c","Business Travel":"#a78bfa","Training External":"#34d399","Unpaid Leave":"#6b7280"};
 
@@ -1659,12 +1660,16 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
   return(
     <div>
       {/* Header */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18,gap:12,flexWrap:"wrap"}}>
         <div>
           <h2 style={{fontSize:18,fontWeight:700,color:"var(--text0)",margin:0}}>Vacation & Leave Report</h2>
-          <p style={{fontSize:14,color:"var(--text4)",marginTop:4}}>{MONTHS[month]} {year} · {monthly.length} engineers with leave recorded</p>
+          <p style={{fontSize:14,color:"var(--text4)",marginTop:4}}>{MONTHS[month]} {year} · {monthly.filter(e=>!vacSearch||e.name.toLowerCase().includes(vacSearch.toLowerCase())).length} engineers</p>
         </div>
-        <button style={{background:"#0ea5e9",border:"none",borderRadius:6,padding:"8px 16px",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={onExport}>⬇ Export PDF</button>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <input value={vacSearch} onChange={e=>setVacSearch(e.target.value)} placeholder="Search engineer…"
+            style={{padding:"7px 12px",borderRadius:7,border:"1px solid var(--border3)",background:"var(--bg2)",color:"var(--text0)",fontSize:13,minWidth:160,outline:"none"}}/>
+          <button style={{background:"#0ea5e9",border:"none",borderRadius:6,padding:"8px 16px",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={onExport}>⬇ Export PDF</button>
+        </div>
       </div>
 
       {/* Leave type legend */}
@@ -1685,7 +1690,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
                 {leaveTypes.map(lt=><th key={lt} style={{textAlign:"center",color:typeColors[lt],fontSize:13,minWidth:60}}>{lt}</th>)}
                 <th style={{textAlign:"center"}}>Total</th>
               </tr></thead>
-              <tbody>{monthly.map(eng=>(
+              <tbody>{monthly.filter(e=>!vacSearch||e.name.toLowerCase().includes(vacSearch.toLowerCase())).map(eng=>(
                 <tr key={eng.id}>
                   <td>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -1719,7 +1724,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
                 {leaveTypes.map(lt=><th key={lt} style={{textAlign:"center",color:typeColors[lt],fontSize:13,minWidth:60}}>{lt}</th>)}
                 <th style={{textAlign:"center"}}>YTD Total</th>
               </tr></thead>
-              <tbody>{ytd.map(eng=>(
+              <tbody>{ytd.filter(e=>!vacSearch||e.name.toLowerCase().includes(vacSearch.toLowerCase())).map(eng=>(
                 <tr key={eng.id}>
                   <td style={{fontSize:14,fontWeight:600}}>{eng.name}</td>
                   {leaveTypes.map(lt=>(
@@ -3603,8 +3608,12 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
   activities, setActivities, supabase, showToast, isAdmin, isLead, isAcct, showConfirm}){
   const [actModal,setActModal] = React.useState(null); // {projId, act:null|object}
   const [actDraft,setActDraft] = React.useState({});
-  const [projSearch,setProjSearch] = React.useState("");
-  const canEdit = isAdmin||isLead;       // guards add/edit/delete buttons
+  const [projSearch,setProjSearch]   = React.useState("");
+  const [projStatus,setProjStatus]   = React.useState("ALL");
+  const [projType,setProjType]       = React.useState("ALL");
+  const [projPhase,setProjPhase]     = React.useState("ALL");
+  const [projBilling,setProjBilling] = React.useState("ALL");
+  const canEdit = isAdmin||isLead;
   const canManageActs = isAdmin||isLead;
 
   const openActModal=(projId,act=null)=>{
@@ -3648,12 +3657,95 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
   return(
   <div style={{display:"grid",gap:12}}>
     <div className="card" style={{padding:0,overflow:"hidden"}}>
+      {/* ── Header row ── */}
       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
-        <div><div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Projects</div><div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{projects.length} total</div></div>
+        <div>
+          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Projects</div>
+          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
+            {projects.filter(p=>{
+              const ms=projStatus==="ALL"||p.status===projStatus;
+              const mt=projType==="ALL"||p.type===projType;
+              const mph=projPhase==="ALL"||p.phase===projPhase;
+              const mb=projBilling==="ALL"||(projBilling==="Billable"?p.billable:!p.billable);
+              const mq=!projSearch||(p.name||"").toLowerCase().includes(projSearch.toLowerCase())||(p.id||"").toLowerCase().includes(projSearch.toLowerCase())||(p.client||"").toLowerCase().includes(projSearch.toLowerCase());
+              return ms&&mt&&mph&&mb&&mq;
+            }).length} of {projects.length} projects
+          </div>
+        </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="🔍 Search projects…" style={{width:200,padding:"7px 12px",borderRadius:7,border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text0)",fontSize:14}}/>
+          <input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="Search name, ID, client…"
+            style={{width:200,padding:"7px 12px",borderRadius:7,border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text0)",fontSize:13}}/>
           {canEdit&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
         </div>
+      </div>
+      {/* ── Filter bar ── */}
+      <div style={{padding:"10px 20px",borderBottom:"1px solid var(--border)",background:"var(--bg1)",display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end"}}>
+        {/* Status */}
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Status</div>
+          <div style={{display:"flex",gap:4}}>
+            {[["ALL","All"],["Active","Active"],["On Hold","On Hold"],["Completed","Done"]].map(([v,l])=>{
+              const cnt=v==="ALL"?projects.length:projects.filter(p=>p.status===v).length;
+              const col=v==="Active"?"#34d399":v==="On Hold"?"#fb923c":v==="Completed"?"#a78bfa":"var(--text2)";
+              const active=projStatus===v;
+              return(<button key={v} onClick={()=>setProjStatus(v)}
+                style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${active?col+"90":"var(--border)"}`,
+                  background:active?col+"18":"transparent",color:active?col:"var(--text3)",
+                  fontSize:12,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",whiteSpace:"nowrap"}}>
+                {l} <span style={{fontSize:11,opacity:.8}}>{cnt}</span>
+              </button>);
+            })}
+          </div>
+        </div>
+        {/* Type */}
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Type</div>
+          <div style={{display:"flex",gap:4}}>
+            {[["ALL","All"],["Renewable Energy","Renewable"],["Industrial","Industrial"]].map(([v,l])=>{
+              const col=v==="Renewable Energy"?"#34d399":v==="Industrial"?"#818cf8":"var(--text2)";
+              const active=projType===v;
+              return(<button key={v} onClick={()=>setProjType(v)}
+                style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${active?col+"90":"var(--border)"}`,
+                  background:active?col+"18":"transparent",color:active?col:"var(--text3)",
+                  fontSize:12,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",whiteSpace:"nowrap"}}>
+                {l}
+              </button>);
+            })}
+          </div>
+        </div>
+        {/* Billing */}
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Billing</div>
+          <div style={{display:"flex",gap:4}}>
+            {[["ALL","All"],["Billable","Billable"],["Internal","Internal"]].map(([v,l])=>{
+              const col=v==="Billable"?"#34d399":v==="Internal"?"var(--text3)":"var(--text2)";
+              const active=projBilling===v;
+              return(<button key={v} onClick={()=>setProjBilling(v)}
+                style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${active?col+"90":"var(--border)"}`,
+                  background:active?col+"18":"transparent",color:active?col:"var(--text3)",
+                  fontSize:12,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",whiteSpace:"nowrap"}}>
+                {l}
+              </button>);
+            })}
+          </div>
+        </div>
+        {/* Phase */}
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Phase</div>
+          <select value={projPhase} onChange={e=>setProjPhase(e.target.value)}
+            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"4px 10px",color:"var(--text0)",fontSize:12,fontWeight:600,outline:"none",cursor:"pointer",minWidth:120}}>
+            <option value="ALL">All Phases</option>
+            {["Design","Basic Engineering","Detailed Engineering","Software","FAT","Commissioning","Closed"].map(ph=><option key={ph}>{ph}</option>)}
+          </select>
+        </div>
+        {/* Clear all */}
+        {(projStatus!=="ALL"||projType!=="ALL"||projPhase!=="ALL"||projBilling!=="ALL"||projSearch)&&(
+          <button onClick={()=>{setProjStatus("ALL");setProjType("ALL");setProjPhase("ALL");setProjBilling("ALL");setProjSearch("");}}
+            style={{padding:"4px 12px",borderRadius:20,border:"1px solid #f8717160",background:"#f8717112",color:"#f87171",
+              fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",alignSelf:"flex-end",marginBottom:1}}>
+            ✕ Clear filters
+          </button>
+        )}
       </div>
       <table>
         <thead><tr>
@@ -3663,7 +3755,14 @@ function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, s
           <th>Sub-sites</th>
           <th style={{width:110}}>Actions</th>
         </tr></thead>
-        <tbody>{projects.filter(p=>!projSearch||(p.name||'').toLowerCase().includes(projSearch.toLowerCase())||(p.id||'').toLowerCase().includes(projSearch.toLowerCase())).map(p=>{
+        <tbody>{projects.filter(p=>{
+          const ms=projStatus==="ALL"||p.status===projStatus;
+          const mt=projType==="ALL"||p.type===projType;
+          const mph=projPhase==="ALL"||p.phase===projPhase;
+          const mb=projBilling==="ALL"||(projBilling==="Billable"?p.billable:!p.billable);
+          const mq=!projSearch||(p.name||"").toLowerCase().includes(projSearch.toLowerCase())||(p.id||"").toLowerCase().includes(projSearch.toLowerCase())||(p.client||"").toLowerCase().includes(projSearch.toLowerCase());
+          return ms&&mt&&mph&&mb&&mq;
+        }).map(p=>{
           const pSubs = subprojects.filter(s=>s.project_id===p.id);
           const isExp = expandedProj[p.id];
           const hrs   = projHrsMap[p.id]||0;
@@ -9676,6 +9775,86 @@ export default function App(){
       if(_pprev.client!==rest.client) _pchanges.push(`client: "${_pprev.client||"—"}"→"${rest.client||"—"}"`);
       if(_pprev.billable!==rest.billable) _pchanges.push(`billable: ${_pprev.billable}→${rest.billable}`);
       if(_pprev.status!==rest.status) _pchanges.push(`status: ${_pprev.status||"—"}→${rest.status||"—"}`);
+      // ── Helper: notify leader + all assigned (excluding self and already-notified) ──
+      const _notifyTeam=(type,message,meta,skipIds=[])=>{
+        const _skip=new Set([String(myProfile?.id),...skipIds.map(String)]);
+        if(rest.project_leader){
+          const _l=engineers.find(e=>e.name===rest.project_leader);
+          if(_l&&!_skip.has(String(_l.id))){
+            _skip.add(String(_l.id));
+            insertNotif({type,engineer_id:_l.id,read:false,message,created_at:new Date().toISOString(),meta:JSON.stringify(meta)});
+          }
+        }
+        (rest.assigned_engineers||[]).forEach(engId=>{
+          if(_skip.has(String(engId))) return;
+          const _aEng=engineers.find(e=>String(e.id)===String(engId));
+          if(_aEng) insertNotif({type,engineer_id:_aEng.id,read:false,message,created_at:new Date().toISOString(),meta:JSON.stringify(meta)});
+        });
+      };
+
+      // 1. STATUS CHANGE → notify leader + team
+      if(_pprev.status!==rest.status){
+        const _emoji=rest.status==="On Hold"?"⏸":rest.status==="Completed"?"✅":rest.status==="Active"?"▶":"🔄";
+        _notifyTeam("project_status",
+          `${_emoji} Project "${rest.name||rest.id}" status: ${_pprev.status||"—"} → ${rest.status}`,
+          {project_id:rest.id,project_name:rest.name,old_status:_pprev.status,new_status:rest.status,changed_by:myProfile?.name});
+      }
+
+      // 2. PHASE CHANGE → notify leader + team
+      if(_pprev.phase!==rest.phase&&rest.phase){
+        _notifyTeam("project_phase",
+          `📋 Project "${rest.name||rest.id}" phase: ${_pprev.phase||"—"} → ${rest.phase}`,
+          {project_id:rest.id,project_name:rest.name,old_phase:_pprev.phase,new_phase:rest.phase,changed_by:myProfile?.name});
+      }
+
+      // 3. PROJECT LEADER CHANGE → notify new leader + old leader
+      if(_pprev.project_leader!==rest.project_leader){
+        if(rest.project_leader){
+          const _newLeaderEng=engineers.find(e=>e.name===rest.project_leader);
+          if(_newLeaderEng&&String(_newLeaderEng.id)!==String(myProfile?.id)){
+            insertNotif({type:"project_leader",engineer_id:_newLeaderEng.id,read:false,
+              message:`⭐ You are now Project Leader for "${rest.name||rest.id}"`,
+              created_at:new Date().toISOString(),
+              meta:JSON.stringify({project_id:rest.id,project_name:rest.name,changed_by:myProfile?.name})});
+          }
+        }
+        if(_pprev.project_leader&&_pprev.project_leader!==rest.project_leader){
+          const _oldLeaderEng=engineers.find(e=>e.name===_pprev.project_leader);
+          if(_oldLeaderEng&&String(_oldLeaderEng.id)!==String(myProfile?.id)){
+            insertNotif({type:"project_leader",engineer_id:_oldLeaderEng.id,read:false,
+              message:`ℹ You are no longer Project Leader for "${rest.name||rest.id}"`,
+              created_at:new Date().toISOString(),
+              meta:JSON.stringify({project_id:rest.id,project_name:rest.name,changed_by:myProfile?.name})});
+          }
+        }
+      }
+
+      // 4. TEAM ASSIGNMENT CHANGE → notify added engineers, notify removed engineers
+      if(JSON.stringify((_pprev.assigned_engineers||[]).slice().sort())!==JSON.stringify((rest.assigned_engineers||[]).slice().sort())){
+        const _prevIds=new Set((_pprev.assigned_engineers||[]).map(String));
+        const _newIds=new Set((rest.assigned_engineers||[]).map(String));
+        // Added
+        _newIds.forEach(engId=>{
+          if(_prevIds.has(engId)) return; // was already on team
+          if(String(engId)===String(myProfile?.id)) return; // self
+          const _aEng=engineers.find(e=>String(e.id)===engId);
+          if(_aEng) insertNotif({type:"project_assigned",engineer_id:_aEng.id,read:false,
+            message:`✓ You have been added to project "${rest.name||rest.id}"`,
+            created_at:new Date().toISOString(),
+            meta:JSON.stringify({project_id:rest.id,project_name:rest.name,changed_by:myProfile?.name})});
+        });
+        // Removed
+        _prevIds.forEach(engId=>{
+          if(_newIds.has(engId)) return; // still on team
+          if(String(engId)===String(myProfile?.id)) return; // self
+          const _rEng=engineers.find(e=>String(e.id)===engId);
+          if(_rEng) insertNotif({type:"project_assigned",engineer_id:_rEng.id,read:false,
+            message:`ℹ You have been removed from project "${rest.name||rest.id}"`,
+            created_at:new Date().toISOString(),
+            meta:JSON.stringify({project_id:rest.id,project_name:rest.name,changed_by:myProfile?.name})});
+        });
+      }
+
       logAction("UPDATE","Project",`Updated project ${editProjModal?.id}${_pchanges.length?" — "+_pchanges.join(", "):""}`,{project_id:editProjModal?.id,changes:_pchanges});
     }
   };
@@ -10508,9 +10687,9 @@ export default function App(){
               {/* ── Bell notification button — lives in sidebar header, no overlap ── */}
               {session&&!loading&&(()=>{
                 const bellCount=unreadCount;
-                const typeIcon=t=>t==="activity_comment"?"💬":t==="vacation_approved"?"✓":t==="vacation_rejected"?"✕":t==="vacation_request"?"⏳":t==="timesheet_alert"?"⏰":t==="overdue_alert"?"⚠":t==="activity_assigned"?"📋":t==="activity_status_changed"?"↺":t==="activity_progress_changed"?"◉":t==="activity_deadline_changed"?"📅":t==="vacation_cancelled"?"✕":t==="new_signup"?"👤":"•";
-                const typeColor=t=>t==="activity_comment"?"#a78bfa":t==="vacation_approved"?"#34d399":t==="vacation_rejected"?"#f87171":t==="vacation_request"?"#f59e0b":t==="timesheet_alert"?"#f87171":t==="overdue_alert"?"#fb923c":t==="activity_assigned"?"#0ea5e9":t==="activity_status_changed"?"#22d3ee":t==="activity_progress_changed"?"#34d399":t==="activity_deadline_changed"?"#fb923c":t==="vacation_cancelled"?"#f87171":t==="new_signup"?"#fb923c":"var(--text3)";
-                const typeLabel=t=>t==="activity_comment"?"Comment":t==="vacation_approved"?"Approved":t==="vacation_rejected"?"Rejected":t==="vacation_request"?"Leave Request":t==="timesheet_alert"?"Timesheet":t==="overdue_alert"?"Overdue":t==="activity_assigned"?"Assigned":t==="activity_status_changed"?"Status":t==="activity_progress_changed"?"Progress":t==="activity_deadline_changed"?"Deadline":t==="vacation_cancelled"?"Cancelled":t==="new_signup"?"New Signup":"";
+                const typeIcon=t=>t==="activity_comment"?"💬":t==="vacation_approved"?"✓":t==="vacation_rejected"?"✕":t==="vacation_request"?"⏳":t==="project_status"?"🔄":t==="project_phase"?"📋":t==="project_leader"?"⭐":t==="project_assigned"?"👤":t==="timesheet_alert"?"⏰":t==="overdue_alert"?"⚠":t==="activity_assigned"?"📋":t==="activity_status_changed"?"↺":t==="activity_progress_changed"?"◉":t==="activity_deadline_changed"?"📅":t==="vacation_cancelled"?"✕":t==="new_signup"?"👤":"•";
+                const typeColor=t=>t==="activity_comment"?"#a78bfa":t==="vacation_approved"?"#34d399":t==="vacation_rejected"?"#f87171":t==="vacation_request"?"#f59e0b":t==="timesheet_alert"?"#f87171":t==="overdue_alert"?"#fb923c":t==="activity_assigned"?"#0ea5e9":t==="activity_status_changed"?"#22d3ee":t==="activity_progress_changed"?"#34d399":t==="activity_deadline_changed"?"#fb923c":t==="vacation_cancelled"?"#f87171":t==="new_signup"?"#fb923c":t==="project_status"?"#a78bfa":t==="project_phase"?"#fb923c":t==="project_leader"?"#f59e0b":t==="project_assigned"?"#34d399":"var(--text3)";
+                const typeLabel=t=>t==="activity_comment"?"Comment":t==="vacation_approved"?"Approved":t==="vacation_rejected"?"Rejected":t==="vacation_request"?"Leave Request":t==="timesheet_alert"?"Timesheet":t==="overdue_alert"?"Overdue":t==="activity_assigned"?"Assigned":t==="activity_status_changed"?"Status":t==="activity_progress_changed"?"Progress":t==="activity_deadline_changed"?"Deadline":t==="vacation_cancelled"?"Cancelled":t==="new_signup"?"New Signup":t==="project_status"?"Project":t==="project_phase"?"Phase":t==="project_leader"?"Leader":t==="project_assigned"?"Team":"";
                 const fmtAgo=ts=>{if(!ts)return"";const diff=Date.now()-new Date(ts).getTime();const m=Math.floor(diff/60000);if(m<1)return"just now";if(m<60)return m+"m ago";const h=Math.floor(m/60);if(h<24)return h+"h ago";return Math.floor(h/24)+"d ago";};
                 const sorted=[...notifications].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
                 return(
