@@ -2085,7 +2085,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
     const c={
       id:Date.now().toString(36)+Math.random().toString(36).slice(2),
       author:myProfile?.name||"Unknown",
-      role:myProfile?.role||"",
+      role:myProfile?.role_type||myProfile?.role||"",
       text:commentText.trim(),
       ts:new Date().toISOString()
     };
@@ -2589,7 +2589,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
 
 
 /* ── Single activity row ── */
-function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect, onComment, myProfile}){
+function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect, onComment, myProfile, isEngineerRole}){
   const [commentOpen, setCommentOpen] = React.useState(false);
   const [commentText, setCommentText] = React.useState("");
   const [submitting,  setSubmitting]  = React.useState(false);
@@ -2613,7 +2613,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
     const c={
       id:Date.now().toString(36)+Math.random().toString(36).slice(2),
       author:myProfile?.name||"Unknown",
-      role:myProfile?.role||"",
+      role:myProfile?.role_type||myProfile?.role||"",
       text:commentText.trim(),
       ts:new Date().toISOString()
     };
@@ -2642,10 +2642,15 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
   const isOverdue= endDt && endDt < today && a.status!=="Completed";
   const fmtDate  = d => d ? new Date(d).toLocaleDateString("en-GB",{day:"2-digit",month:"short"}) : null;
   const hasComments=comments.length>0;
+  // Engineer can only comment on their own assigned activity
+  const isOwnActivity = myProfile&&a.assigned_to&&a.assigned_to.trim()===myProfile.name?.trim();
+  const canComment = onComment&&(isAdmin||isOwnActivity);
 
   return(
   <React.Fragment>
-    <tr style={{cursor:"pointer",background:isSelected?"#0ea5e910":undefined}} onClick={()=>onEdit(a)}>
+    <tr style={{cursor:isEngineerRole&&!canComment?"default":"pointer",background:isSelected?"#0ea5e910":undefined}}
+      title={isEngineerRole&&!canComment?"View only — you are not assigned to this activity":undefined}
+      onClick={()=>{ if(isEngineerRole){ if(canComment) setCommentOpen(o=>!o); } else onEdit(a); }}>
       {onSelect&&<td style={{width:28,paddingLeft:8}} onClick={e=>e.stopPropagation()}>
         <input type="checkbox" checked={!!isSelected} onChange={()=>onSelect(a.id)}
           style={{cursor:"pointer",width:14,height:14,accentColor:"var(--info)"}}/>
@@ -2675,24 +2680,24 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
         ):<span style={{color:"var(--text4)"}}>—</span>}
       </td>
       <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:actHrs>0?"var(--info)":"var(--text4)"}}>{actHrs>0?actHrs+"h":"—"}</td>
-      {isAdmin&&<td onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",gap:3,alignItems:"center"}}>
-          {onComment&&(
-            <button title={hasComments?`${comments.length} comment${comments.length!==1?"s":""}`:("Add comment")}
-              onClick={e=>{e.stopPropagation();setCommentOpen(o=>!o);}}
-              style={{fontSize:11,padding:"1px 6px",borderRadius:4,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
-                border:`1px solid ${commentOpen||hasComments?"#a78bfa50":"var(--border)"}`,
-                background:commentOpen?"#a78bfa20":hasComments?"#a78bfa10":"transparent",
-                color:commentOpen||hasComments?"#a78bfa":"var(--text4)",
-                display:"flex",alignItems:"center",gap:3,transition:"all .15s"}}>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10.5 7a1 1 0 01-1 1H3.5l-2 2V2a1 1 0 011-1h7a1 1 0 011 1v5z"/>
-              </svg>
-              {hasComments&&<span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{comments.length}</span>}
-            </button>
-          )}
-          <button className="bd" style={{fontSize:13,padding:"1px 5px"}} onClick={e=>{e.stopPropagation();onDelete(a.id);}}>✕</button>
-        </div>
+      {/* Comment bubble — visible to admin/lead AND to the assigned engineer */}
+      {canComment&&<td onClick={e=>e.stopPropagation()} style={{width:36}}>
+        <button title={hasComments?`${comments.length} comment${comments.length!==1?"s":""}`:("Add comment")}
+          onClick={e=>{e.stopPropagation();setCommentOpen(o=>!o);}}
+          style={{fontSize:11,padding:"2px 7px",borderRadius:4,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
+            border:`1px solid ${commentOpen||hasComments?"#a78bfa50":"var(--border)"}`,
+            background:commentOpen?"#a78bfa20":hasComments?"#a78bfa10":"transparent",
+            color:commentOpen||hasComments?"#a78bfa":"var(--text4)",
+            display:"flex",alignItems:"center",gap:3,transition:"all .15s"}}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10.5 7a1 1 0 01-1 1H3.5l-2 2V2a1 1 0 011-1h7a1 1 0 011 1v5z"/>
+          </svg>
+          {hasComments&&<span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{comments.length}</span>}
+        </button>
+      </td>}
+      {/* Delete — admin/lead only */}
+      {isAdmin&&<td onClick={e=>e.stopPropagation()} style={{width:28}}>
+        <button className="bd" style={{fontSize:13,padding:"1px 5px"}} onClick={e=>{e.stopPropagation();onDelete(a.id);}}>✕</button>
       </td>}
     </tr>
     {/* ── Inline comment thread ── */}
@@ -2762,7 +2767,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component
    ════════════════════════════════════════════════════════ */
-function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, setNotifications, showToast, logAction, showConfirm, myProfile, onActivityComment,
+function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, isEngineerRole, activitiesLoaded, setActivities, setProjects, setNotifications, showToast, logAction, showConfirm, myProfile, onActivityComment,
   trackerProj,  setTrackerProj,
   trackerSub,   setTrackerSub,
   trackerSearch, setTrackerSearch,
@@ -2981,7 +2986,10 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
 
   // ── OVERVIEW ──
   if(!trackerProj){
-    const baseProjects=(canEdit||isAcct)
+    // Engineers see only projects they are assigned to
+  const baseProjects=isEngineerRole
+    ? projects.filter(p=>(p.assigned_engineers||[]).map(String).includes(String(myProfile?.id))&&(actsByProj[p.id]||[]).length>0)
+    : (canEdit||isAcct)
       ? projects
       : projects.filter(p=>(actsByProj[p.id]||[]).length>0);
     const allTrackerProjects=baseProjects.filter(p=>{
@@ -3272,7 +3280,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
               {canEdit&&<th style={{width:28}}></th>}
               <th>Activity</th><th>Status</th><th>Progress</th>
               <th>Assigned</th><th>Dates</th><th>Hours</th>
-              {canEdit&&<th style={{width:36}}></th>}
+              {(canEdit||isEngineerRole)&&<th style={{width:36}}></th>}
+              {canEdit&&<th style={{width:28}}></th>}
             </tr></thead>
             <tbody>
               {catActs.map(a=>(
@@ -3280,7 +3289,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
                   isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}
                   isSelected={bulkSelected.has(a.id)}
                   onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}
-                  onComment={canEdit?handleActivityComment:null} myProfile={myProfile}/>
+                  onComment={handleActivityComment} myProfile={myProfile} isEngineerRole={isEngineerRole}/>
               ))}
             </tbody>
           </table>)}
@@ -3297,7 +3306,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
             {canEdit&&<th style={{width:28}}></th>}
             <th>Activity</th><th>Status</th><th>Progress</th>
             <th>Assigned</th><th>Dates</th><th>Hours</th>
-            {canEdit&&<th style={{width:36}}></th>}
+            {(canEdit||isEngineerRole)&&<th style={{width:36}}></th>}
+            {canEdit&&<th style={{width:28}}></th>}
           </tr></thead>
           <tbody>
             {uncategorised.map(a=>(
@@ -3305,7 +3315,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
                 isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}
                 isSelected={bulkSelected.has(a.id)}
                 onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}
-                onComment={canEdit?handleActivityComment:null} myProfile={myProfile}/>
+                onComment={handleActivityComment} myProfile={myProfile} isEngineerRole={isEngineerRole}/>
             ))}
           </tbody>
         </table>
@@ -8259,9 +8269,11 @@ export default function App(){
 
       if(notifyCtx?.isNewComment && notifyCtx.commenterName){
         const newComment=comments[comments.length-1];
+        const proj=projects.find(p=>p.id===notifyCtx.projectId);
+        const projName=proj?.name||notifyCtx.projectId||"";
         const excerpt=(newComment?.text||"").slice(0,80);
-        const msgText=`${notifyCtx.commenterName} commented on "${notifyCtx.activityName}": "${excerpt}${excerpt.length>=80?"…":""}"`;
-        const isCommenter=e=>e.name===notifyCtx.commenterName;
+        const msgText=`${notifyCtx.commenterName} commented on "${notifyCtx.activityName}" · ${projName}: "${excerpt}${excerpt.length>=80?"…":""}"`;
+        const isCommenter=e=>notifyCtx.commenterName&&e.name&&e.name.trim()===notifyCtx.commenterName.trim();
 
         // Build recipient list: assigned engineer + project leader + all admins
         const recipientIds=new Set();
@@ -8272,7 +8284,6 @@ export default function App(){
           if(eng&&!isCommenter(eng)) recipientIds.add(String(eng.id));
         }
         // 2. Project Leader (stored on project record)
-        const proj=projects.find(p=>p.id===notifyCtx.projectId);
         if(proj?.project_leader){
           const ldr=engineers.find(e=>e.name===proj.project_leader);
           if(ldr&&!isCommenter(ldr)) recipientIds.add(String(ldr.id));
@@ -9464,7 +9475,9 @@ export default function App(){
         ()=>{ setEngineers(prev=>[...prev,eng].sort((a,b)=>a.name.localeCompare(b.name))); setEntries(prev=>[...savedEntries,...prev]); },
         async()=>{
           await supabase.from("time_entries").delete().eq("engineer_id",id);
+          // Clean notifications: direct engineer_id field (vacation) + activity_comment via meta pattern
           await supabase.from("notifications").delete().eq("engineer_id",id);
+          // Note: activity_comment notifications store recipient in meta — orphaned rows cleaned by RLS or periodic admin archive
           const{error}=await supabase.from("engineers").delete().eq("id",id);
           return error||null;
         },
@@ -10107,7 +10120,8 @@ export default function App(){
               <NavIcon id={n.id} active={view===n.id}/>
               {n.label}
               {n.id==="admin"&&unreadCount>0&&<span style={{marginLeft:"auto",background:"#ef4444",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{unreadCount}</span>}
-              {n.id==="timesheet"&&!isAdmin&&unreadCount>0&&<span style={{marginLeft:"auto",background:"#a78bfa",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{unreadCount}</span>}
+              {n.id==="projects"&&!isAdmin&&notifications.filter(n2=>n2.type==="activity_comment").length>0&&<span style={{marginLeft:"auto",background:"#a78bfa",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{notifications.filter(n2=>n2.type==="activity_comment").length}</span>}
+              {n.id==="timesheet"&&!isAdmin&&(()=>{const vc=notifications.filter(n2=>n2.type==="vacation_approved"||n2.type==="vacation_rejected").length;return vc>0?<span style={{marginLeft:"auto",background:"#34d399",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{vc}</span>:null;})()}
             </button>
           ))}
           <div style={{marginTop:14,borderTop:`1px solid var(--border)`,paddingTop:12,paddingLeft:6,paddingRight:6}}>
@@ -10703,41 +10717,6 @@ export default function App(){
                 );
               })()}
 
-              {/* Activity comment notifications — for engineer/lead: comments on their activities */}
-              {(()=>{
-                const commentNotifs=notifications.filter(n=>{
-                  if(n.type!=="activity_comment") return false;
-                  try{
-                    const m=JSON.parse(n.meta||"{}");
-                    return String(m.recipient_engineer_id)===String(viewEngId)||String(m.recipient_engineer_id)===String(myProfile?.id);
-                  }catch{return false;}
-                });
-                if(!commentNotifs.length) return null;
-                return(
-                  <div style={{display:"grid",gap:6,marginBottom:10}}>
-                    <div style={{fontSize:13,fontWeight:700,color:"#a78bfa",marginBottom:2}}>
-                      Activity Comments ({commentNotifs.length})
-                    </div>
-                    {commentNotifs.map(n=>(
-                      <div key={n.id} style={{display:"flex",alignItems:"flex-start",gap:12,
-                        background:"#a78bfa10",border:"1px solid #a78bfa40",
-                        borderRadius:10,padding:"10px 16px"}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:14,fontWeight:600,color:"var(--text0)"}}>{n.message}</div>
-                          <div style={{fontSize:12,color:"var(--text4)",marginTop:3}}>
-                            {new Date(n.created_at).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}
-                          </div>
-                        </div>
-                        <button onClick={async()=>{
-                          await supabase.from("notifications").delete().eq("id",n.id);
-                          setNotifications(prev=>prev.filter(x=>x.id!==n.id));
-                        }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:15,padding:"0 4px",flexShrink:0}}>✕</button>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-
               {/* Vacation outcome notifications — approved or rejected */}
               {(()=>{
                 const myOutcomes=notifications.filter(n=>
@@ -10937,17 +10916,76 @@ export default function App(){
           )}
 
           {/* ════ PROJECTS ════ */}
-          {view==="projects"&&<ProjectsView
-            projects={projects} projSearch={projSearch} setProjSearch={setProjSearch}
-            projStatusFilter={projStatusFilter} setProjStatusFilter={setProjStatusFilter}
-            monthEntries={monthEntries} projStats={projStats}
-            isAdmin={isAdmin} isAcct={isAcct} isLead={isLead}
-            setShowProjModal={setShowProjModal} setEditProjModal={setEditProjModal} deleteProject={deleteProject}
-            fmtCurrency={fmtCurrency}
-            activities={activities} setActivities={setActivities}
-            engineers={engineers} supabase={supabase} showToast={showToast}
-            setProjects={setProjects}
-          />}
+          {view==="projects"&&(()=>{
+            // ── Activity comment notifications for engineers/leads ──
+            const myCommentNotifs=!isAdmin ? notifications.filter(n=>{
+              if(n.type!=="activity_comment") return false;
+              try{ const m=JSON.parse(n.meta||"{}"); return String(m.recipient_engineer_id)===String(myProfile?.id); }
+              catch{ return false; }
+            }) : [];
+            return(<>
+              {myCommentNotifs.length>0&&(
+                <div style={{marginBottom:14,display:"grid",gap:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>Activity Comments</span>
+                    <span style={{background:"#a78bfa20",color:"#a78bfa",fontSize:12,fontWeight:700,padding:"1px 8px",borderRadius:10}}>{myCommentNotifs.length}</span>
+                  </div>
+                  {myCommentNotifs.map(n=>{
+                    let actName="",projName="",commenter="",commentText="";
+                    try{
+                      const m=JSON.parse(n.meta||"{}");
+                      actName=m.activity_name||"";
+                      projName=m.project_id||"";
+                      commenter=m.commenter||"";
+                      // Try to resolve project name
+                      const p=projects.find(x=>x.id===m.project_id);
+                      if(p) projName=p.name||m.project_id;
+                    }catch{}
+                    // Parse comment text from message: after the last ": "
+                    const msgParts=n.message?.split('": "');
+                    commentText=msgParts?.length>1?'"'+msgParts[msgParts.length-1]:n.message||"";
+                    return(
+                      <div key={n.id} style={{display:"flex",gap:12,alignItems:"flex-start",
+                        background:"#a78bfa09",border:"1px solid #a78bfa35",
+                        borderRadius:10,padding:"12px 16px"}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:700,color:"#a78bfa",marginBottom:3}}>
+                            {commenter}
+                            {actName&&<span style={{color:"var(--text3)",fontWeight:400}}> commented on </span>}
+                            {actName&&<span style={{color:"var(--text0)",fontWeight:600}}>{actName}</span>}
+                          </div>
+                          {projName&&<div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>
+                            Project: <span style={{color:"var(--info)",fontWeight:600}}>{projName}</span>
+                          </div>}
+                          <div style={{fontSize:13,color:"var(--text2)",background:"var(--bg2)",borderRadius:6,padding:"6px 10px",borderLeft:"2px solid #a78bfa",marginBottom:4}}>
+                            {commentText}
+                          </div>
+                          <div style={{fontSize:11,color:"var(--text4)"}}>
+                            {new Date(n.created_at).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}
+                          </div>
+                        </div>
+                        <button onClick={async()=>{
+                          await supabase.from("notifications").delete().eq("id",n.id);
+                          setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                        }} style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:14,padding:"2px 4px",flexShrink:0}} title="Dismiss">✕</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <ProjectsView
+                projects={projects} projSearch={projSearch} setProjSearch={setProjSearch}
+                projStatusFilter={projStatusFilter} setProjStatusFilter={setProjStatusFilter}
+                monthEntries={monthEntries} projStats={projStats}
+                isAdmin={isAdmin} isAcct={isAcct} isLead={isLead}
+                setShowProjModal={setShowProjModal} setEditProjModal={setEditProjModal} deleteProject={deleteProject}
+                fmtCurrency={fmtCurrency}
+                activities={activities} setActivities={setActivities}
+                engineers={engineers} supabase={supabase} showToast={showToast}
+                setProjects={setProjects}
+              />
+            </>);
+          })()}
 
           {/* ════ TEAM ════ */}
           {view==="team"&&(()=>{
@@ -11628,7 +11666,7 @@ export default function App(){
                       {id:"projtasks", label:"Project Analysis", show:isAdmin||isAcct||isLead||isSenior},
                     ]},
                     {group:"Projects",items:[
-                      {id:"tracker",   label:"Tracker Progress", show:isAdmin||isLead||isAcct||isSenior},
+                      {id:"tracker",   label:"Tracker Progress", show:true},
                     ]},
                     {group:"HR",items:[
                       {id:"vacation",  label:"Vacation & Leave", show:true},
@@ -12222,7 +12260,7 @@ export default function App(){
                   {id:"finance",  label:"Finance",      show:isAdmin||isAcct||isSenior},
                   {id:"functions",label:"Functions",    show:isAdmin||isLead||isAcct||isSenior},
                   {id:"kpis",     label:"KPIs",         show:true},
-                  {id:"tracker",  label:"Tracker",      show:isAdmin||isLead||isAcct||isSenior},
+                  {id:"tracker",  label:"Tracker",      show:true},
                   {id:"settings", label:"Info",         show:true},
                   {id:"actlog",   label:"Activity Log", show:isAdmin},
                 ].filter(t=>t.show).map(t=>{
@@ -12556,7 +12594,7 @@ export default function App(){
 
 
               {/* ══ PROJECT TRACKER ══ */}
-              {adminTab==="tracker"&&(isAdmin||isLead||isAcct||isSenior)&&(
+              {adminTab==="tracker"&&(
                 <ProjectTracker
                   projects={projects}
                   activities={activities}
@@ -12574,6 +12612,7 @@ export default function App(){
                   logAction={logAction}
                   showConfirm={showConfirm}
                   myProfile={myProfile}
+                  isEngineerRole={!isAdmin&&!isLead&&!isAcct&&!isSenior}
                   onActivityComment={appHandleActivityComment}
                   trackerProj={trackerProj}   setTrackerProj={setTrackerProj}
                   trackerSub={trackerSub}     setTrackerSub={setTrackerSub}
