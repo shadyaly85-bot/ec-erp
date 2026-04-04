@@ -2506,6 +2506,19 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
     if(error){if(showToast)showToast("Error: "+error.message,false);return;}
     if(setActivities)setActivities(prev=>[...prev,data]);
     await autoAssignEngineer(assigned_to);
+    // ── Notification: activity_assigned ──
+    if(assigned_to){
+      const aEng=engineers.find(e=>e.name===assigned_to);
+      if(aEng&&String(aEng.id)!==String(myProfile?.id)){
+        const aProj=projects.find(p=>p.id===projId);
+        supabase.from("notifications").insert({
+          type:"activity_assigned",read:false,
+          message:`You were assigned to "${activity_name}"${aProj?" · "+aProj.name:""}`,
+          created_at:new Date().toISOString(),
+          meta:JSON.stringify({recipient_engineer_id:String(aEng.id),project_id:projId,assigned_by:myProfile?.name})
+        }).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
+      }
+    }
     setAddModal(false);
     if(showToast)showToast("Activity added ✓");
   };
@@ -2828,9 +2841,39 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     const {id,...fields}=draft;
     const grp = CAT_TO_GROUP[fields.category]||fields.group_name||"SCADA";
     const payload={...fields, group_name:grp, category:fields.category||null, updated_at:new Date().toISOString()};
+    const prevActivity=activities.find(a=>a.id===id);
     const {data,error}=await supabase.from("project_activities").update(payload).eq("id",id).select().single();
     if(error){showToast("Error: "+error.message,false);return;}
     setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
+
+    // ── Notification: activity_assigned ──
+    if(fields.assigned_to && fields.assigned_to!==prevActivity?.assigned_to){
+      const assignedEng=engineers.find(e=>e.name===fields.assigned_to);
+      if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
+        const proj=projects.find(p=>p.id===fields.project_id);
+        const assignMsg=`You were assigned to "${fields.activity_name||data.activity_name}"${proj?" · "+proj.name:""}`;
+        supabase.from("notifications").insert({
+          type:"activity_assigned",read:false,message:assignMsg,
+          created_at:new Date().toISOString(),
+          meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,assigned_by:myProfile?.name})
+        }).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
+      }
+    }
+
+    // ── Notification: activity_status_changed ──
+    if(fields.status && fields.status!==prevActivity?.status && prevActivity?.assigned_to){
+      const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
+      if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
+        const proj=projects.find(p=>p.id===fields.project_id);
+        const statusMsg=`"${fields.activity_name||data.activity_name}" marked ${fields.status}${proj?" · "+proj.name:""}`;
+        supabase.from("notifications").insert({
+          type:"activity_status_changed",read:false,message:statusMsg,
+          created_at:new Date().toISOString(),
+          meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,status:fields.status})
+        }).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
+      }
+    }
+
     setEditActivity(null);
     logAction("UPDATE","Tracker",`Updated activity: ${fields.activity_name} on ${fields.project_id}`,{id,project_id:fields.project_id,activity:fields.activity_name,status:fields.status,progress:fields.progress});
     // Auto-assign engineer to project when assigned_to is set (covers sub-site activities too — always assign to parent project)
@@ -7712,6 +7755,7 @@ export default function App(){
   // Panel ALWAYS starts closed — user opens manually by clicking the bell header
   // sessionStorage remembers if user left it open (not closed)
   const [notifPanelOpen,setNotifPanelOpen] = useState(false);
+  const [bellOpen,setBellOpen]             = useState(false);
   const toggleNotifPanel = React.useCallback(()=>{
     setNotifPanelOpen(prev=>!prev);
   },[]);
@@ -8038,21 +8082,28 @@ export default function App(){
       // notifications — live bell updates without refresh
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications"},({new:row})=>{
         if(row.read) return;
-        // Scope personal notifications to the addressed recipient only (ALL roles)
-        if(row.type==="activity_comment"){
-          try{
-            const m=JSON.parse(row.meta||"{}");
-            if(String(m.recipient_engineer_id)!==String(myProfileRef.current?.id)) return;
-          }catch{ return; }
+        const _meId=String(myProfileRef.current?.id||"");
+        const _meRole=myProfileRef.current?.role_type||"engineer";
+        const _isAdminRT=_meRole==="admin";
+        const _isLeadRT=["admin","lead"].includes(_meRole);
+        // Recipient-scoped types — only show if addressed to this user
+        if(["activity_comment","activity_assigned","activity_status_changed"].includes(row.type)){
+          try{ const m=JSON.parse(row.meta||"{}"); if(String(m.recipient_engineer_id)!==_meId) return; }
+          catch{ return; }
         }
-        if(row.type==="vacation_approved"||row.type==="vacation_rejected"){
-          try{
-            const m=JSON.parse(row.meta||"{}");
-            if(String(m.engineer_id)!==String(myProfileRef.current?.id)) return;
-          }catch{ return; }
+        // Personal outcome types
+        if(["vacation_approved","vacation_rejected","vacation_cancelled"].includes(row.type)){
+          try{ const m=JSON.parse(row.meta||"{}"); if(String(m.engineer_id)!==_meId) return; }
+          catch{ return; }
         }
-        // vacation_request: only admin needs to action these
-        if(row.type==="vacation_request"&&!myProfileRef.current?.role_type?.match(/^admin$/)) return;
+        // vacation_request: admin always, lead only if notify_lead flag set
+        if(row.type==="vacation_request"){
+          if(_isAdminRT) {}// pass through
+          else if(_isLeadRT){ try{ const m=JSON.parse(row.meta||"{}"); if(!m.notify_lead||String(m.lead_id)!==_meId) return; }catch{ return; } }
+          else return;
+        }
+        // Admin/lead-only broadcast types
+        if(["new_signup","timesheet_alert","overdue_alert"].includes(row.type)&&!_isLeadRT) return;
         setNotifications(prev=>prev.some(n=>n.id===row.id)?prev:[row,...prev]);
       })
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"notifications"},({new:row})=>{
@@ -8133,19 +8184,29 @@ export default function App(){
         // vacation_approved/rejected: ALWAYS filter to the engineer who requested it
         // (admins must not load other engineers' approval notifications — they can accidentally dismiss them)
         // All other notification types: restricted roles see only their own; admins/leads see all
+        const isAdminRole=["admin"].includes(profRole);
+        const isLeadRole= ["admin","lead"].includes(profRole);
         const filtered = deduped.filter(n=>{
-          if(n.type==="activity_comment"){
+          // Personal addressed notifications — scoped to recipient regardless of role
+          if(["activity_comment","activity_assigned","activity_status_changed"].includes(n.type)){
             try{ const m=JSON.parse(n.meta||"{}"); return String(m.recipient_engineer_id)===String(profId); }
             catch{ return false; }
           }
-          if(n.type==="vacation_approved"||n.type==="vacation_rejected"){
+          // Personal outcome notifications — scoped to the requesting engineer
+          if(["vacation_approved","vacation_rejected","vacation_cancelled"].includes(n.type)){
             try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
             catch{ return false; }
           }
-          // vacation_request: only admin can approve — accountant/lead/senior have no action
-          if(n.type==="vacation_request") return isAdmin;
-          if(isRestrictedRole) return false; // engineers don't see admin-only types
-          return true; // admin/lead/senior/accountant see timesheet alerts, signup, overdue
+          // vacation_request: admin sees all; lead sees only their team's (keyed by lead_id)
+          if(n.type==="vacation_request"){
+            if(isAdminRole) return true;
+            if(isLeadRole){ try{ const m=JSON.parse(n.meta||"{}"); return m.notify_lead&&String(m.lead_id)===String(profId); }catch{return false;} }
+            return false;
+          }
+          // Admin/lead-only types
+          if(["new_signup","timesheet_alert","overdue_alert"].includes(n.type)) return isLeadRole;
+          if(isRestrictedRole) return false;
+          return true;
         });
         setNotifications(filtered);
       }
@@ -8465,6 +8526,25 @@ export default function App(){
       };
       supabase.from("notifications").insert(notif).select().single()
         .then(({data:nd})=>{ if(nd) setNotifications(prev=>[nd,...prev]); });
+      // Also notify the engineer's direct lead (if any) — lead manages team schedule
+      (async()=>{
+        const leadEng=engineers.find(e=>e.role_type==="lead"&&(()=>{
+          try{
+            const nodes=orgNodes||[];
+            const myNode=nodes.find(n=>String(n.engineer_id)===String(engId));
+            if(!myNode) return false;
+            return String(myNode.reports_to)===String(e.id);
+          }catch{return false;}
+        })());
+        if(leadEng){
+          const leadNotif={type:"vacation_request",read:false,
+            message:`${_reqEng?.name||"Someone"} requested Annual Leave on ${date} (your team)`,
+            created_at:new Date().toISOString(),
+            meta:JSON.stringify({entry_id:data.id,engineer_id:engId,engineer_name:_reqEng?.name,date,leave_type:newEntry.leaveType,notify_lead:true,lead_id:String(leadEng.id)})
+          };
+          supabase.from("notifications").insert(leadNotif).then(()=>{});
+        }
+      })();
       showToast("Vacation request submitted — pending admin approval ✓");
     } else {
       const hasNote = !!(newEntry.activity && newEntry.activity.trim().length > 2);
@@ -8609,6 +8689,15 @@ export default function App(){
     }
     const _engName=engineers.find(e=>String(e.id)===String(engineerId))?.name||engineerId;
     const _onBehalf=String(engineerId)!==String(myProfile?.id)?` on behalf of ${_engName}`:"";
+    // If admin deletes an approved leave → notify the engineer
+    if(isApprovedLeave && canEditAny){
+      const cancelMsg=`Your approved Annual Leave on ${entry.date} has been cancelled by admin`;
+      supabase.from("notifications").insert({
+        type:"vacation_cancelled",read:false,message:cancelMsg,
+        created_at:new Date().toISOString(),
+        meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:id,cancelled_by:myProfile?.name})
+      }).then(()=>{});
+    }
     showConfirm("This time entry will be permanently removed.",()=>{
       applyUndo(
         showToast,"Entry deleted",
@@ -8725,16 +8814,25 @@ export default function App(){
         const key = "overdue_activities_" + todayStr;
         const dismissed = new Set(JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"));
         if(!dismissed.has(key)){
-          setNotifications(prev=>{
-            if(prev.some(n=>n.type==="overdue_alert")) return prev;
-            return [...prev,{
-              id:"overdue_"+Date.now(), type:"overdue_alert", read:false,
-              created_at:new Date().toISOString(),
-              meta:JSON.stringify({alert_key:key, count:overdue.length,
-                projects:[...new Set(overdue.map(a=>a.project_id))].slice(0,3)
-              })
-            }];
-          });
+          // Persist to DB so overdue_alert survives page refresh
+          supabase.from("notifications").select("id").eq("type","overdue_alert")
+            .then(({data:existing})=>{
+              if(existing&&existing.length>0){
+                // Update existing row
+                supabase.from("notifications").update({
+                  message:`${overdue.length} tracker activit${overdue.length===1?"y":"ies"} past deadline`,
+                  meta:JSON.stringify({alert_key:key,count:overdue.length,projects:[...new Set(overdue.map(a=>a.project_id))].slice(0,3)}),
+                  created_at:new Date().toISOString()
+                }).eq("type","overdue_alert").then(()=>{});
+              } else {
+                supabase.from("notifications").insert({
+                  type:"overdue_alert",read:false,
+                  message:`${overdue.length} tracker activit${overdue.length===1?"y":"ies"} past deadline`,
+                  created_at:new Date().toISOString(),
+                  meta:JSON.stringify({alert_key:key,count:overdue.length,projects:[...new Set(overdue.map(a=>a.project_id))].slice(0,3)})
+                }).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[...prev.filter(n=>n.type!=="overdue_alert"),nd]);});
+              }
+            });
         }
       }
     },2500);
@@ -10139,12 +10237,10 @@ export default function App(){
             <div style={{fontSize:13,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>ENEVO Group</div>
           </div>
           {navItems.map(n=>(
-            <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>{setView(n.id);setMenuOpen(false);}}>
+            <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>{setView(n.id);setMenuOpen(false);setBellOpen(false);}}>
               <NavIcon id={n.id} active={view===n.id}/>
               {n.label}
-              {n.id==="admin"&&unreadCount>0&&<span style={{marginLeft:"auto",background:"#ef4444",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{unreadCount}</span>}
-              {n.id==="projects"&&!isAdmin&&notifications.filter(n2=>n2.type==="activity_comment").length>0&&<span style={{marginLeft:"auto",background:"#a78bfa",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{notifications.filter(n2=>n2.type==="activity_comment").length}</span>}
-              {n.id==="timesheet"&&!isAdmin&&(()=>{const vc=notifications.filter(n2=>n2.type==="vacation_approved"||n2.type==="vacation_rejected").length;return vc>0?<span style={{marginLeft:"auto",background:"#34d399",color:"#fff",fontSize:12,fontWeight:700,padding:"1px 5px",borderRadius:10,minWidth:18,textAlign:"center"}}>{vc}</span>:null;})()}
+              {/* notification badges moved to bell icon — top right */}
             </button>
           ))}
           <div style={{marginTop:14,borderTop:`1px solid var(--border)`,paddingTop:12,paddingLeft:6,paddingRight:6}}>
@@ -10188,6 +10284,188 @@ export default function App(){
             </div>
           </div>
         </div>
+
+
+        {/* ════ YOUTUBE-STYLE BELL — fixed top right ════ */}
+        {session&&!loading&&(()=>{
+          const bellCount=unreadCount;
+          // Type → icon + color mapping
+          const typeIcon=t=>t==="activity_comment"?"💬":t==="vacation_approved"?"✓":t==="vacation_rejected"?"✕":
+            t==="vacation_request"?"⏳":t==="timesheet_alert"?"⏰":t==="overdue_alert"?"⚠":
+            t==="activity_assigned"?"📋":t==="activity_status_changed"?"↺":
+            t==="vacation_cancelled"?"✕":t==="new_signup"?"👤":"•";
+          const typeColor=t=>t==="activity_comment"?"#a78bfa":t==="vacation_approved"?"#34d399":
+            t==="vacation_rejected"?"#f87171":t==="vacation_request"?"#f59e0b":
+            t==="timesheet_alert"?"#f87171":t==="overdue_alert"?"#fb923c":
+            t==="activity_assigned"?"#0ea5e9":t==="activity_status_changed"?"#22d3ee":
+            t==="vacation_cancelled"?"#f87171":t==="new_signup"?"#fb923c":"var(--text3)";
+          const typeLabel=t=>t==="activity_comment"?"Comment":t==="vacation_approved"?"Approved":
+            t==="vacation_rejected"?"Rejected":t==="vacation_request"?"Leave Request":
+            t==="timesheet_alert"?"Timesheet":t==="overdue_alert"?"Overdue":
+            t==="activity_assigned"?"Assigned":t==="activity_status_changed"?"Status Update":
+            t==="vacation_cancelled"?"Leave Cancelled":t==="new_signup"?"New Signup":"";
+          const fmtAgo=ts=>{
+            if(!ts) return "";
+            const diff=Date.now()-new Date(ts).getTime();
+            const m=Math.floor(diff/60000);
+            if(m<1) return "just now";
+            if(m<60) return m+"m ago";
+            const h=Math.floor(m/60);
+            if(h<24) return h+"h ago";
+            return Math.floor(h/24)+"d ago";
+          };
+          // Sort notifications: newest first
+          const sorted=[...notifications].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+          return(
+            <div style={{position:"fixed",top:16,right:24,zIndex:600}}>
+              {/* Bell button */}
+              <button
+                onClick={()=>setBellOpen(o=>!o)}
+                style={{position:"relative",background:bellOpen?"var(--bg3)":"var(--bg1)",border:`1px solid ${bellOpen?"var(--info)":"var(--border)"}`,borderRadius:12,padding:"8px 10px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s",boxShadow:bellOpen?"0 0 0 2px #0ea5e930":"0 2px 8px #00000030"}}
+                title={bellCount>0?`${bellCount} notification${bellCount!==1?"s":""}`:"No new notifications"}>
+                {/* Bell SVG */}
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={bellCount>0?"#f59e0b":"var(--text3)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{transition:"stroke .2s"}}>
+                  <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 01-3.46 0"/>
+                  {bellCount>0&&<path d="M6 8a6 6 0 0112 0" stroke="#f59e0b" strokeWidth="2.5"/>}
+                </svg>
+                {/* Unread badge */}
+                {bellCount>0&&(
+                  <span style={{position:"absolute",top:-6,right:-6,background:"#ef4444",color:"#fff",fontSize:11,fontWeight:800,minWidth:18,height:18,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",border:"2px solid var(--bg2)",fontFamily:"'IBM Plex Mono',monospace",lineHeight:1}}>
+                    {bellCount>99?"99+":bellCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Dropdown panel */}
+              {bellOpen&&(
+                <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:380,maxHeight:520,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:14,boxShadow:"0 8px 32px #00000050",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+                  {/* Header */}
+                  <div style={{padding:"14px 18px 10px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+                    <div>
+                      <span style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Notifications</span>
+                      {bellCount>0&&<span style={{marginLeft:8,fontSize:12,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>{bellCount} unread</span>}
+                    </div>
+                    {notifications.length>0&&(
+                      <button onClick={async()=>{
+                        // Delete all from DB (overdue_alert now persisted, has real id)
+                        const ids=notifications.map(n=>n.id).filter(id=>id!=null);
+                        if(ids.length) await supabase.from("notifications").delete().in("id",ids);
+                        // Also clear overdue dismissed key
+                        try{ const al=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");
+                          const ods=notifications.filter(n=>n.type==="overdue_alert").map(n=>{try{return JSON.parse(n.meta||"{}").alert_key;}catch{return null;}}).filter(Boolean);
+                          if(ods.length) localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...al,...ods])]));
+                        }catch{}
+                        setNotifications([]);
+                        setBellOpen(false);
+                      }} style={{background:"transparent",border:"none",color:"var(--text4)",fontSize:12,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",padding:"2px 6px",borderRadius:4}}
+                        onMouseEnter={e=>e.currentTarget.style.color="var(--info)"}
+                        onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>
+                        Dismiss all
+                      </button>
+                    )}
+                  </div>
+
+                  {/* List */}
+                  <div style={{overflowY:"auto",flex:1}}>
+                    {sorted.length===0&&(
+                      <div style={{padding:"32px 18px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
+                        <div style={{fontSize:28,marginBottom:8}}>🔔</div>
+                        All caught up
+                      </div>
+                    )}
+
+                    {/* Vacation approval requests — admin only, with action buttons */}
+                    {isAdmin&&(()=>{
+                      const pendingVacs=entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL");
+                      if(!pendingVacs.length) return null;
+                      return pendingVacs.map(e=>{
+                        const eng=engineers.find(x=>String(x.id)===String(e.engineer_id));
+                        const matchedNotif=notifications.find(n=>{try{return n.type==="vacation_request"&&JSON.parse(n.meta||"{}").entry_id===e.id;}catch{return false;}});
+                        return(
+                          <div key={e.id} style={{padding:"12px 18px",borderBottom:"1px solid var(--border3)",display:"flex",gap:12,alignItems:"flex-start",background:"#78350f08"}}>
+                            <div style={{width:32,height:32,borderRadius:"50%",background:"#f59e0b20",color:"#f59e0b",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700}}>⏳</div>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:2}}>
+                                <span style={{color:"#f59e0b"}}>{eng?.name||"Engineer"}</span> requested Annual Leave
+                              </div>
+                              <div style={{fontSize:12,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace",marginBottom:8}}>{e.date}</div>
+                              <div style={{display:"flex",gap:6}}>
+                                <button onClick={async()=>{
+                                  await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
+                                  setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
+                                  if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
+                                  const fb={type:"vacation_approved",read:false,message:`Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})};
+                                  supabase.from("notifications").insert(fb).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
+                                  showToast(`${eng?.name||"Vacation"} approved ✓`);
+                                }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:6,padding:"4px 12px",color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                                  ✓ Approve
+                                </button>
+                                <button onClick={async()=>{
+                                  await supabase.from("time_entries").delete().eq("id",e.id);
+                                  setEntries(prev=>prev.filter(x=>x.id!==e.id));
+                                  if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
+                                  const fb={type:"vacation_rejected",read:false,message:`Your Annual Leave on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})};
+                                  supabase.from("notifications").insert(fb).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
+                                  showToast(`${eng?.name||"Vacation"} rejected`,false);
+                                }} style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:6,padding:"4px 12px",color:"#f87171",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                                  ✕ Reject
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+
+                    {/* All other notifications */}
+                    {sorted.map(n=>{
+                      const ic=typeIcon(n.type);
+                      const cl=typeColor(n.type);
+                      const lbl=typeLabel(n.type);
+                      return(
+                        <div key={n.id} style={{padding:"11px 18px",borderBottom:"1px solid var(--border3)",display:"flex",gap:12,alignItems:"flex-start",transition:"background .15s"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="var(--bg2)"}
+                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          {/* Icon */}
+                          <div style={{width:32,height:32,borderRadius:"50%",background:cl+"18",color:cl,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700,border:`1px solid ${cl}25`}}>
+                            {ic}
+                          </div>
+                          {/* Content */}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}}>
+                              <span style={{fontSize:10,fontWeight:700,color:cl,textTransform:"uppercase",letterSpacing:".05em"}}>{lbl}</span>
+                              <span style={{fontSize:11,color:"var(--text4)",marginLeft:"auto",whiteSpace:"nowrap",fontFamily:"'IBM Plex Mono',monospace"}}>{fmtAgo(n.created_at)}</span>
+                            </div>
+                            <div style={{fontSize:13,color:"var(--text1)",lineHeight:1.45}}>{n.message}</div>
+                          </div>
+                          {/* Dismiss */}
+                          <button onClick={async()=>{
+                            if(typeof n.id==="string"&&n.id.startsWith("overdue_")){
+                              try{const m=JSON.parse(n.meta||"{}");if(m.alert_key){const prev=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,m.alert_key])]));}}catch{}
+                              setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                            } else {
+                              await supabase.from("notifications").delete().eq("id",n.id);
+                              setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                            }
+                          }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:14,padding:"2px 4px",flexShrink:0,lineHeight:1}}
+                            title="Dismiss"
+                            onMouseEnter={e=>e.currentTarget.style.color="#f87171"}
+                            onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Click-outside overlay */}
+              {bellOpen&&<div style={{position:"fixed",inset:0,zIndex:-1}} onClick={()=>setBellOpen(false)}/>}
+            </div>
+          );
+        })()}
 
         {/* ── Main Content ── */}
         <div className="app-content" style={{marginLeft:215,flex:1,padding:"24px 28px",maxWidth:"calc(100vw - 215px)",background:"var(--bg2)",color:"var(--text1)",minHeight:"100vh",transition:"background .3s"}}>
@@ -10740,34 +11018,7 @@ export default function App(){
                 );
               })()}
 
-              {/* Vacation outcome notifications — approved or rejected */}
-              {(()=>{
-                const myOutcomes=notifications.filter(n=>
-                  (n.type==="vacation_approved"||n.type==="vacation_rejected")&&
-                  (()=>{try{return String(JSON.parse(n.meta||"{}").engineer_id)===String(viewEngId);}catch{return false;}})()
-                );
-                if(!myOutcomes.length) return null;
-                return(
-                  <div style={{display:"grid",gap:6,marginBottom:10}}>
-                    {myOutcomes.map(n=>{
-                      const approved=n.type==="vacation_approved";
-                      return(
-                        <div key={n.id} style={{display:"flex",alignItems:"center",gap:12,
-                          background:approved?"#05603a20":"#7f1d1d20",
-                          border:`1px solid ${approved?"#34d39950":"#f8717150"}`,
-                          borderRadius:10,padding:"10px 16px"}}>
-                          <span style={{fontSize:18}}>{approved?"✓":"✕"}</span>
-                          <div style={{flex:1,fontSize:14,fontWeight:600,color:approved?"#34d399":"#f87171"}}>{n.message}</div>
-                          <button onClick={async()=>{
-                            await supabase.from("notifications").delete().eq("id",n.id);
-                            setNotifications(prev=>prev.filter(x=>x.id!==n.id));
-                          }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:15,padding:"0 4px"}}>✕</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+              {/* Vacation outcomes — shown in bell notification (top right) */}
 
               {/* 7-day week grid */}
               <div className="week-grid-7" style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:7}}>
@@ -10949,63 +11200,8 @@ export default function App(){
           )}
 
           {/* ════ PROJECTS ════ */}
-          {view==="projects"&&(()=>{
-            // ── Activity comment notifications for engineers/leads ──
-            const myCommentNotifs=!isAdmin ? notifications.filter(n=>{
-              if(n.type!=="activity_comment") return false;
-              try{ const m=JSON.parse(n.meta||"{}"); return String(m.recipient_engineer_id)===String(myProfile?.id); }
-              catch{ return false; }
-            }) : [];
-            return(<>
-              {myCommentNotifs.length>0&&(
-                <div style={{marginBottom:14,display:"grid",gap:8}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>Activity Comments</span>
-                    <span style={{background:"#a78bfa20",color:"#a78bfa",fontSize:12,fontWeight:700,padding:"1px 8px",borderRadius:10}}>{myCommentNotifs.length}</span>
-                  </div>
-                  {myCommentNotifs.map(n=>{
-                    let actName="",projName="",commenter="",commentText="";
-                    try{
-                      const m=JSON.parse(n.meta||"{}");
-                      actName=m.activity_name||"";
-                      projName=m.project_id||"";
-                      commenter=m.commenter||"";
-                      // Try to resolve project name
-                      const p=projects.find(x=>x.id===m.project_id);
-                      if(p) projName=p.name||m.project_id;
-                    }catch{}
-                    // Parse comment text from message: after the last ": "
-                    const msgParts=n.message?.split('": "');
-                    commentText=msgParts?.length>1?'"'+msgParts[msgParts.length-1]:n.message||"";
-                    return(
-                      <div key={n.id} style={{display:"flex",gap:12,alignItems:"flex-start",
-                        background:"#a78bfa09",border:"1px solid #a78bfa35",
-                        borderRadius:10,padding:"12px 16px"}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:700,color:"#a78bfa",marginBottom:3}}>
-                            {commenter}
-                            {actName&&<span style={{color:"var(--text3)",fontWeight:400}}> commented on </span>}
-                            {actName&&<span style={{color:"var(--text0)",fontWeight:600}}>{actName}</span>}
-                          </div>
-                          {projName&&<div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>
-                            Project: <span style={{color:"var(--info)",fontWeight:600}}>{projName}</span>
-                          </div>}
-                          <div style={{fontSize:13,color:"var(--text2)",background:"var(--bg2)",borderRadius:6,padding:"6px 10px",borderLeft:"2px solid #a78bfa",marginBottom:4}}>
-                            {commentText}
-                          </div>
-                          <div style={{fontSize:11,color:"var(--text4)"}}>
-                            {new Date(n.created_at).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}
-                          </div>
-                        </div>
-                        <button onClick={async()=>{
-                          await supabase.from("notifications").delete().eq("id",n.id);
-                          setNotifications(prev=>prev.filter(x=>x.id!==n.id));
-                        }} style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:14,padding:"2px 4px",flexShrink:0}} title="Dismiss">✕</button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+          {view==="projects"&&(()=>{ return(
+              <>
               <ProjectsView
                 projects={projects} projSearch={projSearch} setProjSearch={setProjSearch}
                 projStatusFilter={projStatusFilter} setProjStatusFilter={setProjStatusFilter}
@@ -12133,145 +12329,10 @@ export default function App(){
                      isLead?"Tracker · Team Hours · Team KPIs · Projects":"Your activities, KPI score & info"}
                   </p>
                 </div>
-                {isAdmin&&(unreadCount>0||entries.some(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL"))&&(
-                  <div style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:13,color:"#f87171",fontWeight:600}}>{unreadCount} item{unreadCount!==1?"s":""} need attention</span>
-                  </div>
-                )}
+
               </div>
 
-              {/* ── Notifications panel ── */}
-              {isAdmin&&notifications.length>0&&(()=>{
-                const signupNotifs  = notifications.filter(n=>n.type==="new_signup");
-                const alertNotifs2  = notifications.filter(n=>n.type==="timesheet_alert");
-                const otherNotifs   = notifications.filter(n=>n.type!=="new_signup"&&n.type!=="timesheet_alert");
-                const totalCount    = notifications.length;
-                return(
-                <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,overflow:"hidden"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 18px",cursor:"pointer",userSelect:"none",background:"var(--bg0)",borderBottom:notifPanelOpen?"1px solid var(--border)":"none"}}
-                    onClick={toggleNotifPanel}>
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--info)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M8 1.5a4.5 4.5 0 014.5 4.5c0 2.5.8 3.5 1.5 4.5H2c.7-1 1.5-2 1.5-4.5A4.5 4.5 0 018 1.5z"/><path d="M6.5 13.5a1.5 1.5 0 003 0"/>
-                    </svg>
-                    <span style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>Notifications</span>
-                    <span style={{background:"#ef444420",color:"#f87171",fontSize:13,fontWeight:700,padding:"2px 8px",borderRadius:10}}>{totalCount}</span>
-                    <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
-                      <button style={{background:"#f8717110",border:"1px solid #f8717130",borderRadius:6,padding:"4px 12px",color:"#f87171",fontSize:13,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}
-                        onClick={e=>{e.stopPropagation();
-                          const alertKeys=notifications.filter(n=>n.type==="timesheet_alert").map(n=>{try{return JSON.parse(n.meta||"{}").alert_key;}catch{return null;}}).filter(Boolean);
-                          if(alertKeys.length){const prev=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,...alertKeys])]));}
-                          const ids=notifications.map(n=>n.id); supabase.from("notifications").delete().in("id",ids); setNotifications([]);}}>
-                        Dismiss All
-                      </button>
-                      <span style={{fontSize:16,color:"var(--text4)",transform:notifPanelOpen?"rotate(0)":"rotate(-90deg)",display:"inline-block",transition:"transform 0.2s"}}>▾</span>
-                    </div>
-                  </div>
-                  {notifPanelOpen&&(
-                  <div style={{padding:"14px 18px",display:"grid",gap:12}}>
-
-                    {/* ── Vacation Approval Requests — admin only ── */}
-                    {isAdmin&&(()=>{
-                      const vacNotifs=notifications.filter(n=>n.type==="vacation_request");
-                      const pendingVacs=entries.filter(e=>
-                        e.entry_type==="leave" &&
-                        e.activity==="PENDING_APPROVAL"
-                      );
-                      if(pendingVacs.length===0&&vacNotifs.length===0) return null;
-                      return(
-                        <div>
-                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                            <span style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>⏳ Vacation Approval Requests</span>
-                            <span style={{background:"#f59e0b20",color:"#f59e0b",fontSize:12,fontWeight:700,padding:"1px 7px",borderRadius:8}}>{pendingVacs.length}</span>
-                          </div>
-                          <div style={{display:"grid",gap:6}}>
-                            {pendingVacs.length===0&&(
-                              <div style={{fontSize:13,color:"var(--text4)",padding:"8px 12px",background:"var(--bg2)",borderRadius:8}}>No pending vacation requests</div>
-                            )}
-                            {pendingVacs.map(e=>{
-                              const eng=engineers.find(x=>String(x.id)===String(e.engineer_id));
-                              const engRole=eng?.role_type||"engineer";
-                              const matchedNotif=vacNotifs.find(n=>{try{return JSON.parse(n.meta||"{}").entry_id===e.id;}catch{return false;}});
-                              return(
-                                <div key={e.id} style={{display:"flex",alignItems:"center",gap:12,background:"#78350f18",border:"1px solid #f59e0b40",borderRadius:10,padding:"12px 16px"}}>
-                                  <div className="av" style={{width:34,height:34,fontSize:13,flexShrink:0}}>{eng?.name?.slice(0,2).toUpperCase()||"?"}</div>
-                                  <div style={{flex:1,minWidth:0}}>
-                                    <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>{eng?.name||"Unknown"}</div>
-                                    <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
-                                      Annual Leave · <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{e.date}</span>
-                                      <span style={{marginLeft:6,fontSize:12,padding:"1px 6px",borderRadius:4,background:ROLE_COLORS[engRole]+"20",color:ROLE_COLORS[engRole]||"var(--text4)",fontWeight:600}}>{ROLE_LABELS[engRole]||engRole}</span>
-                                    </div>
-                                  </div>
-                                  <div style={{display:"flex",gap:6,flexShrink:0}}>
-                                    <button onClick={async()=>{
-                                      await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
-                                      setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
-                                      if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
-                                      // Send notification to requester
-                                      const fb={type:"vacation_approved",read:false,message:`✓ Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})};
-                                      supabase.from("notifications").insert(fb).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
-                                      showToast(`${eng?.name||"Vacation"} approved ✓`);
-                                    }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:7,padding:"6px 14px",color:"#34d399",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                                      ✓ Approve
-                                    </button>
-                                    <button onClick={async()=>{
-                                      await supabase.from("time_entries").delete().eq("id",e.id);
-                                      setEntries(prev=>prev.filter(x=>x.id!==e.id));
-                                      if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
-                                      // Send notification to requester
-                                      const fb={type:"vacation_rejected",read:false,message:`✕ Your Annual Leave request on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})};
-                                      supabase.from("notifications").insert(fb).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
-                                      showToast(`${eng?.name||"Vacation"} request rejected`,false);
-                                    }} style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:7,padding:"6px 14px",color:"#f87171",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                                      ✕ Reject
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {[
-                      {list:signupNotifs,  label:"New Signups",       color:"#fb923c", sub:"Engineers tab → set role"},
-                      {list:alertNotifs2,  label:"Timesheet Alerts",  color:"#f87171", sub:null},
-                      {list:notifications.filter(n=>n.type==="activity_comment"), label:"Activity Comments", color:"#a78bfa", sub:null},
-                      {list:otherNotifs.filter(n=>n.type!=="vacation_request"&&n.type!=="activity_comment"), label:"System", color:"var(--text3)", sub:null},
-                    ].filter(g=>g.list.length>0).map(grp=>(
-                      <div key={grp.label}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                          <span style={{fontSize:13,fontWeight:700,color:grp.color}}>{grp.label}</span>
-                          <span style={{background:grp.color+"20",color:grp.color,fontSize:12,fontWeight:700,padding:"1px 7px",borderRadius:8}}>{grp.list.length}</span>
-                          <button style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--text4)",fontSize:13,cursor:"pointer"}}
-                            onClick={()=>{
-                              const ids=grp.list.map(n=>n.id);
-                              supabase.from("notifications").delete().in("id",ids);
-                              setNotifications(prev=>prev.filter(n=>!ids.includes(n.id)));
-                            }}>Dismiss all</button>
-                        </div>
-                        <div style={{display:"grid",gap:5}}>
-                          {grp.list.map(n=>(
-                            <div key={n.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg2)",borderRadius:8,padding:"10px 14px",border:`1px solid ${grp.color}18`}}>
-                              <div style={{flex:1,minWidth:0}}>
-                                <div style={{fontSize:14,fontWeight:600,color:"var(--text0)"}}>{n.message}</div>
-                                <div style={{fontSize:12,color:"var(--text4)",marginTop:3}}>
-                                  {new Date(n.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})}
-                                  {grp.sub&&<span> · <span style={{color:"var(--info)"}}>{grp.sub}</span></span>}
-                                </div>
-                              </div>
-                              <button style={{flexShrink:0,background:"transparent",border:"1px solid var(--border)",borderRadius:6,padding:"4px 10px",color:"var(--text3)",fontSize:13,cursor:"pointer"}}
-                                onClick={()=>dismissNotification(n.id)}>✕</button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  )}
-                </div>
-                );
-              })()}
+              {/* Notifications panel moved to bell icon (top right) */}
 
               {/* ── Senior Management: read-only overview banner ── */}
               {isSenior&&!isAdmin&&(
