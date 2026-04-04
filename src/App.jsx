@@ -5750,7 +5750,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
             {MONTHS_.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
           </select>
           <select value={repYear} onChange={e=>setRepYear(+e.target.value)}
-            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
+            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer",minWidth:80}}>
             {Array.from({length:6},(_,i)=>new Date().getFullYear()-2+i).map(y=><option key={y}>{y}</option>)}
           </select>
           <button className="bp" onClick={handleExport} style={{padding:"6px 14px",fontSize:13,marginLeft:4}}>⬇ Export PDF</button>
@@ -10719,13 +10719,13 @@ export default function App(){
           <div style={{marginTop:14,borderTop:`1px solid var(--border)`,paddingTop:12,paddingLeft:6,paddingRight:6}}>
             <div style={{fontSize:12,color:"var(--text3)",fontWeight:700,letterSpacing:".1em",marginBottom:8}}>PERIOD</div>
             <div style={{marginBottom:8}}><Lbl>Month</Lbl>
-              <select value={month} onChange={e=>setMonth(+e.target.value)} style={{fontSize:13,padding:"5px 8px"}}>
+              <select value={month} onChange={e=>setMonth(+e.target.value)} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer",width:"100%"}}>
                 {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
               </select>
             </div>
             <div><Lbl>Year</Lbl>
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
+                <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer",minWidth:80}}>
                   {[year-2,year-1,year,year+1].map(y=><option key={y}>{y}</option>)}
                 </select>
                 {entriesLoading&&<span style={{fontSize:12,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>⟳ {year}</span>}
@@ -10786,10 +10786,10 @@ export default function App(){
                 <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
                   <div style={{display:"flex",alignItems:"center",gap:4,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px"}}>
                     <button style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:16,padding:"0 4px",lineHeight:1}} onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}}>‹</button>
-                    <select value={month} onChange={e=>setMonth(+e.target.value)} style={{background:"transparent",border:"none",color:"var(--text0)",fontSize:14,fontWeight:600,fontFamily:"'IBM Plex Sans',sans-serif",cursor:"pointer",outline:"none",padding:"0 2px"}}>
+                    <select value={month} onChange={e=>setMonth(+e.target.value)} style={{background:"transparent",border:"none",color:"var(--text0)",fontSize:14,fontWeight:600,fontFamily:"'IBM Plex Sans',sans-serif",cursor:"pointer",outline:"none",padding:"0 4px",minWidth:90}}>
                       {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
                     </select>
-                    <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
+                    <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"transparent",border:"none",color:"var(--text0)",fontSize:14,fontWeight:700,fontFamily:"'IBM Plex Mono',monospace",cursor:"pointer",outline:"none",padding:"0 4px",minWidth:58}}>
                       {Array.from({length:6},(_,i)=>new Date().getFullYear()-2+i).map(y=><option key={y}>{y}</option>)}
                     </select>
                     <button style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:16,padding:"0 4px",lineHeight:1}} onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}>›</button>
@@ -12850,7 +12850,7 @@ export default function App(){
                       </div>
                       <div>
                         <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Year</div>
-                        <select value={entryFilter.year} onChange={e=>setEntryFilter(p=>({...p,year:+e.target.value}))} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
+                        <select value={entryFilter.year} onChange={e=>setEntryFilter(p=>({...p,year:+e.target.value}))} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer",minWidth:80}}>
                           {[year-2,year-1,year,year+1].map(y=><option key={y}>{y}</option>)}
                         </select>
                       </div>
