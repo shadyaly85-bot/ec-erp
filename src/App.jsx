@@ -2090,7 +2090,13 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
     };
     const next=[...legacyBase,...localComments,c];
     setSubmitting(true);
-    const err=await onComment(act.id, next);
+    const err=await onComment(act.id, next, {
+      isNewComment: true,
+      commenterName: myProfile?.name,
+      assignedTo: act.assigned_to,
+      activityName: act.activity_name,
+      projectId: act.project_id
+    });
     if(!err){
       setLocalComments(next);  // ← update local state so draft picks it up on Save
       setCommentText("");
@@ -2110,7 +2116,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
     };
     const next=[...localComments,legacy];
     setSubmitting(true);
-    const err=await onComment(act.id, next);
+    const err=await onComment(act.id, next, null); // migration — no notification
     if(!err){
       setLocalComments(next);
       setDraft(p=>({...p,remarks:""}));
@@ -2121,7 +2127,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
   const removeComment=async cid=>{
     if(!onComment) return;
     const next=localComments.filter(c=>c.id!==cid);
-    const err=await onComment(act.id, next);
+    const err=await onComment(act.id, next, null); // deletion — no notification
     if(!err) setLocalComments(next);
   };
 
@@ -2574,7 +2580,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
         onSave={confirmAdd} onClose={()=>setAddModal(false)} engineers={engineers}/>}
       {editAct&&<ActivityEditModal act={editAct}
         onSave={saveAct} onClose={()=>setEditAct(null)} engineers={engineers}
-        onComment={async(actId,comments)=>{
+        onComment={async(actId,comments,notifyCtx)=>{
           const{error}=await supabase.from("project_activities").update({comments}).eq("id",actId);
           if(!error) setActivities(prev=>prev.map(a=>a.id===actId?{...a,comments}:a));
           return error||null;
@@ -2752,7 +2758,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
 /* ════════════════════════════════════════════════════════
    PROJECT TRACKER — standalone component
    ════════════════════════════════════════════════════════ */
-function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, showToast, logAction, showConfirm, myProfile,
+function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, activitiesLoaded, setActivities, setProjects, setNotifications, showToast, logAction, showConfirm, myProfile,
   trackerProj,  setTrackerProj,
   trackerSub,   setTrackerSub,
   trackerSearch, setTrackerSearch,
@@ -2964,17 +2970,58 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   },[setActivities,activities,logAction,showConfirm,showToast]);
 
   // ── Comment thread handler — adds/updates/removes comments on an activity ──
-  const handleActivityComment = useCallback(async(actId, comments)=>{
+  const handleActivityComment = useCallback(async(actId, comments, notifyCtx)=>{
     const{error}=await supabase.from("project_activities")
       .update({comments})
       .eq("id",actId);
     if(!error){
       setActivities(prev=>prev.map(a=>a.id===actId?{...a,comments}:a));
+
+      // ── Notify assigned engineer + leads when a NEW comment is added ──
+      if(notifyCtx && notifyCtx.isNewComment && notifyCtx.commenterName){
+        const newComment=comments[comments.length-1];
+        const excerpt=(newComment?.text||"").slice(0,80);
+        const msg=`${notifyCtx.commenterName} commented on "${notifyCtx.activityName}": "${excerpt}${excerpt.length>=80?"…":""}"`;
+        const meta=JSON.stringify({activity_id:actId,activity_name:notifyCtx.activityName,commenter:notifyCtx.commenterName,project_id:notifyCtx.projectId});
+
+        // Collect unique engineer IDs to notify (exclude the commenter)
+        const toNotify=new Set();
+        // 1. Assigned engineer
+        if(notifyCtx.assignedTo){
+          const eng=engineers.find(e=>e.name===notifyCtx.assignedTo);
+          if(eng&&eng.name!==notifyCtx.commenterName) toNotify.add(eng.id);
+        }
+        // 2. Leads + admins who are in the project's assigned_engineers
+        const proj=projects.find(p=>p.id===notifyCtx.projectId);
+        const projAssigned=new Set((proj?.assigned_engineers||[]).map(String));
+        engineers.forEach(e=>{
+          if((e.role_type==="lead"||e.role_type==="admin")
+            &&projAssigned.has(String(e.id))
+            &&e.name!==notifyCtx.commenterName){
+            toNotify.add(e.id);
+          }
+        });
+
+        if(toNotify.size>0){
+          const now=new Date().toISOString();
+          const notifs=[...toNotify].map(eid=>({
+            engineer_id:eid, type:"activity_comment", read:false,
+            message:msg, created_at:now, meta
+          }));
+          const{data:inserted}=await supabase.from("notifications").insert(notifs).select();
+          if(inserted&&setNotifications){
+            // Add to local state for recipients who are the current user
+            const myId=String(myProfile?.id);
+            const mine=inserted.filter(n=>String(n.engineer_id)===myId);
+            if(mine.length) setNotifications(prev=>[...mine,...prev]);
+          }
+        }
+      }
     } else {
       showToast("Comment error — the 'comments' column may not exist yet. Run the SQL migration in Admin → Info.",false);
     }
     return error||null;
-  },[supabase,setActivities,showToast]);
+  },[supabase,setActivities,setNotifications,showToast,engineers,projects,myProfile]);
   if(!activitiesLoaded) return(
     <div style={{padding:32,textAlign:"center",color:"var(--text4)",fontSize:15}}>Loading project tracker…</div>
   );
@@ -12453,6 +12500,7 @@ export default function App(){
                   activitiesLoaded={activitiesLoaded}
                   setActivities={setActivities}
                   setProjects={setProjects}
+                  setNotifications={setNotifications}
                   showToast={showToast}
                   logAction={logAction}
                   showConfirm={showConfirm}
@@ -12495,11 +12543,11 @@ export default function App(){
                     <div style={{display:"grid",gap:10}}>
                       {[
                         {title:"Post Hours (Timesheet)",    show:!isAcct&&!isSenior, color:"var(--info)",   text:"Go to Post Hours → click any working day cell → choose entry type (Work / Leave / Function). Select project, task, hours and add a description (required for KPI score). Press Enter or click the green cell to save."},
-                        {title:"Vacation Leave",            show:!isAcct&&!isSenior, color:"#34d399",      text:"In Post Hours, click a day → select Leave → Annual Leave. Your request goes to admin for approval. You can track your remaining balance in the stats bar at the top (21 days default). Annual leave from other engineers shows as pending in your notifications if you are admin."},
+                        {title:"How to Submit Vacation",    show:!isAcct&&!isSenior, color:"#34d399",      text:"1. Go to Post Hours. 2. Click on the day you want to take off. 3. Select Leave as the entry type. 4. Choose Annual Leave from the leave type dropdown. 5. Click Save — your request is sent to admin as PENDING APPROVAL. 6. You will receive an in-app notification when your leave is approved or rejected. Your remaining balance updates automatically in the stats bar once approved (21 days default per year, adjusted by admin)."},
                         {title:"Project Tracker",           show:isAdmin||isLead,    color:"#a78bfa",      text:"Admin › Tracker. Each project shows activity cards grouped by category. Click any activity to edit status, progress, dates, and assigned engineer. Use the comment thread inside Edit Activity to follow up with engineers — comments are timestamped and attributed. Export a full project PDF or individual sub-site PDFs from the Tracker Progress Report."},
-                        {title:"Activity Comments",         show:isAdmin||isLead,    color:"#fb923c",      text:"Open Edit Activity → scroll to COMMENTS at the bottom. Type your note and press Enter to send. If the activity had a Remarks entry, a migration banner appears — click 'Move to Comments' to preserve it in the thread. Comments appear in the Tracker Progress Report PDF with full timestamps."},
-                        {title:"Reports & PDF Export",      show:!isEngineer,        color:"var(--info)",  text:"Go to Reports & PDF in the sidebar. Choose from: Team Utilization, Assignment Report, Timesheets, Task Analysis, Tracker Progress, Vacation & Leave, Monthly Management, and Invoice Export. Most reports respect your role scope (leads see their subtree only)."},
-                        {title:"Assignment Report",         show:!isEngineer,        color:"#34d399",      text:"Reports › Assignment. Shows which engineers are assigned to which projects, including engineers with 0 hours logged that month. Active projects only by default — check 'Include On Hold & Completed' to see all. Engineers from project's assigned_engineers list always appear even with no hours."},
+                        {title:"Activity Comments",         show:isAdmin||isLead,    color:"#fb923c",      text:"Open Edit Activity → scroll to COMMENTS at the bottom. Type your note and press Enter to send. The assigned engineer and team lead are notified automatically when a comment is posted. If the activity had a Remarks entry, a migration banner appears — click 'Move to Comments' to preserve it in the thread. Comments appear in the Tracker Progress Report PDF with full timestamps."},
+                        {title:"Reports & PDF Export",      show:isAdmin||isLead||isAcct||isSenior, color:"var(--info)",  text:"Go to Reports & PDF in the sidebar. Choose from: Team Utilization, Assignment Report, Timesheets, Task Analysis, Tracker Progress, Vacation & Leave, Monthly Management, and Invoice Export. Most reports respect your role scope (leads see their subtree only)."},
+                        {title:"Assignment Report",         show:isAdmin||isLead||isAcct||isSenior, color:"#34d399",      text:"Reports › Assignment. Shows which engineers are assigned to which projects, including engineers with 0 hours logged that month. Active projects only by default — check 'Include On Hold & Completed' to see all. Engineers from project's assigned_engineers list always appear even with no hours."},
                         {title:"Finance Module",            show:isAdmin||isAcct,    color:"#a78bfa",      text:"Admin › Finance. Tabs: Journal (double-entry bookkeeping), Balance Sheet, Expenses, Cash Custody, P&L, Payroll, Fixed Assets, Tax & Social, and Reports. All figures are EGP. Use the EGP Rate override to convert USD salary entries. The Guide tab has step-by-step month-close instructions."},
                         {title:"KPI Score",                 show:!isAcct&&!isSenior, color:"#fb923c",      text:"Admin › KPIs (or My KPIs for engineers). Your score is out of 120 — covering billable hours, coverage, note quality, function entries, project diversity, and timesheet compliance. Posting hours without a description reduces your note quality score. Aim for 96+ for High Performer."},
                         {title:"Org Chart",                 show:isAdmin,            color:"var(--info)",  text:"Team page → Org Chart tab. Click Edit Chart to drag cards into place. Engineers are shown with their reporting line. The org chart also controls lead scoping — a lead sees only engineers in their org subtree."},
@@ -12519,6 +12567,7 @@ export default function App(){
                     <div style={{display:"grid",gap:8}}>
                       {[
                         {tag:"Tracker",   color:"#a78bfa", text:"Activity comment threads — open Edit Activity to see the Comments section. Timestamped, attributed to author, supports threaded follow-up between admin and leads. Migrates existing Remarks automatically."},
+                        {tag:"Notify",    color:"#34d399", text:"Comment notifications — when a comment is posted on an activity, the assigned engineer and all leads/admins in the project are notified automatically via the bell icon. The commenter is never notified of their own comment."},
                         {tag:"Tracker",   color:"#a78bfa", text:"Sub-site PDF export — in Tracker Progress Report, select a project to reveal per-sub-site export buttons. Each sub-site generates its own focused PDF with activities, progress, comments and timestamps."},
                         {tag:"Tracker",   color:"#a78bfa", text:"Tracker Progress Report now shows Active projects only by default. Toggle 'Include On Hold & Completed projects' to see all."},
                         {tag:"Comments",  color:"#fb923c", text:"Comments appear in the Tracker Progress Report PDF with author, role, and full timestamp (date + time)."},
