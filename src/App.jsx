@@ -7377,7 +7377,7 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
-function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiEngId,kpiNotes,setKpiNotes,isAdmin,isLead,isAcct,isEngineer,myProfile,year,notifications,onDismissNotif,alertDay,setAlertDay,alertTime,setAlertTime,showToast,supabase,setEntries,setNotifications,setNotifHistory,insertNotif}){
+function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiEngId,kpiNotes,setKpiNotes,isAdmin,isLead,isAcct,isEngineer,myProfile,year,notifications,onDismissNotif,alertDay,setAlertDay,alertTime,setAlertTime,showToast,supabase,setEntries,setNotifications,setNotifHistory,insertNotif,logAction}){
 
   const canManageKPI = isAdmin||isLead;
   // Engineers auto-locked to their own profile
@@ -7452,56 +7452,95 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
 
   // Approve/reject vacation
   const approveVacation=async(entryId,notifId)=>{
-    if(!supabase) return;
+    if(!supabase){showToast("No DB connection",false);return;}
     const entry=entries.find(e=>e.id===entryId);
+    console.log("[EC-ERP] approveVacation — entry:",entry,"entryId:",entryId);
+    // 1. Optimistic UI update
     setEntries&&setEntries(prev=>prev.map(e=>e.id===entryId?{...e,activity:null}:e));
-    await supabase.from("time_entries").update({activity:null}).eq("id",entryId);
-    // Mark vacation_request notification as read → moves to admin's history (not deleted)
+    // 2. DB update
+    const{error:ue}=await supabase.from("time_entries").update({activity:null}).eq("id",entryId);
+    if(ue) console.error("[EC-ERP] time_entries update error:",ue.message);
+    // 3. Move vacation_request notification to history
     if(notifId){
       await supabase.from("notifications").update({read:true}).eq("id",notifId);
-      const _notif=setNotifications&&(notifications||[]).find(n=>n.id===notifId);
+      const _notif=(notifications||[]).find(n=>n.id===notifId);
       setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId));
-      if(_notif) setNotifHistory&&setNotifHistory(prev=>[{..._notif,read:true},...prev].slice(0,80));
+      if(_notif&&setNotifHistory) setNotifHistory(prev=>[{..._notif,read:true},...prev].slice(0,80));
     }
+    // 4. Send vacation_approved notification — direct insert, no helper, no prop chain
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
-      const feedback={
+      const _payload={
         type:"vacation_approved",engineer_id:entry.engineer_id,read:false,
         message:`✓ Your Annual Leave on ${entry.date} has been approved`,
         created_at:new Date().toISOString(),
-        meta:JSON.stringify({engineer_id:entry.engineer_id,date:entry.date,entry_id:entryId})
+        meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:entryId})
       };
-      // Fire-and-forget: engineer receives via realtime INSERT or loadAll on next login
-      // Do NOT add to admin state — admin dismissing their bell would delete it before engineer sees it
-      await insertNotif(feedback);
+      console.log("[EC-ERP] Inserting vacation_approved notification:",_payload);
+      const{error:ne}=await supabase.from("notifications").insert(_payload);
+      if(ne){
+        console.warn("[EC-ERP] vacation_approved insert failed:",ne.message,"— trying fallback without engineer_id column");
+        const{engineer_id:_eid,..._rest}=_payload;
+        const _meta={...JSON.parse(_rest.meta||"{}"),_eng_id:String(_eid)};
+        const{error:ne2}=await supabase.from("notifications").insert({..._rest,meta:JSON.stringify(_meta)});
+        if(ne2){
+          console.error("[EC-ERP] vacation_approved BOTH inserts failed:",ne2.message);
+          showToast("⚠ Approval sent but notification failed: "+ne2.message,false);
+        } else {
+          console.log("[EC-ERP] vacation_approved sent via meta fallback ✓");
+        }
+      } else {
+        console.log("[EC-ERP] vacation_approved notification inserted ✓");
+      }
       logAction("UPDATE","TimeEntry",`Approved vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
+    } else {
+      console.error("[EC-ERP] approveVacation — entry not found in state! entryId:",entryId,"entries count:",entries.length);
+      showToast("⚠ Approval saved but entry not found — refresh and check",false);
     }
     showToast("Vacation approved ✓");
   };
   const rejectVacation=async(entryId,notifId)=>{
-    if(!supabase) return;
+    if(!supabase){showToast("No DB connection",false);return;}
     const entry=entries.find(e=>e.id===entryId);
+    console.log("[EC-ERP] rejectVacation — entry:",entry,"entryId:",entryId);
     setEntries&&setEntries(prev=>prev.filter(e=>e.id!==entryId));
-    await supabase.from("time_entries").delete().eq("id",entryId);
-    // Mark vacation_request notification as read → moves to admin's history (not deleted)
+    const{error:de}=await supabase.from("time_entries").delete().eq("id",entryId);
+    if(de) console.error("[EC-ERP] time_entries delete error:",de.message);
     if(notifId){
       await supabase.from("notifications").update({read:true}).eq("id",notifId);
-      const _notif=setNotifications&&(notifications||[]).find(n=>n.id===notifId);
+      const _notif2=(notifications||[]).find(n=>n.id===notifId);
       setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId));
-      if(_notif) setNotifHistory&&setNotifHistory(prev=>[{..._notif,read:true},...prev].slice(0,80));
+      if(_notif2&&setNotifHistory) setNotifHistory(prev=>[{..._notif2,read:true},...prev].slice(0,80));
     }
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
-      const feedback={
+      const _payload={
         type:"vacation_rejected",engineer_id:entry.engineer_id,read:false,
         message:`✕ Your Annual Leave request on ${entry.date} was not approved`,
         created_at:new Date().toISOString(),
-        meta:JSON.stringify({engineer_id:entry.engineer_id,date:entry.date,entry_id:entryId})
+        meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:entryId})
       };
-      await insertNotif(feedback);
+      console.log("[EC-ERP] Inserting vacation_rejected notification:",_payload);
+      const{error:ne}=await supabase.from("notifications").insert(_payload);
+      if(ne){
+        console.warn("[EC-ERP] vacation_rejected insert failed:",ne.message);
+        const{engineer_id:_eid,..._rest}=_payload;
+        const _meta={...JSON.parse(_rest.meta||"{}"),_eng_id:String(_eid)};
+        const{error:ne2}=await supabase.from("notifications").insert({..._rest,meta:JSON.stringify(_meta)});
+        if(ne2){
+          console.error("[EC-ERP] vacation_rejected BOTH inserts failed:",ne2.message);
+          showToast("⚠ Rejection saved but notification failed: "+ne2.message,false);
+        } else {
+          console.log("[EC-ERP] vacation_rejected sent via fallback ✓");
+        }
+      } else {
+        console.log("[EC-ERP] vacation_rejected notification inserted ✓");
+      }
       logAction("DELETE","TimeEntry",`Rejected vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
+    } else {
+      console.error("[EC-ERP] rejectVacation — entry not found! entryId:",entryId);
     }
-    showToast("Vacation request rejected",false);
+    showToast("Vacation request rejected",false)
   };
 
   // Score gauge (SVG arc)
@@ -8559,11 +8598,13 @@ export default function App(){
   },[notifications]);
 
   const markAllRead=async()=>{
-    // Delete all read notifications to keep table clean
-    const ids=notifications.filter(n=>!n.read).map(n=>n.id);
-    if(!ids.length) return;
-    await supabase.from("notifications").delete().in("id",ids);
-    setNotifications(prev=>prev.filter(n=>n.read));
+    // Mark all unread as read → moves them to history
+    const unread=notifications.filter(n=>!n.read);
+    if(!unread.length) return;
+    const ids=unread.map(n=>n.id);
+    await supabase.from("notifications").update({read:true}).in("id",ids);
+    setNotifHistory(prev=>[...unread.map(n=>({...n,read:true})),...prev].slice(0,80));
+    setNotifications([]);
   };
 
   /* ── WEEKEND SAVE ── */
@@ -12929,7 +12970,7 @@ export default function App(){
                   myProfile={myProfile}
                   year={year} notifications={notifications}
                   onDismissNotif={dismissNotification}
-                  alertDay={alertDay} setAlertDay={setAlertDay} alertTime={alertTime} setAlertTime={setAlertTime} insertNotif={insertNotif} setNotifHistory={setNotifHistory}
+                  alertDay={alertDay} setAlertDay={setAlertDay} alertTime={alertTime} setAlertTime={setAlertTime} insertNotif={insertNotif} setNotifHistory={setNotifHistory} logAction={logAction}
                   showToast={showToast} supabase={supabase}
                   setEntries={setEntries} setNotifications={setNotifications}
                 />
