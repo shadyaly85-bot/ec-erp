@@ -437,6 +437,12 @@ function applyUndo(showToast, label, removeUI, restoreUI, dbDelete, logFn){
 
 /* ── CONFIRM DIALOG — replaces window.confirm everywhere ── */
 function ConfirmModal({dlg}){
+  React.useEffect(()=>{
+    if(!dlg) return;
+    const handle=e=>{ if(e.key==="Escape") dlg.onCancel&&dlg.onCancel(); };
+    window.addEventListener("keydown",handle);
+    return()=>window.removeEventListener("keydown",handle);
+  },[dlg]);
   if(!dlg) return null;
   return(
     <div style={{position:"fixed",inset:0,background:"#00000099",backdropFilter:"blur(6px)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}
@@ -1635,7 +1641,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
   // Monthly breakdown
   const monthly=engineers.map(eng=>{
-    const el=leaveEntries.filter(e=>String(e.engineer_id)===String(eng.id));
+    const el=leaveEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.activity!=="PENDING_APPROVAL");
     const byType={};
     el.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
     return{...eng,total:el.length,byType,days:el.sort((a,b)=>a.date.localeCompare(b.date))};
@@ -1643,7 +1649,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
   // Year-to-date
   const ytd=engineers.map(eng=>{
-    const el=allEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave"&&new Date(e.date).getFullYear()===year);
+    const el=allEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave"&&e.activity!=="PENDING_APPROVAL"&&new Date(e.date).getFullYear()===year);
     const byType={};
     el.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
     return{...eng,total:el.length,byType};
@@ -1732,6 +1738,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
         const yearBalances = (vacationBalances||{})[year]||{};
         const annualOnly   = allEntries.filter(e=>
           e.entry_type==="leave" && (e.leave_type==="Annual Leave"||!e.leave_type) &&
+          e.activity!=="PENDING_APPROVAL" &&  // exclude pending — not yet approved
           new Date(e.date+"T12:00:00").getFullYear()===year
         );
         const rows = engineers
@@ -2499,7 +2506,6 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   // ── Callbacks ──
   const saveActivity = useCallback(async(draft)=>{
     const {id,...fields}=draft;
-    // group_name = parent group (SCADA/RTU-PLC/...), category = sub-category (Displays/Templates/...)
     const grp = CAT_TO_GROUP[fields.category]||fields.group_name||"SCADA";
     const payload={...fields, group_name:grp, category:fields.category||null, updated_at:new Date().toISOString()};
     const {data,error}=await supabase.from("project_activities").update(payload).eq("id",id).select().single();
@@ -2507,8 +2513,24 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
     setEditActivity(null);
     logAction("UPDATE","Tracker",`Updated activity: ${fields.activity_name} on ${fields.project_id}`,{id,project_id:fields.project_id,activity:fields.activity_name,status:fields.status,progress:fields.progress});
+    // Auto-assign engineer to project when assigned_to is set (covers sub-site activities too — always assign to parent project)
+    if(fields.assigned_to){
+      const eng=engineers.find(e=>e.name===fields.assigned_to);
+      if(eng){
+        const projId=fields.project_id;
+        const proj=projects.find(p=>p.id===projId);
+        const ae=(proj?.assigned_engineers||[]).map(String);
+        if(!ae.includes(String(eng.id))){
+          const newAe=[...ae,String(eng.id)];
+          await supabase.from("projects").update({assigned_engineers:newAe}).eq("id",projId);
+          setProjects(prev=>prev.map(p=>p.id===projId?{...p,assigned_engineers:newAe}:p));
+          showToast(`${fields.assigned_to} added to ${projId} team ✓`);
+          return; // showToast already called
+        }
+      }
+    }
     showToast("Activity saved ✓");
-  },[setActivities,showToast,logAction]);
+  },[setActivities,showToast,logAction,engineers,projects,setProjects]);
 
   const confirmAdd = useCallback(async({category,activity_name,start_date,end_date,assigned_to})=>{
     if(!addModal) return;
@@ -2591,11 +2613,27 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     const{data,error}=await supabase.from("project_activities").insert(inserts).select();
     if(error){showToast("Paste failed: "+error.message,false);return;}
     if(data) setActivities(prev=>[...prev,...data]);
+    // Auto-assign all pasted engineers to the target project
+    const proj=projects.find(p=>p.id===targetProj);
+    let ae=(proj?.assigned_engineers||[]).map(String);
+    let assigned=false;
+    for(const a of actClipboard.acts){
+      if(!a.assigned_to) continue;
+      const eng=engineers.find(e=>e.name===a.assigned_to);
+      if(eng&&!ae.includes(String(eng.id))){
+        ae=[...ae,String(eng.id)];
+        assigned=true;
+      }
+    }
+    if(assigned){
+      await supabase.from("projects").update({assigned_engineers:ae}).eq("id",targetProj);
+      setProjects(prev=>prev.map(p=>p.id===targetProj?{...p,assigned_engineers:ae}:p));
+    }
     const destName=projects.find(p=>p.id===targetProj)?.name||targetProj;
     showToast(`${inserts.length} activit${inserts.length===1?"y":"ies"} pasted into ${destName} ✓`);
     logAction("CREATE","Tracker",`Pasted ${inserts.length} activities from ${actClipboard.fromProjName} → ${destName}`,{count:inserts.length,from:actClipboard.fromProj,to:targetProj});
     setPasteTargetProj(""); setPasteTargetSub("");
-  },[actClipboard,pasteTargetProj,pasteTargetSub,trackerProj,actsByProj,projects,setActivities,showToast,logAction]);
+  },[actClipboard,pasteTargetProj,pasteTargetSub,trackerProj,actsByProj,projects,engineers,setActivities,setProjects,showToast,logAction]);
 
   const deleteActivity = useCallback(async(id)=>{
     const act=activities.find(a=>a.id===id);
@@ -5451,8 +5489,10 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
   const actions = React.useMemo(()=>["ALL",...new Set(source.map(l=>l.action))].sort(),[source]);
   const users   = React.useMemo(()=>["ALL",...new Set(source.map(l=>l.user_name).filter(Boolean))].sort(),[source]);
 
+  // Reset page when filters change — use separate effect, NOT inside useMemo
+  React.useEffect(()=>{ setPage(0); },[source,modFilter,actFilter,userFilter,dateFrom,dateTo,search]);
+
   const filtered = React.useMemo(()=>{
-    setPage(0);
     return source.filter(l=>{
       if(modFilter!=="ALL"  && l.module!==modFilter)    return false;
       if(actFilter!=="ALL"  && l.action!==actFilter)    return false;
@@ -5723,7 +5763,7 @@ function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, set
 const totalPayrollUSD=activeStaff.reduce((s,x)=>s+(x.salary_usd||0),0);
 const totalPayrollEGP=activeStaff.reduce((s,x)=>s+(x.salary_egp||0),0);
 
-const toUSD=(usd,egp,rate)=>(usd&&usd>0)?usd:((egp||0)/(rate||egpRate));
+const toUSD=(usd,egp,rate)=>(usd&&usd>0)?usd:((egp||0)/(rate||egpRate||1));
 
 const allJoinDates=activeStaff.map(s=>s.join_date).filter(Boolean).map(d=>new Date(d));
 const companyStart=allJoinDates.length>0?new Date(Math.min(...allJoinDates)):null;
@@ -5836,7 +5876,7 @@ const projProfit=projects.map(p=>{
     <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
       <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:6}}>
         <span style={{fontSize:12,color:"var(--text4)",whiteSpace:"nowrap"}}>EGP / $</span>
-        <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value))}
+        <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value||1))}
           title="Used for EGP salary → USD conversion only"
           style={{width:64,background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"right",outline:"none"}}/>
       </div>
@@ -6135,7 +6175,7 @@ const projProfit=projects.map(p=>{
           <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:"#38bdf8"}}>${(+jRevUSD).toLocaleString("en-US",{minimumFractionDigits:2})} USD</span>
           <span style={{fontSize:13,color:"var(--text4)"}}>@ EGP {jRevRate}/$ on invoice date</span>
           <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#34d399"}}>= {fmtEGP(+jRevUSD * +jRevRate)}</span>
-          <span style={{fontSize:13,color:"var(--text4)",marginLeft:"auto"}}>EGP rate override: <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value))} style={{width:60,background:"transparent",border:"1px solid var(--border3)",borderRadius:4,padding:"2px 6px",color:"var(--text0)",fontSize:13,textAlign:"right"}}/> /$ (salaries only)</span>
+          <span style={{fontSize:13,color:"var(--text4)",marginLeft:"auto"}}>EGP rate override: <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value||1))} style={{width:60,background:"transparent",border:"1px solid var(--border3)",borderRadius:4,padding:"2px 6px",color:"var(--text0)",fontSize:13,textAlign:"right"}}/> /$ (salaries only)</span>
         </div>
       )}
 
@@ -6668,12 +6708,10 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   // Approve/reject vacation
   const approveVacation=async(entryId,notifId)=>{
     if(!supabase) return;
-    // Get entry details before updating
     const entry=entries.find(e=>e.id===entryId);
     await supabase.from("time_entries").update({activity:null}).eq("id",entryId);
     setEntries&&setEntries(prev=>prev.map(e=>e.id===entryId?{...e,activity:null}:e));
     if(notifId){ await supabase.from("notifications").delete().eq("id",notifId); setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId)); }
-    // Notify the requester
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
       const feedback={
@@ -6684,6 +6722,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       };
       const{data:nd}=await supabase.from("notifications").insert(feedback).select().single();
       if(nd) setNotifications&&setNotifications(prev=>[nd,...prev]);
+      logAction("UPDATE","TimeEntry",`Approved vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     }
     showToast("Vacation approved ✓");
   };
@@ -6693,8 +6732,8 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
     await supabase.from("time_entries").delete().eq("id",entryId);
     setEntries&&setEntries(prev=>prev.filter(e=>e.id!==entryId));
     if(notifId){ await supabase.from("notifications").delete().eq("id",notifId); setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId)); }
-    // Notify the requester
     if(entry){
+      const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
       const feedback={
         type:"vacation_rejected", read:false,
         message:`✕ Your Annual Leave request on ${entry.date} was not approved`,
@@ -6703,6 +6742,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       };
       const{data:nd}=await supabase.from("notifications").insert(feedback).select().single();
       if(nd) setNotifications&&setNotifications(prev=>[nd,...prev]);
+      logAction("DELETE","TimeEntry",`Rejected vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     }
     showToast("Vacation request rejected",false);
   };
@@ -7414,6 +7454,18 @@ export default function App(){
       .on("postgres_changes",{event:"DELETE",schema:"public",table:"projects"},({old:row})=>{
         setProjects(prev=>prev.filter(p=>p.id!==row.id));
       })
+      // notifications — live bell updates without refresh
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications"},({new:row})=>{
+        if(row.read) return; // skip pre-read notifications
+        setNotifications(prev=>prev.some(n=>n.id===row.id)?prev:[row,...prev]);
+      })
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"notifications"},({new:row})=>{
+        if(row.read) setNotifications(prev=>prev.filter(n=>n.id!==row.id));
+        else setNotifications(prev=>prev.map(n=>n.id===row.id?row:n));
+      })
+      .on("postgres_changes",{event:"DELETE",schema:"public",table:"notifications"},({old:row})=>{
+        setNotifications(prev=>prev.filter(n=>n.id!==row.id));
+      })
       .subscribe();
     return ()=>{ supabase.removeChannel(ch); };
   },[session]); // eslint-disable-line
@@ -7688,6 +7740,11 @@ export default function App(){
     const isLeave=newEntry.type==="leave";
     const funcCat=isFunc?(newEntry.taskType||newEntry.function_category||FUNCTION_CATS[0]):null;
     const actId=(!isLeave&&!isFunc&&newEntry.activityId)?newEntry.activityId:null;
+    // Validate: hours must be > 0 for non-leave entries
+    if(!isLeave){
+      const h=+newEntry.hours;
+      if(!h||h<=0||isNaN(h)){showToast("Please enter hours greater than 0",false);return;}
+    }
     // Validate: work entries must have a project
     if(!isLeave&&!isFunc&&!newEntry.projectId){showToast("Please select a project",false);return;}
     // Validate: admin posting for engineer must have engineer selected
@@ -7695,10 +7752,9 @@ export default function App(){
     // Validate: project must still be Active
     if(!isLeave&&!isFunc){
       const targetProj=projects.find(p=>p.id===newEntry.projectId);
-      if(!targetProj){showToast("Project not found",false);return;}
+      if(!targetProj){showToast("Project not found — it may have been deleted. Please refresh.",false);return;}
       if((targetProj.status||"").trim()!=="Active"){showToast(`Cannot post hours — project is ${targetProj.status||"inactive"}`,false);return;}
       // Assignment check — no role exemptions:
-      // The target engineer (engId) MUST be in assigned_engineers, always.
       const ae=(targetProj.assigned_engineers||[]).map(String);
       if(!ae.includes(String(engId))){
         const targetEngName=engineers.find(e=>String(e.id)===String(engId))?.name||"Engineer";
@@ -7758,7 +7814,11 @@ export default function App(){
 
   /* ── Copy a day's entries to clipboard ── */
   const copyDay = date => {
-    const dayEntries = entries.filter(e=>e.date===date&&e.engineer_id===(canEditAny?viewEngId:myProfile.id));
+    const dayEntries = entries.filter(e=>
+      e.date===date &&
+      e.engineer_id===(canEditAny?viewEngId:myProfile.id) &&
+      e.activity!=="PENDING_APPROVAL"  // never copy pending-approval entries
+    );
     if(!dayEntries.length){showToast("No entries to copy",false);return;}
     setClipboard({date, entries:dayEntries});
     showToast(`Copied ${dayEntries.length} entr${dayEntries.length===1?"y":"ies"} from ${date} ✓`);
@@ -7791,7 +7851,7 @@ export default function App(){
       task_category: e.task_category,
       task_type:   e.task_type,
       hours:       e.hours,
-      activity:    e.activity,
+      activity:    e.activity==="PENDING_APPROVAL"?null:e.activity,  // never paste a pending state
       entry_type:  e.entry_type,
       leave_type:  e.leave_type||null,
       billable:    e.billable||false,
@@ -7858,7 +7918,7 @@ export default function App(){
       applyUndo(
         showToast,"Entry deleted",
         ()=>setEntries(prev=>prev.filter(e=>e.id!==id)),
-        ()=>setEntries(prev=>[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date))),
+        ()=>setEntries(prev=>{const ids=new Set(prev.map(e=>e.id));return ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));}),
         async()=>{ const{error}=await supabase.from("time_entries").delete().eq("id",id); return error||null; },
         ()=>logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_onBehalf}`,{id,engineer_id:engineerId,engineer_name:_engName})
       );
@@ -8739,10 +8799,11 @@ export default function App(){
     showConfirm(`Delete engineer "${eng?.name||id}" and all their time entries?`,()=>{
       applyUndo(
         showToast,`Engineer "${eng?.name||id}" deleted`,
-        ()=>{ setEngineers(prev=>prev.filter(e=>e.id!==id)); setEntries(prev=>prev.filter(e=>e.engineer_id!==id)); setProjects(prev=>prev.map(p=>({...p,assigned_engineers:(p.assigned_engineers||[]).filter(x=>String(x)!==String(id))}))); if(eng)setActivities(prev=>prev.map(a=>a.assigned_to===eng.name?{...a,assigned_to:""}:a)); },
+        ()=>{ setEngineers(prev=>prev.filter(e=>e.id!==id)); setEntries(prev=>prev.filter(e=>e.engineer_id!==id)); setProjects(prev=>prev.map(p=>({...p,assigned_engineers:(p.assigned_engineers||[]).filter(x=>String(x)!==String(id))}))); if(eng)setActivities(prev=>prev.map(a=>a.assigned_to===eng.name?{...a,assigned_to:""}:a)); setNotifications(prev=>prev.filter(n=>{try{return String(JSON.parse(n.meta||"{}").engineer_id)!==String(id);}catch{return true;}})); },
         ()=>{ setEngineers(prev=>[...prev,eng].sort((a,b)=>a.name.localeCompare(b.name))); setEntries(prev=>[...savedEntries,...prev]); },
         async()=>{
           await supabase.from("time_entries").delete().eq("engineer_id",id);
+          await supabase.from("notifications").delete().eq("engineer_id",id);
           const{error}=await supabase.from("engineers").delete().eq("id",id);
           return error||null;
         },
