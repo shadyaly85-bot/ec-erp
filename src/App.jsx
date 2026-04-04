@@ -2852,23 +2852,31 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   const toggleCat  = useCallback((cat)=>setExpandedCats(p=>({...p,[cat]:!p[cat]})),[]);
 
   // ── Callbacks ──
-  // ── Notification insert helper — with fallback for missing engineer_id column ──
-  const insertNotif=useCallback(async(payload)=>{
+  // ── Notification insert helper — captures showToast for visible error feedback ──
+  // Not useCallback — needs current showToast from render closure for user-visible warnings
+  const insertNotif=async(payload)=>{
     const{error}=await supabase.from("notifications").insert(payload);
     if(error){
-      // If engineer_id column doesn't exist yet, retry without it (store in meta as fallback)
-      if(error.message&&(error.message.includes("engineer_id")||error.message.includes("column"))){
-        console.warn("[EC-ERP] engineer_id column missing — falling back to meta-only insert. Run SQL migration in Admin → Info.");
+      // If engineer_id column doesn't exist yet, retry without it (store in meta)
+      if(error.message&&(error.message.includes("engineer_id")||error.message.includes("column")||error.message.includes("does not exist"))){
+        console.warn("[EC-ERP] engineer_id column not found — retrying without it. Run 'Notifications engineer_id' migration in Admin → Info.");
         const{engineer_id,...rest}=payload;
-        const metaObj=engineer_id!=null?{...JSON.parse(rest.meta||"{}"),_eng_id:String(engineer_id)}:JSON.parse(rest.meta||"{}");
+        const metaObj=engineer_id!=null
+          ?{...JSON.parse(rest.meta||"{}"),_eng_id:String(engineer_id)}
+          :JSON.parse(rest.meta||"{}");
         const{error:err2}=await supabase.from("notifications").insert({...rest,meta:JSON.stringify(metaObj)});
-        if(err2) console.error("[EC-ERP] Notification fallback insert also failed:",err2.message);
+        if(err2){
+          console.error("[EC-ERP] Notification insert failed (both attempts):",err2.message);
+          // Show visible warning so user knows to run SQL migration
+          showToast("⚠ Notification not sent — run SQL migration in Admin → Info",false);
+        }
         return err2||null;
       }
       console.error("[EC-ERP] Notification insert failed:",payload.type,error.message);
+      showToast("⚠ Notification error: "+error.message,false);
     }
     return error||null;
-  },[]);
+  };
 
   const saveActivity = useCallback(async(draft)=>{
     const {id,...fields}=draft;
@@ -8821,28 +8829,36 @@ export default function App(){
     const _confirmMsg=isApprovedLeave
       ? "This will permanently cancel the approved annual leave. The engineer will be notified."
       : "This time entry will be permanently removed.";
-    showConfirm(_confirmMsg,async()=>{
-      // 1. INSTANT UI remove — user sees it gone immediately, no waiting for network
+    showConfirm(_confirmMsg,()=>{
+      // 1. INSTANT UI remove — synchronous, user sees it gone at once
       setEntries(prev=>prev.filter(e=>e.id!==id));
-      // 2. DB delete immediately
-      const{error:delErr}=await supabase.from("time_entries").delete().eq("id",id);
-      if(delErr){
-        // Restore entry if DB delete fails
-        setEntries(prev=>{const ids=new Set(prev.map(e=>e.id));return ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));});
-        showToast("Delete failed: "+delErr.message,false);
-        return;
-      }
-      // 3. Notify engineer AFTER successful delete — fire-and-forget (never blocks UI)
-      if(isApprovedLeave && isAdmin){
-        insertNotif({
-          type:"vacation_cancelled",engineer_id:entry.engineer_id,read:false,
-          message:`Your approved Annual Leave on ${entry.date} has been cancelled by admin`,
-          created_at:new Date().toISOString(),
-          meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:id,cancelled_by:myProfile?.name})
-        });
-      }
-      showToast("Entry deleted ✓");
-      logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_onBehalf}`,{id,engineer_id:engineerId,engineer_name:_engName});
+      // 2. Show undo toast IMMEDIATELY (synchronous — no await delay)
+      let _undone=false;
+      showToast("Entry deleted — Undo?",false,()=>{
+        _undone=true;
+        setEntries(prev=>{const _ids=new Set(prev.map(e=>e.id));return _ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));});
+        showToast("Undo successful ✓");
+      });
+      // 3. DB delete after 5s undo window (fire-and-forget)
+      setTimeout(async()=>{
+        if(_undone) return;
+        const{error:_delErr}=await supabase.from("time_entries").delete().eq("id",id);
+        if(_delErr){
+          setEntries(prev=>{const _ids=new Set(prev.map(e=>e.id));return _ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));});
+          showToast("Delete failed — restored: "+_delErr.message,false);
+          return;
+        }
+        // 4. Notify engineer after confirmed delete (fire-and-forget)
+        if(isApprovedLeave && isAdmin){
+          insertNotif({
+            type:"vacation_cancelled",engineer_id:entry.engineer_id,read:false,
+            message:`Your approved Annual Leave on ${entry.date} has been cancelled by admin`,
+            created_at:new Date().toISOString(),
+            meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:id,cancelled_by:myProfile?.name})
+          });
+        }
+        logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_onBehalf}`,{id,engineer_id:engineerId,engineer_name:_engName});
+      },5100);
     },{title:isApprovedLeave?"Cancel Approved Leave":"Delete Time Entry",confirmLabel:"Delete"});
   };
 
@@ -9486,18 +9502,26 @@ export default function App(){
     if(selectedEntries.size===0) return;
     const ids=[...selectedEntries];
     const saved=entries.filter(e=>selectedEntries.has(e.id));
-    showConfirm(`Delete ${ids.length} selected time entr${ids.length===1?"y":"ies"}?`,async()=>{
-      // Immediate UI remove
+    showConfirm(`Delete ${ids.length} selected time entr${ids.length===1?"y":"ies"}?`,()=>{
+      // Immediate UI remove + undo toast
       setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id)));
       setSelectedEntries(new Set());
-      const{error}=await supabase.from("time_entries").delete().in("id",ids);
-      if(error){
+      let _undone=false;
+      showToast(`${ids.length} entr${ids.length===1?"y":"ies"} deleted — Undo?`,false,()=>{
+        _undone=true;
         setEntries(prev=>[...saved,...prev].sort((a,b)=>b.date.localeCompare(a.date)));
-        showToast("Bulk delete failed: "+error.message,false);
-      } else {
-        showToast(`${ids.length} entr${ids.length===1?"y":"ies"} deleted ✓`);
+        showToast("Undo successful ✓");
+      });
+      setTimeout(async()=>{
+        if(_undone) return;
+        const{error}=await supabase.from("time_entries").delete().in("id",ids);
+        if(error){
+          setEntries(prev=>[...saved,...prev].sort((a,b)=>b.date.localeCompare(a.date)));
+          showToast("Bulk delete failed — restored: "+error.message,false);
+          return;
+        }
         logAction("DELETE","TimeEntry",`Bulk deleted ${ids.length} time entries`,{count:ids.length});
-      }
+      },5100);
     },{title:"Bulk Delete Entries",confirmLabel:`Delete ${ids.length}`});
   };
 
