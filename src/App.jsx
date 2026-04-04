@@ -7761,7 +7761,7 @@ export default function App(){
   const [showEngModal,setShowEngModal]     = useState(false);
   const [engSearch,setEngSearch]           = useState("");
   const [editEngModal,setEditEngModal]     = useState(null);
-  const [adminTab,setAdminTab]             = useState("engineers"); // will be overridden by role redirect
+  const [adminTab,setAdminTab]             = useState("engineers"); // overridden per role below
   const [kpiYear,setKpiYear]               = useState(new Date().getFullYear());
   const [alertDay,setAlertDay]             = useState(5); // 1=Mon,2=Tue,3=Wed,4=Thu,5=Fri
   const [funcYear,setFuncYear]             = useState(new Date().getFullYear());
@@ -7939,12 +7939,16 @@ export default function App(){
   useEffect(()=>{
     if(view==="mysettings") setView("dashboard");
   },[view]);
-  // When accountant/senior first opens Finance Panel, default to Finance tab
+  // Set correct default tab per role when entering the panel
   useEffect(()=>{
-    if(canViewFinance&&!isAdmin&&view==="admin"){
-      setAdminTab(prev=>prev==="engineers"?"finance":prev);
-    }
-  },[canViewFinance,isAdmin,view]);
+    if(view!=="admin") return;
+    if(isAdmin) return; // admin stays on engineers
+    if(isLead)  setAdminTab(prev=>["tracker","entries","functions","kpis","projects","settings"].includes(prev)?prev:"tracker");
+    else if(isAcct)   setAdminTab(prev=>["finance","entries","engineers","functions","kpis","settings"].includes(prev)?prev:"finance");
+    else if(isSenior) setAdminTab(prev=>["engineers","projects","entries","finance","functions","kpis","tracker","settings"].includes(prev)?prev:"engineers");
+    else // engineer
+      setAdminTab(prev=>["tracker","kpis","settings"].includes(prev)?prev:"tracker");
+  },[view,isAdmin,isLead,isAcct,isSenior]);
 
   const viewEngId = canEditAny ? (browseEngId||myProfile?.id) : myProfile?.id;
   const viewEng   = engineers.find(e=>e.id===viewEngId);
@@ -8047,6 +8051,8 @@ export default function App(){
             if(String(m.engineer_id)!==String(myProfileRef.current?.id)) return;
           }catch{ return; }
         }
+        // vacation_request: only admin needs to action these
+        if(row.type==="vacation_request"&&!myProfileRef.current?.role_type?.match(/^admin$/)) return;
         setNotifications(prev=>prev.some(n=>n.id===row.id)?prev:[row,...prev]);
       })
       .on("postgres_changes",{event:"UPDATE",schema:"public",table:"notifications"},({new:row})=>{
@@ -8136,8 +8142,10 @@ export default function App(){
             try{ const m=JSON.parse(n.meta||"{}"); return String(m.engineer_id)===String(profId); }
             catch{ return false; }
           }
-          if(isRestrictedRole) return false; // engineers don't see signup/alert/overdue types
-          return true; // admins/leads see all other types (vacation_request, signup, alerts, etc.)
+          // vacation_request: only admin can approve — accountant/lead/senior have no action
+          if(n.type==="vacation_request") return isAdmin;
+          if(isRestrictedRole) return false; // engineers don't see admin-only types
+          return true; // admin/lead/senior/accountant see timesheet alerts, signup, overdue
         });
         setNotifications(filtered);
       }
@@ -8240,13 +8248,13 @@ export default function App(){
 
 
   const unreadCount=useMemo(()=>{
-    // Count all unread notifications in state — relevant to the current user
-    const notifCount=notifications.length;
+    // Personal notifications only — vacation_request excluded (admin-action type, handled separately)
+    const personalCount=notifications.filter(n=>n.type!=="vacation_request").length;
     // Pending vacation approvals — admin responsibility only
     const pendingVacCount=isAdmin
       ? entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL").length
       : 0;
-    return Math.max(notifCount, pendingVacCount);
+    return Math.max(personalCount, pendingVacCount);
   },[notifications,entries,isAdmin]);
 
   // Dismiss = permanently delete from DB so they never come back on refresh
@@ -8589,6 +8597,16 @@ export default function App(){
     if(!canEditAny && String(engineerId)!==String(myProfile?.id)){ showToast("You can only delete your own entries",false); return; }
     const entry=entries.find(e=>e.id===id);
     if(!entry) return;
+    // ── APPROVED LEAVE LOCK ──
+    // Once annual leave is approved (no longer PENDING_APPROVAL), only admin can delete it.
+    // Engineers must contact their admin to cancel approved leave — this preserves the approval audit trail.
+    const isApprovedLeave = entry.entry_type==="leave"
+      && entry.leave_type==="Annual Leave"
+      && entry.activity!=="PENDING_APPROVAL";
+    if(isApprovedLeave && !canEditAny){
+      showToast("Approved annual leave cannot be deleted. Contact your admin to cancel.",false);
+      return;
+    }
     const _engName=engineers.find(e=>String(e.id)===String(engineerId))?.name||engineerId;
     const _onBehalf=String(engineerId)!==String(myProfile?.id)?` on behalf of ${_engName}`:"";
     showConfirm("This time entry will be permanently removed.",()=>{
@@ -9977,7 +9995,7 @@ export default function App(){
     {id:"projects",  label:"Projects"},
     {id:"team",      label:"Team"},
     ...(canReport?[{id:"reports",label:"Reports & PDF"}]:[]),
-    {id:"admin", label:isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":isLead?"Lead Panel":"My KPIs"},
+    {id:"admin", label:isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":isLead?"Team Panel":"My Work"},
     ...(isAdmin?[{id:"import",label:"Import Excel"}]:[]),
   ];
 
@@ -10830,7 +10848,11 @@ export default function App(){
                                     {e.activity&&!isPending&&<div style={{color:"var(--text3)",fontSize:11,marginTop:1,fontStyle:"italic",lineHeight:1.3}}>{e.activity.substring(0,35)}{e.activity.length>35?"…":""}</div>}
                                   </>}
                               </div>
-                              {canEdit&&canPostHours&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
+                              {canEdit&&canPostHours&&!(()=>{
+                                // Hide edit/delete for approved annual leave (non-admin)
+                                const isApprovedLeave=e.entry_type==="leave"&&e.leave_type==="Annual Leave"&&e.activity!=="PENDING_APPROVAL";
+                                return isApprovedLeave&&!canEditAny;
+                              })()&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
                                 <button className="be" style={{padding:"1px 4px",fontSize:12}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
                                 <button className="bd" style={{padding:"1px 4px",fontSize:12}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
                               </div>}
@@ -10904,9 +10926,15 @@ export default function App(){
                                 :<span style={{fontSize:12,padding:"2px 7px",borderRadius:4,background:e.entry_type==="leave"?"#7c2d1230":"#022c2230",color:e.entry_type==="leave"?"#fb923c":"#34d399",fontWeight:700}}>{e.entry_type}</span>}
                             </td>
                             <td><div style={{display:"flex",gap:5}}>
-                              {canPostHours&&<button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>}
-                              {canPostHours&&<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}
-                              {!canPostHours&&<span style={{fontSize:12,color:"var(--text4)"}}>—</span>}
+                              {(()=>{
+                                const isApprovedLeave=e.entry_type==="leave"&&e.leave_type==="Annual Leave"&&e.activity!=="PENDING_APPROVAL";
+                                const locked=isApprovedLeave&&!canEditAny;
+                                return locked
+                                  ? <span style={{fontSize:11,color:"var(--text4)",fontStyle:"italic"}}>Approved — admin only</span>
+                                  : <>{canPostHours&&<button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>}
+                                     {canPostHours&&<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}
+                                     {!canPostHours&&<span style={{fontSize:12,color:"var(--text4)"}}>—</span>}</>;
+                              })()}
                             </div></td>
                           </tr>
                         );
@@ -12093,16 +12121,16 @@ export default function App(){
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>
-                    {isAdmin?"SYSTEM ADMINISTRATION":isSenior?"OVERVIEW PANEL":isAcct?"FINANCE PANEL":isLead?"LEAD PANEL":"MY DASHBOARD"}
+                    {isAdmin?"SYSTEM ADMINISTRATION":isSenior?"OVERVIEW PANEL":isAcct?"FINANCE PANEL":isLead?"TEAM PANEL":"MY WORK"}
                   </div>
                   <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>
-                    {isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":isLead?"Lead Panel":"My KPIs"}
+                    {isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":isLead?"Team Panel":"My Work"}
                   </h1>
                   <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
                     {isAdmin?"Engineers · Projects · Finance · Tracker · KPIs · Settings":
                      isSenior?"Full visibility · read-only across all data":
                      isAcct?"Finance access · view all team data":
-                     isLead?"Edit entries · lead dashboard · tracker":"Your personal KPI scorecard"}
+                     isLead?"Tracker · Team Hours · Team KPIs · Projects":"Your activities, KPI score & info"}
                   </p>
                 </div>
                 {isAdmin&&(unreadCount>0||entries.some(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL"))&&(
@@ -12258,17 +12286,48 @@ export default function App(){
 
               {/* ── Tab navigation ── */}
               <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",flexWrap:"wrap"}}>
-                {[
-                  {id:"engineers",label:"Engineers",   show:isAdmin||isAcct||isSenior},
-                  {id:"projects", label:"Projects",    show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"entries",  label:"All Entries",  show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"finance",  label:"Finance",      show:isAdmin||isAcct||isSenior},
-                  {id:"functions",label:"Functions",    show:isAdmin||isLead||isAcct||isSenior},
-                  {id:"kpis",     label:"KPIs",         show:true},
-                  {id:"tracker",  label:"Tracker",      show:true},
-                  {id:"settings", label:"Info",         show:true},
-                  {id:"actlog",   label:"Activity Log", show:isAdmin},
-                ].filter(t=>t.show).map(t=>{
+                {(()=>{
+                  // Tab definitions — order and labels are role-specific
+                  const allTabs=[
+                    // ── Engineer only ──
+                    {id:"tracker",  label:"My Activities", show:!isAdmin&&!isLead&&!isAcct&&!isSenior},
+                    {id:"kpis",     label:"My KPIs",       show:!isAdmin&&!isLead&&!isAcct&&!isSenior},
+                    {id:"settings", label:"Info",          show:!isAdmin&&!isLead&&!isAcct&&!isSenior},
+                    // ── Lead only ──
+                    {id:"tracker",  label:"Project Tracker",   show:isLead&&!isAdmin},
+                    {id:"entries",  label:"Team Hours",         show:isLead&&!isAdmin},
+                    {id:"functions",label:"Function Hours",     show:isLead&&!isAdmin},
+                    {id:"kpis",     label:"Team KPIs",          show:isLead&&!isAdmin},
+                    {id:"projects", label:"Manage Projects",    show:isLead&&!isAdmin},
+                    {id:"settings", label:"Info",               show:isLead&&!isAdmin},
+                    // ── Accountant ──
+                    {id:"finance",  label:"Finance",        show:isAcct&&!isAdmin},
+                    {id:"entries",  label:"All Entries",    show:isAcct&&!isAdmin},
+                    {id:"engineers",label:"Engineers",      show:isAcct&&!isAdmin},
+                    {id:"functions",label:"Functions",      show:isAcct&&!isAdmin},
+                    {id:"kpis",     label:"KPIs",           show:isAcct&&!isAdmin},
+                    {id:"settings", label:"Info",           show:isAcct&&!isAdmin},
+                    // ── Senior Management ──
+                    {id:"engineers",label:"Engineers",      show:isSenior&&!isAdmin},
+                    {id:"projects", label:"Projects",       show:isSenior&&!isAdmin},
+                    {id:"entries",  label:"All Entries",    show:isSenior&&!isAdmin},
+                    {id:"finance",  label:"Finance",        show:isSenior&&!isAdmin},
+                    {id:"functions",label:"Functions",      show:isSenior&&!isAdmin},
+                    {id:"kpis",     label:"KPIs",           show:isSenior&&!isAdmin},
+                    {id:"tracker",  label:"Tracker",        show:isSenior&&!isAdmin},
+                    {id:"settings", label:"Info",           show:isSenior&&!isAdmin},
+                    // ── Admin ──
+                    {id:"engineers",label:"Engineers",      show:isAdmin},
+                    {id:"projects", label:"Projects",       show:isAdmin},
+                    {id:"entries",  label:"All Entries",    show:isAdmin},
+                    {id:"finance",  label:"Finance",        show:isAdmin},
+                    {id:"functions",label:"Functions",      show:isAdmin},
+                    {id:"kpis",     label:"KPIs",           show:isAdmin},
+                    {id:"tracker",  label:"Tracker",        show:isAdmin},
+                    {id:"settings", label:"Info",           show:isAdmin},
+                    {id:"actlog",   label:"Activity Log",   show:isAdmin},
+                  ];
+                  return allTabs.filter(t=>t.show).map(t=>{
                   const active=adminTab===t.id;
                   return(
                     <button key={t.id} onClick={()=>setAdminTab(t.id)}
@@ -12279,7 +12338,8 @@ export default function App(){
                       {t.label}
                     </button>
                   );
-                })}
+                });
+              })()}
               </div>
 
               {/* ENGINEERS */}
@@ -12658,7 +12718,7 @@ export default function App(){
                       {[
                         {title:"Post Hours (Timesheet)",      show:!isAcct&&!isSenior,             color:"var(--info)",  text:"Go to Post Hours → click any working day cell → choose entry type (Work / Leave / Function). Select project, task, hours and add a description (required for KPI score). Press Enter or click the green cell to save."},
                         {title:"How to Submit Vacation",      show:!isAcct&&!isSenior,             color:"#34d399",      text:"1. Go to Post Hours. 2. Click on the day you want to take off. 3. Select Leave as the entry type. 4. Choose Annual Leave from the leave type dropdown. 5. Click Save — your request is sent to admin as PENDING APPROVAL. 6. You will receive an in-app notification (green badge on Post Hours) when your leave is approved or rejected. Your remaining balance updates automatically in the stats bar once approved (21 days default per year)."},
-                        {title:"View Your Activities & Comment", show:!isAdmin&&!isLead&&!isAcct&&!isSenior, color:"#a78bfa", text:"Go to My KPIs › Tracker. You will see only the projects you are assigned to. Activities assigned to you show a speech-bubble button — click it to open the comment thread. Type your note and press Enter to send. The project leader and admin are notified automatically. You cannot edit activity fields (status, progress, dates) — those are managed by your lead or admin."},
+                        {title:"View Your Activities & Comment", show:!isAdmin&&!isLead&&!isAcct&&!isSenior, color:"#a78bfa", text:"Go to My Work › My Activities. You will see only the projects you are assigned to. Activities assigned to you show a speech-bubble button — click it to open the comment thread. Type your note and press Enter to send. The project leader and admin are notified automatically. You cannot edit activity fields (status, progress, dates) — those are managed by your lead or admin."},
                         {title:"Project Tracker",             show:isAdmin||isLead,                color:"#a78bfa",      text:"Admin/Lead Panel › Tracker. Each project shows activity cards grouped by category. Click any activity to edit status, progress, dates, and assigned engineer. The COMMENTS section at the bottom of the edit modal is the main communication channel — comments are timestamped, attributed, and notified automatically to the assigned engineer, project leader, and all admins. Export full project PDFs or individual sub-site PDFs from Tracker Progress Report."},
                         {title:"Activity Comments",           show:isAdmin||isLead,                color:"#fb923c",      text:"Open any activity → scroll to COMMENTS. Type and press Enter to send. The system notifies: (1) the assigned engineer, (2) the project leader, and (3) all admins — excluding the commenter. Engineers can also comment on activities assigned to them from the Tracker. Remarks (old field) can be migrated to Comments with one click."},
                         {title:"Project Leader",              show:isAdmin,                        color:"#34d399",      text:"When editing a project (Details tab), set the Project Leader dropdown. Only leads and admins appear in this list. The selected leader is automatically added to the project team and becomes the primary contact for activity comment notifications. The leader's name appears on all project cards, reports, and PDFs."},
@@ -12683,7 +12743,7 @@ export default function App(){
                     <div style={{display:"grid",gap:8}}>
                       {[
                         {tag:"Comments",  color:"#a78bfa", text:"Activity comment threads on every activity — open Edit Activity and scroll to COMMENTS. Timestamped, attributed to author with role. Existing Remarks content can be migrated with one click. Comments are saved independently of activity fields and survive Save Activity."},
-                        {tag:"Comments",  color:"#a78bfa", text:"Engineers can now comment on activities assigned to them from the Tracker view (My KPIs → Tracker). They see only their own projects and can click the speech-bubble on their activity to open the thread. They cannot edit activity fields."},
+                        {tag:"Comments",  color:"#a78bfa", text:"Engineers can now comment on activities assigned to them from My Work › My Activities. They see only their assigned projects and can click the speech-bubble on their activity to open the comment thread. They see only their own projects and can click the speech-bubble on their activity to open the thread. They cannot edit activity fields."},
                         {tag:"Notify",    color:"#34d399", text:"Comment notifications — posting a comment notifies (1) the assigned engineer, (2) the project leader, and (3) all admins. Commenter is never self-notified. Each notification is scoped to its recipient — no user sees another person's notifications."},
                         {tag:"Notify",    color:"#34d399", text:"Two notification badges: purple on Projects nav (activity comments), green on Post Hours nav (vacation approvals/rejections). Vacation approval notifications are now correctly scoped — admin can no longer accidentally dismiss an engineer's approval."},
                         {tag:"Projects",  color:"#fb923c", text:"Project Leader field — set a lead or admin as the project's responsible leader. They are auto-added to the project team and appear on all cards, detail headers, reports, and PDFs. They receive comment notifications for all activities in their project."},
