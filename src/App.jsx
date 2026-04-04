@@ -432,7 +432,7 @@ function applyUndo(showToast, label, removeUI, restoreUI, dbDelete, logFn){
     const err = await dbDelete();
     if(err){ restoreUI(); showToast("Delete failed — restored", false); }
     else logFn?.();
-  }, 5100);
+  }, 3100);
 }
 
 /* ── CONFIRM DIALOG — replaces window.confirm everywhere ── */
@@ -8071,7 +8071,7 @@ export default function App(){
   const _toastTimer = React.useRef(null);
   const showToast=(msg,ok=true,undoFn=null)=>{
     if(_toastTimer.current) clearTimeout(_toastTimer.current);
-    const duration = undoFn ? 5000 : 3500;
+    const duration = undoFn ? 3000 : 3500;
     setToast({msg,ok,undoFn});
     _toastTimer.current = setTimeout(()=>setToast(null), duration);
   };
@@ -8942,7 +8942,7 @@ export default function App(){
           });
         }
         logAction("DELETE","TimeEntry",`Deleted time entry id:${id}${_onBehalf}`,{id,engineer_id:engineerId,engineer_name:_engName});
-      },5100);
+      },3100);
     },{title:isApprovedLeave?"Cancel Approved Leave":isPendingLeave?"Remove Vacation Request":"Delete Time Entry",confirmLabel:"Delete"});
   };
 
@@ -9605,7 +9605,7 @@ export default function App(){
           return;
         }
         logAction("DELETE","TimeEntry",`Bulk deleted ${ids.length} time entries`,{count:ids.length});
-      },5100);
+      },3100);
     },{title:"Bulk Delete Entries",confirmLabel:`Delete ${ids.length}`});
   };
 
