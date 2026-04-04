@@ -7377,7 +7377,7 @@ const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Perform
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
 
-function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiEngId,kpiNotes,setKpiNotes,isAdmin,isLead,isAcct,isEngineer,myProfile,year,notifications,onDismissNotif,alertDay,setAlertDay,alertTime,setAlertTime,showToast,supabase,setEntries,setNotifications}){
+function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiEngId,kpiNotes,setKpiNotes,isAdmin,isLead,isAcct,isEngineer,myProfile,year,notifications,onDismissNotif,alertDay,setAlertDay,alertTime,setAlertTime,showToast,supabase,setEntries,setNotifications,setNotifHistory,insertNotif}){
 
   const canManageKPI = isAdmin||isLead;
   // Engineers auto-locked to their own profile
@@ -12929,7 +12929,7 @@ export default function App(){
                   myProfile={myProfile}
                   year={year} notifications={notifications}
                   onDismissNotif={dismissNotification}
-                  alertDay={alertDay} setAlertDay={setAlertDay} alertTime={alertTime} setAlertTime={setAlertTime}
+                  alertDay={alertDay} setAlertDay={setAlertDay} alertTime={alertTime} setAlertTime={setAlertTime} insertNotif={insertNotif} setNotifHistory={setNotifHistory}
                   showToast={showToast} supabase={supabase}
                   setEntries={setEntries} setNotifications={setNotifications}
                 />
