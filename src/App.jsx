@@ -1435,7 +1435,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
           {/* Month filter */}
           <select value={filterMonth} onChange={e=>{setFilterMonth(e.target.value);setSelProj("ALL");}}
             style={{background:"var(--bg1)",border:"1px solid #38bdf840",borderRadius:6,padding:"6px 10px",color:"var(--info)",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600}}>
-            <option value="ALL">📅 All Time</option>
+            <option value="ALL">All Time</option>
             {availableMonths.map(m=>{
               const [y,mo]=m.split("-");
               return <option key={m} value={m}>{MONTHS[parseInt(mo)-1]} {y}</option>;
@@ -1675,7 +1675,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
       {/* Monthly summary */}
       <div className="card" style={{marginBottom:14,overflowX:"auto"}}>
-        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>📅 {MONTHS[month]} {year} — Monthly Summary</h4>
+        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>{MONTHS[month]} {year} — Monthly Summary</h4>
         {monthly.length===0
           ? <p style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:20}}>No leave recorded for {MONTHS[month]} {year}. Import timesheets first.</p>
           : <table style={{minWidth:600}}>
@@ -1756,7 +1756,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
           <div className="card" style={{marginBottom:14}}>
             {/* Header */}
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:10}}>
-              <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",margin:0}}>🏖 Annual Leave Balance — {year}</h4>
+              <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",margin:0}}>Annual Leave Balance — {year}</h4>
               {isAdmin&&(
                 <div style={{fontSize:13,color:"var(--text4)"}}>
                   Edit each person's entitlement in the <span style={{color:"var(--info)",fontWeight:600}}>Balance</span> column, then click Save
@@ -3285,6 +3285,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
   const [period,  setPeriod]  = React.useState("weekly");
   const [selProj, setSelProj] = React.useState("ALL");
   const [selStat, setSelStat] = React.useState("ALL");
+  const [showInactiveProj, setShowInactiveProj] = React.useState(false); // Active projects only by default
   const today = new Date();
   const fmtD = function(d){ return d ? new Date(d+"T12:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}) : "—"; };
   const GC = {"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
@@ -3292,13 +3293,23 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
   const SB = {"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started":"#1e293b40","On Hold":"#78350f30"};
   const PERIOD_LABEL = {daily:"Daily (Last 24h)",weekly:"Weekly (Last 7 days)",monthly:"Monthly (Last 30 days)",full:"Full Project"};
 
+  // Filter projects by status — Active only unless showInactiveProj is checked
+  const visibleProjIds = React.useMemo(function(){
+    const ids=new Set();
+    projects.forEach(function(p){
+      if(showInactiveProj||(p.status||"Active")==="Active") ids.add(p.id);
+    });
+    return ids;
+  },[projects,showInactiveProj]);
+
   const acts = React.useMemo(function(){
     return activities.filter(function(a){
+      if(!visibleProjIds.has(a.project_id)) return false; // exclude inactive projects
       if(selProj!=="ALL"&&a.project_id!==selProj) return false;
       if(selStat!=="ALL"&&a.status!==selStat) return false;
       return true;
     });
-  },[activities,selProj,selStat]);
+  },[activities,selProj,selStat,visibleProjIds]);
 
   const grouped = React.useMemo(function(){
     const map={};
@@ -3463,7 +3474,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f">'
       +'<div><div style="font-size:20px;font-weight:800;color:#1e3a5f">ENEVO GROUP</div>'
       +'<div style="font-size:15px;font-weight:700;color:#334155;margin-top:2px">Activity Tracker Progress Report</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-top:3px">Period: <b>'+label+'</b> · Generated: '+now+'</div></div>'
+      +'<div style="font-size:11px;color:#64748b;margin-top:3px">Period: <b>'+label+'</b> · '+(showInactiveProj?'All project statuses':'Active projects only')+' · Generated: '+now+'</div></div>'
       +'<div style="text-align:right;font-size:11px;color:#64748b;line-height:1.8">'
       +'<div>'+acts.length+' activities · '+grouped.length+' projects</div>'
       +'<div>Completed: <b style="color:#16a34a">'+done+'</b>  In Progress: <b style="color:#2563eb">'+inprog+'</b>  On Hold: <b style="color:#ea580c">'+onhold+'</b></div>'
@@ -3500,7 +3511,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
             <select value={selProj} onChange={function(e){setSelProj(e.target.value);}}
               style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:190}}>
               <option value="ALL">All Projects</option>
-              {[...new Set(activities.map(function(a){return a.project_id;}))].sort(function(a,b){
+              {[...new Set(activities.filter(function(a){return visibleProjIds.has(a.project_id);}).map(function(a){return a.project_id;}))].sort(function(a,b){
                 const na=projects.find(function(p){return p.id===a;});
                 const nb=projects.find(function(p){return p.id===b;});
                 return (na?na.name:a).localeCompare(nb?nb.name:b);
@@ -3518,6 +3529,13 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
               {["Not Started","In Progress","On Hold","Completed"].map(function(s){return <option key={s}>{s}</option>;})}
             </select>
           </div>
+          {/* Project status toggle */}
+          <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",paddingBottom:2}}>
+            <input type="checkbox" checked={showInactiveProj}
+              onChange={function(e){setShowInactiveProj(e.target.checked);setSelProj("ALL");}}
+              style={{accentColor:"var(--info)",width:15,height:15,cursor:"pointer"}}/>
+            <span style={{fontSize:13,color:"var(--text3)",userSelect:"none"}}>Include On Hold & Completed projects</span>
+          </label>
         </div>
         <button className="bp" onClick={buildPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>⬇ Export PDF</button>
       </div>
@@ -4476,7 +4494,7 @@ function ExpensesView({journalEntries, oldExpenses, egpRate}) {
         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Expenses Breakdown</div>
           <div style={{display:"flex",gap:4}}>
-            {[{id:"pivot",l:"📊 Pivot"},{id:"monthly",l:"📅 Monthly"}].map(b=>(
+            {[{id:"pivot",l:"Pivot"},{id:"monthly",l:"Monthly"}].map(b=>(
               <button key={b.id} onClick={()=>setViewMode(b.id)}
                 style={{background:viewMode===b.id?"linear-gradient(135deg,#0ea5e9,#0369a1)":"transparent",border:`1px solid ${viewMode===b.id?"transparent":"var(--border)"}`,
                   borderRadius:6,padding:"4px 12px",color:viewMode===b.id?"#fff":"var(--text2)",cursor:"pointer",fontSize:14,fontWeight:viewMode===b.id?600:400,fontFamily:"'IBM Plex Sans',sans-serif"}}>
@@ -5270,7 +5288,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
             return Object.values(custodyMap).map(p=>(
               <div key={p.name} className="card" style={{padding:0,overflow:"hidden"}}>
                 <div style={{background:"var(--bg2)",borderBottom:"2px solid var(--border)",padding:"10px 16px",display:"flex",justifyContent:"space-between"}}>
-                  <span style={{fontWeight:700,color:"var(--text0)",fontSize:14}}>💵 {p.name}</span>
+                  <span style={{fontWeight:700,color:"var(--text0)",fontSize:14}}>{p.name}</span>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#34d399",fontWeight:700}}>Balance: {fmtEGP(p.totalOut-p.totalBack)}</span>
                 </div>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
@@ -5383,10 +5401,10 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
   const nextMonth = lastPostedMonth>=12 ? 1 : lastPostedMonth+1;
 
   const steps = [
-    {id:"monthly",   label:"📅 Monthly Close"},
+    {id:"monthly",   label:"Monthly Close"},
     {id:"custody",   label:"Custody Expense"},
     {id:"salary",    label:"Salary Accrual"},
-    {id:"revenue",   label:"💰 Revenue Invoice"},
+    {id:"revenue",   label:"Revenue Invoice"},
     {id:"asset",     label:"Asset Purchase"},
   ];
 
@@ -6962,7 +6980,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         {canManageKPI&&(
           <select value={effectiveEngId||""} onChange={e=>setKpiEngId(e.target.value||null)}
             style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text0)",fontSize:14}}>
-            <option value="">📊 Team Overview</option>
+            <option value="">Team Overview</option>
             {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         )}
@@ -7117,7 +7135,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         {isAdmin&&(
         <div className="card">
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>📝 Manager Notes <span style={{fontSize:12,fontWeight:400,color:"var(--text4)"}}>— admin only</span></div>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>Manager Notes <span style={{fontSize:12,fontWeight:400,color:"var(--text4)"}}>— admin only</span></div>
             <button className="bp" style={{fontSize:13,padding:"5px 16px"}} onClick={()=>{
               try{localStorage.setItem("ec_kpi_notes",JSON.stringify(kpiNotes));}catch(err){}
               showToast("Notes saved ✓");
@@ -7200,7 +7218,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
     {/* ── Engineer: no profile linked ── */}
     {isEngineer&&!selKPI&&(
       <div style={{textAlign:"center",padding:"40px 20px",background:"var(--bg2)",borderRadius:12,border:"1px dashed var(--border3)"}}>
-        <div style={{fontSize:36,marginBottom:10}}>📊</div>
+        
         <div style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:6}}>KPI not available</div>
         <div style={{fontSize:13,color:"var(--text4)"}}>Your engineer profile is not linked to your account yet. Ask your admin to link it.</div>
       </div>
@@ -9852,7 +9870,7 @@ export default function App(){
                     {/* Deadlines */}
                     <div className="card" style={{padding:0,overflow:"hidden"}}>
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>📅 Upcoming Deadlines
+                        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Upcoming Deadlines
                           <span style={{fontSize:13,fontWeight:400,color:"var(--text3)",marginLeft:8}}>Next 14 days</span>
                         </div>
                         {overdue.length>0&&<span style={{fontSize:12,padding:"3px 10px",borderRadius:10,background:"#f8711820",border:"1px solid #f8711840",color:"#f87171",fontWeight:700}}>⚠ {overdue.length} overdue</span>}
@@ -9893,7 +9911,7 @@ export default function App(){
                     {/* Workload Forecast */}
                     <div className="card" style={{padding:0,overflow:"hidden"}}>
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
-                        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>📊 Workload Forecast</div>
+                        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Workload Forecast</div>
                         <div style={{fontSize:13,color:"var(--text3)",marginTop:3}}>{daysLeft} working days left in {MONTHS[month]}</div>
                       </div>
                       <div style={{maxHeight:300,overflowY:"auto"}}>
@@ -10803,7 +10821,7 @@ export default function App(){
                     {/* Empty state */}
                     {orgNodes.length===0&&(
                       <div style={{textAlign:"center",padding:"80px 20px"}}>
-                        <div style={{fontSize:48,marginBottom:16}}>🏢</div>
+                        
                         <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:6}}>No org chart configured</div>
                         <div style={{fontSize:13,color:"var(--text4)",marginBottom:20}}>Add your team hierarchy to visualize the organization</div>
                         {isAdmin&&<button className="bp" onClick={()=>setOrgEditing(true)}>✎ Start building</button>}
@@ -11087,7 +11105,7 @@ export default function App(){
                       <div className="card" style={{padding:0,overflow:"hidden"}}>
                         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                           <div>
-                            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>👤 Individual Timesheets</div>
+                            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Individual Timesheets</div>
                             <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · Select engineer or export all</div>
                           </div>
                           <button className="bp" onClick={()=>{
@@ -11115,7 +11133,7 @@ export default function App(){
                         <div style={{padding:"16px 20px"}}>
                           <select value={rptEngId||"ALL"} onChange={e=>setRptEngId(e.target.value==="ALL"?null:+e.target.value)}
                             style={{marginBottom:14,width:"100%",maxWidth:340}}>
-                            <option value="ALL">📋 All Engineers (merged PDF)</option>
+                            <option value="ALL">All Engineers (merged PDF)</option>
                             {engineers.map(e=><option key={e.id} value={e.id}>{e.name} · {e.role}</option>)}
                           </select>
                           {!rptEngId&&(
@@ -11231,7 +11249,7 @@ export default function App(){
                     <div className="card" style={{padding:0,overflow:"hidden"}}>
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <div>
-                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>⊟ Task Analysis</div>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Task Analysis</div>
                           <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · {totalWorkHrs}h work logged</div>
                         </div>
                         <button className="bp" onClick={buildTaskPDF}>⬇ Export PDF</button>
@@ -11315,7 +11333,7 @@ export default function App(){
                     <div>
                       <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
                         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
-                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>📊 Tracker Progress Report</div>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Tracker Progress Report</div>
                           <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Activity status, progress and phases by project</div>
                         </div>
                       </div>
@@ -11360,13 +11378,13 @@ export default function App(){
                     <div className="card" style={{padding:0,overflow:"hidden"}}>
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <div>
-                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>⊞ Monthly Management Report</div>
+                          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Monthly Management Report</div>
                           <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Full executive summary — {MONTHS[month]} {year}</div>
                         </div>
                         <button className="bp" onClick={buildMonthlyPDF}>⬇ Export PDF</button>
                       </div>
                       <div style={{padding:"32px 20px",textAlign:"center"}}>
-                        <div style={{fontSize:48,marginBottom:12}}>📊</div>
+                        
                         <div style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:6}}>Ready to generate</div>
                         <div style={{fontSize:14,color:"var(--text3)",marginBottom:24,maxWidth:400,margin:"0 auto 24px"}}>Includes team utilization, billability, revenue, project breakdown, and engineer summary for {MONTHS[month]} {year}.</div>
                         <button className="bp" style={{fontSize:15,padding:"10px 28px"}} onClick={buildMonthlyPDF}>⬇ Export PDF</button>
@@ -11485,7 +11503,7 @@ export default function App(){
                 </div>
                 {isAdmin&&(unreadCount>0||entries.some(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL"))&&(
                   <div style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"8px 14px",display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:13,color:"#f87171",fontWeight:600}}>🔔 {unreadCount} item{unreadCount!==1?"s":""} need attention</span>
+                    <span style={{fontSize:13,color:"#f87171",fontWeight:600}}>{unreadCount} item{unreadCount!==1?"s":""} need attention</span>
                   </div>
                 )}
               </div>
@@ -11584,7 +11602,7 @@ export default function App(){
                     })()}
 
                     {[
-                      {list:signupNotifs,  label:"👤 New Signups",       color:"#fb923c", sub:"Engineers tab → set role"},
+                      {list:signupNotifs,  label:"New Signups",       color:"#fb923c", sub:"Engineers tab → set role"},
                       {list:alertNotifs2,  label:"⏰ Timesheet Alerts",   color:"#f87171", sub:null},
                       {list:otherNotifs.filter(n=>n.type!=="vacation_request"), label:"ℹ System", color:"var(--text3)", sub:null},
                     ].filter(g=>g.list.length>0).map(grp=>(
@@ -12198,13 +12216,13 @@ export default function App(){
                 {/* Upload panel */}
                 <div>
                   <div className="card" style={{marginBottom:14}}>
-                    <h3 style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:12}}>📂 Upload Timesheet Files</h3>
+                    <h3 style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:12}}>Upload Timesheet Files</h3>
                     <div style={{border:"2px dashed var(--border3)",borderRadius:8,padding:"28px",textAlign:"center",marginBottom:14,cursor:"pointer",transition:"border-color .2s"}}
                       onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="var(--info)";}}
                       onDragLeave={e=>{e.currentTarget.style.borderColor="var(--border)";}}
                       onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor="var(--border)";const f=[...e.dataTransfer.files].filter(f=>f.name.endsWith(".xlsx")||f.name.endsWith(".xls"));setImportFiles(prev=>[...prev,...f]);}}
                       onClick={()=>document.getElementById("xlsxInput").click()}>
-                      <div style={{fontSize:32,marginBottom:8}}>📊</div>
+                      
                       <div style={{fontSize:15,fontWeight:600,color:"var(--text0)",marginBottom:4}}>Drop .xlsx files here or click to browse</div>
                       <div style={{fontSize:13,color:"var(--text4)"}}>Supports ENEVOEGY timesheet format · Multiple files at once</div>
                       <input id="xlsxInput" type="file" accept=".xlsx,.xls" multiple style={{display:"none"}}
@@ -12233,13 +12251,13 @@ export default function App(){
                     )}
                   </div>
                   <div className="card">
-                    <h3 style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:10}}>📋 What Gets Imported</h3>
+                    <h3 style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:10}}>What Gets Imported</h3>
                     {[
-                      ["👤","Engineer","Created automatically from Name + Email in the sheet header"],
-                      ["⏱","Work Hours","Daily task + hours + project mapped to entries"],
-                      ["✈","Leave Days","Public holidays and leave days detected automatically"],
-                      ["◈","Projects","Matched by project name — assign missing ones after import"],
-                      ["🔤","Task Types","Auto-detected from task description (SCADA, HMI, PLC, etc.)"],
+                      ["•","Engineer","Created automatically from Name + Email in the sheet header"],
+                      ["•","Work Hours","Daily task + hours + project mapped to entries"],
+                      ["•","Leave Days","Public holidays and leave days detected automatically"],
+                      ["•","Projects","Matched by project name — assign missing ones after import"],
+                      ["•","Task Types","Auto-detected from task description (SCADA, HMI, PLC, etc.)"],
                     ].map(([icon,label,desc])=>(
                       <div key={label} style={{display:"flex",gap:10,marginBottom:10}}>
                         <div style={{fontSize:16,width:24,flexShrink:0}}>{icon}</div>
@@ -12253,7 +12271,7 @@ export default function App(){
                 </div>
                 {/* Log panel */}
                 <div className="card" style={{maxHeight:600,overflowY:"auto"}}>
-                  <h3 style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:12}}>📋 Import Log</h3>
+                  <h3 style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:12}}>Import Log</h3>
                   {importLog.length===0&&<div style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:30}}>No import started yet</div>}
                   {importLog.map((entry,i)=>(
                     <div key={i} style={{display:"flex",gap:8,marginBottom:5,fontSize:13,padding:"4px 0",borderBottom:"1px solid var(--border2)"}}>
@@ -12348,9 +12366,9 @@ export default function App(){
                   <label style={LBL}>WHAT ARE YOU LOGGING?</label>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:4}}>
                     {[
-                      {v:"work",   icon:"🔧", label:"Work"},
-                      {v:"function",icon:"📋",label:"Function"},
-                      {v:"leave",  icon:"🌴", label:"Leave"},
+                      {v:"work",   icon:"◆", label:"Work"},
+                      {v:"function",icon:"◈",label:"Function"},
+                      {v:"leave",  icon:"◇", label:"Leave"},
                     ].map(({v,icon,label})=>(
                       <button key={v} onClick={()=>setNewEntry(p=>({...p,type:v,_step:2}))}
                         style={{padding:"14px 8px",borderRadius:8,border:`2px solid ${newEntry.type===v?"var(--info)":"var(--border)"}`,
@@ -13096,7 +13114,7 @@ export default function App(){
       {showFuncModal&&(
         <div className="modal-ov" onClick={()=>setShowFuncModal(false)}>
           <div className="modal" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:4}}>⚡ Log Function Hours</h3>
+            <h3 style={{fontSize:17,fontWeight:700,marginBottom:4}}>Log Function Hours</h3>
             <p style={{fontSize:13,color:"var(--text4)",marginBottom:16}}>Post non-billable activity hours for an engineer — visible in KPI reports.</p>
             <div style={{display:"grid",gap:11}}>
               <div><Lbl>Engineer</Lbl>
@@ -13137,7 +13155,7 @@ export default function App(){
         <div style={{position:"fixed",inset:0,background:"#00000080",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}
           onClick={e=>{if(e.target===e.currentTarget){setShowPwdModal(false);setPwdMsg(null);}}}>
           <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:12,padding:28,width:360,maxWidth:"95vw",boxShadow:"0 24px 60px #00000080"}}>
-            <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:4}}>🔑 Change Password</h3>
+            <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:4}}>Change Password</h3>
             <p style={{fontSize:13,color:"var(--text4)",marginBottom:20}}>Choose a new password for your account.</p>
             <div style={{display:"grid",gap:12}}>
               <div>
