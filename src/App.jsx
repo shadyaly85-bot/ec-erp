@@ -2630,7 +2630,17 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       setProjects(prev=>prev.map(p=>p.id===targetProj?{...p,assigned_engineers:ae}:p));
     }
     const destName=projects.find(p=>p.id===targetProj)?.name||targetProj;
-    showToast(`${inserts.length} activit${inserts.length===1?"y":"ies"} pasted into ${destName} ✓`);
+    const pastedActIds=(data||[]).map(a=>a.id);
+    // Offer undo — clicking removes the pasted activities from UI and DB
+    showToast(
+      `${inserts.length} activit${inserts.length===1?"y":"ies"} pasted into ${destName}`,
+      true,
+      async()=>{
+        setActivities(prev=>prev.filter(a=>!pastedActIds.includes(a.id)));
+        await supabase.from("project_activities").delete().in("id",pastedActIds);
+        showToast("Paste undone ✓");
+      }
+    );
     logAction("CREATE","Tracker",`Pasted ${inserts.length} activities from ${actClipboard.fromProjName} → ${destName}`,{count:inserts.length,from:actClipboard.fromProj,to:targetProj});
     setPasteTargetProj(""); setPasteTargetSub("");
   },[actClipboard,pasteTargetProj,pasteTargetSub,trackerProj,actsByProj,projects,engineers,setActivities,setProjects,showToast,logAction]);
@@ -3665,16 +3675,20 @@ function AssignmentReport({entries,projects,engineers,month,year}){
   const [selProj,setSelProj]=React.useState("ALL");
   const [selEng,setSelEng]=React.useState("ALL");
   const MN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  // Work entries for the selected month — month is 0-based to match app state
   const workE=React.useMemo(function(){
     return entries.filter(function(e){
       var d=new Date(e.date+"T12:00:00");
-      if(d.getFullYear()!==year||d.getMonth()+1!==month||e.entry_type!=="work") return false;
+      if(d.getFullYear()!==year||d.getMonth()!==month||e.entry_type!=="work") return false;
       if(selProj!=="ALL"&&e.project_id!==selProj) return false;
       if(selEng!=="ALL"&&String(e.engineer_id)!==String(selEng)) return false;
       return true;
     });
   },[entries,year,month,selProj,selEng]);
-  const grouped=React.useMemo(function(){
+
+  // Build hours map: {project_id: {engineer_id: {hours, tasks}}}
+  const hoursMap=React.useMemo(function(){
     var map={};
     workE.forEach(function(e){
       var pid=e.project_id||"?";
@@ -3685,32 +3699,84 @@ function AssignmentReport({entries,projects,engineers,month,year}){
       var t=e.task_type||"General";
       map[pid][eid].tasks[t]=(map[pid][eid].tasks[t]||0)+e.hours;
     });
-    return Object.entries(map).map(function(kv){
-      var tot=Object.values(kv[1]).reduce(function(s,x){return s+x.hours;},0);
-      return {pid:kv[0],engs:kv[1],tot:tot};
-    }).sort(function(a,b){return b.tot-a.tot;});
+    return map;
   },[workE]);
-  var totHrs=workE.reduce(function(s,e){return s+e.hours;},0);
-  var totEngs=new Set(workE.map(function(e){return e.engineer_id;})).size;
+
+  // Build grouped list: derive from ASSIGNED engineers on each project (not just hours logged)
+  // This ensures engineers assigned to a project but with 0 hours still appear
+  const grouped=React.useMemo(function(){
+    // Collect all relevant project IDs:
+    // 1. Projects that have the selected engineer in assigned_engineers
+    // 2. Projects that have logged entries this month
+    var projIds=new Set();
+    projects.forEach(function(p){
+      if(selProj!=="ALL"&&p.id!==selProj) return;
+      var ae=(p.assigned_engineers||[]).map(String);
+      // Include project if:
+      // - viewing ALL engineers (project has any assignee)
+      // - viewing a specific engineer who is assigned to this project
+      if(selEng==="ALL"){
+        if(ae.length>0||(hoursMap[p.id]&&Object.keys(hoursMap[p.id]).length>0)) projIds.add(p.id);
+      } else {
+        if(ae.includes(String(selEng))||(hoursMap[p.id]&&hoursMap[p.id][String(selEng)])) projIds.add(p.id);
+      }
+    });
+    // Also include projects that have hours but no assigned_engineers set (legacy data)
+    Object.keys(hoursMap).forEach(function(pid){
+      if(selProj!=="ALL"&&pid!==selProj) return;
+      projIds.add(pid);
+    });
+
+    return Array.from(projIds).map(function(pid){
+      var proj=projects.find(function(p){return p.id===pid;});
+      var ae=(proj?.assigned_engineers||[]).map(String);
+      var engMap={};
+      // Add all assigned engineers (may have 0 hours)
+      ae.forEach(function(eid){
+        if(selEng!=="ALL"&&eid!==String(selEng)) return;
+        var eng=engineers.find(function(e){return String(e.id)===eid;});
+        if(!eng) return; // skip if engineer not in scoped list
+        var logged=(hoursMap[pid]&&hoursMap[pid][eid])||{hours:0,tasks:{}};
+        engMap[eid]=logged;
+      });
+      // Also add engineers who logged hours but may not be in assigned_engineers (legacy)
+      if(hoursMap[pid]){
+        Object.keys(hoursMap[pid]).forEach(function(eid){
+          if(selEng!=="ALL"&&eid!==String(selEng)) return;
+          if(!engMap[eid]) engMap[eid]=hoursMap[pid][eid];
+        });
+      }
+      var tot=Object.values(engMap).reduce(function(s,x){return s+x.hours;},0);
+      var assignedCount=ae.length;
+      return{pid,engs:engMap,tot,assignedCount};
+    }).filter(function(g){return Object.keys(g.engs).length>0;})
+      .sort(function(a,b){return b.tot-a.tot;});
+  },[workE,hoursMap,projects,engineers,selProj,selEng]);
+
+  var totHrs=grouped.reduce(function(s,g){return s+g.tot;},0);
+  var totEngs=new Set(grouped.flatMap(function(g){return Object.keys(g.engs);})).size;
+
   var exportPDF=function(){
     var now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-    var period=(MN[month-1]||"")+" "+year;
+    var period=(MN[month]||"")+" "+year;
     var blocks=grouped.map(function(g){
       var proj=projects.find(function(p){return p.id===g.pid;});
       var rows=Object.entries(g.engs).sort(function(a,b){return b[1].hours-a[1].hours;}).map(function(kv){
         var eng=engineers.find(function(e){return String(e.id)===kv[0];});
-        var tasks=Object.entries(kv[1].tasks).map(function(t){return t[0]+": "+t[1]+"h";}).join(", ");
+        var tasks=Object.entries(kv[1].tasks).map(function(t){return t[0]+": "+t[1]+"h";}).join(", ")||"—";
+        var hoursStr=kv[1].hours>0?kv[1].hours+"h":"0h (assigned, no hours)";
+        var hrsColor=kv[1].hours>0?"#1d4ed8":"#94a3b8";
         return "<tr><td style='padding:5px 8px 5px 20px;font-size:12px'>"+(eng?eng.name:kv[0])+"</td>"
           +"<td style='padding:5px 8px;font-size:11px;color:#64748b'>"+(eng?eng.role||"":"")+"</td>"
           +"<td style='padding:5px 8px;font-size:11px;color:#64748b'>"+tasks+"</td>"
-          +"<td style='padding:5px 8px;text-align:right;font-family:monospace;font-weight:700;color:#1d4ed8'>"+kv[1].hours+"h</td></tr>";
+          +"<td style='padding:5px 8px;text-align:right;font-family:monospace;font-weight:700;color:"+hrsColor+"'>"+hoursStr+"</td></tr>";
       }).join("");
       return "<div style='margin-bottom:16px;page-break-inside:avoid'>"
         +"<div style='background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:9px 14px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between'>"
         +"<div><div style='font-size:14px;font-weight:700'>"+(proj?proj.name:g.pid)+"</div>"
         +"<div style='font-size:10px;color:#93c5fd'>"+g.pid+(proj&&proj.pm?" · PM: "+proj.pm:"")+(proj&&proj.phase?" · "+proj.phase:"")+"</div></div>"
         +"<div style='text-align:right'><div style='font-size:20px;font-weight:800;color:#60a5fa'>"+g.tot+"h</div>"
-        +"<div style='font-size:10px;color:#93c5fd'>"+Object.keys(g.engs).length+" eng</div></div></div>"
+        +"<div style='font-size:10px;color:#93c5fd'>"+g.assignedCount+" assigned · "+Object.keys(g.engs).length+" shown</div></div></div>"
         +"<table style='width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none'>"
         +"<thead><tr style='background:#f1f5f9'>"
         +"<th style='padding:5px 8px 5px 20px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>ENGINEER</th>"
@@ -3725,16 +3791,17 @@ function AssignmentReport({entries,projects,engineers,month,year}){
       +"<div style='display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f'>"
       +"<div><div style='font-size:20px;font-weight:800;color:#1e3a5f'>ENEVO GROUP</div>"
       +"<div style='font-size:15px;font-weight:700;color:#334155;margin-top:2px'>Assignment Report — "+period+"</div>"
-      +"<div style='font-size:11px;color:#64748b;margin-top:3px'>Generated: "+now+"</div></div>"
+      +"<div style='font-size:11px;color:#64748b;margin-top:3px'>Generated: "+now+" · Includes assigned engineers with 0 hours</div></div>"
       +"<div style='text-align:right;font-size:11px;color:#64748b;line-height:1.9'>"
       +"<div>"+grouped.length+" projects · "+totEngs+" engineers</div>"
       +"<div>Total: <b>"+totHrs+"h</b></div></div></div>"
-      +(grouped.length===0?"<p style='text-align:center;color:#94a3b8'>No entries found.</p>":blocks)
+      +(grouped.length===0?"<p style='text-align:center;color:#94a3b8'>No assignments found.</p>":blocks)
       +"<div style='margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center'>ENEVO GROUP — "+now+"</div>"
       +"</body></html>";
     var w=window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
     if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
   };
+
   return(<div>
     <div className="card" style={{marginBottom:14}}>
       <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",justifyContent:"space-between"}}>
@@ -3743,18 +3810,15 @@ function AssignmentReport({entries,projects,engineers,month,year}){
             <select value={selProj} onChange={function(e){setSelProj(e.target.value);}}
               style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:190}}>
               <option value="ALL">All Projects</option>
-              {[...new Set(workE.map(function(e){return e.project_id;}).filter(Boolean))].sort(function(a,b){
-                var pa=projects.find(function(p){return p.id===a;}); var pb=projects.find(function(p){return p.id===b;});
-                return (pa?pa.name:a).localeCompare(pb?pb.name:b);
-              }).map(function(pid){var p=projects.find(function(x){return x.id===pid;});
-                return <option key={pid} value={pid}>{p?p.name:pid}</option>;})}
+              {projects.filter(function(p){
+                return (p.assigned_engineers||[]).length>0||Object.keys(hoursMap[p.id]||{}).length>0;
+              }).map(function(p){return <option key={p.id} value={p.id}>{p.name||p.id}</option>;})}
             </select></div>
           <div><div style={{fontSize:12,fontWeight:700,color:"var(--text3)",marginBottom:5}}>ENGINEER</div>
             <select value={selEng} onChange={function(e){setSelEng(e.target.value);}}
               style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:160}}>
               <option value="ALL">All Engineers</option>
-              {engineers.filter(function(e){return workE.some(function(x){return String(x.engineer_id)===String(e.id);});}).map(function(e){
-                return <option key={e.id} value={String(e.id)}>{e.name}</option>;})}
+              {engineers.map(function(e){return <option key={e.id} value={String(e.id)}>{e.name}</option>;})}
             </select></div>
         </div>
         <button className="bp" onClick={exportPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>&#11015; Export PDF</button>
@@ -3767,7 +3831,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
           <div style={{fontSize:12,color:"var(--text4)",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{k.l}</div>
         </div>);})}
     </div>
-    {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No work entries for {MN[month-1]} {year}.</div>}
+    {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No assignments found for {MN[month]} {year}.</div>}
     {grouped.map(function(g){
       var proj=projects.find(function(p){return p.id===g.pid;});
       return(<div key={g.pid} className="card" style={{marginBottom:12}}>
@@ -3780,26 +3844,36 @@ function AssignmentReport({entries,projects,engineers,month,year}){
           </div>
           <div style={{textAlign:"right"}}>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:"var(--info)"}}>{g.tot}h</div>
-            <div style={{fontSize:12,color:"var(--text4)"}}>{Object.keys(g.engs).length} eng</div>
+            <div style={{fontSize:12,color:"var(--text4)"}}>{g.assignedCount} assigned · {Object.keys(g.engs).length} shown</div>
           </div>
         </div>
         {Object.entries(g.engs).sort(function(a,b){return b[1].hours-a[1].hours;}).map(function(kv){
           var eng=engineers.find(function(e){return String(e.id)===kv[0];});
-          return(<div key={kv[0]} style={{marginBottom:8,background:"var(--bg2)",borderRadius:6,padding:"8px 12px",border:"1px solid var(--border3)"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-              <div><span style={{fontSize:13,fontWeight:600,color:"var(--text0)"}}>{eng?eng.name:kv[0]}</span>
-                {eng&&<span style={{fontSize:12,color:"var(--text4)",marginLeft:8}}>{eng.role}</span>}</div>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:"var(--info)"}}>{kv[1].hours}h</span>
+          var hasHours=kv[1].hours>0;
+          return(<div key={kv[0]} style={{marginBottom:8,background:"var(--bg2)",borderRadius:6,padding:"8px 12px",
+            border:"1px solid var(--border3)",opacity:hasHours?1:0.7}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:hasHours?5:0}}>
+              <div>
+                <span style={{fontSize:13,fontWeight:600,color:"var(--text0)"}}>{eng?eng.name:kv[0]}</span>
+                {eng&&<span style={{fontSize:12,color:"var(--text4)",marginLeft:8}}>{eng.role}</span>}
+              </div>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,
+                color:hasHours?"var(--info)":"var(--text4)"}}>
+                {hasHours?kv[1].hours+"h":"0h"}
+                {!hasHours&&<span style={{fontSize:11,marginLeft:5,color:"var(--text4)"}}>assigned</span>}
+              </span>
             </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+            {hasHours&&<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
               {Object.entries(kv[1].tasks).map(function(t){return(
                 <span key={t[0]} style={{background:"var(--bg3)",borderRadius:4,padding:"2px 7px",fontSize:12}}>
                   <span style={{color:"var(--text2)",fontWeight:600}}>{t[0]}</span>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",marginLeft:4}}>{t[1]}h</span>
                 </span>);})}
-            </div>
-          </div>);})}
-      </div>);})}
+            </div>}
+          </div>);
+        })}
+      </div>);
+    })}
   </div>);
 }
 
@@ -7870,18 +7944,19 @@ export default function App(){
       const pastedIds=data.map(e=>e.id);
       const _engName2 = engineers.find(e=>String(e.id)===String(engId))?.name||engId;
       const _onBehalf2 = String(engId)!==String(myProfile?.id) ? ` on behalf of ${_engName2}` : "";
-      // Add to UI immediately then offer undo
-      applyUndo(
-        showToast,
+      // Add entries to UI immediately
+      setEntries(prev=>[...data,...prev]);
+      // Show toast with undo — clicking Undo removes from UI and deletes from DB
+      showToast(
         `Pasted ${data.length} entr${data.length===1?"y":"ies"} to ${targetDate}`,
-        ()=>setEntries(prev=>[...data,...prev]),           // add to UI
-        ()=>setEntries(prev=>prev.filter(e=>!pastedIds.includes(e.id))),  // undo: remove from UI
-        async()=>{                                         // DB delete after 5s
-          const{error:de}=await supabase.from("time_entries").delete().in("id",pastedIds);
-          return de||null;
-        },
-        ()=>logAction("CREATE","TimeEntry",`Pasted ${data.length} entries to ${targetDate}${_onBehalf2}`,{engineer_id:engId,engineer_name:_engName2,date:targetDate,count:data.length})
+        true,
+        async()=>{
+          setEntries(prev=>prev.filter(e=>!pastedIds.includes(e.id)));
+          await supabase.from("time_entries").delete().in("id",pastedIds);
+          showToast("Paste undone ✓");
+        }
       );
+      logAction("CREATE","TimeEntry",`Pasted ${data.length} entries to ${targetDate}${_onBehalf2}`,{engineer_id:engId,engineer_name:_engName2,date:targetDate,count:data.length});
     }
   };
 
@@ -9851,13 +9926,16 @@ export default function App(){
                               if(allInserted.length>0){
                                 const copiedIds=allInserted.map(e=>e.id);
                                 const skipMsg=skipped>0?` (${skipped} days skipped — already filled or locked)`:"";
-                                applyUndo(
-                                  showToast,
+                                // Add to UI first, then offer undo via toast
+                                setEntries(prev=>[...allInserted,...prev]);
+                                showToast(
                                   `Copied ${allInserted.length} entries from last week${skipMsg}`,
-                                  ()=>setEntries(prev=>[...allInserted,...prev]),
-                                  ()=>setEntries(prev=>prev.filter(e=>!copiedIds.includes(e.id))),
-                                  async()=>{ const{error:de}=await supabase.from("time_entries").delete().in("id",copiedIds); return de||null; },
-                                  ()=>{}
+                                  true,
+                                  async()=>{
+                                    setEntries(prev=>prev.filter(e=>!copiedIds.includes(e.id)));
+                                    await supabase.from("time_entries").delete().in("id",copiedIds);
+                                    showToast("Copy undone ✓");
+                                  }
                                 );
                               } else {
                                 showToast("No entries copied — all days already filled or locked",false);
