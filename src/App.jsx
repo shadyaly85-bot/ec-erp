@@ -2511,12 +2511,27 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
       const aEng=engineers.find(e=>e.name===assigned_to);
       if(aEng&&String(aEng.id)!==String(myProfile?.id)){
         const aProj=projects.find(p=>p.id===projId);
+        const _addNow=new Date().toISOString();
+        const _addIsAdmin=myProfile?.role_type==="admin";
+        // Notify engineer — fire-and-forget
         supabase.from("notifications").insert({
           type:"activity_assigned",read:false,
           message:`You were assigned to "${activity_name}"${aProj?" · "+aProj.name:""}`,
-          created_at:new Date().toISOString(),
+          created_at:_addNow,
           meta:JSON.stringify({recipient_engineer_id:String(aEng.id),project_id:projId,assigned_by:myProfile?.name})
-        }).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
+        });
+        // If lead is creating + assigning, notify admins
+        if(!_addIsAdmin){
+          const _adminAddMsg=`${myProfile?.name||"Lead"} assigned "${activity_name}" to ${aEng.name}${aProj?" · "+aProj.name:""}`;
+          engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
+            supabase.from("notifications").insert({
+              type:"activity_assigned",read:false,message:_adminAddMsg,created_at:_addNow,
+              meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),project_id:projId,assigned_to:aEng.name,assigned_by:myProfile?.name})
+            }).select().single().then(({data:nd})=>{
+              if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
+            });
+          });
+        }
       }
     }
     setAddModal(false);
@@ -2846,31 +2861,59 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     if(error){showToast("Error: "+error.message,false);return;}
     setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
 
+    const _now=new Date().toISOString();
+    const _changerIsAdmin=myProfile?.role_type==="admin";
+    const _proj=projects.find(p=>p.id===(fields.project_id||prevActivity?.project_id));
+
     // ── Notification: activity_assigned ──
     if(fields.assigned_to && fields.assigned_to!==prevActivity?.assigned_to){
       const assignedEng=engineers.find(e=>e.name===fields.assigned_to);
       if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
-        const proj=projects.find(p=>p.id===fields.project_id);
-        const assignMsg=`You were assigned to "${fields.activity_name||data.activity_name}"${proj?" · "+proj.name:""}`;
-        supabase.from("notifications").insert({
-          type:"activity_assigned",read:false,message:assignMsg,
-          created_at:new Date().toISOString(),
-          meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,assigned_by:myProfile?.name})
-        }).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
+        const assignMsg=`You were assigned to "${fields.activity_name||data.activity_name}"${_proj?" · "+_proj.name:""}`;
+        const assignMeta={recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,assigned_by:myProfile?.name};
+        // Notify engineer — fire-and-forget (engineer gets via RT/loadAll; don't add to assigner state)
+        supabase.from("notifications").insert({type:"activity_assigned",read:false,message:assignMsg,created_at:_now,meta:JSON.stringify(assignMeta)});
+        // If lead is assigning, also notify all admins
+        if(!_changerIsAdmin){
+          const adminMsg=`${myProfile?.name||"Lead"} assigned "${fields.activity_name||data.activity_name}" to ${assignedEng.name}${_proj?" · "+_proj.name:""}`;
+          engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
+            supabase.from("notifications").insert({
+              type:"activity_assigned",read:false,message:adminMsg,created_at:_now,
+              meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,assigned_to:assignedEng.name,assigned_by:myProfile?.name})
+            }).select().single().then(({data:nd})=>{
+              if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
+            });
+          });
+        }
       }
     }
 
     // ── Notification: activity_status_changed ──
-    if(fields.status && fields.status!==prevActivity?.status && prevActivity?.assigned_to){
-      const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
-      if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
-        const proj=projects.find(p=>p.id===fields.project_id);
-        const statusMsg=`"${fields.activity_name||data.activity_name}" marked ${fields.status}${proj?" · "+proj.name:""}`;
-        supabase.from("notifications").insert({
-          type:"activity_status_changed",read:false,message:statusMsg,
-          created_at:new Date().toISOString(),
-          meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,status:fields.status})
-        }).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
+    if(fields.status && fields.status!==prevActivity?.status){
+      const actName=fields.activity_name||data.activity_name;
+      const statusMsg=`"${actName}" marked ${fields.status}${_proj?" · "+_proj.name:""}`;
+      // Notify assigned engineer (if exists and not the changer)
+      if(prevActivity?.assigned_to){
+        const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
+        if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
+          // Fire-and-forget for engineer
+          supabase.from("notifications").insert({
+            type:"activity_status_changed",read:false,message:statusMsg,created_at:_now,
+            meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})
+          });
+        }
+      }
+      // If lead changed status, notify all admins
+      if(!_changerIsAdmin){
+        const adminStatusMsg=`${myProfile?.name||"Lead"} marked "${actName}" as ${fields.status}${_proj?" · "+_proj.name:""}`;
+        engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
+          supabase.from("notifications").insert({
+            type:"activity_status_changed",read:false,message:adminStatusMsg,created_at:_now,
+            meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})
+          }).select().single().then(({data:nd})=>{
+            if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
+          });
+        });
       }
     }
 
@@ -7339,8 +7382,9 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         created_at:new Date().toISOString(),
         meta:JSON.stringify({engineer_id:entry.engineer_id,date:entry.date,entry_id:entryId})
       };
-      const{data:nd}=await supabase.from("notifications").insert(feedback).select().single();
-      if(nd) setNotifications&&setNotifications(prev=>[nd,...prev]);
+      // Fire-and-forget: engineer receives via realtime INSERT or loadAll on next login
+      // Do NOT add to admin state — admin dismissing their bell would delete it before engineer sees it
+      await supabase.from("notifications").insert(feedback);
       logAction("UPDATE","TimeEntry",`Approved vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     }
     showToast("Vacation approved ✓");
@@ -7359,8 +7403,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         created_at:new Date().toISOString(),
         meta:JSON.stringify({engineer_id:entry.engineer_id,date:entry.date,entry_id:entryId})
       };
-      const{data:nd}=await supabase.from("notifications").insert(feedback).select().single();
-      if(nd) setNotifications&&setNotifications(prev=>[nd,...prev]);
+      await supabase.from("notifications").insert(feedback);
       logAction("DELETE","TimeEntry",`Rejected vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     }
     showToast("Vacation request rejected",false);
@@ -8683,8 +8726,9 @@ export default function App(){
     const isApprovedLeave = entry.entry_type==="leave"
       && entry.leave_type==="Annual Leave"
       && entry.activity!=="PENDING_APPROVAL";
-    if(isApprovedLeave && !canEditAny){
-      showToast("Approved annual leave cannot be deleted. Contact your admin to cancel.",false);
+    // Only admin can cancel approved leave — lead and engineer must request through admin
+    if(isApprovedLeave && !isAdmin){
+      showToast("Approved annual leave cannot be deleted. Contact admin to cancel.",false);
       return;
     }
     const _engName=engineers.find(e=>String(e.id)===String(engineerId))?.name||engineerId;
@@ -10395,8 +10439,8 @@ export default function App(){
                                   await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
                                   setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
                                   if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
-                                  const fb={type:"vacation_approved",read:false,message:`Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})};
-                                  supabase.from("notifications").insert(fb).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
+                                  // Fire-and-forget: engineer gets via realtime or loadAll — don't add to admin state
+                                  supabase.from("notifications").insert({type:"vacation_approved",read:false,message:`Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
                                   showToast(`${eng?.name||"Vacation"} approved ✓`);
                                 }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:6,padding:"4px 12px",color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
                                   ✓ Approve
@@ -10405,8 +10449,8 @@ export default function App(){
                                   await supabase.from("time_entries").delete().eq("id",e.id);
                                   setEntries(prev=>prev.filter(x=>x.id!==e.id));
                                   if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
-                                  const fb={type:"vacation_rejected",read:false,message:`Your Annual Leave on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})};
-                                  supabase.from("notifications").insert(fb).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[nd,...prev]);});
+                                  // Fire-and-forget: engineer gets via realtime or loadAll
+                                  supabase.from("notifications").insert({type:"vacation_rejected",read:false,message:`Your Annual Leave on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
                                   showToast(`${eng?.name||"Vacation"} rejected`,false);
                                 }} style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:6,padding:"4px 12px",color:"#f87171",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>
                                   ✕ Reject
@@ -11102,7 +11146,7 @@ export default function App(){
                               {canEdit&&canPostHours&&!(()=>{
                                 // Hide edit/delete for approved annual leave (non-admin)
                                 const isApprovedLeave=e.entry_type==="leave"&&e.leave_type==="Annual Leave"&&e.activity!=="PENDING_APPROVAL";
-                                return isApprovedLeave&&!canEditAny;
+                                return isApprovedLeave&&!isAdmin;
                               })()&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
                                 <button className="be" style={{padding:"1px 4px",fontSize:12}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
                                 <button className="bd" style={{padding:"1px 4px",fontSize:12}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
@@ -11179,7 +11223,7 @@ export default function App(){
                             <td><div style={{display:"flex",gap:5}}>
                               {(()=>{
                                 const isApprovedLeave=e.entry_type==="leave"&&e.leave_type==="Annual Leave"&&e.activity!=="PENDING_APPROVAL";
-                                const locked=isApprovedLeave&&!canEditAny;
+                                const locked=isApprovedLeave&&!isAdmin;
                                 return locked
                                   ? <span style={{fontSize:11,color:"var(--text4)",fontStyle:"italic"}}>Approved — admin only</span>
                                   : <>{canPostHours&&<button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>}
