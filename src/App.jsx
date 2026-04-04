@@ -2514,7 +2514,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
         const _addNow=new Date().toISOString();
         const _addIsAdmin=myProfile?.role_type==="admin";
         // Notify engineer — fire-and-forget
-        supabase.from("notifications").insert({
+        insertNotif({
           type:"activity_assigned",engineer_id:aEng.id,read:false,
           message:`You were assigned to "${activity_name}"${aProj?" · "+aProj.name:""}`,
           created_at:_addNow,
@@ -2852,6 +2852,24 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   const toggleCat  = useCallback((cat)=>setExpandedCats(p=>({...p,[cat]:!p[cat]})),[]);
 
   // ── Callbacks ──
+  // ── Notification insert helper — with fallback for missing engineer_id column ──
+  const insertNotif=useCallback(async(payload)=>{
+    const{error}=await supabase.from("notifications").insert(payload);
+    if(error){
+      // If engineer_id column doesn't exist yet, retry without it (store in meta as fallback)
+      if(error.message&&(error.message.includes("engineer_id")||error.message.includes("column"))){
+        console.warn("[EC-ERP] engineer_id column missing — falling back to meta-only insert. Run SQL migration in Admin → Info.");
+        const{engineer_id,...rest}=payload;
+        const metaObj=engineer_id!=null?{...JSON.parse(rest.meta||"{}"),_eng_id:String(engineer_id)}:JSON.parse(rest.meta||"{}");
+        const{error:err2}=await supabase.from("notifications").insert({...rest,meta:JSON.stringify(metaObj)});
+        if(err2) console.error("[EC-ERP] Notification fallback insert also failed:",err2.message);
+        return err2||null;
+      }
+      console.error("[EC-ERP] Notification insert failed:",payload.type,error.message);
+    }
+    return error||null;
+  },[]);
+
   const saveActivity = useCallback(async(draft)=>{
     const {id,...fields}=draft;
     const grp = CAT_TO_GROUP[fields.category]||fields.group_name||"SCADA";
@@ -2872,7 +2890,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         const assignMsg=`You were assigned to "${fields.activity_name||data.activity_name}"${_proj?" · "+_proj.name:""}`;
         const assignMeta={recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,assigned_by:myProfile?.name};
         // Notify engineer — fire-and-forget (engineer gets via RT/loadAll; don't add to assigner state)
-        supabase.from("notifications").insert({type:"activity_assigned",engineer_id:assignedEng.id,read:false,message:assignMsg,created_at:_now,meta:JSON.stringify(assignMeta)});
+        insertNotif({type:"activity_assigned",engineer_id:assignedEng.id,read:false,message:assignMsg,created_at:_now,meta:JSON.stringify(assignMeta)});
         // If lead is assigning, also notify all admins
         if(!_changerIsAdmin){
           const adminMsg=`${myProfile?.name||"Lead"} assigned "${fields.activity_name||data.activity_name}" to ${assignedEng.name}${_proj?" · "+_proj.name:""}`;
@@ -2897,7 +2915,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
         if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
           // Fire-and-forget for engineer
-          supabase.from("notifications").insert({
+          insertNotif({
             type:"activity_status_changed",engineer_id:assignedEng.id,read:false,message:statusMsg,created_at:_now,
             meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})
           });
@@ -2926,7 +2944,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       // Notify engineer
       if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
         const progMsg=`"${actName}" progress updated to ${pct}%${_proj?" · "+_proj.name:""}`;
-        supabase.from("notifications").insert({
+        insertNotif({
           type:"activity_progress_changed",engineer_id:assignedEng.id,read:false,message:progMsg,created_at:_now,
           meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name})
         });
@@ -2955,7 +2973,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         : "removed";
       if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
         const dlMsg=`Deadline for "${actName}" changed to ${newDeadline}${_proj?" · "+_proj.name:""}`;
-        supabase.from("notifications").insert({
+        insertNotif({
           type:"activity_deadline_changed",engineer_id:assignedEng.id,read:false,message:dlMsg,created_at:_now,
           meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})
         });
@@ -2993,7 +3011,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       }
     }
     showToast("Activity saved ✓");
-  },[setActivities,showToast,logAction,engineers,projects,setProjects,setNotifications,myProfile]);
+  },[activities,setActivities,showToast,logAction,engineers,projects,setProjects,setNotifications,myProfile]);
 
   const confirmAdd = useCallback(async({category,activity_name,start_date,end_date,assigned_to})=>{
     if(!addModal) return;
@@ -7441,7 +7459,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       };
       // Fire-and-forget: engineer receives via realtime INSERT or loadAll on next login
       // Do NOT add to admin state — admin dismissing their bell would delete it before engineer sees it
-      await supabase.from("notifications").insert(feedback);
+      await insertNotif(feedback);
       logAction("UPDATE","TimeEntry",`Approved vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     }
     showToast("Vacation approved ✓");
@@ -7460,7 +7478,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         created_at:new Date().toISOString(),
         meta:JSON.stringify({engineer_id:entry.engineer_id,date:entry.date,entry_id:entryId})
       };
-      await supabase.from("notifications").insert(feedback);
+      await insertNotif(feedback);
       logAction("DELETE","TimeEntry",`Rejected vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     }
     showToast("Vacation request rejected",false);
@@ -7856,6 +7874,8 @@ export default function App(){
   // sessionStorage remembers if user left it open (not closed)
   const [notifPanelOpen,setNotifPanelOpen] = useState(false);
   const [bellOpen,setBellOpen]             = useState(false);
+  const [notifHistory,setNotifHistory]     = useState([]);
+  const [bellTab,setBellTab]               = useState("active"); // "active" | "history"
   const toggleNotifPanel = React.useCallback(()=>{
     setNotifPanelOpen(prev=>!prev);
   },[]);
@@ -8186,14 +8206,21 @@ export default function App(){
         const _meRole=myProfileRef.current?.role_type||"engineer";
         const _isAdminRT=_meRole==="admin";
         const _isLeadRT=["admin","lead"].includes(_meRole);
-        // ── Server-side scoped: every personal notification has engineer_id = recipient ──
-        // Check top-level engineer_id column (set on all personal notifications)
+        // Check engineer_id (top-level column, post-migration) OR meta fallback (pre-migration)
         if(row.engineer_id!==null&&row.engineer_id!==undefined){
-          // Personal notification — only add to state if addressed to this user
           if(String(row.engineer_id)!==_meId) return;
         } else {
-          // Broadcast (engineer_id=null): only admin/lead see these (new_signup, alerts, overdue)
-          if(!_isLeadRT) return;
+          // No top-level engineer_id: check meta for personal notification pre-migration
+          try{
+            const m=JSON.parse(row.meta||"{}");
+            const metaId=m.engineer_id||m.recipient_engineer_id||m._eng_id;
+            if(metaId){
+              if(String(metaId)!==_meId) return; // addressed to someone else
+            } else {
+              // Broadcast (no recipient in meta): only admin/lead
+              if(!_isLeadRT) return;
+            }
+          }catch{ if(!_isLeadRT) return; }
         }
         setNotifications(prev=>prev.some(n=>n.id===row.id)?prev:[row,...prev]);
       })
@@ -8249,12 +8276,45 @@ export default function App(){
         const _isLeadOrAdmin=["admin","lead"].includes(_profRole);
         const dismissedKeys=new Set(JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"));
 
-        // 1. Personal notifications: addressed to this engineer specifically
-        const {data:personalNotifs}=await supabase.from("notifications")
+        // 1. Personal active (unread) notifications
+        // Try server-side filter (requires engineer_id column — run SQL migration if failing)
+        const _thirtyAgo=new Date(Date.now()-30*24*60*60*1000).toISOString();
+        let personalNotifs=[], historyNotifs=[];
+
+        const{data:pn,error:pnErr}=await supabase.from("notifications")
           .select("*").eq("engineer_id",_profId).eq("read",false)
           .order("created_at",{ascending:false}).limit(80);
 
-        // 2. Broadcast notifications: new_signup, timesheet_alert, overdue_alert (engineer_id=null)
+        if(pnErr&&pnErr.message&&(pnErr.message.includes("engineer_id")||pnErr.message.includes("column"))){
+          // ── Fallback: engineer_id column not yet created — full load + client-side meta filter ──
+          console.warn("[EC-ERP] notifications.engineer_id column missing. Falling back to meta-based filter. Run SQL migration in Admin → Info.");
+          const{data:allN}=await supabase.from("notifications")
+            .select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
+          const{data:allH}=await supabase.from("notifications")
+            .select("*").eq("read",true).gte("created_at",_thirtyAgo)
+            .order("created_at",{ascending:false}).limit(100);
+          const _matchId=n=>{
+            if(n.engineer_id!=null) return String(n.engineer_id)===String(_profId);
+            try{
+              const m=JSON.parse(n.meta||"{}");
+              return String(m.engineer_id||m.recipient_engineer_id||m._eng_id||"")===String(_profId);
+            }catch{return false;}
+          };
+          // Broadcast types visible to admin/lead regardless of engineer_id
+          const _isBroadcast=n=>["new_signup","timesheet_alert","overdue_alert"].includes(n.type);
+          personalNotifs=(allN||[]).filter(n=>_matchId(n)||(_isLeadOrAdmin&&_isBroadcast(n)));
+          historyNotifs=(allH||[]).filter(n=>_matchId(n));
+        } else {
+          personalNotifs=pn||[];
+          // 2. Personal history (read, last 30 days)
+          const{data:hn}=await supabase.from("notifications")
+            .select("*").eq("engineer_id",_profId).eq("read",true)
+            .gte("created_at",_thirtyAgo)
+            .order("created_at",{ascending:false}).limit(50);
+          historyNotifs=hn||[];
+        }
+
+        // 3. Broadcast notifications: new_signup, timesheet_alert, overdue_alert (engineer_id=null)
         let broadcastNotifs=[];
         if(_isLeadOrAdmin){
           const {data:bcast}=await supabase.from("notifications")
@@ -8282,6 +8342,7 @@ export default function App(){
         });
         if(toDelete.length) supabase.from("notifications").delete().in("id",[...new Set(toDelete)]).then(()=>{});
         setNotifications(allNotifs.filter(n=>!toDelete.includes(n.id)));
+        setNotifHistory((historyNotifs||[]).filter(n=>!toDelete.includes(n.id)));
       }
       if(staffR.data){
         const sData=staffR.data;
@@ -8774,7 +8835,7 @@ export default function App(){
     // If admin deletes an approved leave → notify the engineer
     if(isApprovedLeave && canEditAny){
       const cancelMsg=`Your approved Annual Leave on ${entry.date} has been cancelled by admin`;
-      supabase.from("notifications").insert({
+      insertNotif({
         type:"vacation_cancelled",engineer_id:entry.engineer_id,read:false,message:cancelMsg,
         created_at:new Date().toISOString(),
         meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:id,cancelled_by:myProfile?.name})
@@ -10346,24 +10407,56 @@ export default function App(){
                     {/* Dropdown — opens to the right of sidebar */}
                     {bellOpen&&(
                       <div style={{position:"fixed",top:72,left:220,width:370,maxHeight:520,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:14,boxShadow:"0 8px 32px #00000060",overflow:"hidden",display:"flex",flexDirection:"column",zIndex:601}}>
-                        {/* Header */}
-                        <div style={{padding:"12px 16px 10px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-                          <div>
+                        {/* Header + Tabs */}
+                        <div style={{borderBottom:"1px solid var(--border)",flexShrink:0}}>
+                          <div style={{padding:"12px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                             <span style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>Notifications</span>
-                            {bellCount>0&&<span style={{marginLeft:8,fontSize:11,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>{bellCount} unread</span>}
+                            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                              {bellTab==="active"&&notifications.length>0&&(
+                                <button onClick={async()=>{
+                                  // Mark all active as read (history) instead of deleting
+                                  const ids=notifications.map(n=>n.id).filter(id=>id!=null);
+                                  if(ids.length){
+                                    await supabase.from("notifications").update({read:true}).in("id",ids);
+                                    setNotifHistory(prev=>[...notifications,...prev].slice(0,80));
+                                  }
+                                  try{const al=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");const ods=notifications.filter(n=>n.type==="overdue_alert").map(n=>{try{return JSON.parse(n.meta||"{}").alert_key;}catch{return null;}}).filter(Boolean);if(ods.length)localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...al,...ods])]));}catch{}
+                                  setNotifications([]);
+                                }} style={{background:"transparent",border:"none",color:"var(--text4)",fontSize:12,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}
+                                  onMouseEnter={e=>e.currentTarget.style.color="var(--info)"}
+                                  onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>
+                                  Mark all read
+                                </button>
+                              )}
+                              {bellTab==="history"&&notifHistory.length>0&&(
+                                <button onClick={async()=>{
+                                  const ids=notifHistory.map(n=>n.id).filter(id=>id!=null);
+                                  if(ids.length) await supabase.from("notifications").delete().in("id",ids);
+                                  setNotifHistory([]);
+                                }} style={{background:"transparent",border:"none",color:"var(--text4)",fontSize:12,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}
+                                  onMouseEnter={e=>e.currentTarget.style.color="#f87171"}
+                                  onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>
+                                  Clear history
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          {notifications.length>0&&(
-                            <button onClick={async()=>{
-                              const ids=notifications.map(n=>n.id).filter(id=>id!=null);
-                              if(ids.length) await supabase.from("notifications").delete().in("id",ids);
-                              try{const al=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");const ods=notifications.filter(n=>n.type==="overdue_alert").map(n=>{try{return JSON.parse(n.meta||"{}").alert_key;}catch{return null;}}).filter(Boolean);if(ods.length)localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...al,...ods])]));}catch{}
-                              setNotifications([]);setBellOpen(false);
-                            }} style={{background:"transparent",border:"none",color:"var(--text4)",fontSize:12,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",padding:"2px 6px",borderRadius:4}}
-                              onMouseEnter={e=>e.currentTarget.style.color="var(--info)"}
-                              onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>
-                              Dismiss all
-                            </button>
-                          )}
+                          {/* Active / History tabs */}
+                          <div style={{display:"flex",borderTop:"1px solid var(--border3)"}}>
+                            {[
+                              {id:"active",  label:"Active",  count:bellCount},
+                              {id:"history", label:"History", count:notifHistory.length},
+                            ].map(tab=>(
+                              <button key={tab.id} onClick={()=>setBellTab(tab.id)}
+                                style={{flex:1,padding:"7px 12px",border:"none",borderBottom:bellTab===tab.id?"2px solid var(--info)":"2px solid transparent",
+                                  background:"transparent",cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
+                                  fontSize:12,fontWeight:bellTab===tab.id?700:500,
+                                  color:bellTab===tab.id?"var(--info)":"var(--text4)",transition:"all .15s"}}>
+                                {tab.label}
+                                {tab.count>0&&<span style={{marginLeft:4,background:bellTab===tab.id?"var(--info)":"var(--border)",color:bellTab===tab.id?"#fff":"var(--text4)",fontSize:10,padding:"1px 5px",borderRadius:8,fontWeight:700}}>{tab.count>99?"99+":tab.count}</span>}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                         {/* List */}
                         <div style={{overflowY:"auto",flex:1}}>
@@ -10394,14 +10487,14 @@ export default function App(){
                                         await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
                                         setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
                                         if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
-                                        supabase.from("notifications").insert({type:"vacation_approved",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
+                                        insertNotif({type:"vacation_approved",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
                                         showToast(`${eng?.name||"Vacation"} approved ✓`);
                                       }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:5,padding:"3px 10px",color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✓ Approve</button>
                                       <button onClick={async()=>{
                                         await supabase.from("time_entries").delete().eq("id",e.id);
                                         setEntries(prev=>prev.filter(x=>x.id!==e.id));
                                         if(matchedNotif){await supabase.from("notifications").delete().eq("id",matchedNotif.id);setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));}
-                                        supabase.from("notifications").insert({type:"vacation_rejected",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
+                                        insertNotif({type:"vacation_rejected",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
                                         showToast(`${eng?.name||"Vacation"} rejected`,false);
                                       }} style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:5,padding:"3px 10px",color:"#f87171",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✕ Reject</button>
                                     </div>
@@ -10410,8 +10503,8 @@ export default function App(){
                               );
                             });
                           })()}
-                          {/* All other notifications */}
-                          {sorted.map(n=>{
+                          {/* All other notifications — active tab */}
+                          {bellTab==="active"&&sorted.map(n=>{
                             const ic=typeIcon(n.type);const cl=typeColor(n.type);const lbl=typeLabel(n.type);
                             return(
                               <div key={n.id} style={{padding:"10px 16px",borderBottom:"1px solid var(--border3)",display:"flex",gap:10,alignItems:"flex-start"}}
@@ -10426,14 +10519,51 @@ export default function App(){
                                   <div style={{fontSize:12,color:"var(--text1)",lineHeight:1.45}}>{n.message}</div>
                                 </div>
                                 <button onClick={async()=>{
-                                  if(typeof n.id==="string"&&n.id.startsWith("overdue_")){try{const m=JSON.parse(n.meta||"{}");if(m.alert_key){const prev=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,m.alert_key])]));}}catch{}setNotifications(prev=>prev.filter(x=>x.id!==n.id));}
-                                  else{await supabase.from("notifications").delete().eq("id",n.id);setNotifications(prev=>prev.filter(x=>x.id!==n.id));}
+                                  if(typeof n.id==="string"&&n.id.startsWith("overdue_")){
+                                    try{const m=JSON.parse(n.meta||"{}");if(m.alert_key){const prev=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,m.alert_key])]));}}catch{}
+                                    setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                                  } else {
+                                    // Mark as read (moves to history) instead of deleting
+                                    await supabase.from("notifications").update({read:true}).eq("id",n.id);
+                                    setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                                    setNotifHistory(prev=>[{...n,read:true},...prev].slice(0,80));
+                                  }
                                 }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:13,padding:"2px 3px",flexShrink:0,lineHeight:1}}
-                                  onMouseEnter={e=>e.currentTarget.style.color="#f87171"}
-                                  onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>✕</button>
+                                  title="Mark as read"
+                                  onMouseEnter={e=>e.currentTarget.style.color="var(--info)"}
+                                  onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>✓</button>
                               </div>
                             );
                           })}
+                          {/* History tab — past read notifications */}
+                          {bellTab==="history"&&(
+                            notifHistory.length===0
+                            ? <div style={{padding:"28px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
+                                <div style={{fontSize:24,marginBottom:6}}>📭</div>No notification history yet
+                              </div>
+                            : notifHistory.map(n=>{
+                                const ic=typeIcon(n.type);const cl=typeColor(n.type);const lbl=typeLabel(n.type);
+                                return(
+                                  <div key={n.id} style={{padding:"10px 16px",borderBottom:"1px solid var(--border3)",display:"flex",gap:10,alignItems:"flex-start",opacity:0.75}}>
+                                    <div style={{width:28,height:28,borderRadius:"50%",background:cl+"10",color:cl,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700}}>{ic}</div>
+                                    <div style={{flex:1,minWidth:0}}>
+                                      <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}}>
+                                        <span style={{fontSize:10,fontWeight:700,color:cl,textTransform:"uppercase",letterSpacing:".05em"}}>{lbl}</span>
+                                        <span style={{fontSize:10,color:"var(--text4)",marginLeft:"auto",whiteSpace:"nowrap",fontFamily:"'IBM Plex Mono',monospace"}}>{fmtAgo(n.created_at)}</span>
+                                      </div>
+                                      <div style={{fontSize:12,color:"var(--text3)",lineHeight:1.45}}>{n.message}</div>
+                                    </div>
+                                    <button onClick={async()=>{
+                                      await supabase.from("notifications").delete().eq("id",n.id);
+                                      setNotifHistory(prev=>prev.filter(x=>x.id!==n.id));
+                                    }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:12,padding:"2px 3px",flexShrink:0}}
+                                      title="Delete from history"
+                                      onMouseEnter={e=>e.currentTarget.style.color="#f87171"}
+                                      onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>✕</button>
+                                  </div>
+                                );
+                              })
+                          )}
                         </div>
                       </div>
                     )}
@@ -12875,7 +13005,8 @@ export default function App(){
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>Required SQL Migrations</div>
                     <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>Run these once in your Supabase SQL editor — safe to re-run (IF NOT EXISTS)</div>
                     {[
-                      {label:"Activity Comments column",  sql:"ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';",    desc:"Enables the threaded comment system on activities."},
+                      {label:"Notifications engineer_id", sql:"ALTER TABLE notifications ADD COLUMN IF NOT EXISTS engineer_id BIGINT REFERENCES engineers(id); CREATE INDEX IF NOT EXISTS idx_notifications_eng ON notifications(engineer_id);", desc:"Required for the notification system. Run this first — all activity, vacation and comment notifications depend on it."},
+                    {label:"Activity Comments column",  sql:"ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';",    desc:"Enables the threaded comment system on activities."},
                       {label:"Assigned Engineers column", sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS assigned_engineers JSONB DEFAULT '[]';",       desc:"Enables assignment tracking and auto-assign on activity creation."},
                     {label:"Project Leader column",     sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_leader TEXT;",                                  desc:"Enables the Project Leader field on each project and notification routing."},
                     ].map(function(m){return(
