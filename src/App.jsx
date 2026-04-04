@@ -2528,14 +2528,8 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
         // If lead is creating + assigning, notify admins
         if(!_addIsAdmin){
           const _adminAddMsg=`${myProfile?.name||"Lead"} assigned "${activity_name}" to ${aEng.name}${aProj?" · "+aProj.name:""}`;
-          engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
-            supabase.from("notifications").insert({
-              type:"activity_assigned",engineer_id:adminEng.id,read:false,message:_adminAddMsg,created_at:_addNow,
-              meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),project_id:projId,assigned_to:aEng.name,assigned_by:myProfile?.name})
-            }).select().single().then(({data:nd})=>{
-              if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
-            });
-          });
+          const _ap1=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_assigned",engineer_id:adminEng.id,read:false,message:_adminAddMsg,created_at:_addNow,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),project_id:projId,assigned_to:aEng.name,assigned_by:myProfile?.name})}));
+          if(_ap1.length) supabase.from("notifications").insert(_ap1).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
         }
       }
     }
@@ -2882,14 +2876,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         // If lead is assigning, also notify all admins
         if(!_changerIsAdmin){
           const adminMsg=`${myProfile?.name||"Lead"} assigned "${fields.activity_name||data.activity_name}" to ${assignedEng.name}${_proj?" · "+_proj.name:""}`;
-          engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
-            supabase.from("notifications").insert({
-              type:"activity_assigned",engineer_id:adminEng.id,read:false,message:adminMsg,created_at:_now,
-              meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,assigned_to:assignedEng.name,assigned_by:myProfile?.name})
-            }).select().single().then(({data:nd})=>{
-              if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
-            });
-          });
+          const _ap2=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_assigned",engineer_id:adminEng.id,read:false,message:adminMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,assigned_to:assignedEng.name,assigned_by:myProfile?.name})}));
+          if(_ap2.length) supabase.from("notifications").insert(_ap2).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
         }
       }
     }
@@ -2912,14 +2900,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       // If lead changed status, notify all admins
       if(!_changerIsAdmin){
         const adminStatusMsg=`${myProfile?.name||"Lead"} marked "${actName}" as ${fields.status}${_proj?" · "+_proj.name:""}`;
-        engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
-          supabase.from("notifications").insert({
-            type:"activity_status_changed",engineer_id:adminEng.id,read:false,message:adminStatusMsg,created_at:_now,
-            meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})
-          }).select().single().then(({data:nd})=>{
-            if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
-          });
-        });
+        const _ap3=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_status_changed",engineer_id:adminEng.id,read:false,message:adminStatusMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})}));
+        if(_ap3.length) supabase.from("notifications").insert(_ap3).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
       }
     }
 
@@ -2940,14 +2922,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       // If lead changed progress, notify all admins
       if(!_changerIsAdmin){
         const adminProgMsg=`${myProfile?.name||"Lead"} updated "${actName}" to ${pct}%${_proj?" · "+_proj.name:""}`;
-        engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
-          supabase.from("notifications").insert({
-            type:"activity_progress_changed",engineer_id:adminEng.id,read:false,message:adminProgMsg,created_at:_now,
-            meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name})
-          }).select().single().then(({data:nd})=>{
-            if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
-          });
-        });
+        const _ap4=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_progress_changed",engineer_id:adminEng.id,read:false,message:adminProgMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name})}));
+        if(_ap4.length) supabase.from("notifications").insert(_ap4).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
       }
     }
 
@@ -2969,14 +2945,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       // If lead changed deadline, notify admins too
       if(!_changerIsAdmin){
         const adminDlMsg=`${myProfile?.name||"Lead"} changed deadline for "${actName}" to ${newDeadline}${_proj?" · "+_proj.name:""}`;
-        engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
-          supabase.from("notifications").insert({
-            type:"activity_deadline_changed",engineer_id:adminEng.id,read:false,message:adminDlMsg,created_at:_now,
-            meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})
-          }).select().single().then(({data:nd})=>{
-            if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
-          });
-        });
+        const _ap5=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_deadline_changed",engineer_id:adminEng.id,read:false,message:adminDlMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})}));
+        if(_ap5.length) supabase.from("notifications").insert(_ap5).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
       }
     }
 
@@ -8877,11 +8847,8 @@ export default function App(){
       };
       // Insert one vacation_request notification per admin (with their engineer_id)
       // so each admin's server-side scoped load query picks it up
-      engineers.filter(e=>e.role_type==="admin").forEach(adminEng=>{
-        const adminNotif={...notif,engineer_id:adminEng.id};
-        supabase.from("notifications").insert(adminNotif).select().single()
-          .then(({data:nd})=>{ if(nd&&String(adminEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]); });
-      });
+      const _adminVacPayloads=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({...notif,engineer_id:adminEng.id}));
+      if(_adminVacPayloads.length) supabase.from("notifications").insert(_adminVacPayloads).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
       // Also notify the engineer's direct lead (if any) — lead manages team schedule
       (async()=>{
         const leadEng=engineers.find(e=>e.role_type==="lead"&&(()=>{
@@ -8938,6 +8905,13 @@ export default function App(){
   const pasteDay = async targetDate => {
     if(!clipboard||!clipboard.entries.length){showToast("Nothing in clipboard",false);return;}
     if(!isDateAllowed(targetDate)){showToast("Cannot post to locked date",false);return;}
+    // Freeze check — block paste into frozen months (function entries are never in clipboard)
+    if(isMonthFrozen(targetDate)){
+      const _d=new Date(targetDate+"T12:00:00");
+      const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
+      showToast(`❄ ${_mn} ${_d.getFullYear()} is frozen — cannot paste into a frozen month`,false);
+      return;
+    }
     const engId = canEditAny?viewEngId:myProfile.id;
     // Validate all work entries reference still-active projects
     for(const e of clipboard.entries){
