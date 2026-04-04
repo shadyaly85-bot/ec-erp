@@ -2852,6 +2852,26 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   const toggleCat  = useCallback((cat)=>setExpandedCats(p=>({...p,[cat]:!p[cat]})),[]);
 
   // ── Callbacks ──
+  // ── Reload notifications on demand (refresh button + 30s poll) ──
+  // Mirrors the loadAll notification block but uses myProfile from state — no full reload needed
+  const reloadNotifications=async()=>{
+    if(!supabase||!myProfile?.id) return;
+    const _profId=myProfile.id;
+    const _profRole=myProfile.role_type||"engineer";
+    const _isLeadOrAdmin=["admin","lead"].includes(_profRole);
+    const _matchId2=n=>{
+      if(n.engineer_id!=null) return String(n.engineer_id)===String(_profId);
+      try{const m=JSON.parse(n.meta||"{}");return String(m.engineer_id||m.recipient_engineer_id||m._eng_id||"")===String(_profId);}
+      catch{return false;}
+    };
+    const _isBcast=n=>["new_signup","timesheet_alert","overdue_alert"].includes(n.type);
+    const _thirtyAgo2=new Date(Date.now()-30*24*3600*1000).toISOString();
+    const{data:rN}=await supabase.from("notifications").select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
+    setNotifications((rN||[]).filter(n=>_matchId2(n)||(_isLeadOrAdmin&&_isBcast(n))));
+    const{data:rH}=await supabase.from("notifications").select("*").eq("read",true).gte("created_at",_thirtyAgo2).order("created_at",{ascending:false}).limit(150);
+    setNotifHistory((rH||[]).filter(n=>_matchId2(n)));
+  };
+
   // ── Notification insert helper — captures showToast for visible error feedback ──
   // Not useCallback — needs current showToast from render closure for user-visible warnings
   const insertNotif=async(payload)=>{
@@ -7498,6 +7518,8 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       showToast("⚠ Approval saved but entry not found — refresh and check",false);
     }
     showToast("Vacation approved ✓");
+    // Immediately refresh notifications so admin sees history update
+    setTimeout(()=>reloadNotifications(),1000);
   };
   const rejectVacation=async(entryId,notifId)=>{
     if(!supabase){showToast("No DB connection",false);return;}
@@ -8224,6 +8246,13 @@ export default function App(){
     return ()=>subscription.unsubscribe();
   },[]);
   useEffect(()=>{if(session)loadAll();},[session]);
+
+  // ── Poll notifications every 30s — works even if Supabase Realtime is disabled ──
+  useEffect(()=>{
+    if(!session||!myProfile?.id) return;
+    const _t=setInterval(()=>reloadNotifications(),30000);
+    return()=>clearInterval(_t);
+  },[session,myProfile?.id]);
 
   // Real-time sync — keep data current when teammates make changes
   useEffect(()=>{
@@ -10503,6 +10532,9 @@ export default function App(){
                           <div style={{padding:"12px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                             <span style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>Notifications</span>
                             <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                              <button onClick={()=>reloadNotifications()}
+                                title="Refresh notifications"
+                                style={{background:"transparent",border:"none",cursor:"pointer",color:"var(--text3)",fontSize:16,padding:"2px 4px",lineHeight:1}}>↻</button>
                               {bellTab==="active"&&notifications.length>0&&(
                                 <button onClick={async()=>{
                                   // Mark all active as read (history) instead of deleting
