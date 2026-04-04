@@ -8024,6 +8024,7 @@ export default function App(){
   const [bellOpen,setBellOpen]             = useState(false);
   const [notifHistory,setNotifHistory]     = useState([]);
   const [bellTab,setBellTab]               = useState("active"); // "active" | "history"
+  const [frozenMonths,setFrozenMonths]     = useState([]); // [{id,year,month,frozen_at,frozen_by}]
 
   // ── insertNotif — App scope: accessible by bell buttons, KPIsTab, poll ──
   const insertNotif=async(payload)=>{
@@ -8041,6 +8042,37 @@ export default function App(){
       showToast("⚠ Notification error: "+error.message,false);
     }
     return error||null;
+  };
+
+  // ── isMonthFrozen: check if a date string falls in a frozen month ──
+  const isMonthFrozen=React.useCallback((dateStr)=>{
+    if(!dateStr||!frozenMonths.length) return false;
+    const d=new Date(dateStr+'T12:00:00');
+    return frozenMonths.some(fm=>Number(fm.year)===d.getFullYear()&&Number(fm.month)===d.getMonth());
+  },[frozenMonths]);
+
+  // ── toggleFreezeMonth: admin only ──
+  const toggleFreezeMonth=async(yr,mo)=>{
+    const existing=frozenMonths.find(fm=>Number(fm.year)===yr&&Number(fm.month)===mo);
+    const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    if(existing){
+      showConfirm(`Unfreeze ${MONTHS_[mo]} ${yr}? Engineers will be able to edit and delete entries again.`,async()=>{
+        const{error}=await supabase.from("frozen_months").delete().eq("id",existing.id);
+        if(error){showToast("Unfreeze failed: "+error.message,false);return;}
+        setFrozenMonths(prev=>prev.filter(fm=>fm.id!==existing.id));
+        showToast(`${MONTHS_[mo]} ${yr} unfrozen ✓`);
+        logAction("UPDATE","TimesheetFreeze",`Unfroze ${MONTHS_[mo]} ${yr}`,{year:yr,month:mo});
+      },{title:`Unfreeze ${MONTHS_[mo]} ${yr}`,confirmLabel:"Unfreeze",danger:false,icon:"🔓"});
+    } else {
+      showConfirm(`Freeze ${MONTHS_[mo]} ${yr}? All engineers will be unable to add, edit or delete time entries for this month. Function hours are still allowed.`,async()=>{
+        const payload={year:yr,month:mo,frozen_by:myProfile?.name||"Admin",frozen_at:new Date().toISOString()};
+        const{data,error}=await supabase.from("frozen_months").insert(payload).select().single();
+        if(error){showToast("Freeze failed: "+error.message,false);return;}
+        setFrozenMonths(prev=>[...prev,data]);
+        showToast(`${MONTHS_[mo]} ${yr} frozen ❄`);
+        logAction("UPDATE","TimesheetFreeze",`Froze ${MONTHS_[mo]} ${yr}`,{year:yr,month:mo});
+      },{title:`Freeze ${MONTHS_[mo]} ${yr}`,confirmLabel:"Freeze Month",danger:true,icon:"❄"});
+    }
   };
 
   // ── reloadNotifications — App scope: accessible by poll useEffect + bell ──
@@ -8552,6 +8584,8 @@ export default function App(){
         })();
       }
       // Timesheet alerts: checked via checkTimesheetAlerts called from useEffect below
+      // Frozen months
+      try{const{data:_fm}=await supabase.from("frozen_months").select("*");if(_fm)setFrozenMonths(_fm);}catch(_){/* table may not exist yet — run migration */}
     }catch(e){showToast("Error loading data",false);}
     setLoading(false);
   },[session]);
@@ -8772,6 +8806,13 @@ export default function App(){
 
   const addEntry=async date=>{
     if(!isDateAllowed(date)){showToast("Cannot post hours outside the allowed date range",false);return;}
+    // Freeze check — functions are always allowed, only work/leave are blocked
+    if(newEntry.type!=="function"&&isMonthFrozen(date)){
+      const _d=new Date(date+"T12:00:00");
+      const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
+      showToast(`❄ ${_mn} ${_d.getFullYear()} is frozen — contact admin to unlock`,false);
+      return;
+    }
     const proj=projects.find(p=>p.id===newEntry.projectId);
     const engId=canEditAny?viewEngId:myProfile.id;
     const isFunc=newEntry.type==="function";
@@ -8959,6 +9000,12 @@ export default function App(){
 
   const saveEditEntry=async()=>{
     if(!editEntry) return;
+    if(isMonthFrozen(editEntry.date)){
+      const _d=new Date(editEntry.date+"T12:00:00");
+      const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
+      showToast(`❄ ${_mn} ${_d.getFullYear()} is frozen — contact admin to unlock`,false);
+      return;
+    }
     if(!canEditAny && String(editEntry.engineer_id)!==String(myProfile?.id)) { showToast("You can only edit your own entries",false); return; }
     const proj=projects.find(p=>p.id===editEntry.projectId);
     // Support both camelCase (from modal) and snake_case (from DB) field names
@@ -8996,6 +9043,13 @@ export default function App(){
     if(!canEditAny && String(engineerId)!==String(myProfile?.id)){ showToast("You can only delete your own entries",false); return; }
     const entry=entries.find(e=>e.id===id);
     if(!entry) return;
+    // ── FREEZE CHECK ──
+    if(isMonthFrozen(entry.date)){
+      const _d=new Date(entry.date+"T12:00:00");
+      const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
+      showToast(`❄ ${_mn} ${_d.getFullYear()} is frozen — contact admin to unlock`,false);
+      return;
+    }
     // ── APPROVED LEAVE LOCK ──
     // Once annual leave is approved (no longer PENDING_APPROVAL), only admin can delete it.
     // Engineers must contact their admin to cancel approved leave — this preserves the approval audit trail.
@@ -9693,8 +9747,13 @@ export default function App(){
 
   const bulkDeleteEntries=async()=>{
     if(selectedEntries.size===0) return;
-    const ids=[...selectedEntries];
-    const saved=entries.filter(e=>selectedEntries.has(e.id));
+    const allIds=[...selectedEntries];
+    // Filter out frozen entries from bulk delete
+    const frozenIds=allIds.filter(id=>{const e=entries.find(x=>x.id===id);return e&&isMonthFrozen(e.date);});
+    const ids=allIds.filter(id=>!frozenIds.includes(id));
+    if(frozenIds.length>0) showToast(`❄ ${frozenIds.length} frozen entr${frozenIds.length===1?"y":"ies"} skipped`,false);
+    if(ids.length===0) return;
+    const saved=entries.filter(e=>ids.includes(e.id));
     showConfirm(`Delete ${ids.length} selected time entr${ids.length===1?"y":"ies"}?`,()=>{
       // Immediate UI remove + undo toast
       setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id)));
@@ -11453,6 +11512,66 @@ export default function App(){
                 );
               })()}
 
+              {/* ── Month Freeze Calendar ── */}
+              {(()=>{
+                const _MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                const _curYear=new Date(weekOf+"T12:00:00").getFullYear()||year;
+                // Check if current week's month is frozen — show banner
+                const _weekMonth=new Date(weekOf+"T12:00:00").getMonth();
+                const _weekYear=new Date(weekOf+"T12:00:00").getFullYear();
+                const _weekFrozen=frozenMonths.some(fm=>Number(fm.year)===_weekYear&&Number(fm.month)===_weekMonth);
+                return(
+                  <div style={{marginBottom:10}}>
+                    {/* Frozen banner for current week */}
+                    {_weekFrozen&&(
+                      <div style={{display:"flex",alignItems:"center",gap:10,background:"#1e3a5f",border:"1px solid #3b82f640",borderRadius:8,padding:"8px 14px",marginBottom:8}}>
+                        <span style={{fontSize:16}}>❄</span>
+                        <span style={{fontSize:13,color:"#93c5fd",fontWeight:700}}>
+                          {_MONTHS[_weekMonth]} {_weekYear} is frozen — time entries cannot be added, edited or deleted.
+                        </span>
+                        {isAdmin&&<button onClick={()=>toggleFreezeMonth(_weekYear,_weekMonth)}
+                          style={{marginLeft:"auto",padding:"3px 12px",borderRadius:5,border:"1px solid #93c5fd60",background:"transparent",color:"#93c5fd",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",flexShrink:0}}>
+                          🔓 Unfreeze
+                        </button>}
+                      </div>
+                    )}
+                    {/* Month grid — admin can click, others see status */}
+                    <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:8,padding:"10px 14px"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                        <span style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em"}}>
+                          ❄ {isAdmin?"Freeze Control":"Month Status"} — {year}
+                        </span>
+                        {!isAdmin&&<span style={{fontSize:11,color:"var(--text4)"}}>🔒 locked months cannot be edited</span>}
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(12,1fr)",gap:4}}>
+                        {_MONTHS.map((mn,mi)=>{
+                          const _frozen=frozenMonths.some(fm=>Number(fm.year)===year&&Number(fm.month)===mi);
+                          const _isCurrent=mi===month;
+                          return(
+                            <button key={mi}
+                              onClick={isAdmin?()=>toggleFreezeMonth(year,mi):undefined}
+                              title={_frozen?`${mn} ${year} — Frozen${isAdmin?" · Click to unfreeze":""}`:isAdmin?`Click to freeze ${mn} ${year}`:mn+" "+year}
+                              style={{
+                                padding:"5px 2px",borderRadius:6,border:`1px solid ${_frozen?"#3b82f660":_isCurrent?"var(--info)40":"var(--border3)"}`,
+                                background:_frozen?"#1e3a5f":_isCurrent?"var(--info)10":"transparent",
+                                color:_frozen?"#93c5fd":_isCurrent?"var(--info)":"var(--text3)",
+                                fontSize:11,fontWeight:_frozen||_isCurrent?700:400,
+                                cursor:isAdmin?"pointer":"default",
+                                fontFamily:"'IBM Plex Sans',sans-serif",
+                                display:"flex",flexDirection:"column",alignItems:"center",gap:1,
+                                transition:"all .15s",
+                              }}>
+                              <span>{mn}</span>
+                              <span style={{fontSize:10}}>{_frozen?"🔒":""}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Clipboard banner */}
               {clipboard&&(
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
@@ -11523,9 +11642,10 @@ export default function App(){
                           {dh>0&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:barColor,fontWeight:700,marginTop:1}}>{dh}h</div>}
                         </div>
                         <div style={{display:"flex",flexDirection:"column",gap:2,alignItems:"flex-end"}}>
-                          {allowed&&canPostHours&&<button className="bp" style={{padding:"2px 5px",fontSize:13,
+                          {allowed&&canPostHours&&!isMonthFrozen(day)&&<button className="bp" style={{padding:"2px 5px",fontSize:13,
                             background:isWE?"linear-gradient(135deg,#b45309,#92400e)":isFuture?"linear-gradient(135deg,#7c3aed,#6d28d9)":undefined
                           }} onClick={()=>setModalDate(day)}>+</button>}
+          {isMonthFrozen(day)&&<span title="Month frozen" style={{fontSize:11,color:"#93c5fd",opacity:.7,lineHeight:1}}>❄</span>}
                           {de.length>0&&allowed&&canPostHours&&(
                             <button title="Copy this day" onClick={()=>copyDay(day)}
                               style={{padding:"2px 5px",fontSize:12,borderRadius:4,border:"1px solid var(--border3)",
@@ -11576,7 +11696,7 @@ export default function App(){
                                 return isApprovedLeave&&!isAdmin;
                               })()&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
                                 <button className="be" style={{padding:"1px 4px",fontSize:12}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
-                                <button className="bd" style={{padding:"1px 4px",fontSize:12}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
+                                <button className="bd" style={{padding:"1px 4px",fontSize:12,display:isMonthFrozen(e.date)?"none":"inline-flex"}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
                               </div>}
                             </div>
                             <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
@@ -13328,6 +13448,7 @@ export default function App(){
                       {label:"Activity Comments column",  sql:"ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';", desc:"Enables threaded comments on activities."},
                       {label:"Assigned Engineers column", sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS assigned_engineers JSONB DEFAULT '[]';", desc:"Enables team assignment and auto-assign on activity creation."},
                       {label:"Project Leader column",     sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_leader TEXT;", desc:"Enables the Project Leader field and notification routing."},
+                      {label:"Frozen Months table", sql:"CREATE TABLE IF NOT EXISTS frozen_months (id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, year INTEGER NOT NULL, month INTEGER NOT NULL, frozen_at TIMESTAMPTZ DEFAULT NOW(), frozen_by TEXT, UNIQUE(year,month));", desc:"Required for the month freeze feature. After creating, enable RLS in Supabase Dashboard → Table Editor → frozen_months → RLS → Add policy: allow all authenticated users (USING true WITH CHECK true)."},
                     ].map(m=>(
                       <div key={m.label} style={{background:"var(--bg2)",borderRadius:7,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border3)"}}>
                         <div style={{fontSize:13,fontWeight:700,color:"var(--text1)",marginBottom:3}}>{m.label}</div>
