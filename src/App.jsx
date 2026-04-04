@@ -1530,6 +1530,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                   {pm.proj.billable&&<span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)"}}>BILLABLE</span>}
                 </div>
                 <div style={{fontSize:17,fontWeight:700,color:"var(--text0)"}}>{pm.proj.name}</div>
+                {pm.proj.project_leader&&<div style={{fontSize:13,color:"var(--text2)",marginTop:1,fontWeight:700}}>Leader: <span style={{color:"var(--info)"}}>{pm.proj.project_leader}</span></div>}
                 {pm.proj.pm&&<div style={{fontSize:13,color:"var(--text3)",marginTop:1}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{pm.proj.pm}</span></div>}
                 {pm.proj.client&&<div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Client: {pm.proj.client} · Phase: {pm.proj.phase||"—"}</div>}
               </div>
@@ -2977,29 +2978,32 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
     if(!error){
       setActivities(prev=>prev.map(a=>a.id===actId?{...a,comments}:a));
 
-      // ── Notify assigned engineer + leads when a NEW comment is added ──
-      if(notifyCtx && notifyCtx.isNewComment && notifyCtx.commenterName){
+      // ── Notifications: fired only when a brand-new comment is added ──
+      if(notifyCtx?.isNewComment && notifyCtx.commenterName){
         const newComment=comments[comments.length-1];
         const excerpt=(newComment?.text||"").slice(0,80);
         const msg=`${notifyCtx.commenterName} commented on "${notifyCtx.activityName}": "${excerpt}${excerpt.length>=80?"…":""}"`;
         const meta=JSON.stringify({activity_id:actId,activity_name:notifyCtx.activityName,commenter:notifyCtx.commenterName,project_id:notifyCtx.projectId});
 
-        // Collect unique engineer IDs to notify (exclude the commenter)
-        const toNotify=new Set();
-        // 1. Assigned engineer
-        if(notifyCtx.assignedTo){
-          const eng=engineers.find(e=>e.name===notifyCtx.assignedTo);
-          if(eng&&eng.name!==notifyCtx.commenterName) toNotify.add(eng.id);
-        }
-        // 2. Leads + admins who are in the project's assigned_engineers
+        const toNotify=new Set(); // engineer IDs (exclude commenter)
+        const isCommenter=e=>e.name===notifyCtx.commenterName;
+
+        // 1. Assigned engineer on the activity
+        const assignedEng=notifyCtx.assignedTo
+          ? engineers.find(e=>e.name===notifyCtx.assignedTo)
+          : null;
+        if(assignedEng&&!isCommenter(assignedEng)) toNotify.add(assignedEng.id);
+
+        // 2. Project Leader — the designated lead for this project
         const proj=projects.find(p=>p.id===notifyCtx.projectId);
-        const projAssigned=new Set((proj?.assigned_engineers||[]).map(String));
+        if(proj?.project_leader){
+          const leaderEng=engineers.find(e=>e.name===proj.project_leader);
+          if(leaderEng&&!isCommenter(leaderEng)) toNotify.add(leaderEng.id);
+        }
+
+        // 3. ALL admins — always notified regardless of project membership
         engineers.forEach(e=>{
-          if((e.role_type==="lead"||e.role_type==="admin")
-            &&projAssigned.has(String(e.id))
-            &&e.name!==notifyCtx.commenterName){
-            toNotify.add(e.id);
-          }
+          if(e.role_type==="admin"&&!isCommenter(e)) toNotify.add(e.id);
         });
 
         if(toNotify.size>0){
@@ -3010,7 +3014,6 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           }));
           const{data:inserted}=await supabase.from("notifications").insert(notifs).select();
           if(inserted&&setNotifications){
-            // Add to local state for recipients who are the current user
             const myId=String(myProfile?.id);
             const mine=inserted.filter(n=>String(n.engineer_id)===myId);
             if(mine.length) setNotifications(prev=>[...mine,...prev]);
@@ -3105,7 +3108,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
                     background:p.status==="On Hold"?"#fb923c15":"#a78bfa15",
                     color:p.status==="On Hold"?"#fb923c":"#a78bfa"}}>{p.status}</span>}
                 </div>
-                {p.pm&&<div style={{fontSize:12,color:"#a78bfa",marginTop:3}}>PM: <span style={{fontWeight:600}}>{p.pm}</span></div>}
+                {p.project_leader&&<div style={{fontSize:12,color:"var(--info)",marginTop:2,fontWeight:700}}>Leader: {p.project_leader}</div>}
+                {p.pm&&<div style={{fontSize:12,color:"#a78bfa",marginTop:1}}>PM: <span style={{fontWeight:600}}>{p.pm}</span></div>}
               </div>
               <div style={{textAlign:"right",flexShrink:0}}>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:800,color:barColor,lineHeight:1}}>{overallPct}%</div>
@@ -3773,6 +3777,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
         +'<div>'
         +'<div style="font-size:15px;font-weight:700">'+(proj?proj.name:g.pid)+'</div>'
         +'<div style="font-size:10px;color:#93c5fd;margin-top:2px">'+g.pid
+          +(proj&&proj.project_leader?' · Leader: '+proj.project_leader:'')
           +(proj&&proj.pm?' · PM: '+proj.pm:'')
           +(proj&&proj.phase?' · Phase: '+proj.phase:'')
           +(proj&&proj.client?' · '+proj.client:'')
@@ -4035,6 +4040,8 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
           <div>
             <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{proj?proj.name:g.pid}</div>
             <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",marginTop:1}}>{g.pid}</div>
+            {proj&&proj.project_leader&&<div style={{fontSize:13,color:"var(--text2)",marginTop:1,fontWeight:700}}>Leader: <span style={{color:"var(--info)"}}>{proj.project_leader}</span></div>}
+            {proj&&proj.project_leader&&<div style={{fontSize:13,color:"var(--text2)",marginTop:1,fontWeight:700}}>Leader: <span style={{color:"var(--info)"}}>{proj.project_leader}</span></div>}
             {proj&&proj.pm&&<div style={{fontSize:13,color:"var(--text3)",marginTop:1}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{proj.pm}</span></div>}
             {proj&&proj.phase&&<div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span>{proj.status&&<span> · <span style={{color:proj.status==="Active"?"#34d399":"var(--text3)"}}>{proj.status}</span></span>}</div>}
             {hasSubs&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>
@@ -4301,7 +4308,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
       return "<div style='margin-bottom:16px;page-break-inside:avoid'>"
         +"<div style='background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:9px 14px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between'>"
         +"<div><div style='font-size:14px;font-weight:700'>"+(proj?proj.name:g.pid)+"</div>"
-        +"<div style='font-size:10px;color:#93c5fd'>"+g.pid+(proj&&proj.pm?" · PM: "+proj.pm:"")+(proj&&proj.phase?" · "+proj.phase:"")+"</div></div>"
+        +"<div style='font-size:10px;color:#93c5fd'>"+g.pid+(proj&&proj.project_leader?" · Leader: "+proj.project_leader:"")+(proj&&proj.pm?" · PM: "+proj.pm:"")+(proj&&proj.phase?" · "+proj.phase:"")+"</div></div>"
         +"<div style='text-align:right'><div style='font-size:20px;font-weight:800;color:#60a5fa'>"+g.tot+"h</div>"
         +"<div style='font-size:10px;color:#93c5fd'>"+g.assignedCount+" assigned · "+Object.keys(g.engs).length+" shown</div></div></div>"
         +"<table style='width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none'>"
@@ -12615,6 +12622,7 @@ export default function App(){
                     {[
                       {label:"Activity Comments column",  sql:"ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';",    desc:"Enables the threaded comment system on activities."},
                       {label:"Assigned Engineers column", sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS assigned_engineers JSONB DEFAULT '[]';",       desc:"Enables assignment tracking and auto-assign on activity creation."},
+                    {label:"Project Leader column",     sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_leader TEXT;",                                  desc:"Enables the Project Leader field on each project and notification routing."},
                     ].map(function(m){return(
                       <div key={m.label} style={{background:"var(--bg2)",borderRadius:7,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border3)"}}>
                         <div style={{fontSize:13,fontWeight:700,color:"var(--text1)",marginBottom:3}}>{m.label}</div>
@@ -13278,6 +13286,22 @@ export default function App(){
                 <div><Lbl>Phase</Lbl><select value={newProj.phase} onChange={e=>setNewProj(p=>({...p,phase:e.target.value}))}>{PHASES.map(ph=><option key={ph}>{ph}</option>)}</select></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><Lbl>Project Leader</Lbl>
+                  <select value={newProj.project_leader||""} onChange={e=>{
+                    const name=e.target.value;
+                    const eng=engineers.find(x=>x.name===name);
+                    setNewProj(p=>{
+                      const ae=(p.assigned_engineers||[]);
+                      const newAe=eng&&!ae.includes(String(eng.id))?[...ae,String(eng.id)]:ae;
+                      return {...p,project_leader:name,assigned_engineers:newAe};
+                    });
+                  }}>
+                    <option value="">— None —</option>
+                    {engineers.filter(e=>isEngActive(e)&&(e.role_type==="lead"||e.role_type==="admin")).map(e=>(
+                      <option key={e.id} value={e.name}>{e.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <div><Lbl>Client</Lbl><input value={newProj.client} onChange={e=>setNewProj(p=>({...p,client:e.target.value}))}/></div>
                 <div><Lbl>Origin (HQ / BU)</Lbl><input value={newProj.origin} onChange={e=>setNewProj(p=>({...p,origin:e.target.value}))}/></div>
               </div>
@@ -13354,6 +13378,22 @@ export default function App(){
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Project Manager (PM)</Lbl><input value={editProjModal.pm||""} onChange={e=>setEditProjModal(p=>({...p,pm:e.target.value}))} placeholder="e.g. Ahmed Farahat" style={{width:"100%",boxSizing:"border-box"}}/></div>
+                <div><Lbl>Project Leader</Lbl>
+                  <select value={editProjModal.project_leader||""} onChange={e=>{
+                    const name=e.target.value;
+                    const eng=engineers.find(x=>x.name===name);
+                    setEditProjModal(p=>{
+                      const ae=(p.assigned_engineers||[]);
+                      const newAe=eng&&!ae.includes(String(eng.id))?[...ae,String(eng.id)]:ae;
+                      return {...p,project_leader:name,assigned_engineers:newAe};
+                    });
+                  }} style={{width:"100%"}}>
+                    <option value="">— None —</option>
+                    {engineers.filter(e=>isEngActive(e)&&(e.role_type==="lead"||e.role_type==="admin")).map(e=>(
+                      <option key={e.id} value={e.name}>{e.name} — {ROLE_LABELS[e.role_type]||e.role_type}</option>
+                    ))}
+                  </select>
+                </div>
               <div><Lbl>Client</Lbl><input value={editProjModal.client||""} onChange={e=>setEditProjModal(p=>({...p,client:e.target.value}))}/></div>
                 <div><Lbl>Origin</Lbl><input value={editProjModal.origin||""} onChange={e=>setEditProjModal(p=>({...p,origin:e.target.value}))}/></div>
               </div>
