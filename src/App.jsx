@@ -8861,15 +8861,23 @@ export default function App(){
             if(_fresh) _nodes=_fresh;
           }catch(_){}
         }
-        // Find the engineer's node in the org chart, then find their parent lead
+        console.log("[EC-ERP] Lead notify: orgNodes count:",_nodes.length,"engId:",engId);
+        // Find the engineer's node in the org chart
         const _myOrgNode=_nodes.find(n=>String(n.engineer_id)===String(engId));
-        if(!_myOrgNode||!_myOrgNode.parent_id) return; // not in org chart or no parent
-        const _parentNode=_nodes.find(n=>String(n.id)===String(_myOrgNode.parent_id));
-        if(!_parentNode) return; // parent node not found
+        console.log("[EC-ERP] Lead notify: engineer org node:",_myOrgNode);
+        if(!_myOrgNode){ console.log("[EC-ERP] Lead notify: STOP — engineer not in org chart"); return; }
+        if(!_myOrgNode.parent_id){ console.log("[EC-ERP] Lead notify: STOP — no parent_id on node"); return; }
+        // Find parent node
+        const _parentNode=_nodes.find(n=>Number(n.id)===Number(_myOrgNode.parent_id));
+        console.log("[EC-ERP] Lead notify: parent node:",_parentNode);
+        if(!_parentNode){ console.log("[EC-ERP] Lead notify: STOP — parent node not found for parent_id:",_myOrgNode.parent_id); return; }
+        console.log("[EC-ERP] Lead notify: parent engineer_id:",_parentNode.engineer_id,"looking in engineers:",engineers.map(e=>({id:e.id,role_type:e.role_type,name:e.name})));
+        // Find lead engineer — parent must be a lead (admins already notified via bulk insert)
         const leadEng=engineers.find(e=>
           e.role_type==="lead"&&String(e.id)===String(_parentNode.engineer_id)
         );
-        if(!leadEng) return; // parent is not a lead (could be admin node)
+        console.log("[EC-ERP] Lead notify: leadEng found:",leadEng?.name||"NOT FOUND");
+        if(!leadEng){ console.log("[EC-ERP] Lead notify: STOP — parent engineer is not role_type=lead (may be admin — already notified)"); return; }
         const leadNotif={
           type:"vacation_request",engineer_id:leadEng.id,read:false,
           message:`${_reqEng?.name||"Someone"} requested Annual Leave on ${date} (your team)`,
