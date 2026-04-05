@@ -2525,7 +2525,16 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
           created_at:_addNow,
           meta:JSON.stringify({recipient_engineer_id:String(aEng.id),project_id:projId,assigned_by:myProfile?.name})
         });
-        // If lead is creating + assigning, notify admins
+        // Notify project leader (if set and not the creator or the assigned engineer)
+        if(aProj?.project_leader){
+          const _ldrEng=engineers.find(e=>e.name===aProj.project_leader);
+          if(_ldrEng&&String(_ldrEng.id)!==String(myProfile?.id)&&String(_ldrEng.id)!==String(aEng.id)){
+            insertNotif({type:"activity_assigned",engineer_id:_ldrEng.id,read:false,
+              message:`${myProfile?.name||"Admin"} assigned "${activity_name}" to ${aEng.name}${aProj?" · "+aProj.name:""}`,
+              created_at:_addNow,meta:JSON.stringify({recipient_engineer_id:String(_ldrEng.id),project_id:projId,assigned_to:aEng.name,assigned_by:myProfile?.name,role:"project_leader"})});
+          }
+        }
+        // If lead is creating + assigning, notify all admins (admin already knows — they did it)
         if(!_addIsAdmin){
           const _adminAddMsg=`${myProfile?.name||"Lead"} assigned "${activity_name}" to ${aEng.name}${aProj?" · "+aProj.name:""}`;
           const _ap1=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_assigned",engineer_id:adminEng.id,read:false,message:_adminAddMsg,created_at:_addNow,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),project_id:projId,assigned_to:aEng.name,assigned_by:myProfile?.name})}));
@@ -2539,12 +2548,60 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
 
   const saveAct = async(draft)=>{
     const{id,...fields}=draft;
+    const prevAct=activities.find(a=>a.id===id);
     const grp = CAT_TO_GROUP[fields.category]||fields.group_name||"General";
     const payload={...fields,group_name:grp,category:fields.category||null};
     const{data,error}=await supabase.from("project_activities").update(payload).eq("id",id).select().single();
     if(error){if(showToast)showToast("Error: "+error.message,false);return;}
     if(setActivities)setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
     await autoAssignEngineer(fields.assigned_to);
+    // ── Notifications for saveAct (EditProjActivities modal) ──
+    const _saProj=projects.find(p=>p.id===(fields.project_id||prevAct?.project_id));
+    const _saNow=new Date().toISOString();
+    const _saIsAdmin=myProfile?.role_type==="admin";
+    // Helper: notify leader + optionally admins (when lead acts)
+    const _saNotifyLeaderAndAdmins=(type,msg,meta,skipEngId)=>{
+      if(_saProj?.project_leader){
+        const _ldr=engineers.find(e=>e.name===_saProj.project_leader);
+        if(_ldr&&String(_ldr.id)!==String(myProfile?.id)&&(!skipEngId||String(_ldr.id)!==String(skipEngId))){
+          if(insertNotif) insertNotif({type,engineer_id:_ldr.id,read:false,message:msg,created_at:_saNow,meta:JSON.stringify({...meta,role:"project_leader"})});
+        }
+      }
+      if(!_saIsAdmin){
+        const adminMsg=`${myProfile?.name||"Lead"} ${msg}`;
+        engineers.filter(e=>e.role_type==="admin").forEach(adm=>{
+          if(insertNotif) insertNotif({type,engineer_id:adm.id,read:false,message:adminMsg,created_at:_saNow,meta:JSON.stringify(meta)});
+        });
+      }
+    };
+    // assignment changed
+    if(fields.assigned_to&&fields.assigned_to!==prevAct?.assigned_to){
+      const _eng=engineers.find(e=>e.name===fields.assigned_to);
+      if(_eng&&String(_eng.id)!==String(myProfile?.id)){
+        const _msg=`You were assigned to "${fields.activity_name||data.activity_name}"${_saProj?" · "+_saProj.name:""}`;
+        if(insertNotif) insertNotif({type:"activity_assigned",engineer_id:_eng.id,read:false,message:_msg,created_at:_saNow,meta:JSON.stringify({activity_id:id,project_id:fields.project_id,assigned_by:myProfile?.name})});
+        _saNotifyLeaderAndAdmins("activity_assigned",`${myProfile?.name||"Admin"} assigned "${fields.activity_name||data.activity_name}" to ${_eng.name}${_saProj?" · "+_saProj.name:""}`,{activity_id:id,project_id:fields.project_id,assigned_to:_eng.name,assigned_by:myProfile?.name},String(_eng.id));
+      }
+    }
+    // status changed
+    if(fields.status&&fields.status!==prevAct?.status){
+      const _actName=fields.activity_name||data.activity_name;
+      const _assignedEng=prevAct?.assigned_to?engineers.find(e=>e.name===prevAct.assigned_to):null;
+      if(_assignedEng&&String(_assignedEng.id)!==String(myProfile?.id)){
+        if(insertNotif) insertNotif({type:"activity_status_changed",engineer_id:_assignedEng.id,read:false,message:`"${_actName}" marked ${fields.status}${_saProj?" · "+_saProj.name:""}`,created_at:_saNow,meta:JSON.stringify({activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})});
+      }
+      _saNotifyLeaderAndAdmins("activity_status_changed",`"${_actName}" marked ${fields.status}${_saProj?" · "+_saProj.name:""}`,{activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name},_assignedEng?String(_assignedEng.id):null);
+    }
+    // deadline changed
+    if(fields.end_date!==undefined&&fields.end_date!==prevAct?.end_date){
+      const _actName=fields.activity_name||data.activity_name;
+      const _assignedEng=prevAct?.assigned_to?engineers.find(e=>e.name===prevAct.assigned_to):null;
+      const _dl=fields.end_date?new Date(fields.end_date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}):"removed";
+      if(_assignedEng&&String(_assignedEng.id)!==String(myProfile?.id)){
+        if(insertNotif) insertNotif({type:"activity_deadline_changed",engineer_id:_assignedEng.id,read:false,message:`Deadline for "${_actName}" changed to ${_dl}${_saProj?" · "+_saProj.name:""}`,created_at:_saNow,meta:JSON.stringify({activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})});
+      }
+      _saNotifyLeaderAndAdmins("activity_deadline_changed",`Deadline for "${_actName}" changed to ${_dl}${_saProj?" · "+_saProj.name:""}`,{activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name},_assignedEng?String(_assignedEng.id):null);
+    }
     setEditAct(null);
     if(showToast)showToast("Activity saved ✓");
   };
@@ -2874,7 +2931,16 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         const assignMeta={recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,assigned_by:myProfile?.name};
         // Notify engineer — fire-and-forget (engineer gets via RT/loadAll; don't add to assigner state)
         insertNotif({type:"activity_assigned",engineer_id:assignedEng.id,read:false,message:assignMsg,created_at:_now,meta:JSON.stringify(assignMeta)});
-        // If lead is assigning, also notify all admins
+        // Notify project leader (if set, not the changer, and not the assigned engineer)
+        if(_proj?.project_leader){
+          const _ldrEng2=engineers.find(e=>e.name===_proj.project_leader);
+          if(_ldrEng2&&String(_ldrEng2.id)!==String(myProfile?.id)&&String(_ldrEng2.id)!==String(assignedEng.id)){
+            insertNotif({type:"activity_assigned",engineer_id:_ldrEng2.id,read:false,
+              message:`${myProfile?.name||"Admin"} assigned "${fields.activity_name||data.activity_name}" to ${assignedEng.name}${_proj?" · "+_proj.name:""}`,
+              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrEng2.id),activity_id:id,project_id:fields.project_id,assigned_to:assignedEng.name,assigned_by:myProfile?.name,role:"project_leader"})});
+          }
+        }
+        // If lead is assigning, also notify all admins (admin already knows — they did it)
         if(!_changerIsAdmin){
           const adminMsg=`${myProfile?.name||"Lead"} assigned "${fields.activity_name||data.activity_name}" to ${assignedEng.name}${_proj?" · "+_proj.name:""}`;
           const _ap2=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_assigned",engineer_id:adminEng.id,read:false,message:adminMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,assigned_to:assignedEng.name,assigned_by:myProfile?.name})}));
@@ -2898,7 +2964,19 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           });
         }
       }
-      // If lead changed status, notify all admins
+      // Notify project leader on status change (if not the changer)
+      if(_proj?.project_leader){
+        const _ldrS=engineers.find(e=>e.name===_proj.project_leader);
+        if(_ldrS&&String(_ldrS.id)!==String(myProfile?.id)){
+          const _ldrAssigned=prevActivity?.assigned_to&&engineers.find(e=>e.name===prevActivity.assigned_to);
+          if(!_ldrAssigned||String(_ldrS.id)!==String(_ldrAssigned.id)){
+            insertNotif({type:"activity_status_changed",engineer_id:_ldrS.id,read:false,
+              message:`${myProfile?.name||"Admin"} marked "${actName}" as ${fields.status}${_proj?" · "+_proj.name:""}`,
+              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrS.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name,role:"project_leader"})});
+          }
+        }
+      }
+      // If lead changed status, notify all admins (admin already knows)
       if(!_changerIsAdmin){
         const adminStatusMsg=`${myProfile?.name||"Lead"} marked "${actName}" as ${fields.status}${_proj?" · "+_proj.name:""}`;
         const _ap3=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_status_changed",engineer_id:adminEng.id,read:false,message:adminStatusMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})}));
@@ -2920,7 +2998,19 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name})
         });
       }
-      // If lead changed progress, notify all admins
+      // Notify project leader on progress change (if not the changer or the assigned eng)
+      if(_proj?.project_leader){
+        const _ldrP=engineers.find(e=>e.name===_proj.project_leader);
+        if(_ldrP&&String(_ldrP.id)!==String(myProfile?.id)){
+          const _ldrIsAssigned=assignedEng&&String(_ldrP.id)===String(assignedEng.id);
+          if(!_ldrIsAssigned){
+            insertNotif({type:"activity_progress_changed",engineer_id:_ldrP.id,read:false,
+              message:`"${actName}" progress updated to ${pct}%${_proj?" · "+_proj.name:""}`,
+              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrP.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name,role:"project_leader"})});
+          }
+        }
+      }
+      // If lead changed progress, notify all admins (admin already knows)
       if(!_changerIsAdmin){
         const adminProgMsg=`${myProfile?.name||"Lead"} updated "${actName}" to ${pct}%${_proj?" · "+_proj.name:""}`;
         const _ap4=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_progress_changed",engineer_id:adminEng.id,read:false,message:adminProgMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name})}));
@@ -2943,7 +3033,19 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})
         });
       }
-      // If lead changed deadline, notify admins too
+      // Notify project leader on deadline change (if not the changer or the assigned eng)
+      if(_proj?.project_leader){
+        const _ldrD=engineers.find(e=>e.name===_proj.project_leader);
+        if(_ldrD&&String(_ldrD.id)!==String(myProfile?.id)){
+          const _ldrIsAssignedD=assignedEng&&String(_ldrD.id)===String(assignedEng.id);
+          if(!_ldrIsAssignedD){
+            insertNotif({type:"activity_deadline_changed",engineer_id:_ldrD.id,read:false,
+              message:`Deadline for "${actName}" changed to ${newDeadline}${_proj?" · "+_proj.name:""}`,
+              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrD.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name,role:"project_leader"})});
+          }
+        }
+      }
+      // If lead changed deadline, notify admins too (admin already knows)
       if(!_changerIsAdmin){
         const adminDlMsg=`${myProfile?.name||"Lead"} changed deadline for "${actName}" to ${newDeadline}${_proj?" · "+_proj.name:""}`;
         const _ap5=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_deadline_changed",engineer_id:adminEng.id,read:false,message:adminDlMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})}));
@@ -10002,6 +10104,15 @@ export default function App(){
         created_at:_now,
         meta:JSON.stringify({project_id:newProj.id,project_name:_projName,changed_by:myProfile?.name})});
     });
+    // If LEAD creates project, notify all admins (admin creating → they already know)
+    if(!isAdmin){
+      const _adminProjMsg=`${myProfile?.name||"Lead"} created project "${_projName}"`;
+      engineers.filter(e=>e.role_type==="admin"&&!_notified.has(String(e.id))).forEach(adm=>{
+        insertNotif({type:"project_status",engineer_id:adm.id,read:false,
+          message:_adminProjMsg,created_at:_now,
+          meta:JSON.stringify({project_id:newProj.id,project_name:_projName,created_by:myProfile?.name})});
+      });
+    }
   };
   const saveEditProject=async()=>{
     if(!editProjModal) return;
