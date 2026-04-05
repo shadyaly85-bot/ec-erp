@@ -8851,46 +8851,44 @@ export default function App(){
       // so each admin's server-side scoped load query picks it up
       const _adminVacPayloads=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({...notif,engineer_id:adminEng.id}));
       if(_adminVacPayloads.length) supabase.from("notifications").insert(_adminVacPayloads).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
-      // Also notify the engineer's direct lead (if any) — uses parent_id from org_chart
+      // Notify the engineer's direct lead (if any) — uses reverse BFS of mySubEngIds logic
       (async()=>{
-        // Fetch org chart fresh if not loaded yet (avoids race condition on first login)
+        // Fetch org chart fresh if not loaded yet (avoids lazy-load race condition)
         let _nodes=orgNodes||[];
         if(!_nodes.length){
-          try{
-            const{data:_fresh}=await supabase.from("org_chart").select("*");
-            if(_fresh) _nodes=_fresh;
-          }catch(_){}
+          try{const{data:_f}=await supabase.from("org_chart").select("*");if(_f)_nodes=_f;}catch(_){}
         }
-        console.log("[EC-ERP] Lead notify: orgNodes count:",_nodes.length,"engId:",engId);
-        // Find the engineer's node in the org chart
-        const _myOrgNode=_nodes.find(n=>String(n.engineer_id)===String(engId));
-        console.log("[EC-ERP] Lead notify: engineer org node:",_myOrgNode);
-        if(!_myOrgNode){ console.log("[EC-ERP] Lead notify: STOP — engineer not in org chart"); return; }
-        if(!_myOrgNode.parent_id){ console.log("[EC-ERP] Lead notify: STOP — no parent_id on node"); return; }
-        // Find parent node
-        const _parentNode=_nodes.find(n=>Number(n.id)===Number(_myOrgNode.parent_id));
-        console.log("[EC-ERP] Lead notify: parent node:",_parentNode);
-        if(!_parentNode){ console.log("[EC-ERP] Lead notify: STOP — parent node not found for parent_id:",_myOrgNode.parent_id); return; }
-        console.log("[EC-ERP] Lead notify: parent engineer_id:",_parentNode.engineer_id,"looking in engineers:",engineers.map(e=>({id:e.id,role_type:e.role_type,name:e.name})));
-        // Find lead engineer — parent must be a lead (admins already notified via bulk insert)
-        const leadEng=engineers.find(e=>
-          e.role_type==="lead"&&String(e.id)===String(_parentNode.engineer_id)
-        );
-        console.log("[EC-ERP] Lead notify: leadEng found:",leadEng?.name||"NOT FOUND");
-        if(!leadEng){ console.log("[EC-ERP] Lead notify: STOP — parent engineer is not role_type=lead (may be admin — already notified)"); return; }
+        if(!_nodes.length) return; // org chart not configured
+        // Find which lead has this engineer in their subtree (reverse of mySubEngIds BFS)
+        // This handles optional engineer_id on intermediate nodes gracefully
+        const _leadEng=engineers.filter(e=>e.role_type==="lead").find(le=>{
+          const _leadNode=_nodes.find(n=>String(n.engineer_id)===String(le.id));
+          if(!_leadNode) return false;
+          // BFS down from lead node — check if engId appears anywhere in subtree
+          const _q=[_leadNode.id];const _seen=new Set([_leadNode.id]);
+          while(_q.length){
+            const _nid=_q.shift();
+            const _kids=_nodes.filter(n=>Number(n.parent_id)===Number(_nid));
+            for(const _k of _kids){
+              if(String(_k.engineer_id)===String(engId)) return true;
+              if(!_seen.has(_k.id)){_seen.add(_k.id);_q.push(_k.id);}
+            }
+          }
+          return false;
+        });
+        if(!_leadEng) return; // no lead manages this engineer
         const leadNotif={
-          type:"vacation_request",engineer_id:leadEng.id,read:false,
+          type:"vacation_request",engineer_id:_leadEng.id,read:false,
           message:`${_reqEng?.name||"Someone"} requested Annual Leave on ${date} (your team)`,
           created_at:new Date().toISOString(),
-          meta:JSON.stringify({entry_id:data.id,engineer_id:engId,engineer_name:_reqEng?.name,date,leave_type:newEntry.leaveType,notify_lead:true,lead_id:String(leadEng.id)})
+          meta:JSON.stringify({entry_id:data.id,engineer_id:engId,engineer_name:_reqEng?.name,date,leave_type:newEntry.leaveType,notify_lead:true,lead_id:String(_leadEng.id)})
         };
         const{data:ndL,error:neL}=await supabase.from("notifications").insert(leadNotif).select().single();
         if(neL&&neL.message&&(neL.message.includes("engineer_id")||neL.message.includes("column")||neL.message.includes("does not exist"))){
-          // Fallback: engineer_id column may not exist
           const{engineer_id:_eid,..._rL}=leadNotif;
           const{data:ndL2}=await supabase.from("notifications").insert({..._rL,meta:JSON.stringify({...JSON.parse(_rL.meta||"{}"),_eng_id:String(_eid)})}).select().single();
-          if(ndL2&&String(leadEng.id)===String(myProfile?.id)) setNotifications(prev=>[ndL2,...prev]);
-        } else if(ndL&&String(leadEng.id)===String(myProfile?.id)){
+          if(ndL2&&String(_leadEng.id)===String(myProfile?.id)) setNotifications(prev=>[ndL2,...prev]);
+        } else if(ndL&&String(_leadEng.id)===String(myProfile?.id)){
           setNotifications(prev=>[ndL,...prev]);
         }
       })();
