@@ -526,7 +526,7 @@ const Lbl=({children})=><div style={{fontSize:13,color:"var(--text3)",marginBott
 /* ── Edit Project Activities (standalone component — hooks-safe) ── */
 function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setProjStatusFilter,
   monthEntries,projStats,isAdmin,isAcct,isLead,setShowProjModal,setEditProjModal,deleteProject,fmtCurrency,
-  activities,setActivities,engineers,supabase,showToast,setProjects}){
+  activities,setActivities,engineers,supabase,showToast,setProjects,showConfirm}){
   const [pvActModal,setPvActModal] = React.useState(null);
   const [pvActDraft,setPvActDraft] = React.useState({});
   const canManage = isAdmin||isLead; // accountant: read-only, cannot add/edit/delete projects
@@ -2483,7 +2483,7 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
     </div>
   </div>);
 }
-function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast, projects, setProjects, showConfirm, myProfile, onActivityComment}){
+function EditProjActivities({projId, activities, setActivities, engineers, isEngActive, supabase, showToast, projects, setProjects, showConfirm, myProfile, onActivityComment, insertNotif}){
   const [addModal, setAddModal] = React.useState(false);
   const [editAct, setEditAct]  = React.useState(null);
   const projActs = (activities||[]).filter(a=>a.project_id===projId);
@@ -3171,12 +3171,12 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
         const _7dStr=_addDays(7);
         const _14dStr=_addDays(14);
         // FIX: exclude Cancelled + activities on Completed projects + accountant sees nothing
-        const _completedProjIds=new Set(projects.filter(p=>p.status==="Completed").map(p=>p.id));
+        const _inactiveProjIds=new Set(projects.filter(p=>p.status==="Completed"||p.status==="On Hold").map(p=>p.id));
         const _scopedActs=activities.filter(a=>{
           if(!a.end_date) return false;
-          if(a.status==="Completed"||a.status==="Cancelled") return false;
+          if(a.status==="Completed"||a.status==="Cancelled"||a.status==="On Hold") return false;
           if(a.end_date>_14dStr) return false;
-          if(_completedProjIds.has(a.project_id)) return false; // FIX: skip completed projects
+          if(_inactiveProjIds.has(a.project_id)) return false; // skip On Hold + Completed projects
           if(isAcct&&!isAdmin) return false; // accountant does not see deadline panel; admin is also isAcct so must exclude explicitly
           if(isEngineerRole) return !!(a.assigned_to&&myProfile?.name&&a.assigned_to.trim()===myProfile.name.trim());
           if(isLead&&!isAdmin){ const _ids=new Set(baseProjects.map(p=>p.id)); return _ids.has(a.project_id); }
@@ -9350,10 +9350,14 @@ export default function App(){
     // Check for overdue tracker activities (not completed, past end_date)
     setTimeout(()=>{
       const todayStr = new Date().toISOString().slice(0,10);
-      const overdue = activities.filter(a=>
-        a.end_date && a.end_date < todayStr &&
-        a.status !== "Completed" && a.status !== "On Hold"
-      );
+      const overdue = activities.filter(a=>{
+        if(!a.end_date||a.end_date>=todayStr) return false;
+        if(a.status==="Completed"||a.status==="Cancelled"||a.status==="On Hold") return false;
+        // Exclude activities on On Hold or Completed projects
+        const _proj=projects.find(p=>p.id===a.project_id);
+        if(_proj&&(_proj.status==="On Hold"||_proj.status==="Completed")) return false;
+        return true;
+      });
       if(overdue.length > 0){
         const key = "overdue_activities_" + todayStr;
         const dismissed = new Set(JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"));
@@ -11946,6 +11950,7 @@ export default function App(){
                 activities={activities} setActivities={setActivities}
                 engineers={engineers} supabase={supabase} showToast={showToast}
                 setProjects={setProjects}
+                showConfirm={showConfirm}
               />
             </>);
           })()}
@@ -14437,6 +14442,7 @@ export default function App(){
               showConfirm={showConfirm}
               myProfile={myProfile}
               onActivityComment={appHandleActivityComment}
+              insertNotif={insertNotif}
             />}
                         </div>
             {epTab!=="activities"&&<div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end",borderTop:"1px solid var(--border3)",paddingTop:14}}>
