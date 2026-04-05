@@ -9367,7 +9367,8 @@ export default function App(){
     setTimeout(()=>checkTimesheetAlerts(engineers,entries,staff,notifSnapshot,orgNodes),1500);
     // Check for overdue tracker activities (not completed, past end_date)
     setTimeout(()=>{
-      const todayStr = new Date().toISOString().slice(0,10);
+      const _oNow=new Date();
+      const todayStr=`${_oNow.getFullYear()}-${String(_oNow.getMonth()+1).padStart(2,"0")}-${String(_oNow.getDate()).padStart(2,"0")}`;
       const overdue = activities.filter(a=>{
         if(!a.end_date||a.end_date>=todayStr) return false;
         if(a.status==="Completed"||a.status==="Cancelled"||a.status==="On Hold") return false;
@@ -11400,13 +11401,25 @@ export default function App(){
 
                 {/* ── Deadlines + Workload ── */}
                 {(isAdmin||isLead)&&activitiesLoaded&&(()=>{
-                  const todayStr=new Date().toISOString().slice(0,10);
-                  const in14=new Date();in14.setDate(in14.getDate()+14);
-                  const in14Str=in14.toISOString().slice(0,10);
-                  const upcoming=activities.filter(a=>a.end_date&&a.end_date>=todayStr&&a.end_date<=in14Str&&a.status!=="Completed").sort((a,b)=>a.end_date.localeCompare(b.end_date));
-                  const overdue=activities.filter(a=>a.end_date&&a.end_date<todayStr&&a.status!=="Completed"&&a.status!=="On Hold").sort((a,b)=>a.end_date.localeCompare(b.end_date));
+                  // Dashboard uses local date (not UTC toISOString) to avoid timezone shift
+                  const _dn=new Date();
+                  const todayStr=`${_dn.getFullYear()}-${String(_dn.getMonth()+1).padStart(2,"0")}-${String(_dn.getDate()).padStart(2,"0")}`;
+                  const _addD=(n)=>{const d=new Date(_dn);d.setDate(_dn.getDate()+n);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
+                  const in30Str=_addD(30); // Extended to 30 days (was 14)
+                  // Build set of On Hold / Completed project IDs — exclude from all deadline views
+                  const _inactiveDashProjIds=new Set(projects.filter(p=>p.status==="On Hold"||p.status==="Completed").map(p=>p.id));
+                  const upcoming=activities.filter(a=>
+                    a.end_date&&a.end_date>=todayStr&&a.end_date<=in30Str&&
+                    a.status!=="Completed"&&a.status!=="Cancelled"&&a.status!=="On Hold"&&
+                    !_inactiveDashProjIds.has(a.project_id)  // exclude On Hold + Completed projects
+                  ).sort((a,b)=>a.end_date.localeCompare(b.end_date));
+                  const overdue=activities.filter(a=>
+                    a.end_date&&a.end_date<todayStr&&
+                    a.status!=="Completed"&&a.status!=="Cancelled"&&a.status!=="On Hold"&&
+                    !_inactiveDashProjIds.has(a.project_id)  // exclude On Hold + Completed projects
+                  ).sort((a,b)=>a.end_date.localeCompare(b.end_date));
                   const engWorkload=visibleEngStats.map(eng=>{const logged=eng.workHrs,target=eng.targetHrs||0,remaining=Math.max(0,target-logged),availPct=target>0?Math.round(remaining/target*100):0;return{...eng,logged,target,remaining,availPct};}).filter(e=>e.target>0).sort((a,b)=>b.availPct-a.availPct);
-                  const fmtDl=d=>{const dt=new Date(d+"T12:00:00"),diff=Math.round((dt-new Date(todayStr+"T12:00:00"))/(864e5));return diff===0?{label:"Today",c:"#f87171"}:diff===1?{label:"Tomorrow",c:"#fb923c"}:diff<=7?{label:`In ${diff}d`,c:"#fb923c"}:{label:`In ${diff}d`,c:"var(--text3)"};};
+                  const fmtDl=d=>{const dt=new Date(d+"T12:00:00"),diff=Math.round((dt-new Date(todayStr+"T12:00:00"))/(864e5));return diff===0?{label:"Today",c:"#f87171"}:diff===1?{label:"Tomorrow",c:"#fb923c"}:diff<=7?{label:`In ${diff}d`,c:"#fb923c"}:diff<=14?{label:`In ${diff}d`,c:"var(--info)"}:{label:`In ${diff}d`,c:"var(--text3)"};};
                   const daysLeft=(()=>{let n=0,t=new Date(),e=new Date(year,month+1,0);while(t<=e){if(t.getDay()!==5&&t.getDay()!==6)n++;t.setDate(t.getDate()+1);}return n;})();
                   return(
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
@@ -11415,12 +11428,12 @@ export default function App(){
                     <div className="card" style={{padding:0,overflow:"hidden"}}>
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                         <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Upcoming Deadlines
-                          <span style={{fontSize:13,fontWeight:400,color:"var(--text3)",marginLeft:8}}>Next 14 days</span>
+                          <span style={{fontSize:13,fontWeight:400,color:"var(--text3)",marginLeft:8}}>Next 30 days</span>
                         </div>
                         {overdue.length>0&&<span style={{fontSize:12,padding:"3px 10px",borderRadius:10,background:"#f8711820",border:"1px solid #f8711840",color:"#f87171",fontWeight:700}}>⚠ {overdue.length} overdue</span>}
                       </div>
                       <div style={{maxHeight:300,overflowY:"auto"}}>
-                        {overdue.length===0&&upcoming.length===0&&<div style={{padding:"28px 20px",textAlign:"center",color:"var(--text4)",fontSize:14}}>No deadlines in the next 14 days ✓</div>}
+                        {overdue.length===0&&upcoming.length===0&&<div style={{padding:"28px 20px",textAlign:"center",color:"var(--text4)",fontSize:14}}>No deadlines in the next 30 days ✓</div>}
                         {overdue.slice(0,5).map(a=>{const proj=projects.find(p=>p.id===a.project_id);return(
                           <div key={a.id} style={{padding:"11px 20px",borderBottom:"1px solid var(--border)",background:"#f8711808",display:"flex",gap:12,alignItems:"center"}}>
                             <div style={{width:4,alignSelf:"stretch",background:"#f87171",borderRadius:2,flexShrink:0}}/>
