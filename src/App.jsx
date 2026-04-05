@@ -7700,7 +7700,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
             {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         )}
-        {canManageKPI&&(
+        {isAdmin&&(
           <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:10,padding:"14px 18px"}}>
             <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:12}}>⏰ Timesheet Posting Alert</div>
             <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
