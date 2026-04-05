@@ -2817,6 +2817,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
   // Paste destination state
   const [pasteTargetProj, setPasteTargetProj] = useState("");
   const [pasteTargetSub,  setPasteTargetSub]  = useState("");
+  const [dlPanelOpen,    setDlPanelOpen]      = useState(true); // Deadline panel open/closed
 
   // ── Memoised lookups ──
   const activityHrsMap = useMemo(()=>{
@@ -3162,83 +3163,78 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       </div>
       {/* ── Deadline Panel ── */}
       {(()=>{
-        const _today=new Date();_today.setHours(0,0,0,0);
-        const _14days=new Date(_today);_14days.setDate(_today.getDate()+14);
-        const _7days=new Date(_today);_7days.setDate(_today.getDate()+7);
-        const _todayStr=_today.toISOString().slice(0,10);
-
-        // Scope activities by role
+        // FIX: build today string from LOCAL date parts (not toISOString which is UTC)
+        const _now=new Date();
+        const _todayStr=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}-${String(_now.getDate()).padStart(2,"0")}`;
+        const _addDays=(n)=>{const d=new Date(_now);d.setDate(_now.getDate()+n);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
+        const _7dStr=_addDays(7);
+        const _14dStr=_addDays(14);
+        // FIX: exclude Cancelled + activities on Completed projects + accountant sees nothing
+        const _completedProjIds=new Set(projects.filter(p=>p.status==="Completed").map(p=>p.id));
         const _scopedActs=activities.filter(a=>{
           if(!a.end_date) return false;
-          if(a.status==="Completed") return false;
-          if(a.end_date>_14days.toISOString().slice(0,10)) return false;
-          // Engineer: only their assigned activities
-          if(isEngineerRole) return a.assigned_to&&myProfile?.name&&a.assigned_to===myProfile.name;
-          // Lead: only activities in their scoped projects
-          if(isLead&&!isAdmin){
-            const _scopedProjIds=new Set(baseProjects.map(p=>p.id));
-            return _scopedProjIds.has(a.project_id);
-          }
-          return true; // admin/accountant: all
+          if(a.status==="Completed"||a.status==="Cancelled") return false;
+          if(a.end_date>_14dStr) return false;
+          if(_completedProjIds.has(a.project_id)) return false; // FIX: skip completed projects
+          if(isAcct) return false; // FIX: accountant does not see deadline panel
+          if(isEngineerRole) return !!(a.assigned_to&&myProfile?.name&&a.assigned_to.trim()===myProfile.name.trim());
+          if(isLead&&!isAdmin){ const _ids=new Set(baseProjects.map(p=>p.id)); return _ids.has(a.project_id); }
+          return true; // admin: all
         });
-
         if(!_scopedActs.length) return null;
-
         const _overdue  =_scopedActs.filter(a=>a.end_date<_todayStr).sort((a,b)=>a.end_date.localeCompare(b.end_date));
-        const _thisWeek =_scopedActs.filter(a=>a.end_date>=_todayStr&&a.end_date<=_7days.toISOString().slice(0,10)).sort((a,b)=>a.end_date.localeCompare(b.end_date));
-        const _upcoming =_scopedActs.filter(a=>a.end_date>_7days.toISOString().slice(0,10)).sort((a,b)=>a.end_date.localeCompare(b.end_date));
-
-        const _fmtDate=d=>{
-          const _dt=new Date(d+"T12:00:00");
-          return _dt.toLocaleDateString("en-GB",{weekday:"short",day:"2-digit",month:"short"});
-        };
+        const _thisWeek =_scopedActs.filter(a=>a.end_date>=_todayStr&&a.end_date<=_7dStr).sort((a,b)=>a.end_date.localeCompare(b.end_date));
+        const _upcoming =_scopedActs.filter(a=>a.end_date>_7dStr).sort((a,b)=>a.end_date.localeCompare(b.end_date));
+        const _fmtDate=d=>new Date(d+"T12:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"2-digit",month:"short"});
+        // FIX: use string comparison for "Due today" to avoid timezone arithmetic bug
         const _daysLeft=d=>{
-          const diff=Math.round((new Date(d+"T12:00:00")-_today)/(1000*60*60*24));
-          if(diff<0) return `${Math.abs(diff)}d overdue`;
-          if(diff===0) return "Due today";
+          if(d===_todayStr) return "Due today";
+          if(d<_todayStr){
+            // count overdue days via string-safe calc
+            const diff=Math.round((new Date(d+"T12:00:00")-new Date(_todayStr+"T12:00:00"))/(1000*60*60*24));
+            return `${Math.abs(diff)}d overdue`;
+          }
+          const diff=Math.round((new Date(d+"T12:00:00")-new Date(_todayStr+"T12:00:00"))/(1000*60*60*24));
           if(diff===1) return "Due tomorrow";
           return `${diff}d left`;
         };
-
-        const _Row=({a,urgent})=>{
+        // Plain render function — NOT a component, no hooks
+        const _renderRow=(a,urgent)=>{
           const _proj=projects.find(p=>p.id===a.project_id);
-          const _isOverdue=a.end_date<_todayStr;
-          const _color=_isOverdue?"#f87171":urgent?"#fb923c":"#34d399";
-          const _bg=_isOverdue?"#7f1d1d18":urgent?"#78350f18":"#14532d18";
+          const _ov=a.end_date<_todayStr;
+          const _col=_ov?"#f87171":urgent?"#fb923c":"#34d399";
+          const _bg=_ov?"#7f1d1d18":urgent?"#78350f18":"#14532d18";
           return(
             <div key={a.id}
               onClick={()=>{setTrackerProj(a.project_id);setTrackerSub(null);}}
-              title={`Go to ${_proj?.name||a.project_id}`}
-              style={{display:"flex",alignItems:"center",gap:10,padding:"7px 12px",
-                borderRadius:7,background:_bg,border:`1px solid ${_color}30`,
-                cursor:"pointer",transition:"all .15s"}}
-              onMouseEnter={e=>e.currentTarget.style.borderColor=_color+"80"}
-              onMouseLeave={e=>e.currentTarget.style.borderColor=_color+"30"}>
-              <span style={{fontSize:14,flexShrink:0}}>{_isOverdue?"🔴":urgent?"🟡":"🟢"}</span>
+              title={`Open ${_proj?.name||a.project_id}`}
+              style={{display:"flex",alignItems:"center",gap:10,padding:"7px 12px",borderRadius:7,
+                background:_bg,border:`1px solid ${_col}30`,cursor:"pointer",transition:"border-color .15s"}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=_col+"80"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=_col+"30"}>
+              <span style={{fontSize:13,flexShrink:0}}>{_ov?"🔴":urgent?"🟡":"🟢"}</span>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                  <span style={{fontSize:12,fontWeight:700,color:_color,fontFamily:"'IBM Plex Mono',monospace",flexShrink:0}}>{_fmtDate(a.end_date)}</span>
-                  <span style={{fontSize:12,color:"var(--text4)",flexShrink:0}}>·</span>
+                  <span style={{fontSize:12,fontWeight:700,color:_col,fontFamily:"'IBM Plex Mono',monospace"}}>{_fmtDate(a.end_date)}</span>
+                  <span style={{fontSize:12,color:"var(--text4)"}}>·</span>
                   <span style={{fontSize:13,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</span>
                 </div>
-                <div style={{display:"flex",gap:6,marginTop:2,alignItems:"center",flexWrap:"wrap"}}>
+                <div style={{display:"flex",gap:6,marginTop:2,alignItems:"center"}}>
                   <span style={{fontSize:11,color:"var(--text4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{_proj?.name||a.project_id}</span>
                   {a.assigned_to&&!isEngineerRole&&<><span style={{fontSize:11,color:"var(--text4)"}}>·</span><span style={{fontSize:11,color:"var(--info)",fontWeight:600}}>{a.assigned_to}</span></>}
                 </div>
               </div>
-              <span style={{fontSize:11,fontWeight:700,color:_color,fontFamily:"'IBM Plex Mono',monospace",flexShrink:0,background:_color+"20",padding:"2px 7px",borderRadius:10,whiteSpace:"nowrap"}}>
+              <span style={{fontSize:11,fontWeight:700,color:_col,fontFamily:"'IBM Plex Mono',monospace",
+                background:_col+"20",padding:"2px 7px",borderRadius:10,whiteSpace:"nowrap",flexShrink:0}}>
                 {_daysLeft(a.end_date)}
               </span>
             </div>
           );
         };
-
-        const [_dlOpen,_setDlOpen]=React.useState(true);
         const _total=_overdue.length+_thisWeek.length+_upcoming.length;
         return(
           <div style={{background:"var(--bg1)",border:`1px solid ${_overdue.length?"#f8717140":"var(--border3)"}`,borderRadius:10,overflow:"hidden",marginBottom:2}}>
-            {/* Header */}
-            <div onClick={()=>_setDlOpen(o=>!o)}
+            <div onClick={()=>setDlPanelOpen(o=>!o)}
               style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",cursor:"pointer",
                 background:_overdue.length?"#7f1d1d10":"var(--bg0)",userSelect:"none"}}>
               <span style={{fontSize:15}}>{_overdue.length?"🔴":"📅"}</span>
@@ -3248,22 +3244,21 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
                 {_thisWeek.length>0&&<span style={{marginLeft:6,background:"#fb923c20",color:"#fb923c",fontSize:11,padding:"1px 7px",borderRadius:8,fontWeight:700}}>{_thisWeek.length} this week</span>}
                 {_upcoming.length>0&&<span style={{marginLeft:6,background:"#34d39920",color:"#34d399",fontSize:11,padding:"1px 7px",borderRadius:8,fontWeight:700}}>{_upcoming.length} upcoming</span>}
               </span>
-              <span style={{marginLeft:"auto",fontSize:12,color:"var(--text4)"}}>{_dlOpen?"▲":"▼"} {_total} total · click to {_dlOpen?"collapse":"expand"}</span>
+              <span style={{marginLeft:"auto",fontSize:12,color:"var(--text4)"}}>{dlPanelOpen?"▲":"▼"} {_total} · click to {dlPanelOpen?"collapse":"expand"}</span>
             </div>
-            {/* Body */}
-            {_dlOpen&&(
+            {dlPanelOpen&&(
               <div style={{padding:"10px 12px",display:"grid",gap:5}}>
                 {_overdue.length>0&&<>
                   <div style={{fontSize:11,fontWeight:700,color:"#f87171",textTransform:"uppercase",letterSpacing:".08em",padding:"4px 4px 2px"}}>🔴 Overdue</div>
-                  {_overdue.map(a=><_Row key={a.id} a={a} urgent={false}/>)}
+                  {_overdue.map(a=>_renderRow(a,false))}
                 </>}
                 {_thisWeek.length>0&&<>
                   <div style={{fontSize:11,fontWeight:700,color:"#fb923c",textTransform:"uppercase",letterSpacing:".08em",padding:"4px 4px 2px",marginTop:_overdue.length?6:0}}>🟡 Due This Week</div>
-                  {_thisWeek.map(a=><_Row key={a.id} a={a} urgent={true}/>)}
+                  {_thisWeek.map(a=>_renderRow(a,true))}
                 </>}
                 {_upcoming.length>0&&<>
                   <div style={{fontSize:11,fontWeight:700,color:"#34d399",textTransform:"uppercase",letterSpacing:".08em",padding:"4px 4px 2px",marginTop:(_overdue.length||_thisWeek.length)?6:0}}>🟢 Next 14 Days</div>
-                  {_upcoming.map(a=><_Row key={a.id} a={a} urgent={false}/>)}
+                  {_upcoming.map(a=>_renderRow(a,false))}
                 </>}
               </div>
             )}
