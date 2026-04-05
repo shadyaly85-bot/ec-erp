@@ -8131,6 +8131,12 @@ export default function App(){
         setFrozenMonths(prev=>prev.filter(fm=>fm.id!==existing.id));
         showToast(`${MONTHS_[mo]} ${yr} unfrozen ✓`);
         logAction("UPDATE","TimesheetFreeze",`Unfroze ${MONTHS_[mo]} ${yr}`,{year:yr,month:mo});
+        // Notify all active engineers + leads
+        const _now=new Date().toISOString();
+        const _msg=`🔓 ${MONTHS_[mo]} ${yr} has been unfrozen — you can now edit time entries for this month`;
+        engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.role_type!=="admin"&&String(e.id)!==String(myProfile?.id)).forEach(e=>{
+          insertNotif({type:"project_status",engineer_id:e.id,read:false,message:_msg,created_at:_now,meta:JSON.stringify({action:"month_unfrozen",year:yr,month:mo})});
+        });
       },{title:`Unfreeze ${MONTHS_[mo]} ${yr}`,confirmLabel:"Unfreeze",danger:false,icon:"🔓"});
     } else {
       showConfirm(`Freeze ${MONTHS_[mo]} ${yr}? All engineers will be unable to add, edit or delete time entries for this month. Function hours are still allowed.`,async()=>{
@@ -8140,6 +8146,12 @@ export default function App(){
         setFrozenMonths(prev=>[...prev,data]);
         showToast(`${MONTHS_[mo]} ${yr} frozen ❄`);
         logAction("UPDATE","TimesheetFreeze",`Froze ${MONTHS_[mo]} ${yr}`,{year:yr,month:mo});
+        // Notify all active engineers + leads
+        const _now=new Date().toISOString();
+        const _msg=`❄ ${MONTHS_[mo]} ${yr} has been frozen — you cannot add, edit or delete time entries for this month`;
+        engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.role_type!=="admin"&&String(e.id)!==String(myProfile?.id)).forEach(e=>{
+          insertNotif({type:"project_status",engineer_id:e.id,read:false,message:_msg,created_at:_now,meta:JSON.stringify({action:"month_frozen",year:yr,month:mo})});
+        });
       },{title:`Freeze ${MONTHS_[mo]} ${yr}`,confirmLabel:"Freeze Month",danger:true,icon:"❄"});
     }
   };
@@ -8734,14 +8746,17 @@ export default function App(){
 
 
   const unreadCount=useMemo(()=>{
-    // Personal notifications only — vacation_request excluded (admin-action type, handled separately)
-    const personalCount=notifications.filter(n=>n.type!=="vacation_request").length;
-    // Pending vacation approvals — admin responsibility only
+    // vacation_request: admins use pendingVacCount (from entries), leads count directly from notifications
+    const personalCount=notifications.filter(n=>{
+      if(n.type==="vacation_request") return isLead; // leads see it in count; admin uses pendingVacCount
+      return true;
+    }).length;
+    // Pending vacation approvals — admin uses entries (always accurate even before bell loads)
     const pendingVacCount=isAdmin
       ? entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL").length
       : 0;
     return Math.max(personalCount, pendingVacCount);
-  },[notifications,entries,isAdmin]);
+  },[notifications,entries,isAdmin,isLead]);
 
   // Dismiss = permanently delete from DB so they never come back on refresh
   const dismissNotification=useCallback(async(id)=>{
@@ -9021,6 +9036,14 @@ export default function App(){
       } else {
         showToast("Hours posted ✓");
       }
+    }
+    // Notify engineer if lead/admin posted on their behalf
+    if(data&&String(engId)!==String(myProfile?.id)&&!isLeave&&!isFunc){
+      const _projName=projects.find(p=>p.id===newEntry.projectId)?.name||newEntry.projectId;
+      insertNotif({type:"activity_assigned",engineer_id:engId,read:false,
+        message:`${myProfile?.name||"Admin"} posted ${+newEntry.hours}h on "${_projName}" on your behalf for ${date}`,
+        created_at:new Date().toISOString(),
+        meta:JSON.stringify({engineer_id:String(engId),date,project_id:newEntry.projectId,hours:+newEntry.hours,posted_by:myProfile?.name})});
     }
     setModalDate(null);
     setNewEntry({projectId:"",_group:"SCADA",taskCategory:"Templates",taskType:"Block Template",hours:8,activity:"",type:"work",leaveType:LEAVE_TYPES[0],activityId:null,_actCat:null,_actSub:null,_step:1});
@@ -9954,6 +9977,31 @@ export default function App(){
     setNewProj({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
     showToast("Project created ✓");
     logAction("CREATE","Project",`Created project ${newProj.id} — ${newProj.name}`,{project_id:newProj.id,name:newProj.name});
+    // ── Notify project leader + assigned engineers on creation ──
+    const _now=new Date().toISOString();
+    const _projName=newProj.name||newProj.id;
+    const _notified=new Set([String(myProfile?.id)]);
+    // Notify leader
+    if(newProj.project_leader){
+      const _leaderEng=engineers.find(e=>e.name===newProj.project_leader);
+      if(_leaderEng&&!_notified.has(String(_leaderEng.id))){
+        _notified.add(String(_leaderEng.id));
+        insertNotif({type:"project_leader",engineer_id:_leaderEng.id,read:false,
+          message:`⭐ You have been set as Project Leader for "${_projName}"`,
+          created_at:_now,
+          meta:JSON.stringify({project_id:newProj.id,project_name:_projName,changed_by:myProfile?.name})});
+      }
+    }
+    // Notify all assigned engineers
+    (newProj.assigned_engineers||[]).forEach(engId=>{
+      if(_notified.has(String(engId))) return;
+      _notified.add(String(engId));
+      const _aEng=engineers.find(e=>String(e.id)===String(engId));
+      if(_aEng) insertNotif({type:"project_assigned",engineer_id:_aEng.id,read:false,
+        message:`✓ You have been added to project "${_projName}"`,
+        created_at:_now,
+        meta:JSON.stringify({project_id:newProj.id,project_name:_projName,changed_by:myProfile?.name})});
+    });
   };
   const saveEditProject=async()=>{
     if(!editProjModal) return;
@@ -10100,7 +10148,26 @@ export default function App(){
           const{error}=await supabase.from("projects").delete().eq("id",id);
           return error||null;
         },
-        ()=>logAction("DELETE","Project",`Deleted project ${id}`,{project_id:id})
+        async()=>{
+          logAction("DELETE","Project",`Deleted project ${id}`,{project_id:id});
+          // Notify project leader + assigned engineers that project was deleted
+          const _now=new Date().toISOString();
+          const _msg=`Project "${proj?.name||id}" has been deleted by admin`;
+          const _notified=new Set([String(myProfile?.id)]);
+          if(proj?.project_leader){
+            const _ldr=engineers.find(e=>e.name===proj.project_leader);
+            if(_ldr&&!_notified.has(String(_ldr.id))){
+              _notified.add(String(_ldr.id));
+              insertNotif({type:"project_status",engineer_id:_ldr.id,read:false,message:_msg,created_at:_now,meta:JSON.stringify({project_id:id,project_name:proj?.name,action:"deleted"})});
+            }
+          }
+          (proj?.assigned_engineers||[]).forEach(engId=>{
+            if(_notified.has(String(engId))) return;
+            _notified.add(String(engId));
+            const _e=engineers.find(e=>String(e.id)===String(engId));
+            if(_e) insertNotif({type:"project_status",engineer_id:_e.id,read:false,message:_msg,created_at:_now,meta:JSON.stringify({project_id:id,project_name:proj?.name,action:"deleted"})});
+          });
+        }
       );
     },{title:"Delete Project",confirmLabel:"Delete Project",icon:"🗑"});
   };
