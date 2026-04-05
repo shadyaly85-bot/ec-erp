@@ -7617,7 +7617,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       await supabase.from("notifications").update({read:true}).eq("id",notifId);
       const _notif=(notifications||[]).find(n=>n.id===notifId);
       setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId));
-      if(_notif&&setNotifHistory) setNotifHistory(prev=>[{..._notif,read:true},...prev].slice(0,80));
+      if(_notif&&setNotifHistory) setNotifHistory(prev=>[{..._notif,read:true},...prev].slice(0,200));
     }
     // 4. Send vacation_approved notification — direct insert, no helper, no prop chain
     if(entry){
@@ -7658,7 +7658,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       await supabase.from("notifications").update({read:true}).eq("id",notifId);
       const _notif2=(notifications||[]).find(n=>n.id===notifId);
       setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId));
-      if(_notif2&&setNotifHistory) setNotifHistory(prev=>[{..._notif2,read:true},...prev].slice(0,80));
+      if(_notif2&&setNotifHistory) setNotifHistory(prev=>[{..._notif2,read:true},...prev].slice(0,200));
     }
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
@@ -8156,10 +8156,10 @@ export default function App(){
       catch{return false;}
     };
     const _isBcast=n=>n.type==="new_signup"||n.type==="overdue_alert"||(n.type==="timesheet_alert"&&!n.engineer_id);
-    const _thirtyAgo2=new Date(Date.now()-30*24*3600*1000).toISOString();
+    const _thirtyAgo2=new Date(Date.now()-90*24*3600*1000).toISOString(); // 90-day history window
     const{data:rN}=await supabase.from("notifications").select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
     setNotifications((rN||[]).filter(n=>_matchId2(n)||(_isLeadOrAdmin&&_isBcast(n))));
-    const{data:rH}=await supabase.from("notifications").select("*").eq("read",true).gte("created_at",_thirtyAgo2).order("created_at",{ascending:false}).limit(150);
+    const{data:rH}=await supabase.from("notifications").select("*").eq("read",true).gte("created_at",_thirtyAgo2).order("created_at",{ascending:false}).limit(500);
     setNotifHistory((rH||[]).filter(n=>_matchId2(n)));
   };
   const toggleNotifPanel = React.useCallback(()=>{
@@ -8572,7 +8572,8 @@ export default function App(){
 
         // 1. Personal active (unread) notifications
         // Try server-side filter (requires engineer_id column — run SQL migration if failing)
-        const _thirtyAgo=new Date(Date.now()-30*24*60*60*1000).toISOString();
+        const _ninetyAgo=new Date(Date.now()-90*24*60*60*1000).toISOString();
+        const _thirtyAgo=new Date(Date.now()-30*24*60*60*1000).toISOString(); // kept for backward compat
         let personalNotifs=[], historyNotifs=[];
 
         // ── Always use full-table meta-scan — works before AND after migration ──
@@ -8592,11 +8593,18 @@ export default function App(){
           .select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
         personalNotifs=(allN||[]).filter(n=>_matchId(n)||(_isLeadOrAdmin&&_isBroadcast(n)));
 
-        // History (read, last 30 days) — fetch all read, filter client-side
+        // History (read, last 90 days) — persistent 3-month window
         const{data:allH}=await supabase.from("notifications")
-          .select("*").eq("read",true).gte("created_at",_thirtyAgo)
-          .order("created_at",{ascending:false}).limit(150);
+          .select("*").eq("read",true).gte("created_at",_ninetyAgo)
+          .order("created_at",{ascending:false}).limit(500);
         historyNotifs=(allH||[]).filter(n=>_matchId(n));
+        // ── Auto-purge: admin/lead only — delete ALL notifications older than 90 days ──
+        // Fire-and-forget, non-blocking. Engineers cannot purge admin notifications.
+        if(_isLeadOrAdmin){
+          supabase.from("notifications").delete()
+            .lt("created_at",_ninetyAgo)
+            .then(()=>{});
+        }
 
         // 3. Deduplicate timesheet_alert by alert_key; delete dismissed + duplicates
         // (personalNotifs already includes broadcasts via _isBroadcast filter above)
@@ -8605,14 +8613,16 @@ export default function App(){
         const toDelete=[];
         allNotifs.forEach(n=>{
           if(n.type==="timesheet_alert"){
-            let key=null; try{key=JSON.parse(n.meta||"{}").alert_key;}catch{}
-            if(key){
-              if(dismissedKeys.has(key)){toDelete.push(n.id);return;}
-              if(seenKeys.has(key)){
-                const prev=seenKeys.get(key);
-                if(n.id>prev.id){toDelete.push(prev.id);seenKeys.set(key,n);}
+            let alertKey=null; try{alertKey=JSON.parse(n.meta||"{}").alert_key;}catch{}
+            if(alertKey){
+              // Composite key: alert_key + engineer_id — each recipient keeps their own copy
+              const compositeKey=alertKey+"__"+(n.engineer_id||"broadcast");
+              if(dismissedKeys.has(alertKey)){toDelete.push(n.id);return;}
+              if(seenKeys.has(compositeKey)){
+                const prev=seenKeys.get(compositeKey);
+                if(n.id>prev.id){toDelete.push(prev.id);seenKeys.set(compositeKey,n);}
                 else{toDelete.push(n.id);}
-              }else{seenKeys.set(key,n);}
+              }else{seenKeys.set(compositeKey,n);}
             }
           }
         });
@@ -8838,7 +8848,7 @@ export default function App(){
     if(!unread.length) return;
     const ids=unread.map(n=>n.id);
     await supabase.from("notifications").update({read:true}).in("id",ids);
-    setNotifHistory(prev=>[...unread.map(n=>({...n,read:true})),...prev].slice(0,80));
+    setNotifHistory(prev=>[...unread.map(n=>({...n,read:true})),...prev].slice(0,200));
     setNotifications([]);
   };
 
@@ -10928,7 +10938,7 @@ export default function App(){
                                   const ids=notifications.map(n=>n.id).filter(id=>id!=null);
                                   if(ids.length){
                                     await supabase.from("notifications").update({read:true}).in("id",ids);
-                                    setNotifHistory(prev=>[...notifications,...prev].slice(0,80));
+                                    setNotifHistory(prev=>[...notifications,...prev].slice(0,200));
                                   }
                                   try{const al=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");const ods=notifications.filter(n=>n.type==="overdue_alert").map(n=>{try{return JSON.parse(n.meta||"{}").alert_key;}catch{return null;}}).filter(Boolean);if(ods.length)localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...al,...ods])]));}catch{}
                                   setNotifications([]);
@@ -11000,7 +11010,7 @@ export default function App(){
                                           // Mark as read → moves to admin's history
                                           await supabase.from("notifications").update({read:true}).eq("id",matchedNotif.id);
                                           setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));
-                                          setNotifHistory(prev=>[{...matchedNotif,read:true},...prev].slice(0,80));
+                                          setNotifHistory(prev=>[{...matchedNotif,read:true},...prev].slice(0,200));
                                         }
                                         insertNotif({type:"vacation_approved",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
                                         showToast(`${eng?.name||"Vacation"} approved ✓`);
@@ -11012,7 +11022,7 @@ export default function App(){
                                           // Mark as read → moves to admin's history
                                           await supabase.from("notifications").update({read:true}).eq("id",matchedNotif.id);
                                           setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));
-                                          setNotifHistory(prev=>[{...matchedNotif,read:true},...prev].slice(0,80));
+                                          setNotifHistory(prev=>[{...matchedNotif,read:true},...prev].slice(0,200));
                                         }
                                         insertNotif({type:"vacation_rejected",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
                                         showToast(`${eng?.name||"Vacation"} rejected`,false);
@@ -11046,7 +11056,7 @@ export default function App(){
                                     // Mark as read (moves to history) instead of deleting
                                     await supabase.from("notifications").update({read:true}).eq("id",n.id);
                                     setNotifications(prev=>prev.filter(x=>x.id!==n.id));
-                                    setNotifHistory(prev=>[{...n,read:true},...prev].slice(0,80));
+                                    setNotifHistory(prev=>[{...n,read:true},...prev].slice(0,200));
                                   }
                                 }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:13,padding:"2px 3px",flexShrink:0,lineHeight:1}}
                                   title="Mark as read"
@@ -11057,11 +11067,15 @@ export default function App(){
                           })}
                           {/* History tab — past read notifications */}
                           {bellTab==="history"&&(
-                            notifHistory.length===0
-                            ? <div style={{padding:"28px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
-                                <div style={{fontSize:24,marginBottom:6}}>📭</div>No notification history yet
+                            <div>
+                              <div style={{fontSize:11,color:"var(--text4)",textAlign:"center",padding:"5px 0 4px",borderBottom:"1px solid var(--border3)",background:"var(--bg0)",letterSpacing:".04em"}}>
+                                📅 Last 3 months · {notifHistory.length} notifications
                               </div>
-                            : notifHistory.map(n=>{
+                              {notifHistory.length===0
+                              ? <div style={{padding:"28px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
+                                  <div style={{fontSize:24,marginBottom:6}}>📭</div>No notification history yet
+                                </div>
+                              : notifHistory.map(n=>{
                                 const ic=typeIcon(n.type);const cl=typeColor(n.type);const lbl=typeLabel(n.type);
                                 return(
                                   <div key={n.id} style={{padding:"10px 16px",borderBottom:"1px solid var(--border3)",display:"flex",gap:10,alignItems:"flex-start",opacity:0.75}}>
@@ -11083,6 +11097,7 @@ export default function App(){
                                   </div>
                                 );
                               })
+                          }</div>
                           )}
                         </div>
                       </div>
@@ -13520,7 +13535,7 @@ export default function App(){
                       {[
                         {title:"Post Work Hours",           show:!isAcct&&!isSenior,             color:"var(--info)",  text:"Go to Post Hours → click any day cell → choose Work → select Project → Sub-site (optional) → Work Group & Category → Activity → enter Hours and Notes. Press ✓ Post Hours to save. A description is required for a good KPI score. You can only post on projects you are assigned to."},
                         {title:"Submit Vacation / Leave",   show:!isSenior,                       color:"#34d399",      text:"Go to Post Hours → click the day → choose Leave → select Annual Leave (or other type) → Save. Annual Leave is submitted as PENDING APPROVAL and sent to your admin. You will receive a bell notification (🔔 top of sidebar) when your request is approved or rejected. Your remaining balance (21 days/year default) updates automatically in the stats bar once approved. Accountants follow the same process."},
-                        {title:"Notification Bell",         show:true,                            color:"#a78bfa",      text:"The 🔔 bell in the top of the sidebar shows your personal notifications. Active tab: unread notifications — click × to dismiss (moves to History). History tab: last 30 days of read notifications (up to 150). Broadcasts (timesheet alerts, new signups) are visible to admin and lead only. Notifications refresh every 15 seconds automatically."},
+                        {title:"Notification Bell",         show:true,                            color:"#a78bfa",      text:"The 🔔 bell in the top of the sidebar shows your personal notifications. Active tab: unread notifications — click × to dismiss (moves to History). History tab: last 3 months of read notifications (up to 500). Broadcasts (timesheet alerts, new signups) are visible to admin and lead only. Notifications refresh every 15 seconds automatically."},
                         {title:"Undo a Delete",             show:!isSenior,                       color:"#fb923c",      text:"After deleting any time entry you get a 3-second undo window. A toast appears at the bottom of the screen with an ↩ Undo button. Click it before the toast disappears to restore the entry. After 3 seconds the delete is committed to the database and cannot be undone. Vacation entries (approved or pending) follow the same 3-second window."},
                         {title:"View & Comment on Activities", show:!isAcct&&!isSenior,          color:"#a78bfa",      text:"Engineers: My Work → My Activities — shows only your assigned projects. Click the 💬 button on any activity to open the comment thread. Type and press Enter. Lead & Admin: Tracker tab — click any activity card to edit or comment. Comments notify the assigned engineer, project leader, and all admins (excluding the commenter). Comments survive activity saves and appear in PDF exports."},
                         {title:"Project Tracker",           show:isAdmin||isLead,                color:"#a78bfa",      text:"Admin/Lead Panel → Tracker. Each project shows activity cards grouped by category. Click any card to edit status, progress, deadline, and assignment. The COMMENTS section in the edit modal is the main communication channel — real-time, timestamped, and role-attributed. Export full project PDFs or per-sub-site PDFs from the Tracker Progress Report."},
@@ -13546,7 +13561,7 @@ export default function App(){
                     <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>v6 — April 2026 feature release</div>
                     <div style={{display:"grid",gap:8}}>
                       {[
-                        {tag:"Bell",      color:"#a78bfa", text:"Single notification bell (🔔) in the sidebar header — single bell for all notifications. Active tab shows unread, History tab shows last 30 days of dismissed notifications. Bell refreshes every 15 seconds and on login."},
+                        {tag:"Bell",      color:"#a78bfa", text:"Single notification bell (🔔) in the sidebar header — single bell for all notifications. Active tab shows unread, History tab shows last 3 months of dismissed notifications. Bell refreshes every 15 seconds and on login."},
                         {tag:"Vacation",  color:"#34d399", text:"Approve and reject vacations directly from the bell dropdown or the KPIs tab. After actioning, the request moves to admin History. Engineer receives vacation_approved or vacation_rejected bell notification instantly. Admin deleting a pending vacation now also notifies the requester."},
                         {tag:"Vacation",  color:"#34d399", text:"Approved vacation lock — only admin can delete an approved annual leave. Non-admin roles see a clear message directing them to contact admin. Engineers and leads cannot bypass this lock."},
                         {tag:"Notify",    color:"#34d399", text:"Activity notifications: comment posted → notifies assigned engineer, project leader, and all admins (commenter excluded). Status/progress/deadline changes by lead → admin notified. Activity assigned → engineer notified. All scoped to recipient — no user sees another person's notifications."},
