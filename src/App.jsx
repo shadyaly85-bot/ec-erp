@@ -8790,15 +8790,29 @@ export default function App(){
   const loadTrackerData=useCallback(async()=>{
     if(activitiesLoaded) return;
     try{
+      // Fetch subprojects and activities in parallel
+      // Attempt 1: with sort_order (preferred — allows manual reordering)
       const [spRes,actRes]=await Promise.all([
         supabase.from("project_subprojects").select("*").order("name"),
         supabase.from("project_activities").select("*").order("sort_order"),
       ]);
       if(spRes.data)  setSubprojects(spRes.data);
-      if(actRes.data) setActivities(actRes.data);
+      if(actRes.error&&actRes.error.message&&actRes.error.message.includes("sort_order")){
+        // Fallback: sort_order column may not exist yet in DB — fetch without ordering
+        const{data:actData}=await supabase.from("project_activities").select("*");
+        if(actData) setActivities(actData);
+      } else if(actRes.data){
+        setActivities(actRes.data);
+      }
       setActivitiesLoaded(true);
     }catch(e){
-      // Tables may not exist yet — mark loaded so UI doesn't keep retrying
+      // Network / table doesn't exist — try simple fetch without order
+      try{
+        const{data:actData}=await supabase.from("project_activities").select("*");
+        const{data:spData}=await supabase.from("project_subprojects").select("*");
+        if(actData) setActivities(actData);
+        if(spData)  setSubprojects(spData);
+      }catch(_){}
       setActivitiesLoaded(true);
     }
   },[activitiesLoaded,showToast]);
