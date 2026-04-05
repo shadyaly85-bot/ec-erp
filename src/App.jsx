@@ -8851,33 +8851,39 @@ export default function App(){
       // so each admin's server-side scoped load query picks it up
       const _adminVacPayloads=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({...notif,engineer_id:adminEng.id}));
       if(_adminVacPayloads.length) supabase.from("notifications").insert(_adminVacPayloads).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
-      // Also notify the engineer's direct lead (if any) — lead manages team schedule
+      // Also notify the engineer's direct lead (if any) — uses parent_id from org_chart
       (async()=>{
-        const leadEng=engineers.find(e=>e.role_type==="lead"&&(()=>{
+        // Fetch org chart fresh if not loaded yet (avoids race condition on first login)
+        let _nodes=orgNodes||[];
+        if(!_nodes.length){
           try{
-            const nodes=orgNodes||[];
-            const myNode=nodes.find(n=>String(n.engineer_id)===String(engId));
-            if(!myNode) return false;
-            return String(myNode.reports_to)===String(e.id);
-          }catch{return false;}
-        })());
-        if(leadEng){
-          const leadNotif={
-            type:"vacation_request",engineer_id:leadEng.id,read:false,
-            message:`${_reqEng?.name||"Someone"} requested Annual Leave on ${date} (your team)`,
-            created_at:new Date().toISOString(),
-            meta:JSON.stringify({entry_id:data.id,engineer_id:engId,engineer_name:_reqEng?.name,date,leave_type:newEntry.leaveType,notify_lead:true,lead_id:String(leadEng.id)})
-          };
-          (async()=>{
-            const{data:ndL,error:neL}=await supabase.from("notifications").insert(leadNotif).select().single();
-            if(neL&&neL.message&&(neL.message.includes("engineer_id")||neL.message.includes("column")||neL.message.includes("does not exist"))){
-              const{engineer_id:_eid,..._rL}=leadNotif;
-              const{data:ndL2}=await supabase.from("notifications").insert({..._rL,meta:JSON.stringify({...JSON.parse(_rL.meta||"{}"),_eng_id:String(_eid)})}).select().single();
-              if(ndL2&&String(leadEng.id)===String(myProfile?.id)) setNotifications(prev=>[ndL2,...prev]);
-            } else if(ndL&&String(leadEng.id)===String(myProfile?.id)){
-              setNotifications(prev=>[ndL,...prev]);
-            }
-          })();
+            const{data:_fresh}=await supabase.from("org_chart").select("*");
+            if(_fresh) _nodes=_fresh;
+          }catch(_){}
+        }
+        // Find the engineer's node in the org chart, then find their parent lead
+        const _myOrgNode=_nodes.find(n=>String(n.engineer_id)===String(engId));
+        if(!_myOrgNode||!_myOrgNode.parent_id) return; // not in org chart or no parent
+        const _parentNode=_nodes.find(n=>String(n.id)===String(_myOrgNode.parent_id));
+        if(!_parentNode) return; // parent node not found
+        const leadEng=engineers.find(e=>
+          e.role_type==="lead"&&String(e.id)===String(_parentNode.engineer_id)
+        );
+        if(!leadEng) return; // parent is not a lead (could be admin node)
+        const leadNotif={
+          type:"vacation_request",engineer_id:leadEng.id,read:false,
+          message:`${_reqEng?.name||"Someone"} requested Annual Leave on ${date} (your team)`,
+          created_at:new Date().toISOString(),
+          meta:JSON.stringify({entry_id:data.id,engineer_id:engId,engineer_name:_reqEng?.name,date,leave_type:newEntry.leaveType,notify_lead:true,lead_id:String(leadEng.id)})
+        };
+        const{data:ndL,error:neL}=await supabase.from("notifications").insert(leadNotif).select().single();
+        if(neL&&neL.message&&(neL.message.includes("engineer_id")||neL.message.includes("column")||neL.message.includes("does not exist"))){
+          // Fallback: engineer_id column may not exist
+          const{engineer_id:_eid,..._rL}=leadNotif;
+          const{data:ndL2}=await supabase.from("notifications").insert({..._rL,meta:JSON.stringify({...JSON.parse(_rL.meta||"{}"),_eng_id:String(_eid)})}).select().single();
+          if(ndL2&&String(leadEng.id)===String(myProfile?.id)) setNotifications(prev=>[ndL2,...prev]);
+        } else if(ndL&&String(leadEng.id)===String(myProfile?.id)){
+          setNotifications(prev=>[ndL,...prev]);
         }
       })();
       showToast("Vacation request submitted — pending admin approval ✓");
