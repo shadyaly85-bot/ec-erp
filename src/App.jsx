@@ -3125,7 +3125,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
       <div style={{display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",justifyContent:"space-between"}}>
         <div>
           <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>PROJECT TRACKER</div>
-          <div style={{fontSize:22,fontWeight:800,color:"var(--text0)"}}>{allTrackerProjects.length} <span style={{fontSize:14,fontWeight:400,color:"var(--text3)"}}>projects · {activities.length} activities</span></div>
+          <div style={{fontSize:22,fontWeight:800,color:"var(--text0)"}}>{allTrackerProjects.length}{trackerStatusF!=="ALL"&&<span style={{fontSize:13,color:"var(--text4)",fontWeight:400}}> / {baseProjects.length}</span>} <span style={{fontSize:14,fontWeight:400,color:"var(--text3)"}}>projects · {activities.length} activities</span></div>
         </div>
         <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
           {/* Search */}
@@ -3144,10 +3144,11 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
                 {v:"On Hold",  l:"On Hold", c:"#fb923c"},
                 {v:"Completed",l:"Done",    c:"#a78bfa"},
               ].map(chip=>{
-                const cnt=chip.v==="ALL"?baseProjects.length:baseProjects.filter(p=>p.status===chip.v).length;
+                // Show counts from FULL baseProjects (not filtered) so user knows total per status
+                const cnt=chip.v==="ALL"?allTrackerProjects.length:baseProjects.filter(p=>p.status===chip.v).length;
                 const active=trackerStatusF===chip.v;
                 return(
-                  <button key={chip.v} onClick={()=>setTrackerStatusF(chip.v)}
+                  <button type="button" key={chip.v} onClick={()=>setTrackerStatusF(chip.v)}
                     style={{padding:"6px 12px",borderRadius:20,border:`1px solid ${active?chip.c+"90":"var(--border)"}`,
                       background:active?chip.c+"18":"transparent",color:active?chip.c:"var(--text3)",
                       fontSize:13,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
@@ -3176,7 +3177,7 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           if(a.status==="Completed"||a.status==="Cancelled") return false;
           if(a.end_date>_14dStr) return false;
           if(_completedProjIds.has(a.project_id)) return false; // FIX: skip completed projects
-          if(isAcct) return false; // FIX: accountant does not see deadline panel
+          if(isAcct&&!isAdmin) return false; // accountant does not see deadline panel; admin is also isAcct so must exclude explicitly
           if(isEngineerRole) return !!(a.assigned_to&&myProfile?.name&&a.assigned_to.trim()===myProfile.name.trim());
           if(isLead&&!isAdmin){ const _ids=new Set(baseProjects.map(p=>p.id)); return _ids.has(a.project_id); }
           return true; // admin: all
@@ -3207,6 +3208,8 @@ function ProjectTracker({projects, activities, subprojects, entries, engineers, 
           return(
             <div key={a.id}
               onClick={()=>{setTrackerProj(a.project_id);setTrackerSub(null);}}
+              onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){setTrackerProj(a.project_id);setTrackerSub(null);}}}
+              role="button" tabIndex={0}
               title={`Open ${_proj?.name||a.project_id}`}
               style={{display:"flex",alignItems:"center",gap:10,padding:"7px 12px",borderRadius:7,
                 background:_bg,border:`1px solid ${_col}30`,cursor:"pointer",transition:"border-color .15s"}}
@@ -7396,7 +7399,7 @@ const projProfit=projects.map(p=>{
 /* ════════════════════════════════════════════════════════
    FUNCTIONS TAB — standalone component
    ════════════════════════════════════════════════════════ */
-function FunctionsTab({entries, engineers, funcYear, setFuncYear, funcEngId, setFuncEngId, deleteEntry, isAdmin, isLead, isAcct, year, setShowFuncModal}){
+function FunctionsTab({entries, engineers, funcYear, setFuncYear, funcEngId, setFuncEngId, deleteEntry, isAdmin, isLead, isAcct, year, setShowFuncModal, isMonthFrozen}){
 
   const {funcEntries, yearFuncs, totalFuncHrs, catTotals, maxCat, engFuncMap} = useMemo(()=>{
     const funcEntries=entries.filter(e=>
@@ -7438,7 +7441,7 @@ engineers.forEach(eng=>{
       <select value={funcEngId} onChange={e=>setFuncEngId(e.target.value)}
         style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text0)",fontSize:14}}>
         <option value="all">All Engineers</option>
-        {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+        {engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.is_active!==null&&(!e.termination_date||String(e.termination_date).slice(0,10)>new Date().toISOString().slice(0,10))).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
       </select>
       <button className="bp" onClick={()=>setShowFuncModal(true)}>+ Log Function Hours</button>
     </div>
@@ -7479,7 +7482,7 @@ engineers.forEach(eng=>{
         <th style={{textAlign:"right"}}>Total</th>
         {FUNCTION_CATS.map(c=><th key={c} style={{textAlign:"right",maxWidth:70,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:FUNC_COLORS[c]}} title={c}>{c.split("—")[0].split("&")[0].trim().slice(0,11)}</th>)}
       </tr></thead>
-      <tbody>{engineers.map(eng=>{
+      <tbody>{engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.is_active!==null&&(!e.termination_date||String(e.termination_date).slice(0,10)>new Date().toISOString().slice(0,10))).map(eng=>{
         const em=engFuncMap[eng.id]||{total:0,cats:{}};
         return(<tr key={eng.id}>
           <td><div style={{fontWeight:600}}>{eng.name}</div><div style={{fontSize:12,color:"var(--text4)"}}>{eng.role}</div></td>
@@ -7582,7 +7585,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       weeks:weeks.size,weeksElapsed,funcE,workE,totalHrs};
   },[yearEntries,projects,kpiYear]);
 
-  const engKPIs=useMemo(()=>engineers.map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore),[engineers,computeKPI]);
+  const engKPIs=useMemo(()=>engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.is_active!==null&&(!e.termination_date||String(e.termination_date).slice(0,10)>new Date().toISOString().slice(0,10))).map(computeKPI).sort((a,b)=>b.totalScore-a.totalScore),[engineers,computeKPI]);
   const selKPI=effectiveEngId?engKPIs.find(k=>String(k.eng.id)===String(effectiveEngId)):null;
 
   // Pending vacation requests
@@ -7803,7 +7806,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
           <select value={effectiveEngId||""} onChange={e=>setKpiEngId(e.target.value||null)}
             style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text0)",fontSize:14}}>
             <option value="">Team Overview</option>
-            {engineers.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+            {engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.is_active!==null&&(!e.termination_date||String(e.termination_date).slice(0,10)>new Date().toISOString().slice(0,10))).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         )}
         {isAdmin&&(
@@ -13426,6 +13429,7 @@ export default function App(){
                   funcEngId={funcEngId} setFuncEngId={setFuncEngId}
                   deleteEntry={deleteEntry} isAdmin={isAdmin} isLead={isLead} isAcct={isAcct} year={year}
                   setShowFuncModal={setShowFuncModal}
+                  isMonthFrozen={isMonthFrozen}
                 />
               )}
 
