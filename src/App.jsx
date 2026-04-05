@@ -7404,7 +7404,7 @@ engineers.forEach(eng=>{
           <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:(FUNC_COLORS[cat]||"#6b7280")+"20",color:FUNC_COLORS[cat]||"#6b7280",fontWeight:700}}>{cat}</span></td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{e.hours}h</td>
           <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
-          {isAdmin&&<td><button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button></td>}
+          {isAdmin&&<td>{isMonthFrozen(e.date)?<span title="Month frozen" style={{fontSize:13,color:"#93c5fd",padding:"0 6px"}}>❄</span>:<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}</td>}
         </tr>);
       })}</tbody>
     </table>
@@ -7498,7 +7498,6 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   const approveVacation=async(entryId,notifId)=>{
     if(!supabase){showToast("No DB connection",false);return;}
     const entry=entries.find(e=>e.id===entryId);
-    console.log("[EC-ERP] approveVacation — entry:",entry,"entryId:",entryId);
     // 1. Optimistic UI update
     setEntries&&setEntries(prev=>prev.map(e=>e.id===entryId?{...e,activity:null}:e));
     // 2. DB update
@@ -7520,7 +7519,6 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         created_at:new Date().toISOString(),
         meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:entryId})
       };
-      console.log("[EC-ERP] Inserting vacation_approved notification:",_payload);
       const{error:ne}=await supabase.from("notifications").insert(_payload);
       if(ne){
         console.warn("[EC-ERP] vacation_approved insert failed:",ne.message,"— trying fallback without engineer_id column");
@@ -7531,10 +7529,8 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
           console.error("[EC-ERP] vacation_approved BOTH inserts failed:",ne2.message);
           showToast("⚠ Approval sent but notification failed: "+ne2.message,false);
         } else {
-          console.log("[EC-ERP] vacation_approved sent via meta fallback ✓");
         }
       } else {
-        console.log("[EC-ERP] vacation_approved notification inserted ✓");
       }
       logAction("UPDATE","TimeEntry",`Approved vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     } else {
@@ -7546,7 +7542,6 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   const rejectVacation=async(entryId,notifId)=>{
     if(!supabase){showToast("No DB connection",false);return;}
     const entry=entries.find(e=>e.id===entryId);
-    console.log("[EC-ERP] rejectVacation — entry:",entry,"entryId:",entryId);
     setEntries&&setEntries(prev=>prev.filter(e=>e.id!==entryId));
     const{error:de}=await supabase.from("time_entries").delete().eq("id",entryId);
     if(de) console.error("[EC-ERP] time_entries delete error:",de.message);
@@ -7564,7 +7559,6 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         created_at:new Date().toISOString(),
         meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:entryId})
       };
-      console.log("[EC-ERP] Inserting vacation_rejected notification:",_payload);
       const{error:ne}=await supabase.from("notifications").insert(_payload);
       if(ne){
         console.warn("[EC-ERP] vacation_rejected insert failed:",ne.message);
@@ -7575,10 +7569,8 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
           console.error("[EC-ERP] vacation_rejected BOTH inserts failed:",ne2.message);
           showToast("⚠ Rejection saved but notification failed: "+ne2.message,false);
         } else {
-          console.log("[EC-ERP] vacation_rejected sent via fallback ✓");
         }
       } else {
-        console.log("[EC-ERP] vacation_rejected notification inserted ✓");
       }
       logAction("DELETE","TimeEntry",`Rejected vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     } else {
@@ -14048,7 +14040,22 @@ export default function App(){
         <div className="modal-ov" onClick={()=>setEditEntry(null)}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
             <h3 style={{fontSize:17,fontWeight:700,marginBottom:18}}>Edit Entry</h3>
-            <div style={{display:"grid",gap:11}}>
+            {/* Frozen month warning banner */}
+            {isMonthFrozen(editEntry.date)&&(()=>{
+              const _d=new Date(editEntry.date+"T12:00:00");
+              const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
+              return(
+                <div style={{display:"flex",alignItems:"center",gap:10,background:"#1e3a5f",border:"1px solid #3b82f640",
+                  borderRadius:8,padding:"10px 14px",marginBottom:14}}>
+                  <span style={{fontSize:18}}>❄</span>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:"#93c5fd"}}>{_mn} {_d.getFullYear()} is frozen</div>
+                    <div style={{fontSize:12,color:"#64748b",marginTop:2}}>Changes cannot be saved.{isAdmin?" Unfreeze this month from Post Hours to edit.":""}</div>
+                  </div>
+                </div>
+              );
+            })()}
+            <div style={{display:"grid",gap:11,opacity:isMonthFrozen(editEntry.date)?0.5:1,pointerEvents:isMonthFrozen(editEntry.date)?"none":"auto"}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Date</Lbl><input type="date" value={editEntry.date} onChange={e=>setEditEntry(p=>({...p,date:e.target.value}))}/></div>
                 <div><Lbl>Entry Type</Lbl>
@@ -14090,7 +14097,11 @@ export default function App(){
             </div>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
               <button className="bg" onClick={()=>setEditEntry(null)}>Cancel</button>
-              <button className="bp" onClick={saveEditEntry}>Save Changes</button>
+              <button className="bp" onClick={saveEditEntry}
+                disabled={isMonthFrozen(editEntry.date)}
+                style={{opacity:isMonthFrozen(editEntry.date)?0.4:1,cursor:isMonthFrozen(editEntry.date)?"not-allowed":"pointer"}}>
+                {isMonthFrozen(editEntry.date)?"❄ Frozen":"Save Changes"}
+              </button>
             </div>
           </div>
         </div>
