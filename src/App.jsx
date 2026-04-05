@@ -12813,7 +12813,7 @@ export default function App(){
 
                   {/* ── Vacation ── */}
                   {activeRpt==="vacation"&&<VacationReport
-                    engineers={mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers}
+                    engineers={(mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers).filter(e=>e.is_active!==false&&e.is_active!==0&&e.is_active!==null&&(!e.termination_date||String(e.termination_date).slice(0,10)>new Date().toISOString().slice(0,10)))}
                     leaveEntries={leaveEntries} allEntries={entries}
                     month={month} year={year} MONTHS={MONTHS}
                     isAdmin={isAdmin}
@@ -12821,7 +12821,7 @@ export default function App(){
                     setVacBalance={setVacBalance}
                     showToast={showToast}
                     onExport={()=>{
-                      const expEngs = mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers;
+                      const expEngs = (mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers).filter(e=>e.is_active!==false&&e.is_active!==0&&e.is_active!==null&&(!e.termination_date||String(e.termination_date).slice(0,10)>new Date().toISOString().slice(0,10)));
                       buildVacationPDF(expEngs,entries,leaveEntries,projects,month,year);
                     }}
                   />}
