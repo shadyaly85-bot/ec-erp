@@ -8046,7 +8046,7 @@ export default function App(){
       try{const m=JSON.parse(n.meta||"{}");return String(m.engineer_id||m.recipient_engineer_id||m._eng_id||"")===String(_profId);}
       catch{return false;}
     };
-    const _isBcast=n=>["new_signup","timesheet_alert","overdue_alert"].includes(n.type);
+    const _isBcast=n=>n.type==="new_signup"||n.type==="overdue_alert"||(n.type==="timesheet_alert"&&!n.engineer_id);
     const _thirtyAgo2=new Date(Date.now()-30*24*3600*1000).toISOString();
     const{data:rN}=await supabase.from("notifications").select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
     setNotifications((rN||[]).filter(n=>_matchId2(n)||(_isLeadOrAdmin&&_isBcast(n))));
@@ -8476,7 +8476,7 @@ export default function App(){
             return String(m.engineer_id||m.recipient_engineer_id||m._eng_id||"")===String(_profId);
           }catch{return false;}
         };
-        const _isBroadcast=n=>["new_signup","timesheet_alert","overdue_alert"].includes(n.type);
+        const _isBroadcast=n=>n.type==="new_signup"||n.type==="overdue_alert"||(n.type==="timesheet_alert"&&!n.engineer_id);
 
         // Active (unread) — fetch all unread, filter client-side
         const{data:allN}=await supabase.from("notifications")
@@ -9131,13 +9131,11 @@ export default function App(){
   },[newFunc,showToast]);
 
   // Check for engineers who haven't posted hours by Friday — only alerts on Fri/Sat/Sun
-  const checkTimesheetAlerts=useCallback(async(engs,allE,staffList=[],currentNotifs=[])=>{
+  const checkTimesheetAlerts=useCallback(async(engs,allE,staffList=[],currentNotifs=[],_orgNodes=[])=>{
     if(!isAdmin&&!isLead) return;
     const today=new Date();
-    const dayOfWeek=today.getDay(); // 0=Sun,1=Mon,...,6=Sat
-    // Exact day check — fire only on the configured alert day
+    const dayOfWeek=today.getDay();
     if(dayOfWeek!==alertDay) return;
-    // Time check — only fire after the configured hour
     const _alertHour=parseInt((alertTime||"09:00").split(":")[0],10);
     if(today.getHours()<_alertHour) return;
     const mondayOffset=dayOfWeek===0?-6:1-dayOfWeek;
@@ -9147,45 +9145,89 @@ export default function App(){
     const fridayStr=friday.toISOString().slice(0,10);
     const todayStr=today.toISOString().slice(0,10);
 
+    // Fetch org chart if not passed in
+    let _nodes=_orgNodes.length?_orgNodes:orgNodes;
+    if(!_nodes.length){
+      try{const{data:_f}=await supabase.from("org_chart").select("*");if(_f)_nodes=_f;}catch(_){}
+    }
+    // Build set of engineer_ids present in org chart (only alert for these)
+    const _orgEngIds=new Set(_nodes.map(n=>String(n.engineer_id)).filter(Boolean));
+
     const laggards=[];
     engs.forEach(eng=>{
+      // Skip non-billable roles
       if(["accountant","senior_management","admin"].includes(eng.role_type)) return;
-      // Skip inactive: catches false, 0, null — but NOT undefined (column missing → treat as active)
-      if(eng.is_active!==undefined && !eng.is_active) return;
+      // Skip inactive (all falsy values: false, 0, null)
+      if(eng.is_active===false||eng.is_active===0||eng.is_active===null) return;
+      // Skip terminated
       if(eng.termination_date&&String(eng.termination_date).slice(0,10)<=todayStr) return;
+      // Skip if not active in staff table
       const staffMatch=staffList.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
       if(staffMatch){
         if(staffMatch.active===false) return;
         if(staffMatch.termination_date&&String(staffMatch.termination_date).slice(0,10)<todayStr) return;
       }
+      // ── KEY FIX: skip engineers not in org chart ──
+      if(_nodes.length&&!_orgEngIds.has(String(eng.id))) return;
       const hasWeekHours=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||e.task_category==="Function"));
-      // Don't alert engineers who are on approved leave this week
-      const onApprovedLeave=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&e.entry_type==="leave");
+      const onApprovedLeave=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&e.entry_type==="leave"&&e.activity!=="PENDING_APPROVAL");
       if(!hasWeekHours&&!onApprovedLeave) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
     });
-
     if(laggards.length===0) return;
 
-    // Build set of already-known alert keys from: current state + sessionStorage
-    // This is the only source of truth — no DB round trip needed
-    const knownKeys = new Set([
-      ...currentNotifs.map(n=>{ try{ return JSON.parse(n.meta||"{}").alert_key; }catch{ return null; } }).filter(Boolean),
+    // Build known keys to avoid duplicates
+    const knownKeys=new Set([
+      ...currentNotifs.map(n=>{try{return JSON.parse(n.meta||"{}").alert_key;}catch{return null;}}).filter(Boolean),
       ...JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"),
     ]);
 
+    // ── KEY FIX: send per-recipient (admin + scoped lead) not as broadcast ──
+    // Build reverse BFS helper: given engineer id, find which lead manages them
+    const _findLead=(engId)=>{
+      if(!_nodes.length) return null;
+      return engs.filter(e=>e.role_type==="lead").find(le=>{
+        const _ln=_nodes.find(n=>String(n.engineer_id)===String(le.id));
+        if(!_ln) return false;
+        const _q=[_ln.id];const _seen=new Set([_ln.id]);
+        while(_q.length){
+          const _nid=_q.shift();
+          const _kids=_nodes.filter(n=>Number(n.parent_id)===Number(_nid));
+          for(const _k of _kids){
+            if(String(_k.engineer_id)===String(engId)) return true;
+            if(!_seen.has(_k.id)){_seen.add(_k.id);_q.push(_k.id);}
+          }
+        }
+        return false;
+      })||null;
+    };
+
+    const _now=new Date().toISOString();
     for(const{eng,type,label}of laggards){
       const key=`timesheet_alert_${eng.id}_${type}_${weekStartStr}`;
       if(knownKeys.has(key)) continue;
-      await insertNotif({
-        type:"timesheet_alert",
-        message:`⏰ ${eng.name}: ${label}`,
-        meta:JSON.stringify({engineer_id:eng.id,alert_key:key,alert_type:type}),
-        read:false,
-        created_at:new Date().toISOString()
-      });
-      knownKeys.add(key); // prevent double-insert within same loop
+      const _msg=`⏰ ${eng.name}: ${label}`;
+      const _meta=JSON.stringify({engineer_id:eng.id,alert_key:key,alert_type:type});
+      // Find the lead who manages this engineer
+      const _leadEng=_findLead(eng.id);
+      // Build recipient list: all admins + scoped lead (deduplicated)
+      const _recipients=[
+        ...engs.filter(e=>e.role_type==="admin"),
+        ...(_leadEng?[_leadEng]:[]),
+      ].filter((e,i,arr)=>arr.findIndex(x=>x.id===e.id)===i); // deduplicate
+      // Bulk insert one notification per recipient
+      const _payloads=_recipients.map(r=>({type:"timesheet_alert",engineer_id:r.id,read:false,message:_msg,created_at:_now,meta:_meta}));
+      if(_payloads.length){
+        const{data:_rows,error:_ne}=await supabase.from("notifications").insert(_payloads).select();
+        if(_ne) console.warn("[EC-ERP] timesheet_alert insert failed:",_ne.message);
+        else if(_rows){
+          // Show in current user's bell if they are a recipient
+          const _mine=_rows.find(r=>String(r.engineer_id)===String(myProfile?.id));
+          if(_mine) setNotifications(prev=>[_mine,...prev]);
+        }
+      }
+      knownKeys.add(key);
     }
-  },[isAdmin,isLead,alertDay,alertTime]);
+  },[isAdmin,isLead,alertDay,alertTime,orgNodes,myProfile,supabase,insertNotif,setNotifications]);
 
   // Run alert check once when user first logs in (engineers+entries loaded)
   const alertsRanRef = React.useRef(false);
@@ -9195,7 +9237,7 @@ export default function App(){
     if(!engineers.length||!entries.length) return;
     alertsRanRef.current = true;
     const notifSnapshot = notifications.slice();
-    setTimeout(()=>checkTimesheetAlerts(engineers,entries,staff,notifSnapshot),1500);
+    setTimeout(()=>checkTimesheetAlerts(engineers,entries,staff,notifSnapshot,orgNodes),1500);
     // Check for overdue tracker activities (not completed, past end_date)
     setTimeout(()=>{
       const todayStr = new Date().toISOString().slice(0,10);
