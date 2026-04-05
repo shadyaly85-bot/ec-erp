@@ -8697,13 +8697,15 @@ export default function App(){
             })
           };
           const{data:nd,error:ne}=await supabase.from("notifications").insert(notif).select().single();
-          if(nd){
-            // Immediately show in bell if this notification is for the current user
-            if(String(recipId)===String(myProfile?.id)){
-              setNotifications(prev=>[nd,...prev]);
-            }
+          if(ne&&ne.message&&(ne.message.includes("engineer_id")||ne.message.includes("column")||ne.message.includes("does not exist"))){
+            // Fallback: engineer_id column may not exist — store in meta
+            const{engineer_id:_eid,..._rC}=notif;
+            const{data:nd2}=await supabase.from("notifications").insert({..._rC,meta:JSON.stringify({...JSON.parse(_rC.meta||"{}"),_eng_id:String(_eid)})}).select().single();
+            if(nd2&&String(recipId)===String(myProfile?.id)) setNotifications(prev=>[nd2,...prev]);
+          } else if(nd){
+            if(String(recipId)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);
           } else if(ne){
-            console.error("Notification insert error:",ne.message);
+            console.warn("[EC-ERP] activity_comment notification error:",ne.message);
           }
         }
       }
@@ -8866,8 +8868,16 @@ export default function App(){
             created_at:new Date().toISOString(),
             meta:JSON.stringify({entry_id:data.id,engineer_id:engId,engineer_name:_reqEng?.name,date,leave_type:newEntry.leaveType,notify_lead:true,lead_id:String(leadEng.id)})
           };
-          supabase.from("notifications").insert(leadNotif)
-            .select().single().then(({data:nd})=>{if(nd&&String(leadEng.id)===String(myProfile?.id)) setNotifications(prev=>[nd,...prev]);});
+          (async()=>{
+            const{data:ndL,error:neL}=await supabase.from("notifications").insert(leadNotif).select().single();
+            if(neL&&neL.message&&(neL.message.includes("engineer_id")||neL.message.includes("column")||neL.message.includes("does not exist"))){
+              const{engineer_id:_eid,..._rL}=leadNotif;
+              const{data:ndL2}=await supabase.from("notifications").insert({..._rL,meta:JSON.stringify({...JSON.parse(_rL.meta||"{}"),_eng_id:String(_eid)})}).select().single();
+              if(ndL2&&String(leadEng.id)===String(myProfile?.id)) setNotifications(prev=>[ndL2,...prev]);
+            } else if(ndL&&String(leadEng.id)===String(myProfile?.id)){
+              setNotifications(prev=>[ndL,...prev]);
+            }
+          })();
         }
       })();
       showToast("Vacation request submitted — pending admin approval ✓");
@@ -9162,11 +9172,12 @@ export default function App(){
     for(const{eng,type,label}of laggards){
       const key=`timesheet_alert_${eng.id}_${type}_${weekStartStr}`;
       if(knownKeys.has(key)) continue;
-      await supabase.from("notifications").insert({
+      await insertNotif({
         type:"timesheet_alert",
         message:`⏰ ${eng.name}: ${label}`,
         meta:JSON.stringify({engineer_id:eng.id,alert_key:key,alert_type:type}),
-        read:false
+        read:false,
+        created_at:new Date().toISOString()
       });
       knownKeys.add(key); // prevent double-insert within same loop
     }
@@ -9203,12 +9214,17 @@ export default function App(){
                   created_at:new Date().toISOString()
                 }).eq("type","overdue_alert").then(()=>{});
               } else {
-                supabase.from("notifications").insert({
-                  type:"overdue_alert",read:false,
-                  message:`${overdue.length} tracker activit${overdue.length===1?"y":"ies"} past deadline`,
-                  created_at:new Date().toISOString(),
-                  meta:JSON.stringify({alert_key:key,count:overdue.length,projects:[...new Set(overdue.map(a=>a.project_id))].slice(0,3)})
-                }).select().single().then(({data:nd})=>{if(nd)setNotifications(prev=>[...prev.filter(n=>n.type!=="overdue_alert"),nd]);});
+                (async()=>{
+                  const _ovPayload={type:"overdue_alert",read:false,
+                    message:`${overdue.length} tracker activit${overdue.length===1?"y":"ies"} past deadline`,
+                    created_at:new Date().toISOString(),
+                    meta:JSON.stringify({alert_key:key,count:overdue.length,projects:[...new Set(overdue.map(a=>a.project_id))].slice(0,3)})};
+                  try{
+                    const{data:nd,error:ne}=await supabase.from("notifications").insert(_ovPayload).select().single();
+                    if(nd) setNotifications(prev=>[...prev.filter(n=>n.type!=="overdue_alert"),nd]);
+                    else if(ne) console.warn("[EC-ERP] overdue_alert insert failed:",ne.message);
+                  }catch(e){console.warn("[EC-ERP] overdue_alert insert error:",e.message);}
+                })();
               }
             });
         }
