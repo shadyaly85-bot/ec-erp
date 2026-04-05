@@ -8160,7 +8160,9 @@ export default function App(){
     const{data:rN}=await supabase.from("notifications").select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
     setNotifications((rN||[]).filter(n=>_matchId2(n)||(_isLeadOrAdmin&&_isBcast(n))));
     const{data:rH}=await supabase.from("notifications").select("*").eq("read",true).gte("created_at",_thirtyAgo2).order("created_at",{ascending:false}).limit(500);
-    setNotifHistory((rH||[]).filter(n=>_matchId2(n)));
+    // Include broadcasts in history for lead/admin (same as active filter logic)
+    const _isLeadOrAdmin2=["admin","lead"].includes(myProfile?.role_type);
+    setNotifHistory((rH||[]).filter(n=>_matchId2(n)||(_isLeadOrAdmin2&&_isBcast(n))));
   };
   const toggleNotifPanel = React.useCallback(()=>{
     setNotifPanelOpen(prev=>!prev);
@@ -8597,7 +8599,8 @@ export default function App(){
         const{data:allH}=await supabase.from("notifications")
           .select("*").eq("read",true).gte("created_at",_ninetyAgo)
           .order("created_at",{ascending:false}).limit(500);
-        historyNotifs=(allH||[]).filter(n=>_matchId(n));
+        // Include broadcasts (null engineer_id) in history for lead/admin — same logic as active
+        historyNotifs=(allH||[]).filter(n=>_matchId(n)||(_isLeadOrAdmin&&_isBroadcast(n)));
         // ── Auto-purge: admin/lead only — delete ALL notifications older than 90 days ──
         // Fire-and-forget, non-blocking. Engineers cannot purge admin notifications.
         if(_isLeadOrAdmin){
@@ -8743,8 +8746,9 @@ export default function App(){
   // Dismiss = permanently delete from DB so they never come back on refresh
   const dismissNotification=useCallback(async(id)=>{
     const n=notifications.find(x=>x.id===id);
-    // For timesheet alerts, track in sessionStorage so they don't re-insert this session
-    if(n?.type==="timesheet_alert"){
+    if(!n) return;
+    // Track timesheet alert keys so they don't re-insert this session
+    if(n.type==="timesheet_alert"){
       try{
         const meta=JSON.parse(n.meta||"{}");
         if(meta.alert_key){
@@ -8753,9 +8757,11 @@ export default function App(){
         }
       }catch(e){}
     }
-    await supabase.from("notifications").delete().eq("id",id);
+    // Mark as read (moves to history) — NEVER hard-delete so history survives redeploy
+    await supabase.from("notifications").update({read:true}).eq("id",id);
     setNotifications(prev=>prev.filter(x=>x.id!==id));
-  },[notifications]);
+    setNotifHistory(prev=>[{...n,read:true},...prev.filter(x=>x.id!==id)].slice(0,200));
+  },[notifications,setNotifHistory]);
 
   // ── Activity comment handler — lifted to App scope so ALL surfaces share one notification path ──
   const appHandleActivityComment=useCallback(async(actId, comments, notifyCtx)=>{
@@ -8838,9 +8844,11 @@ export default function App(){
       }catch(e){}
     }
     const ids=toRemove.map(n=>n.id);
-    await supabase.from("notifications").delete().in("id",ids);
+    // Mark as read (moves to history) — NEVER hard-delete
+    await supabase.from("notifications").update({read:true}).in("id",ids);
     setNotifications(prev=>prev.filter(n=>n.type!==type));
-  },[notifications]);
+    setNotifHistory(prev=>[...toRemove.map(n=>({...n,read:true})),...prev].slice(0,200));
+  },[notifications,setNotifHistory]);
 
   const markAllRead=async()=>{
     // Mark all unread as read → moves them to history
@@ -11050,8 +11058,11 @@ export default function App(){
                                 </div>
                                 <button onClick={async()=>{
                                   if(typeof n.id==="string"&&n.id.startsWith("overdue_")){
+                                    // overdue_alert: mark localStorage + mark read in DB
                                     try{const m=JSON.parse(n.meta||"{}");if(m.alert_key){const prev=JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]");localStorage.setItem("ec_dismissed_alerts",JSON.stringify([...new Set([...prev,m.alert_key])]));}}catch{}
+                                    supabase.from("notifications").update({read:true}).eq("id",n.id).then(()=>{});
                                     setNotifications(prev=>prev.filter(x=>x.id!==n.id));
+                                    setNotifHistory(prev=>[{...n,read:true},...prev].slice(0,200));
                                   } else {
                                     // Mark as read (moves to history) instead of deleting
                                     await supabase.from("notifications").update({read:true}).eq("id",n.id);
@@ -11087,8 +11098,8 @@ export default function App(){
                                       </div>
                                       <div style={{fontSize:12,color:"var(--text3)",lineHeight:1.45}}>{n.message}</div>
                                     </div>
-                                    <button onClick={async()=>{
-                                      await supabase.from("notifications").delete().eq("id",n.id);
+                                    <button onClick={()=>{
+                                      // Remove from UI only — DB row stays as read history (90-day window)
                                       setNotifHistory(prev=>prev.filter(x=>x.id!==n.id));
                                     }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:12,padding:"2px 3px",flexShrink:0}}
                                       title="Delete from history"
