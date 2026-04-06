@@ -7351,7 +7351,7 @@ const projProfit=projects.map(p=>{
           <tbody>
             {monthPL.map((m,i)=>(
               <tr key={m.mo} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                <td style={{padding:"7px 14px",fontWeight:600,color:"var(--text0)"}}>{MO[+m.mo]}</td>
+                <td style={{padding:"7px 14px",fontWeight:600,color:"var(--text0)"}}>{MONTHS_[+m.mo-1]||""}</td>
                 <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399"}}>{m.rev>0?fmtEGP(m.rev):"—"}</td>
                 <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{m.exp>0?fmtEGP(m.exp):"—"}</td>
                 <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:m.net>=0?"#34d399":"#f87171",fontWeight:600}}>{fmtEGP(m.net)}</td>
@@ -7519,7 +7519,7 @@ const projProfit=projects.map(p=>{
               <tbody>
                 {accrualByMonth.map((m,i)=>(
                   <tr key={m.mo} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                    <td style={{padding:"7px 12px",fontWeight:600,color:"var(--text0)"}}>{MO[+m.mo]}</td>
+                    <td style={{padding:"7px 12px",fontWeight:600,color:"var(--text0)"}}>{MONTHS_[+m.mo-1]||""}</td>
                     <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{m.grossCost>0?fmtEGP(m.grossCost):"—"}</td>
                     <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{m.grossAdmin>0?fmtEGP(m.grossAdmin):"—"}</td>
                     <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{fmtEGP(m.siCost+m.siAdmin)}</td>
