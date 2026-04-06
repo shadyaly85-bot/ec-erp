@@ -4808,22 +4808,25 @@ const ENTRY_TYPES = ["Custody","Accrued Salaries","Revenue","Creditors","Opening
 /* ══════════════════════════════════════════════════════════
    1. JOURNAL LEDGER
    ══════════════════════════════════════════════════════════ */
-function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDelete, onEdit, loading}) {
+function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDelete, onEdit, loading, showToast}) {
   const [filterType,  setFilterType]  = React.useState("ALL");
   const [filterMonth, setFilterMonth] = React.useState("ALL");
   const [search,      setSearch]      = React.useState("");
   const [editLine,    setEditLine]    = React.useState(null);
   const [showAdd,     setShowAdd]     = React.useState(false);
-  const [voucherEntry, setVoucherEntry] = React.useState(null);
-  const blank = {entry_no:"",entry_date:"",month:"",entry_type:"Custody",account_name:"",
-    statement_type:"Profit & Loss Sheet",main_account:"",debit:"",credit:"",
-    description:"",usd_amount:"",exchange_rate:""};
-  const [newLine, setNewLine] = React.useState(blank);
+  const [voucherEntry,setVoucherEntry]= React.useState(null);
 
-  const canWrite = isAcct || isAdmin;
-  const types  = React.useMemo(()=>["ALL",...new Set(journalEntries.map(e=>e.entry_type))].sort(),[journalEntries]);
-  const months = React.useMemo(()=>["ALL",...new Set(journalEntries.map(e=>e.month))].sort((a,b)=>+a-+b),[journalEntries]);
+  // ── Voucher header (shared across all lines in one entry) ──
+  const blankHeader = {entry_no:"",entry_date:"",entry_type:"Custody",description:""};
+  const blankLine   = {account_name:"",main_account:"",statement_type:"Profit & Loss Sheet",debit:"",credit:""};
+  const [vHeader,   setVHeader]  = React.useState(blankHeader);
+  const [vLines,    setVLines]   = React.useState([{...blankLine},{...blankLine}]);
+
+  const canWrite  = isAcct || isAdmin;
+  const types     = React.useMemo(()=>["ALL",...new Set(journalEntries.map(e=>e.entry_type))].sort(),[journalEntries]);
+  const months    = React.useMemo(()=>["ALL",...new Set(journalEntries.map(e=>e.month))].sort((a,b)=>+a-+b),[journalEntries]);
   const acctNames = React.useMemo(()=>accounts.map(a=>a.account_name).sort(),[accounts]);
+  const acctMap   = React.useMemo(()=>{const m={};accounts.forEach(a=>{m[a.account_name]=a;});return m;},[accounts]);
 
   const filtered = React.useMemo(()=>journalEntries.filter(e=>{
     if(filterType!=="ALL" && e.entry_type!==filterType) return false;
@@ -4832,24 +4835,45 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
     return true;
   }),[journalEntries,filterType,filterMonth,search]);
 
-  const totDr = filtered.reduce((s,e)=>s+(+e.debit||0),0);
-  const totCr = filtered.reduce((s,e)=>s+(+e.credit||0),0);
+  const totDr  = filtered.reduce((s,e)=>s+(+e.debit||0),0);
+  const totCr  = filtered.reduce((s,e)=>s+(+e.credit||0),0);
   const balanced = Math.abs(totDr-totCr)<0.01;
 
   const typeColor = t=>({Opening:"#38bdf8","Accrued Salaries":"#a78bfa",Revenue:"#34d399",
     Custody:"#fb923c",Creditors:"#f87171",Shareholders:"#facc15","project in process":"#94a3b8"}[t]||"var(--text3)");
 
-  const selectedAcct = accounts.find(a=>a.account_name===newLine.account_name);
-
   // Group by entry_no for voucher view
   const entryGroups = React.useMemo(()=>{
     const g={};
-    filtered.forEach(e=>{
-      if(!g[e.entry_no]) g[e.entry_no]=[];
-      g[e.entry_no].push(e);
-    });
+    filtered.forEach(e=>{if(!g[e.entry_no]) g[e.entry_no]=[];g[e.entry_no].push(e);});
     return g;
   },[filtered]);
+
+  // ── Voucher totals ──
+  const vDr = vLines.reduce((s,l)=>s+(+l.debit||0),0);
+  const vCr = vLines.reduce((s,l)=>s+(+l.credit||0),0);
+  const vBal = Math.abs(vDr-vCr)<0.01 && vDr>0;
+
+  const updateLine=(i,field,val)=>setVLines(prev=>prev.map((l,idx)=>{
+    if(idx!==i) return l;
+    const next={...l,[field]:val};
+    if(field==="account_name"){
+      const a=acctMap[val];
+      if(a){next.main_account=a.main_account||"";next.statement_type=a.statement_type||"Profit & Loss Sheet";}
+    }
+    return next;
+  }));
+
+  const openAdd=()=>{
+    // Auto-suggest next entry no
+    const maxNo=journalEntries.reduce((m,e)=>{const n=parseInt(e.entry_no,10);return isNaN(n)?m:Math.max(m,n);},0);
+    setVHeader({...blankHeader,entry_no:String(maxNo+1),entry_date:new Date().toISOString().slice(0,10)});
+    setVLines([{...blankLine},{...blankLine}]);
+    setShowAdd(true);
+  };
+
+  const INP={background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,
+    color:"var(--text0)",padding:"5px 8px",fontSize:13,width:"100%",boxSizing:"border-box"};
 
   return(<>
     <div>
@@ -4868,7 +4892,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
           {types.filter(t=>t!=="ALL").map(t=><option key={t}>{t}</option>)}
         </select>
         <span style={{fontSize:13,color:"var(--text4)",marginLeft:"auto"}}>{filtered.length} lines / {Object.keys(entryGroups).length} entries</span>
-        {canWrite&&<button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>setShowAdd(true)}>+ Post Entry Line</button>}
+        {canWrite&&<button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={openAdd}>+ New Journal Entry</button>}
       </div>
 
       {/* Balance strip */}
@@ -4890,8 +4914,8 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead>
             <tr style={{background:"var(--bg2)"}}>
-              {["Entry#","Date","Type","Account","Category","Debit","Credit","USD","Rate","Description",""].map(h=>(
-                <th key={h} style={{padding:"7px 10px",textAlign:["Debit","Credit","USD","Rate"].includes(h)?"right":"left",
+              {["Entry#","Date","Type","Account","Category","Debit","Credit","Description",""].map(h=>(
+                <th key={h} style={{padding:"7px 10px",textAlign:["Debit","Credit"].includes(h)?"right":"left",
                   color:"var(--text3)",fontWeight:600,fontSize:13,borderBottom:"1px solid var(--border3)",whiteSpace:"nowrap"}}>{h}</th>
               ))}
             </tr>
@@ -4912,8 +4936,6 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                 </td>
                 <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#34d399",textAlign:"right"}}>{+e.debit>0?fmtEGP(+e.debit):""}</td>
                 <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#f87171",textAlign:"right"}}>{+e.credit>0?fmtEGP(+e.credit):""}</td>
-                <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#38bdf8",textAlign:"right"}}>{e.usd_amount>0?`$${(+e.usd_amount).toLocaleString("en-US",{minimumFractionDigits:2})}`:""}</td>
-                <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text4)",textAlign:"right"}}>{e.exchange_rate>0?e.exchange_rate:""}</td>
                 <td style={{padding:"6px 10px",color:"var(--text3)",fontSize:13,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={e.description}>{e.description}</td>
                 <td style={{padding:"6px 10px"}}>
                   {canWrite && (
@@ -4932,7 +4954,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
       </div>
       )}
 
-      {/* Voucher Modal */}
+      {/* ── Voucher View Modal ── */}
       {voucherEntry && (()=>{
         const lines = journalEntries.filter(e=>e.entry_no===voucherEntry);
         const dr = lines.reduce((s,e)=>s+(+e.debit||0),0);
@@ -4940,18 +4962,18 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
         const bal = Math.abs(dr-cr)<0.01;
         return(
           <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>setVoucherEntry(null)}>
-            <div className="card" style={{width:620,maxHeight:"90vh",overflowY:"auto",padding:24}} onClick={e=>e.stopPropagation()}>
+            <div className="card" style={{width:640,maxHeight:"90vh",overflowY:"auto",padding:24}} onClick={e=>e.stopPropagation()}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
                 <div>
                   <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>Journal Voucher — Entry #{voucherEntry}</div>
-                  <div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>{lines[0]?.entry_date} · {lines[0]?.entry_type} · {lines.length} lines</div>
+                  <div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>{lines[0]?.entry_date} · {lines[0]?.entry_type} · {lines.length} line{lines.length!==1?"s":""}</div>
                 </div>
                 <button onClick={()=>setVoucherEntry(null)} style={{background:"none",border:"none",color:"var(--text3)",fontSize:22,cursor:"pointer"}}>×</button>
               </div>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
                 <thead><tr style={{background:"var(--bg2)"}}>
-                  {["Account","Category","Debit","Credit","USD","Rate"].map(h=>(
-                    <th key={h} style={{padding:"7px 10px",textAlign:["Debit","Credit","USD","Rate"].includes(h)?"right":"left",color:"var(--text3)",fontSize:13,fontWeight:600}}>{h}</th>
+                  {["Account","Category","Stmt","Debit","Credit"].map(h=>(
+                    <th key={h} style={{padding:"7px 10px",textAlign:["Debit","Credit"].includes(h)?"right":"left",color:"var(--text3)",fontSize:13,fontWeight:600}}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
@@ -4959,177 +4981,225 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                     <tr key={i} style={{borderBottom:"1px solid var(--border3)"}}>
                       <td style={{padding:"6px 10px",color:"var(--text1)",fontWeight:500}}>{e.account_name}</td>
                       <td style={{padding:"6px 10px",color:"var(--text4)",fontSize:13}}>{e.main_account}</td>
+                      <td style={{padding:"6px 10px"}}><span style={{fontSize:11,color:e.statement_type==="Balance Sheet"?"#38bdf8":"#a78bfa",fontWeight:600}}>{e.statement_type==="Balance Sheet"?"BS":"P&L"}</span></td>
                       <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#34d399",textAlign:"right"}}>{+e.debit>0?fmtEGP(+e.debit):""}</td>
                       <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#f87171",textAlign:"right"}}>{+e.credit>0?fmtEGP(+e.credit):""}</td>
-                      <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#38bdf8",textAlign:"right"}}>{e.usd_amount>0?`$${(+e.usd_amount).toFixed(2)}`:""}</td>
-                      <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text4)",textAlign:"right"}}>{e.exchange_rate>0?e.exchange_rate:""}</td>
                     </tr>
                   ))}
                   <tr style={{background:"var(--bg2)",fontWeight:700}}>
-                    <td colSpan={2} style={{padding:"8px 10px",color:"var(--text0)"}}>TOTAL — {bal?"✅ Balanced":"❌ Unbalanced"}</td>
+                    <td colSpan={3} style={{padding:"8px 10px",color:"var(--text0)"}}>TOTAL — {bal?"✅ Balanced":"❌ Unbalanced"}</td>
                     <td style={{padding:"8px 10px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#34d399"}}>{fmtEGP(dr)}</td>
                     <td style={{padding:"8px 10px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#f87171"}}>{fmtEGP(cr)}</td>
-                    <td colSpan={2}/>
                   </tr>
                 </tbody>
               </table>
-              {lines[0]?.description && <div style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",padding:"8px 0"}}>{lines[0].description}</div>}
+              {lines[0]?.description && <div style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",padding:"8px 0",borderTop:"1px solid var(--border3)"}}>{lines[0].description}</div>}
             </div>
           </div>
         );
       })()}
 
-      {/* Post Entry Modal */}
-      {showAdd && canWrite && (()=>{
-        const egpVal = (+newLine.usd_amount>0 && +newLine.exchange_rate>0)
-          ? (+newLine.usd_amount * +newLine.exchange_rate).toFixed(2) : (newLine.debit||newLine.credit||"");
-        return(
-          <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-            <div className="card" style={{width:560,maxHeight:"92vh",overflowY:"auto",padding:24}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",margin:0}}>Post Journal Entry Line</h3>
-                <button onClick={()=>{setShowAdd(false);setNewLine(blank);}} style={{background:"none",border:"none",color:"var(--text3)",fontSize:22,cursor:"pointer"}}>×</button>
+      {/* ══════════════════════════════════════════════════
+          NEW JOURNAL ENTRY — Double-Entry Voucher Modal
+          Debit + Credit lines in the same window
+         ══════════════════════════════════════════════════ */}
+      {showAdd && canWrite && (
+        <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+          <div className="card" style={{width:820,maxHeight:"94vh",overflowY:"auto",padding:0}} onClick={e=>e.stopPropagation()}>
+
+            {/* Header */}
+            <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border3)",padding:"16px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>New Journal Entry</div>
+                <div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Double-entry — Debit and Credit lines in one transaction</div>
               </div>
-              <div style={{background:"#38bdf810",border:"1px solid #38bdf840",borderRadius:6,padding:"8px 12px",marginBottom:14,fontSize:13,color:"#38bdf8"}}>
-                💡 Each entry must balance across all its lines (Dr total = Cr total). Post one line at a time using the same Entry No. to group them.
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                {/* Entry No */}
+              <button onClick={()=>setShowAdd(false)} style={{background:"none",border:"none",color:"var(--text3)",fontSize:22,cursor:"pointer"}}>×</button>
+            </div>
+
+            <div style={{padding:24}}>
+              {/* ── Entry Header Fields ── */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 2fr",gap:10,marginBottom:16}}>
                 <div>
-                  <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Entry No *</div>
-                  <input value={newLine.entry_no} placeholder="e.g. 67"
-                    onChange={e=>setNewLine(p=>({...p,entry_no:e.target.value}))}
-                    style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
+                  <div style={{fontSize:12,color:"var(--text4)",fontWeight:600,marginBottom:4}}>Entry No *</div>
+                  <input value={vHeader.entry_no} placeholder="e.g. 68"
+                    onChange={e=>setVHeader(p=>({...p,entry_no:e.target.value}))}
+                    style={INP}/>
                 </div>
-                {/* Date */}
                 <div>
-                  <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Date *</div>
-                  <input type="date" value={newLine.entry_date}
-                    onChange={e=>{
-                      const mo = e.target.value ? new Date(e.target.value+"T12:00:00").getMonth()+1 : "";
-                      setNewLine(p=>({...p,entry_date:e.target.value,month:mo}));
-                    }}
-                    style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
+                  <div style={{fontSize:12,color:"var(--text4)",fontWeight:600,marginBottom:4}}>Date *</div>
+                  <input type="date" value={vHeader.entry_date}
+                    onChange={e=>setVHeader(p=>({...p,entry_date:e.target.value}))}
+                    style={INP}/>
                 </div>
-                {/* Entry Type */}
                 <div>
-                  <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Entry Type *</div>
-                  <select value={newLine.entry_type} onChange={e=>setNewLine(p=>({...p,entry_type:e.target.value}))}
-                    style={{width:"100%",background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
+                  <div style={{fontSize:12,color:"var(--text4)",fontWeight:600,marginBottom:4}}>Entry Type *</div>
+                  <select value={vHeader.entry_type} onChange={e=>setVHeader(p=>({...p,entry_type:e.target.value}))}
+                    style={{...INP,background:"var(--bg1)"}}>
                     {ENTRY_TYPES.map(t=><option key={t}>{t}</option>)}
                   </select>
                 </div>
-                {/* Account */}
                 <div>
-                  <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Account *</div>
-                  <select value={newLine.account_name} onChange={e=>{
-                    const acct = accounts.find(a=>a.account_name===e.target.value);
-                    setNewLine(p=>({...p,account_name:e.target.value,
-                      main_account:acct?.main_account||p.main_account,
-                      statement_type:acct?.statement_type||p.statement_type}));
-                  }} style={{width:"100%",background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
-                    <option value="">— Select account —</option>
-                    {acctNames.map(a=><option key={a}>{a}</option>)}
-                  </select>
-                </div>
-                {/* Main Account — auto-filled but editable */}
-                <div>
-                  <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Main Account (auto)</div>
-                  <input value={newLine.main_account} placeholder="auto-filled from account"
-                    onChange={e=>setNewLine(p=>({...p,main_account:e.target.value}))}
-                    style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
-                </div>
-                {/* Statement Type */}
-                <div>
-                  <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Statement (auto)</div>
-                  <select value={newLine.statement_type} onChange={e=>setNewLine(p=>({...p,statement_type:e.target.value}))}
-                    style={{width:"100%",background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
-                    <option>Profit &amp; Loss Sheet</option>
-                    <option>Balance Sheet</option>
-                  </select>
+                  <div style={{fontSize:12,color:"var(--text4)",fontWeight:600,marginBottom:4}}>Description</div>
+                  <input value={vHeader.description} placeholder="e.g. March salaries accrual"
+                    onChange={e=>setVHeader(p=>({...p,description:e.target.value}))}
+                    style={INP}/>
                 </div>
               </div>
 
-              {/* USD / Exchange Rate section */}
-              <div style={{background:"var(--bg2)",borderRadius:6,padding:12,marginTop:12}}>
-                <div style={{fontSize:13,fontWeight:600,color:"var(--text2)",marginBottom:8}}>USD Entry (optional — for foreign currency transactions)</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <div>
-                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Amount (USD)</div>
-                    <input type="number" min="0" step="0.01" value={newLine.usd_amount}
-                      placeholder="0.00"
-                      onChange={e=>{
-                        const usd=+e.target.value;
-                        const egp = usd>0 && +newLine.exchange_rate>0 ? (usd*+newLine.exchange_rate).toFixed(2) : newLine.debit;
-                        setNewLine(p=>({...p,usd_amount:e.target.value,debit:egp||p.debit}));
-                      }}
-                      style={{width:"100%",background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
-                  </div>
-                  <div>
-                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Exchange Rate (EGP per $1)</div>
-                    <input type="number" min="0" step="0.01" value={newLine.exchange_rate}
-                      placeholder="e.g. 49.5"
-                      onChange={e=>{
-                        const rate=+e.target.value;
-                        const egp = rate>0 && +newLine.usd_amount>0 ? (+newLine.usd_amount*rate).toFixed(2) : newLine.debit;
-                        setNewLine(p=>({...p,exchange_rate:e.target.value,debit:egp||p.debit}));
-                      }}
-                      style={{width:"100%",background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
-                  </div>
+              {/* ── Lines Table ── */}
+              <div style={{border:"1px solid var(--border3)",borderRadius:8,overflow:"hidden",marginBottom:12}}>
+                {/* Table header */}
+                <div style={{display:"grid",gridTemplateColumns:"2fr 1.4fr 80px 130px 130px 32px",gap:0,
+                  background:"var(--bg2)",padding:"8px 12px",
+                  fontSize:12,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em"}}>
+                  <div>Account</div>
+                  <div>Category / Statement</div>
+                  <div style={{textAlign:"center"}}>Stmt</div>
+                  <div style={{textAlign:"right",color:"#34d399"}}>Debit (EGP)</div>
+                  <div style={{textAlign:"right",color:"#f87171"}}>Credit (EGP)</div>
+                  <div/>
                 </div>
-                {+newLine.usd_amount>0 && +newLine.exchange_rate>0 && (
-                  <div style={{fontSize:13,color:"#38bdf8",marginTop:6}}>
-                    → EGP equivalent: <strong>{fmtEGP(+newLine.usd_amount * +newLine.exchange_rate)}</strong> (auto-applied to Debit below)
+
+                {/* Lines */}
+                {vLines.map((line,i)=>(
+                  <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1.4fr 80px 130px 130px 32px",gap:0,
+                    padding:"6px 12px",borderTop:"1px solid var(--border3)",alignItems:"center",
+                    background:i%2===0?"transparent":"var(--bg0)"}}>
+                    {/* Account */}
+                    <div style={{paddingRight:8}}>
+                      <select value={line.account_name}
+                        onChange={e=>updateLine(i,"account_name",e.target.value)}
+                        style={{...INP,background:"var(--bg1)",fontSize:12}}>
+                        <option value="">— Select account —</option>
+                        {acctNames.map(a=><option key={a}>{a}</option>)}
+                      </select>
+                    </div>
+                    {/* Main account */}
+                    <div style={{paddingRight:8}}>
+                      <input value={line.main_account} placeholder="auto-filled"
+                        onChange={e=>updateLine(i,"main_account",e.target.value)}
+                        style={{...INP,fontSize:12,color:"var(--text3)"}}/>
+                    </div>
+                    {/* Statement type pill */}
+                    <div style={{textAlign:"center"}}>
+                      <button onClick={()=>updateLine(i,"statement_type",
+                        line.statement_type==="Balance Sheet"?"Profit & Loss Sheet":"Balance Sheet")}
+                        title={line.statement_type}
+                        style={{background:line.statement_type==="Balance Sheet"?"#38bdf820":"#a78bfa20",
+                          color:line.statement_type==="Balance Sheet"?"#38bdf8":"#a78bfa",
+                          border:`1px solid ${line.statement_type==="Balance Sheet"?"#38bdf840":"#a78bfa40"}`,
+                          borderRadius:4,padding:"3px 6px",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                        {line.statement_type==="Balance Sheet"?"BS":"P&L"}
+                      </button>
+                    </div>
+                    {/* Debit */}
+                    <div style={{paddingLeft:8}}>
+                      <input type="number" min="0" step="0.01" value={line.debit} placeholder="0.00"
+                        onChange={e=>updateLine(i,"debit",e.target.value)}
+                        style={{...INP,textAlign:"right",color:"#34d399",fontFamily:"'IBM Plex Mono',monospace",
+                          fontSize:13,fontWeight:600,borderColor:+line.debit>0?"#34d39960":"var(--border3)"}}/>
+                    </div>
+                    {/* Credit */}
+                    <div style={{paddingLeft:4}}>
+                      <input type="number" min="0" step="0.01" value={line.credit} placeholder="0.00"
+                        onChange={e=>updateLine(i,"credit",e.target.value)}
+                        style={{...INP,textAlign:"right",color:"#f87171",fontFamily:"'IBM Plex Mono',monospace",
+                          fontSize:13,fontWeight:600,borderColor:+line.credit>0?"#f8717160":"var(--border3)"}}/>
+                    </div>
+                    {/* Remove line */}
+                    <div style={{textAlign:"center"}}>
+                      {vLines.length>2&&(
+                        <button onClick={()=>setVLines(prev=>prev.filter((_,idx)=>idx!==i))}
+                          style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:15,padding:"2px 4px"}}
+                          title="Remove line">✕</button>
+                      )}
+                    </div>
                   </div>
-                )}
+                ))}
+
+                {/* Add line button */}
+                <div style={{padding:"8px 12px",borderTop:"1px solid var(--border3)",background:"var(--bg2)"}}>
+                  <button onClick={()=>setVLines(prev=>[...prev,{...blankLine}])}
+                    style={{background:"none",border:"1px dashed var(--border3)",borderRadius:5,padding:"4px 12px",
+                      color:"var(--text3)",cursor:"pointer",fontSize:13,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+                    + Add Line
+                  </button>
+                </div>
               </div>
 
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10}}>
-                <div>
-                  <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Debit (EGP) *</div>
-                  <input type="number" min="0" step="0.01" value={newLine.debit} placeholder="0.00"
-                    onChange={e=>setNewLine(p=>({...p,debit:e.target.value}))}
-                    style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
+              {/* ── Live Balance Footer ── */}
+              <div style={{display:"flex",gap:10,alignItems:"center",padding:"12px 16px",
+                background:vBal?"#05603a20":vDr===0?"var(--bg2)":"#7f1d1d20",
+                border:`1px solid ${vBal?"#34d39940":vDr===0?"var(--border3)":"#f8717140"}`,
+                borderRadius:8,marginBottom:16}}>
+                <div style={{flex:1,display:"flex",gap:24}}>
+                  <div>
+                    <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Total Debit</div>
+                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:800,color:"#34d399"}}>{fmtEGP(vDr)}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Total Credit</div>
+                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:800,color:"#f87171"}}>{fmtEGP(vCr)}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Difference</div>
+                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:800,
+                      color:Math.abs(vDr-vCr)<0.01&&vDr>0?"#34d399":"#f87171"}}>
+                      {fmtEGP(Math.abs(vDr-vCr))}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Credit (EGP) *</div>
-                  <input type="number" min="0" step="0.01" value={newLine.credit} placeholder="0.00"
-                    onChange={e=>setNewLine(p=>({...p,credit:e.target.value}))}
-                    style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
+                <div style={{textAlign:"right"}}>
+                  {vBal
+                    ?<span style={{color:"#34d399",fontWeight:700,fontSize:15}}>✅ Balanced — ready to post</span>
+                    :vDr===0&&vCr===0
+                    ?<span style={{color:"var(--text4)",fontSize:13}}>Enter amounts above</span>
+                    :<span style={{color:"#f87171",fontWeight:700,fontSize:14}}>❌ Entry must balance (Dr = Cr)</span>}
                 </div>
               </div>
-              <div style={{marginTop:10}}>
-                <div style={{fontSize:12,color:"var(--text4)",marginBottom:4}}>Description</div>
-                <input value={newLine.description} placeholder="e.g. Office rent for 03-2026"
-                  onChange={e=>setNewLine(p=>({...p,description:e.target.value}))}
-                  style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,boxSizing:"border-box"}}/>
-              </div>
-              <div style={{display:"flex",gap:8,marginTop:16,justifyContent:"flex-end"}}>
-                <button onClick={()=>{setShowAdd(false);setNewLine(blank);}}
-                  style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 16px",color:"var(--text2)",cursor:"pointer"}}>Cancel</button>
-                <button className="bp" onClick={()=>{
-                  if(!newLine.entry_no||!newLine.entry_date||!newLine.account_name) return;
-                  const dr=+(newLine.debit)||0; const cr=+(newLine.credit)||0;
-                  onAdd({
-                    entry_no:newLine.entry_no, entry_date:newLine.entry_date,
-                    month:+newLine.month, entry_type:newLine.entry_type,
-                    account_name:newLine.account_name, statement_type:newLine.statement_type,
-                    main_account:newLine.main_account,
-                    debit:dr, credit:cr, balance:dr-cr,
-                    description:newLine.description,
-                    usd_amount:+newLine.usd_amount||null,
-                    exchange_rate:+newLine.exchange_rate||null,
-                  });
-                  setNewLine(p=>({...blank,entry_no:p.entry_no,entry_date:p.entry_date,month:p.month,entry_type:p.entry_type}));
-                }}>Post Line</button>
+
+              {/* ── Action buttons ── */}
+              <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                <button onClick={()=>setShowAdd(false)}
+                  style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,
+                    padding:"8px 18px",color:"var(--text2)",cursor:"pointer",fontSize:14}}>Cancel</button>
+                <button className="bp"
+                  disabled={!vBal||!vHeader.entry_no||!vHeader.entry_date}
+                  style={{opacity:(!vBal||!vHeader.entry_no||!vHeader.entry_date)?0.4:1,
+                    cursor:(!vBal||!vHeader.entry_no||!vHeader.entry_date)?"not-allowed":"pointer",fontSize:14}}
+                  onClick={async()=>{
+                    if(!vBal||!vHeader.entry_no||!vHeader.entry_date) return;
+                    const month=vHeader.entry_date?new Date(vHeader.entry_date+"T12:00:00").getMonth()+1:null;
+                    const linesToPost=vLines.filter(l=>l.account_name&&(+l.debit>0||+l.credit>0)).map(l=>({
+                      entry_no:   vHeader.entry_no,
+                      entry_date: vHeader.entry_date,
+                      month:      month,
+                      entry_type: vHeader.entry_type,
+                      account_name:   l.account_name,
+                      main_account:   l.main_account||"",
+                      statement_type: l.statement_type,
+                      debit:   +l.debit||0,
+                      credit:  +l.credit||0,
+                      balance: (+l.debit||0)-(+l.credit||0),
+                      description: vHeader.description||"",
+                      posted_by: "accountant",
+                    }));
+                    if(linesToPost.length<2){showToast("Please fill at least 2 account lines with account + debit or credit.",false);return;}
+                    await onAdd(linesToPost);
+                    setShowAdd(false);
+                    setVHeader(blankHeader);
+                    setVLines([{...blankLine},{...blankLine}]);
+                  }}>
+                  Post Entry ({vLines.filter(l=>l.account_name&&(+l.debit>0||+l.credit>0)).length} lines)
+                </button>
               </div>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
 
-    {/* Edit Journal Line Modal */}
+    {/* ── Edit Journal Line Modal ── */}
     {editLine&&(
       <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100}}
         onClick={()=>setEditLine(null)}>
@@ -5145,9 +5215,15 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
             <div><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Account Name</label>
-              <input list="acct-edit-dl" value={editLine.account_name||""} onChange={e=>setEditLine(p=>({...p,account_name:e.target.value}))}
-                style={{width:"100%",boxSizing:"border-box"}}/>
-              <datalist id="acct-edit-dl">{acctNames.map(a=><option key={a} value={a}/>)}</datalist></div>
+              <select value={editLine.account_name||""} onChange={e=>{
+                const a=acctMap[e.target.value];
+                setEditLine(p=>({...p,account_name:e.target.value,
+                  main_account:a?.main_account||p.main_account,
+                  statement_type:a?.statement_type||p.statement_type}));
+              }} style={{width:"100%",boxSizing:"border-box"}}>
+                <option value="">— Select account —</option>
+                {acctNames.map(a=><option key={a}>{a}</option>)}
+              </select></div>
             <div><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Main Account</label>
               <input value={editLine.main_account||""} onChange={e=>setEditLine(p=>({...p,main_account:e.target.value}))}
                 style={{width:"100%",boxSizing:"border-box"}}/></div>
@@ -5158,7 +5234,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                 <option value="Profit & Loss Sheet">Profit &amp; Loss Sheet</option>
                 <option value="Balance Sheet">Balance Sheet</option>
               </select></div>
-            <div/>{/* spacer */}
+            <div/>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
             {[{label:"Debit (EGP)",key:"debit"},{label:"Credit (EGP)",key:"credit"}].map(({label,key})=>(
@@ -5181,17 +5257,23 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
   </>);
 }
 
+
 /* ══════════════════════════════════════════════════════════
    2. BALANCE SHEET
    ══════════════════════════════════════════════════════════ */
-function BalanceSheetView({journalEntries}) {
+function BalanceSheetView({journalEntries, finYear}) {
   const ASSET_G  = ['Fixed Assets','Cash & Cash Equivalents','Cash Custody','Customers','Non-Current assets'];
   const LIAB_G   = ['Accrued Expenses','Creditors and other accounts payable','Tax and Social Insurance Authority','Payable Notes'];
   const EQUITY_G = ['Capital','Share holders'];
 
   const {bsMap, totalAssets, totalLiab, totalEquity, netProfit, bsCheck} = React.useMemo(()=>{
+    // Balance Sheet is cumulative (all periods) for BS accounts, but P&L net is year-scoped
+    // P&L entries scoped to finYear; BS accounts cumulative (accounting standard)
+    const bsEntries = finYear
+      ? journalEntries.filter(e=>e.statement_type!=="Profit & Loss Sheet"||!e.entry_date||(new Date(String(e.entry_date)+"T12:00:00").getFullYear()===finYear))
+      : journalEntries;
     const map={};
-    journalEntries.forEach(e=>{
+    bsEntries.forEach(e=>{
       const k=e.main_account;
       if(!map[k]) map[k]={main:k,stmt:e.statement_type,accounts:{}};
       if(!map[k].accounts[e.account_name]) map[k].accounts[e.account_name]={name:e.account_name,dr:0,cr:0};
@@ -5219,10 +5301,10 @@ function BalanceSheetView({journalEntries}) {
       const {dr,cr}=gDrCr(g);
       return s + (cr-dr);
     },0);
-    const netP = journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet").reduce((s,e)=>s+(+e.credit||0)-(+e.debit||0),0);
+    const netP = bsEntries.filter(e=>e.statement_type==="Profit & Loss Sheet").reduce((s,e)=>s+(+e.credit||0)-(+e.debit||0),0);
     const check = Math.abs(totAssets-(totLiab+totEquity+netP));
     return {bsMap:map,totalAssets:totAssets,totalLiab:totLiab,totalEquity:totEquity,netProfit:netP,bsCheck:check};
-  },[journalEntries]);
+  },[journalEntries,finYear]);
 
   const Row = ({label,sub,dr,cr,net,isTotal,isNote}) => (
     <tr style={{borderBottom:"1px solid var(--border3)",background:isTotal?"var(--bg2)":"transparent"}}>
@@ -5315,13 +5397,17 @@ function BalanceSheetView({journalEntries}) {
 /* ══════════════════════════════════════════════════════════
    3. EXPENSES — mirrors Excel "expenses" pivot
    ══════════════════════════════════════════════════════════ */
-function ExpensesView({journalEntries, oldExpenses, egpRate}) {
+function ExpensesView({journalEntries, oldExpenses, egpRate, finYear}) {
   const [viewMode, setViewMode] = React.useState("pivot");
 
   // P&L data from journal — fixed pivot bug (no m[m.length])
   const {plEntries, revEntries, pivot, activeMonths, totalExpenses, totalRevenue, netPL} = React.useMemo(()=>{
-    const plE = journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet" && +e.debit>0);
-    const revE = journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet" && +e.credit>0);
+    const yearEntries = finYear ? journalEntries.filter(e=>{
+      if(!e.entry_date) return true;
+      return new Date(String(e.entry_date)+"T12:00:00").getFullYear()===finYear;
+    }) : journalEntries;
+    const plE = yearEntries.filter(e=>e.statement_type==="Profit & Loss Sheet" && +e.debit>0);
+    const revE = yearEntries.filter(e=>e.statement_type==="Profit & Loss Sheet" && +e.credit>0);
     const months = [...new Set(plE.map(e=>e.month))].sort((a,b)=>+a-+b);
     const piv={};
     plE.forEach(e=>{
@@ -5337,7 +5423,7 @@ function ExpensesView({journalEntries, oldExpenses, egpRate}) {
     const totRev = revE.reduce((s,e)=>s+(+e.credit),0);
     return {plEntries:plE,revEntries:revE,pivot:piv,activeMonths:months,
             totalExpenses:totExp,totalRevenue:totRev,netPL:totRev-totExp};
-  },[journalEntries]);
+  },[journalEntries,finYear]);
 
   const monthTotal = mo => plEntries.filter(e=>e.month===mo).reduce((s,e)=>s+(+e.debit),0);
   const monthRev   = mo => revEntries.filter(e=>e.month===mo).reduce((s,e)=>s+(+e.credit),0);
@@ -5509,10 +5595,12 @@ function CashCustodyView({journalEntries}) {
   const selectedTx = (selected==="ALL" ? allCustody : (persons[selected]?.transactions||[]))
     .sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date)));
 
-  const pColor = n=>({
-    "Eng Shady":"#38bdf8","Eng Sameh Saied":"#a78bfa",
-    "Eng Ahmed Hassan":"#fb923c","Omar Faheem":"#34d399","Ahmed Sultan Sakr":"#facc15"
-  }[n]||"var(--text3)");
+  // Dynamic color from name hash — no hardcoded names
+  const pColor = n => {
+    const PALETTE=["#38bdf8","#a78bfa","#fb923c","#34d399","#facc15","#f87171","#e879f9","#4ade80"];
+    let h=0; for(let i=0;i<(n||"").length;i++) h=(h*31+n.charCodeAt(i))&0xffff;
+    return PALETTE[h%PALETTE.length];
+  };
 
   return(
     <div style={{display:"grid",gap:14}}>
@@ -5658,9 +5746,10 @@ function FixedAssetsView({fixedAssets, loading}) {
   const [assetSearch, setAssetSearch] = React.useState("");
 
   const assetsWithDepr = React.useMemo(()=>fixedAssets.map(a=>{
+    if(!a.purchase_date) return {...a,annual:0,acc:0,net:+a.cost_egp||0,pct:0};
     const purchased=new Date(a.purchase_date+"T12:00:00");
     const yrs=Math.max(0,(TODAY-purchased)/(365.25*24*3600*1000));
-    const annual=+a.cost_egp/+a.useful_life_years;
+    const annual=+a.useful_life_years>0?(+a.cost_egp/+a.useful_life_years):0;
     const acc=Math.min(+a.cost_egp,annual*yrs);
     const net=Math.max(0,+a.cost_egp-acc);
     return {...a,annual,acc,net,pct:+a.cost_egp>0?(acc/+a.cost_egp*100):0};
@@ -5960,9 +6049,10 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
     } else if(reportType==="assets"){
       const TODAY=new Date();
       const rows=fixedAssets.map((a,i)=>{
-        const purchased=new Date(a.purchase_date+"T12:00:00");
+        if(!a.purchase_date) return {...a,annual:0,acc:0,net:+a.cost_egp||0,pct:0};
+    const purchased=new Date(a.purchase_date+"T12:00:00");
         const yrs=Math.max(0,(TODAY-purchased)/(365.25*24*3600*1000));
-        const annual=+a.cost_egp/+a.useful_life_years;
+        const annual=+a.useful_life_years>0?(+a.cost_egp/+a.useful_life_years):0;
         const acc=Math.min(+a.cost_egp,annual*yrs);
         const net=Math.max(0,+a.cost_egp-acc);
         const fullyDepr=new Date(purchased.getTime()+a.useful_life_years*365.25*24*3600*1000);
@@ -6223,9 +6313,10 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
                 {(()=>{
                   const TODAY=new Date();
                   return fixedAssets.map((a,i)=>{
-                    const purchased=new Date(a.purchase_date+"T12:00:00");
+                    if(!a.purchase_date) return {...a,annual:0,acc:0,net:+a.cost_egp||0,pct:0};
+    const purchased=new Date(a.purchase_date+"T12:00:00");
                     const yrs=Math.max(0,(TODAY-purchased)/(365.25*24*3600*1000));
-                    const annual=+a.cost_egp/+a.useful_life_years;
+                    const annual=+a.useful_life_years>0?(+a.cost_egp/+a.useful_life_years):0;
                     const acc=Math.min(+a.cost_egp,annual*yrs);
                     const net=Math.max(0,+a.cost_egp-acc);
                     const fullyDepr=new Date(purchased.getTime()+a.useful_life_years*365.25*24*3600*1000);
@@ -6803,7 +6894,7 @@ const toUSDexp=(e)=>{
 const totalExpUSD=monthExpNonSalary.reduce((s,e)=>s+toUSDexp(e),0);
 const totalExpEGP=monthExpNonSalary.reduce((s,e)=>s+(e.amount_egp||0),0);
 const salaryCatUSD=monthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
-const monthRevUSD=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===finMonth&&e.entry_type==="revenue";}).reduce((s,e)=>s+e.hours*e.rate,0);
+const monthRevUSD=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===finMonth&&e.entry_type==="work"&&projects.find(p=>String(p.id)===String(e.project_id)&&p.billable!==false);}).reduce((s,e)=>s+e.hours*(e.rate||0),0);
 
 const totalPayrollUSDeff=staffThisMonth.reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp)*prorateStaff(x,finYear,finMonth),0);
 const totalCostUSD=totalPayrollUSDeff+salaryCatUSD+totalExpUSD;
@@ -6827,7 +6918,7 @@ const ytdData=Array.from({length:finMonth+1},(_,m)=>{
   const mMonthExpNS=mExp.filter(e=>e.category!=="Salaries");
   const mSalaryCat=mExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
   const mPayroll=mStaff.reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp)*prorateStaff(x,finYear,m),0);
-  const mRevUSD=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===m&&e.entry_type==="revenue";}).reduce((s,e)=>s+e.hours*e.rate,0);
+  const mRevUSD=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===m&&e.entry_type==="work"&&projects.find(p=>String(p.id)===String(e.project_id)&&p.billable!==false);}).reduce((s,e)=>s+e.hours*(e.rate||0),0);
   const mExpUSD=mMonthExpNS.reduce((s,e)=>s+toUSDexp(e),0);
   return{m,rev:mRevUSD,cost:mPayroll+mSalaryCat+mExpUSD,net:mRevUSD-(mPayroll+mSalaryCat+mExpUSD)};
 });
@@ -6836,7 +6927,7 @@ const ytdCost=ytdData.reduce((s,m)=>s+m.cost,0);
 const ytdNet=ytdRev-ytdCost;
 
 const projProfit=projects.map(p=>{
-  const projEntries=entries.filter(e=>String(e.project_id)===String(p.id)&&e.entry_type==="revenue");
+  const projEntries=entries.filter(e=>String(e.project_id)===String(p.id)&&e.entry_type==="work");
   const rev=projEntries.reduce((s,e)=>s+e.hours*e.rate,0);
   const cost=projEntries.reduce((s,e)=>{
     const eng=engineers.find(en=>en.id===e.engineer_id);
@@ -6850,7 +6941,7 @@ const projProfit=projects.map(p=>{
       monthRevUSD,totalPayrollUSDeff,totalCostUSD,netPL,netColor,deptList,
       ytdData,ytdRev,ytdCost,ytdNet,projProfit,prorateStaff
     };
-  },[staff,entries,expenses,projects,egpRate,finMonth,finYear]);
+  },[staff,entries,expenses,projects,engineers,egpRate,finMonth,finYear]);
 
   const {activeStaff,totalPayrollUSD,totalPayrollEGP,toUSD,
     staffThisMonth,monthExp,monthExpNonSalary,totalExpUSD,totalExpEGP,salaryCatUSD,
@@ -6869,7 +6960,7 @@ const projProfit=projects.map(p=>{
       <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>FINANCE & ACCOUNTING</div>
       <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Finance Panel</h1>
       <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
-        {isAdmin?"Full accounting access · journal, payroll, P&L":"Read-only · all figures from posted journal entries"}
+        {isAdmin?"Full accounting access · journal, payroll, P&L":isAcct?"Full accounting access · post entries, manage payroll, view reports":"Read-only · all figures from posted journal entries"}
       </p>
     </div>
     {/* EGP rate + month/year controls — always visible */}
@@ -6933,11 +7024,33 @@ const projProfit=projects.map(p=>{
       accounts={accounts||[]}
       isAcct={isAcct} isAdmin={isAdmin}
       loading={journalLoading}
-      onAdd={async(entry)=>{
+      showToast={showToast}
+      onAdd={async(lines)=>{
         if(!isAcct&&!isAdmin) return;
-        const {data,error}=await supabase.from("journal_entries").insert([{...entry,posted_by:"accountant"}]).select();
-        if(!error&&data){ setJournalEntries(prev=>[...prev,...data]);
-          logAction("CREATE","Journal",`Posted entry #${entry.entry_no} — ${entry.entry_type} · ${entry.account_name}`,{entry_no:entry.entry_no,entry_type:entry.entry_type,account:entry.account_name,debit:entry.debit,credit:entry.credit}); }
+        // lines is array of safe whitelisted objects (no bs_pl / usd_amount / exchange_rate)
+        const safeLines=lines.map(l=>({
+          entry_no:       l.entry_no,
+          entry_date:     l.entry_date,
+          month:          l.month||null,
+          entry_type:     l.entry_type||"Custody",
+          account_name:   l.account_name,
+          main_account:   l.main_account||"",
+          statement_type: l.statement_type||"Profit & Loss Sheet",
+          debit:          Number(l.debit)||0,
+          credit:         Number(l.credit)||0,
+          balance:        (Number(l.debit)||0)-(Number(l.credit)||0),
+          description:    l.description||"",
+          posted_by:      l.posted_by||"accountant",
+        }));
+        const {data,error}=await supabase.from("journal_entries").insert(safeLines).select();
+        if(error){showToast("Journal post failed: "+error.message,false);return;}
+        if(data){
+          setJournalEntries(prev=>[...prev,...data]);
+          showToast(`✓ Entry #${safeLines[0]?.entry_no} posted — ${safeLines.length} line${safeLines.length!==1?"s":""}`);
+          logAction("CREATE","Journal",`Posted entry #${safeLines[0]?.entry_no} — ${safeLines.length} lines · ${safeLines[0]?.entry_type}`,
+            {entry_no:safeLines[0]?.entry_no,entry_type:safeLines[0]?.entry_type,lines:safeLines.length,
+             total_debit:safeLines.reduce((s,l)=>s+l.debit,0)});
+        }
       }}
       onDelete={async(id)=>{
         if(!isAcct&&!isAdmin) return;
@@ -7011,7 +7124,7 @@ const projProfit=projects.map(p=>{
           logAction("EXPORT","Finance",`Exported Balance Sheet PDF`,{tab:"balance"});
         }}>⬇ Export PDF</button>
       </div>
-      <BalanceSheetView journalEntries={journalEntries}/>
+      <BalanceSheetView journalEntries={journalEntries} finYear={finYear}/>
     </div>
   )}
 
@@ -7041,7 +7154,7 @@ const projProfit=projects.map(p=>{
           logAction("EXPORT","Finance",`Exported Expenses PDF`,{tab:"expenses"});
         }}>⬇ Export PDF</button>
       </div>
-      <ExpensesView journalEntries={journalEntries} oldExpenses={expenses} egpRate={egpRate}/>
+      <ExpensesView journalEntries={journalEntries} oldExpenses={expenses} egpRate={egpRate} finYear={finYear}/>
     </div>
   )}
 
@@ -7112,7 +7225,6 @@ const projProfit=projects.map(p=>{
     const jRevRate = journalEntries.find(e=>e.main_account==="Revenue"&&+e.exchange_rate>0)?.exchange_rate || egpRate;
 
     // Salary accrual from journal (per month, for the YTD table)
-    const MO = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const allMonths = [...new Set(journalEntries.map(e=>e.month))].sort((a,b)=>+a-+b);
     const monthPL = allMonths.map(mo=>({
       mo,
@@ -7129,8 +7241,8 @@ const projProfit=projects.map(p=>{
       expByCategory[e.main_account].total += +e.debit;
     });
 
-    // Engineering ops view (billable hours from time entries)
-    const billableEntries = entries.filter(e=>e.entry_type==="revenue");
+    // Engineering ops view (billable hours from work entries on billable projects)
+    const billableEntries = entries.filter(e=>e.entry_type==="work"&&projects.find(p=>String(p.id)===String(e.project_id)&&p.billable!==false));
     const totalBillableHrs = billableEntries.reduce((s,e)=>s+e.hours,0);
     const totalBillableUSD = billableEntries.reduce((s,e)=>s+e.hours*(e.rate||0),0);
     const engHours = {};
@@ -7328,7 +7440,6 @@ const projProfit=projects.map(p=>{
 
   {/* ── SALARIES TAB — journal accruals + staff table reconciled ── */}
   {finSubTab==="salaries"&&(()=>{
-    const MO = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     // Salary accruals from journal, grouped by month
     const salaryAccruals = journalEntries.filter(e=>e.entry_type==="Accrued Salaries");
     const accrualMonths = [...new Set(salaryAccruals.map(e=>e.month))].sort((a,b)=>+a-+b);
@@ -13729,7 +13840,7 @@ export default function App(){
                     const roleMap={
                       admin:      {label:"Admin",           color:"#34d399", desc:"Full system access. Manage engineers, projects, timesheets, Finance, and all settings. Only role that can approve/reject vacations, cancel approved leave, and access the Activity Log. Receives all broadcast alerts (new signups, overdue activities, timesheet alerts)."},
                       lead:       {label:"Lead Engineer",   color:"var(--info)", desc:"Manage your direct-report engineers (org-chart subtree). Post and edit hours for your team, manage tracker activities, view scoped reports, and comment on project activities. Receives timesheet alerts and overdue alerts for your team."},
-                      accountant: {label:"Accountant",      color:"#a78bfa", desc:"Full Finance module access — journal entries, payroll, P&L, balance sheet, fixed assets, and invoice export. View all engineer hours and reports. You can submit your own vacation leave and will receive bell notifications when it is approved or rejected. Cannot post work timesheet entries."},
+                      accountant: {label:"Accountant",      color:"#a78bfa", desc:"Full Finance module read and write access — post and edit journal entries, manage payroll, view P&L, balance sheet, fixed assets, and export invoices. View all engineer hours and generate all reports. Submit your own vacation leave and receive bell notifications when approved or rejected. Cannot post work timesheet entries for engineers."},
                       senior_management:{label:"Senior Management",color:"#fb923c",desc:"Read-only access across all dashboards, reports, and the project tracker. Export PDFs. Cannot add, edit, or delete any data. No notification bell."},
                       engineer:   {label:"Engineer",        color:"var(--text3)", desc:"Post your own hours on assigned projects, view your vacation balance and KPI score, and comment on your assigned activities. You receive bell notifications for vacation approvals/rejections and activity comments addressed to you."},
                     };
