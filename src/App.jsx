@@ -6848,6 +6848,10 @@ function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, set
 
   // staffSearch lives here (function scope) so it's not inside the salaries IIFE
   const [staffSearch, setStaffSearch] = React.useState("");
+  // Pay slip state — must be at FinanceTab top level (Rules of Hooks)
+  const [psAdj,       setPsAdj]       = React.useState({});
+  const [psSelectAll, setPsSelectAll] = React.useState(true);
+  const [psSelected,  setPsSelected]  = React.useState(new Set());
 
   const derived = useMemo(()=>{
     const activeStaff=staff.filter(s=>s.active!==false);
@@ -7598,6 +7602,278 @@ const projProfit=projects.map(p=>{
           </div>
         )}
       </div>
+
+      {/* ══════════════════════════════════════════════════════
+          PAY SLIPS — Generate individual PDF pay slips
+         ══════════════════════════════════════════════════════ */}
+      {(()=>{
+        const psStaff = activeSt.filter(s=>wasEmployed(s,finYear,finMonth));
+        // Compute per-person deductions from journal accruals (proportional allocation)
+        const lastMo = accrualByMonth.find(m=>+m.mo===finMonth+1) || accrualByMonth[accrualByMonth.length-1];
+        const totalGross = lastMo ? lastMo.grossCost + lastMo.grossAdmin : 0;
+
+        const personSlip = (s) => {
+          const adj  = psAdj[s.id]||{};
+          const isUSD = (s.salary_usd||0)>0 && !(s.salary_egp||0);
+          const prorate = prorateStaff(s,finYear,finMonth);
+          const basic   = isUSD ? (s.salary_usd||0)*prorate : (s.salary_egp||0)*prorate;
+          const basicEGP= isUSD ? basic*(egpRate||1) : basic;
+          // Deductions: allocate from journal proportionally, or 0 if no journal
+          const share   = totalGross>0 ? basicEGP/totalGross : 0;
+          const siEmp   = lastMo ? Math.round((lastMo.siCost+lastMo.siAdmin)*share*0.37) : 0; // emp ~37% of total SI
+          const tax     = lastMo ? Math.round(lastMo.tax*share) : 0;
+          const mff     = lastMo ? Math.round(lastMo.mff*share) : 0;
+          const transport = +(adj.transport||0);
+          const housing   = +(adj.housing||0);
+          const bonus     = +(adj.bonus||0);
+          const health    = +(adj.health||0);
+          const advance   = +(adj.advance||0);
+          const absence   = +(adj.absence||0);
+          const grossEarnings = basicEGP + (isUSD?0:transport) + (isUSD?0:housing) + (isUSD?0:bonus);
+          const grossUSD      = isUSD ? basic + transport + housing + bonus : 0;
+          const totalDed      = siEmp + tax + mff + health + advance + absence;
+          const netEGP  = isUSD ? 0 : grossEarnings - totalDed;
+          const netUSD  = isUSD ? (grossUSD - (totalDed/(egpRate||1))) : 0;
+          return {isUSD,basic,basicEGP,prorate,siEmp,tax,mff,transport,housing,bonus,health,advance,absence,
+                  grossEarnings:isUSD?grossUSD:grossEarnings,totalDed,netEGP,netUSD,share};
+        };
+
+        const generateSlip = (s) => {
+          const slip = personSlip(s);
+          const adj  = psAdj[s.id]||{};
+          const MONTHS_LONG=["January","February","March","April","May","June",
+            "July","August","September","October","November","December"];
+          const periodStr = MONTHS_LONG[finMonth]+' '+finYear;
+          const slipNo = 'EGY-'+finYear+'-'+String(finMonth+1).padStart(2,'0')+'-'+String(psStaff.indexOf(s)+1).padStart(3,'0');
+          const now = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+          const fmt  = v=>v>0?fmtEGP(v):'—';
+          const fmtU = v=>v>0?'$'+v.toLocaleString('en-US',{minimumFractionDigits:2}):'—';
+          const isCur = slip.isUSD;
+          const cur   = isCur?'USD':'EGP';
+
+          const earningsRows = [
+            ['Basic Salary',               isCur?fmtU(slip.basic):fmt(slip.basicEGP), 'earnings'],
+            slip.prorate<0.99?['Days Worked',''+Math.round(slip.prorate*new Date(finYear,finMonth+1,0).getDate())+' / '+new Date(finYear,finMonth+1,0).getDate(),'note']:null,
+            (adj.transport||0)>0?['Transportation Allowance', isCur?fmtU(+adj.transport):fmt(+adj.transport),'allow']:null,
+            (adj.housing||0)>0 ?['Housing Allowance',         isCur?fmtU(+adj.housing) :fmt(+adj.housing), 'allow']:null,
+            (adj.bonus||0)>0   ?['Performance Bonus',         isCur?fmtU(+adj.bonus)   :fmt(+adj.bonus),   'allow']:null,
+          ].filter(Boolean);
+
+          const dedRows = [
+            slip.siEmp >0?['Social Insurance',      fmt(isCur?Math.round(slip.siEmp/(egpRate||1)):slip.siEmp),'ded']:null,
+            slip.tax   >0?['Income Tax',             fmt(isCur?Math.round(slip.tax/(egpRate||1))  :slip.tax),  'ded']:null,
+            slip.mff   >0?['Martyrs Families Fund',  fmt(isCur?Math.round(slip.mff/(egpRate||1))  :slip.mff),  'ded']:null,
+            (adj.health||0)>0?  ['Health Insurance',    fmt(+adj.health),   'ded']:null,
+            (adj.advance||0)>0? ['Loan / Advance',       fmt(+adj.advance),  'ded']:null,
+            (adj.absence||0)>0? ['Absence Deduction',    fmt(+adj.absence),  'ded']:null,
+          ].filter(Boolean);
+
+          const netVal  = isCur ? fmtU(slip.netUSD)  : fmtEGP(slip.netEGP);
+          const grossVal= isCur ? fmtU(slip.grossEarnings) : fmtEGP(slip.grossEarnings);
+          const dedVal  = isCur ? fmtU(slip.totalDed/(egpRate||1)) : fmtEGP(slip.totalDed);
+
+          const rowHtml = (label, val, type) => {
+            const c = type==='earnings'?'#1e3a5f':type==='allow'?'#14532d':type==='ded'?'#7f1d1d':'#1e3a5f';
+            const bg= type==='earnings'?'#eff6ff':type==='allow'?'#f0fdf4':type==='ded'?'#fff5f5':'#f8fafc';
+            return `<tr><td style="padding:5px 10px;color:${c};background:${bg}">${label}</td>
+              <td style="text-align:right;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-weight:600;color:${c};background:${bg}">${val}</td></tr>`;
+          };
+
+          const html = `
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:0;background:#f0f4f8}
+  .slip{width:680px;margin:20px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);border:1px solid #e2e8f0}
+  .hdr{background:linear-gradient(135deg,#0f2a50 0%,#1e4d8c 100%);padding:22px 28px;display:flex;justify-content:space-between;align-items:center}
+  .hdr-left{display:flex;align-items:center;gap:14px}
+  .hdr-logo{width:52px;height:52px;border-radius:10px;object-fit:contain;background:#fff;padding:4px}
+  .hdr-name{color:#fff;font-size:22px;font-weight:800;letter-spacing:.04em}
+  .hdr-sub{color:#93c5fd;font-size:11px;letter-spacing:.12em;margin-top:2px}
+  .hdr-right{text-align:right}
+  .hdr-slip{color:#fff;font-size:18px;font-weight:700}
+  .hdr-period{color:#93c5fd;font-size:13px;margin-top:4px}
+  .hdr-no{color:#60a5fa;font-size:11px;font-family:monospace;margin-top:2px}
+  .emp{background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 28px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .emp-row{display:flex;flex-direction:column}
+  .emp-lbl{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em}
+  .emp-val{font-size:14px;font-weight:600;color:#1e293b;margin-top:2px}
+  .body{padding:20px 28px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .col-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:7px 10px;border-radius:5px}
+  .earn-title{background:#dbeafe;color:#1d4ed8}
+  .ded-title{background:#fee2e2;color:#b91c1c}
+  table{width:100%;border-collapse:collapse;margin-top:6px;border-radius:6px;overflow:hidden}
+  .subtotal-row td{padding:7px 10px;font-weight:700;font-size:13px;background:#f1f5f9;border-top:2px solid #cbd5e1}
+  .net-bar{background:linear-gradient(90deg,#0f2a50,#1e4d8c);margin:0 28px 24px;border-radius:8px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+  .net-lbl{color:#93c5fd;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+  .net-val{color:#fff;font-size:26px;font-weight:800;font-family:'IBM Plex Mono',monospace}
+  .net-cur{color:#60a5fa;font-size:13px;margin-left:6px;font-weight:600}
+  .recon{margin:0 28px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:10px 14px;font-size:12px;color:#166534}
+  .ftr{background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 28px;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}
+  @media print{body{background:#fff}.slip{box-shadow:none;border:none;border-radius:0}@page{margin:0;size:A4}}
+</style></head><body>
+<div class="slip">
+  <div class="hdr">
+    <div class="hdr-left">
+      <img src="${LOGO_SRC}" class="hdr-logo" alt="ENEVO"/>
+      <div><div class="hdr-name">ENEVO EGY</div><div class="hdr-sub">INDUSTRIAL &amp; ENGINEERING SOLUTIONS</div></div>
+    </div>
+    <div class="hdr-right">
+      <div class="hdr-slip">Pay Slip</div>
+      <div class="hdr-period">${periodStr}</div>
+      <div class="hdr-no">${slipNo}</div>
+    </div>
+  </div>
+  <div class="emp">
+    <div class="emp-row"><span class="emp-lbl">Employee Name</span><span class="emp-val">${s.name}</span></div>
+    <div class="emp-row"><span class="emp-lbl">Department</span><span class="emp-val">${s.department||'—'}</span></div>
+    <div class="emp-row"><span class="emp-lbl">Job Title</span><span class="emp-val">${s.role||'—'}</span></div>
+    <div class="emp-row"><span class="emp-lbl">Employment Type</span><span class="emp-val">${(s.type||'full_time').replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}</span></div>
+    <div class="emp-row"><span class="emp-lbl">Join Date</span><span class="emp-val">${s.join_date||'—'}</span></div>
+    <div class="emp-row"><span class="emp-lbl">Currency</span><span class="emp-val">${cur}</span></div>
+  </div>
+  <div class="body">
+    <div>
+      <div class="col-title earn-title">Earnings</div>
+      <table>
+        ${earningsRows.map(([l,v])=>rowHtml(l,v,'earnings')).join('')}
+        <tr class="subtotal-row"><td>Gross Earnings</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace">${grossVal}</td></tr>
+      </table>
+    </div>
+    <div>
+      <div class="col-title ded-title">Deductions</div>
+      <table>
+        ${dedRows.length>0?dedRows.map(([l,v])=>rowHtml(l,v,'ded')).join(''):'<tr><td colspan="2" style="padding:10px;color:#94a3b8;text-align:center;font-size:12px">No deductions</td></tr>'}
+        <tr class="subtotal-row"><td>Total Deductions</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace">${dedVal}</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="net-bar">
+    <div><div class="net-lbl">Net Pay</div><div style="color:#93c5fd;font-size:11px;margin-top:3px">${periodStr}</div></div>
+    <div><span class="net-val">${netVal}</span><span class="net-cur">${cur}</span></div>
+  </div>
+  ${lastMo&&slip.share>0?`<div class="recon">✅ Computed from journal entry — Period: ${periodStr} · Accrued Salaries ref: Entry #${journalEntries.find(e=>e.entry_type==='Accrued Salaries'&&+e.month===finMonth+1)?.entry_no||'—'}</div>`:''}
+  <div class="ftr">
+    <span>Generated: ${now}</span>
+    <span>ENEVO Group · Egypt</span>
+    <span>${slipNo}</span>
+  </div>
+</div>
+<script>window.print();</script>
+</body></html>`;
+          const win=window.open('','payslip_'+s.id+'_'+Date.now(),'width=760,height=900,scrollbars=yes');
+          win.document.write(html);
+          win.document.close();
+        };
+
+        const generateAll = () => {
+          const toGen = psSelectAll ? psStaff : psStaff.filter(s=>psSelected.has(s.id));
+          toGen.forEach((s,i)=>setTimeout(()=>generateSlip(s),i*400));
+        };
+
+        const AdjRow = ({s}) => {
+          const adj=psAdj[s.id]||{};
+          const sl=personSlip(s);
+          const isUSD=sl.isUSD;
+          const CUR=isUSD?'USD':'EGP';
+          const fmt=v=>v>0?(isUSD?'$'+v:'EGP '+v):null;
+          return(
+            <tr style={{borderBottom:'1px solid var(--border3)'}}>
+              <td style={{padding:'6px 10px',fontWeight:600,color:'var(--text1)',whiteSpace:'nowrap'}}>
+                <input type="checkbox" checked={psSelectAll||psSelected.has(s.id)}
+                  onChange={e=>{if(!psSelectAll){const ns=new Set(psSelected);e.target.checked?ns.add(s.id):ns.delete(s.id);setPsSelected(ns);}}}
+                  style={{marginRight:8}}/>
+                {s.name}
+              </td>
+              <td style={{padding:'6px 10px',color:'var(--text3)',fontSize:13}}>{s.department}</td>
+              <td style={{padding:'6px 8px',fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:'right',
+                color:isUSD?'#38bdf8':'#fb923c',fontWeight:600}}>
+                {isUSD?('$'+(sl.basic).toLocaleString('en-US',{minimumFractionDigits:2})):fmtEGP(sl.basicEGP)}
+              </td>
+              {['transport','housing','bonus','health','advance','absence'].map(field=>(
+                <td key={field} style={{padding:'4px 6px'}}>
+                  <input type="number" min="0" value={adj[field]||''} placeholder="0"
+                    onChange={e=>setPsAdj(prev=>({...prev,[s.id]:{...(prev[s.id]||{}),[field]:e.target.value}}))}
+                    style={{width:76,background:'var(--bg2)',border:'1px solid var(--border3)',borderRadius:4,
+                      padding:'3px 6px',color:'var(--text0)',fontSize:12,textAlign:'right',fontFamily:"'IBM Plex Mono',monospace"}}/>
+                </td>
+              ))}
+              <td style={{padding:'6px 6px',fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,
+                textAlign:'right',color:sl.isUSD?'#38bdf8':'#34d399'}}>
+                {sl.isUSD?('$'+(sl.netUSD).toLocaleString('en-US',{minimumFractionDigits:2})):fmtEGP(sl.netEGP)}
+              </td>
+              <td style={{padding:'6px 6px',textAlign:'center'}}>
+                <button onClick={()=>generateSlip(s)}
+                  style={{background:'var(--info)',border:'none',borderRadius:5,padding:'4px 10px',
+                    color:'#fff',cursor:'pointer',fontSize:12,fontWeight:600}}>PDF</button>
+              </td>
+            </tr>
+          );
+        };
+
+        return(
+          <div style={{marginTop:20}}>
+            <div className="card" style={{padding:0,overflow:'hidden'}}>
+              <div style={{background:'var(--bg0)',borderBottom:'1px solid var(--border)',padding:'14px 20px',
+                display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
+                <div>
+                  <div style={{fontSize:15,fontWeight:700,color:'var(--text0)'}}>Pay Slips — {MONTHS_[finMonth]} {finYear}</div>
+                  <div style={{fontSize:13,color:'var(--text3)',marginTop:2}}>{psStaff.length} employees · enter adjustments then generate PDF per person or all at once</div>
+                </div>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <label style={{display:'flex',alignItems:'center',gap:5,fontSize:13,color:'var(--text2)',cursor:'pointer'}}>
+                    <input type="checkbox" checked={psSelectAll} onChange={e=>{setPsSelectAll(e.target.checked);if(e.target.checked)setPsSelected(new Set());}}/>
+                    All staff
+                  </label>
+                  <button className="bp" style={{padding:'7px 18px',fontSize:14}} onClick={generateAll}>
+                    ⬇ Generate All PDFs ({psSelectAll?psStaff.length:psSelected.size})
+                  </button>
+                </div>
+              </div>
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+                  <thead>
+                    <tr style={{background:'var(--bg2)'}}>
+                      {['Employee','Department','Basic','Transport','Housing','Bonus','Health Ins.','Loan/Adv.','Absence','Net Pay',''].map((h,i)=>(
+                        <th key={i} style={{padding:'7px '+(i>1?'6px':'10px'),textAlign:i>1?'right':'left',
+                          color:'var(--text3)',fontWeight:600,fontSize:12,whiteSpace:'nowrap',
+                          borderBottom:'1px solid var(--border3)'}}>
+                          {h}
+                          {h==='Transport'&&<div style={{fontSize:10,color:'var(--text4)',fontWeight:400}}>Allowance</div>}
+                          {h==='Housing'&&<div style={{fontSize:10,color:'var(--text4)',fontWeight:400}}>Allowance</div>}
+                          {h==='Bonus'&&<div style={{fontSize:10,color:'var(--text4)',fontWeight:400}}>Variable</div>}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {psStaff.map(s=><AdjRow key={s.id} s={s}/>)}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{background:'var(--bg2)',borderTop:'2px solid var(--border)',fontWeight:700}}>
+                      <td colSpan={2} style={{padding:'8px 10px',color:'var(--text0)'}}>TOTALS ({psStaff.length} staff)</td>
+                      <td style={{padding:'8px 6px',textAlign:'right',fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:'#fb923c'}}>
+                        {fmtEGP(psStaff.reduce((sum,s)=>sum+personSlip(s).basicEGP,0))}
+                      </td>
+                      <td colSpan={6}/>
+                      <td style={{padding:'8px 6px',textAlign:'right',fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:'#34d399',fontWeight:800}}>
+                        {fmtEGP(psStaff.reduce((sum,s)=>{const sl=personSlip(s);return sum+(sl.isUSD?sl.netUSD*(egpRate||1):sl.netEGP);},0))}
+                      </td>
+                      <td/>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              {lastMo&&(
+                <div style={{padding:'10px 16px',borderTop:'1px solid var(--border3)',background:'#f0fdf420',
+                  display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--text3)'}}>
+                  <span>Journal reconciliation: Accrued Salaries (journal) = <strong style={{color:'#34d399'}}>{fmtEGP(lastMo.net)}</strong></span>
+                  <span>Total net from staff table = <strong style={{color:'#34d399'}}>{fmtEGP(psStaff.reduce((sum,s)=>{const sl=personSlip(s);return sum+(sl.isUSD?sl.netUSD*(egpRate||1):sl.netEGP);},0))}</strong></span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
     );
