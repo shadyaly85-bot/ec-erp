@@ -1,441 +1,26 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+﻿import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "./supabase";
+import { LEAVE_TYPES, FUNCTION_CATS, FUNC_COLORS, MONTHS, PHASES, LEVELS, ROLES_LIST, ROLE_TYPES, ROLE_LABELS, ROLE_COLORS, isBillableRole, DAY_NAMES, DEFAULT_WEEKEND, fmt, today, fmtCurrency, fmtPct, getWeekDays7, getWorkDaysInMonth, getTargetHrs, minPostDate, maxPostDate, isDateAllowed } from './constants.js';
 
-
-/* ─── COMPANY LOGO (embedded) ─── */
-const LOGO_SRC="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCADwAPADASIAAhEBAxEB/8QAHQABAAIDAQEBAQAAAAAAAAAAAQACBQYHCAQJA//EAEoQAAEDAwIDBAQGDwgBBQAAAAEAAgMEBQYHEQgSIRMxQVEUFSJhGDJCVnGBFjdDUmJydYKRlaGis9LTCSMkM1OSlKOTF2OFsbL/xAAZAQEBAQEBAQAAAAAAAAAAAAABAAIEAwX/xAAkEQEBAQACAgICAgMBAAAAAAAAAQIDERIhMUEEEyJRIzOx8P/aAAwDAQACEQMRAD8A8yhRASvqPjLKBASkEJQEqVKiAlIRKEhSKUJCWSEqqsEohKqlSpUCiiYyUhAUSFkhCikVYKqQoFKEhIKiiikiiiigxSQqpC53VSrBVSmApCEhKKUKBQKiiiUsogJUCkKoStBZIVQlSWUQlQQJQkJFISqpSFgogJUiEoCUslKAlSRRRRSrEhKqkLndRCUJUFlEBK0ClASpUhRASmBEoSFIpQkJBCVVISFglVSpFRRRMBSFUJSyskKqVIpCEqBShISCohKkxCQhRc7qWUCAlSKQhITGSkIUSlkgoUUCooolFKAlQISFUJTAskKoSlLKISoIlCgSKsEqqsEhAUoT4KRCVVWTGSlVCVJiVFAoud1IrKqQpEJQkKBBSqqy0CEqoSpLBRASmBEhCikskIUCRVkqqQkEJQkKRUUUTAUhVCUsrKBASpFIQoFCrJCN0hIYgJQkLnjrRIQooLKBfXZbXc71cI7dZ7dV3Gtl+JT0sLpJHfmtBO3vXS7bw7aw18AmZiDqdpG4FTWwRO/2l+4RdSfNamda+I5UkLsHwaNY/m3SfrSD+ZaPqNgGU6e3Glt+V0EVHUVcJmhbHUMlDmB3KTu0nbqqbzfUovHqTuxrCQt5060kzvUC01F1xW1U9ZSU85p5HyVkcRDw0O22cQT0cOq/rn+juoWCWNt7yWyR01AZmwmWKqjm5XO35eYNJIB2237t9h4p8899drw11316aEoFFuem+l+aahwVs2KW2CsZQvYyoMlVHFylwJb8YjfoD3Jtk91iZtvUaaotm1EwTJtP7tT2rKaKKjq6iD0iJkdQyUGPmLd92kgdWnotZWpZZ3FZZeqQUrf8Y0W1RyOnZU23DbgKeQbslqiyma4eY7QtJH1LPjhr1i+bdIP/AJOD+ZZ/ZmfbX6t36ci3UXSMw0O1KxHG6vIb9Zaamt1GGmaRtfFIW8zg0ey07nq4L+mLaE6l5Pj1Ff7JZ6Kqt1bH2kEvrGFvMN9uoJ3BBBBB7iE/sz132z+vffXTmqgWUyvH7tiuRVmP32k9EuNG4Nmi5g4DdocCCOhBBB3Cxa3L2zZ0sor0kE1XVQ0tNG6WeaRscTGjcvc4gNA95JAXU7jw86rW631FwrbHQwUtNE6aaR1zg2YxoJcT7XgAVm6mfmqY1r4jlKQiMOkc1rGuc55Aa0DcknuAHn7l03F9BdVb/TMqqfFpKKneN2vuEzKckefK48/7q1dTPzRMa18RzNWXaKjhh1Wih546SzTu/wBOO4gO/eaB+1cwzHFchw68eqMmtc1treQSNjkLTzMJIDmlpIIJBG4PgjPJnXxVrj3n3YwwShIW2CEqqsmMsQO5IVUrmdiy+q0W+ru12o7Vb4TNWVk7KeCMfKke4NaP0kL5N11nhGtkVz1/xxszeZlL29Xt+FHE7lP+4gq1ep2s58tSPaekenmN6VYW2jpW07ahkPa3O5SANdO8DdznOPcwddm9wA89yuM5nxe2iiuk1LiuLS3WljcWtrKqq9HbLt8prA1zuU+BOx9wXdNZMbu+XaZ3vGbFW09FXXGAQNmnLgxrC5vODygnqzmHd4ryt8EDPPnNjX/f/IuPj8L73Xdyeeepxxl/hjXf5h0P6zf/AE1yDXbVOp1VvluutVZYbU6hpXU4ZHUGUPBfzb7lo2XSfggZ3858b/7/AORct1n0vvGlt5oLXebjQV0tbTuqGOpOflaA7l2PMB13Xvj9ff8AH5c3J+7x/l8PTfAH9rC+flt38CJduyq2WHNLDe8Sr3xVMMkXo1bE1274S9gew+5wBa5p8wFxHgD+1hfPy27+BEsZlGo3/p9xi1sdfP2djvNFRUtdzH2YnchEc35rjsT964+S8NZut3p041M8ee3lrO8ZuWG5fcsZuzdqugmMZdtsJW97JB7nNIcPpXp7+z3O9szNvlUUh/ckWT43tOPXONQ6gWuDmrrSzs7gGDrJSk9H+8xuO/4rneSxH9ns7/CZqz/3aI/uzL23vz4u3jjj8ObpqvHx9tKxfkQfx5FuXBfpPbfUUWo1/o46msqZHC0xytDmwRtJaZtj8tzgdj4AbjvWl8fpI1PspHeLECP/ADyr1zpzbIrNgGP2mFgYykttPDsPdG3f9u6xrVnFJPtrjxNc2rfpznW/iAxzTa6+oobfNe72GB8tPFKI46cOG7e0eQfaI68oBO3U7bjfk54wrqSdsEotvDe5v/pq+dcMGf5Nml6yGTJceBuNdLUgPM3M1rnEtafY8G8o+pYYcIedfObG/wDv/kWszhk90b1z2+p6Y7VPiTuOeYHc8TnxKkoY69rGmoZXOkLOWRr+jSwb/F27/Fb7wH5t2tDdcCrJvbpybhQBx+Q4gSsH0O5Xbfhlcy1I4ccrwXCrhlVyv1kqaWgax0kVOJe0dzPawbczQO9wXOtLssqMHz+z5RTlxFDUAzsb90hd7MrfrYT9ey9PDGsWYeP7N45JdvQPHlhvY3Cz53SRbMnb6uriB8tu7onH6Rzt+pq8thfpPqnjdHqPpRc7PTSRzNuNGJqCYdR2gAkheD5bhv1Er82pY5IZXxTsMUkbi2RjuhY4HYg/QQU/jb7z1/S/Kx478p9u18G+GfZNqxFd6mLnoMfjFY8kdDOd2wt+o8z/AMwLuvGtmfqDTSPG6WXlrcgl7FwB6tpmbOlP1nkZ+cVmuEjDPsS0hoqmph7O43o+sKjcbODXACJh+hmx+lxXlXiezE5vq7c5KabtKC3n1bREHcFrCQ94/GkLjv5ALzn+Tl7+o9L/AIuDr7rvHBxpTQW/G6bUG90jJ7rcAX24St39Fg7g9oPc9/U7+DdgO8r0kAvgx2gitdgt9sgaGxUlLFAwDwaxgaP/AKX3rm3u713XZx4mMyR/OqnhpqaWoqJWRQxML5HvOzWtA3JJ8gF5a0PmoNYNc8/yS8W+KvsktuFDBBOzdogdIBGNvAlsRduOoLisvxcamg08umWOVQNbUxGS91DT7NJSgczmE+BcOrvJuw73hfbwTWeCyabPvFSTFPklyeKVrh1fHCxwaP3JSvXOfDjuvuvDWvPlmZ8R5n10wKTTnUWtx9rpJaFzRU2+V/xnwP32BPi5pDmk+PLv4rRgvVPH7bog7Ebu1v8Aek1NK8+bdmPb+3m/SvKy7eHXliWvnc+JjkshSEAqL1eNYlIQoud1rLr3B7cIaDiAsHbODW1UdTTAn750Li0fWW7fWuQL78eutbYr7QXq2ydnWUFTHUwOPcHscHDf3dNj7kancsOb46lfpFrxkt7xDSi95NjrKZ9woI45WNqIy9nJ2jQ8kAjuaSe/wXkk8V2qe/8AlY5/wH/1F6000zjFtW8DdU0vYzx1EBgudtlIL4HObs+N7fFp3Ozu5w/ZwzJeDymmuUs2O5m6konvJjp6yi7Z0Q+952vHMB5kb+e65eO4nc3Hbyzeuriuf/Cu1T/0sc/4D/6i51qtqTkepd1orlkjaBs9HA6CL0SExt5S7mO4Ljud13EcHN2+ftD+rH/1FyDXfSyp0pvtutVTeobq6upXVAkjpzEGAP5dti47r2xePv8Ai5uTPL4/y+HpPgC+1hfPy27+BEuKcazdtea7cdHW6kP7rgu1cAX2r75+W3fwIlxrjdbtrrMfO10p/wD2s4/3V6b/ANEegOEzUCDUHTKTGr49lVdLREKOqZL19JpnAtjeQe/du7He9u571ThswKfTfUjULHuV5t8hoqm2yu+6U7jPyjfxLSCw/i7+K8i6LZ3V6dahW/JIOd9Mx3Y18LT/AJ1O4jnb9I2Dh72hfpRa6yjuVvprlQTR1FNVQtlhmZ1D2OG7SD5EHdefLm4t6+K3wanJJb8x4w4/dzqdZQO/1ENv/PKvX2C3CK64TZLnA4Ojq7fTzNIPg6NpXkPj5+2lYvyIP48i3vgx1ZttVjlNpzfKplPcqIuba3SO2FTCSSIwT8thJAHi3bbuK1rNvFLBx7mebUv20fNeJXVKw5jerGYLA0W+4T0wD6F5dyskIbv/AHnkAViPhV6o/wCnjv8AwH/1F3jW/h0seoeQPyO3Xd9iu0zQKoinEsVQQAGuc3dpa7YAEg9QBuN+q5n8D27fPuh/Vj/6i1nXDZ7jG8c8vqub55xA59muJ12MXlllFBXBrZjBSOZJs17XjYl526tHguTrvWqfDXcMDwK55ZPl1LXsoGscadlA6Mv5pGs+MXnb42/d4Lgq6OO4s/i5uWbl/m9ycFWbfZFpk7HKubmr8fkEA3PV1M7cxH6tnM/NC5fqjo6+v4rKK0QU5FmyKT1rMWjoyNp3qm+7dw/7QuccMubfYPq3bKuom7O23A+r67c7NDJCOV5/Ffyn6N1+hbqamfVx1j4InVETHRxyloLmNcQXAHvAJa3fz5R5Ll5LeLds+3XxSc3HJfpoPEDmDMA0kut0pXNhrHxCit7W9NppBytI/FG7vzV+dAeYyJASSz2tyep26r0RxyZp63zqiw+kl5qWyxdrUgHoamUA7H8WPl/3led10fj48cd/25/yt+W+v6fqZaLjT1lgpLqJWNp56VlQHl2zQxzA7cny2K4DrRxDRio+w7Strr1fqp/o4radnaxxvPTlhH3WT3/FHf17l54xuvzbUWhgxSvzimt2P2eibzi41wp6aGnZ0BLBsZnDoNup7u5fReMuxnDLbUWLTH0iesnY6GvymqZ2dRMw9DHTM+4Rnxd8Yj9K8s8El9+3tv8AJtz69T/3w/nX2Oqfe6fTq0VTbrld6rWsvte2TtWtlLub0dr/AJTYzvJK/wCU9u3czr6+t9NSWnUrCsAtHSkx6w1FbKB5EMp4ife7eYrnPCPpezErHPqTlkbaOrnpXOo2Tjl9EpduZ8rt/iueB9TR+EVsvD7dWZBcM41hvEjKOgudUKagkqHBjYaGmBAcSegBJJPvBWeXXffX1/08OfHq35v/ACNJ4/q6LscQtjXAy9pVVDm+TQI2A/pJ/QvKS6JxE6gM1F1KqrvRl/qqljFJb+YbF0TSSX7eHO4l30cq50Cuvhzc4kri/I3N8lsIShIXq8WICUBK53UQlVSpMlj97vGP3JlysV0rLZWsGzZ6WZ0b9vIkd49x6LpNBxG6x0cIibl3bgeNRQQPd+nk3XJQlVzL8wzWs/Fdi+ExrH85KT9VwfyrR9RdQMq1CuNLcMrr4q2opYTDC5lOyINYXcxGzQN+q1VIKJjM+ILvV9Wt7061bzzT+01FrxW7QUdJUTmokY+jjlJeWhu+7gSOjR0WFz3Mcgzm/m+5LVx1deYWQdoyFsQ5G77DlaAPE9Vr6QnxkvYur1136I710rDdctTcRx2lx+x3+KG3UgIgjlo4pSxpJPKHOBO25Ow8FzRITZNfIzq5+K2fUTPMn1Au9Pdcqro6yrp4PR43sp2RAR8xdts0AHq49VrbXFrg5pIIO4IOxB81VITJJ6gtt910fHtctV7FTspqLNK+SFg5Wsq2R1Ow8t5Gl37VmvhK6xfOSk/VkH8q4+kI8Mf0Zybn26RmOuOpWXY3V47fr3T1NtrA0TxNoIoy4NcHD2mjcdWjuXOAtp01wK/5/d56CyNpooqSHt62sq5eyp6WL757vDuPQdeh8AStldphjDCWv1pwTmHfyumcP0hvVXeMeofHe/dcxPUELrdHxGavUtJDSxZLAY4Y2xtL7fC5xAGw3JbuT07ysJp7pm7LMVvGTVGV2aw2y01TKaeevbIWkvA5SC0dASQFlGaNTXS319Rh+d4plVVQU7qmagoZntqHRt7y1rhs7by3HgPEI1rF9VZzySd5c5vd0rr1eay8XOodUV1bO+eolIA53uO5Ow6D6B3L5Atz0606u2Y26vvXrC22SwW7YVl2uUpjgjcRuGN2G737EdB5jzCzlXpDJWWC4XnCszsGYNtkXbVtJQ9pHUxxjveI3jdwG3h9W56Lfnmemf16s7cx2B23AO3ULL4hem49kVJejabddnUr+0ZTV7HPhc8dxc1pG+x6gHpv3grJUWFVlVpdX5+yuphRUdyjt7qctd2jnvDSHA923tD39E6X4TW57kM9loK2mo5YaKasMk7XOaWx7bt9nrueZN1Or2zM67nTetS+IjNc5xOoxqqobVbKSqLRUvohJ2krAdywlzjs0nbfbv227iVz28Zrk91xuhxqru0wslBG2Ont8IEUA268zmt253bknmdudySs9p9pocqwu45bV5XZsftlBVspJZLg2Qjne1pb1aPHmA+lfXedJKqPErlk2NZfjmWUVqAfcGWyV/bU7D8sscOreh+oE9disT9eb1G7+3U8q5sEo7kr3c9WUQEqTEJCEhc7qKQhRSWSqhIVAVFFEghKAlSKQqhKWVlAgJSllAgJUK7dpaH/AAW9VTQb+l+k0fpPJ8b0fdu+/wCDt2m/u3VtFMR0hz68WzF54s3gvk1I6SpnbVU7aXtI2cz+QcpcGk77b/Wuc6aZ7kGAXia4WN9PIyqh7Cso6uLtKeqi+9e3cb952III3PgSFvGOa4UuO3ll6smlOE264sa5rZ6Zk0bgHDZwGzugIXlrOvfTozrF67+md0bjxwcO2okWVT3WG0NvNI2Z9uYx9QNizl5Q/wBnv23926zWlEOBWew5Xlek897veVW60y/4K9uZAYad3+ZMxrG7SEco9nm93TcLidqzmvt+nmQYVHQ0r6S+VcVVNO5zu0jdG5pAaO7Y8vj5o0xzevwO+Vd1oKKmrTV0E1DLDUOcGmOTl3Ps9dxyhV47exOSTp0HJN/gdYj6ASYDkdQbgW9xl/veTm+rl2+pfz4NjONdaHl39H9X1fpe/wAXsuQfG93NyLT9OdSLthtprrCbfbL7j1wIdV2q5xGSF7wAA9pHVjtgOo8h03AWWr9W56ewV9mwzELBh0Nyj7GuqLe176maM97O1ed2tPkP2JuddXPXyJrPc1b8NgtwifwnZgKQbwszCFzdvCM9mGn6NiF/PhCBGptzkI2azHa1zj5D2Oq0vTXUO64TDcqCK3268WW6sDK+13CIvgm2+K7p1a4eY93ToNs3W6uSU1guNnw3DcexCO5xGGuqaBr5KmWM97BI8+y07+A+jZNzrq5/tZ3nuat+G26P2+y3Thgy2kv+Qtx+gdfqQvrTSPqAwhkRaORnU7np7l89qvmnWm+DZdSY3mFTl17yK3+row21yUsFNGeYOc4v7z7RPTyA26krm9szWuoNM7rgcdFSuornXRVslQS7tWOj5dmtHdt7A7/NawmcfdvbN5JJOp76Hd0CQoovZzlIQEhIYlRRRc7qIKUBKkQlVSpLBRASkVEhCigskIUChVglVSFoEJQkKRCUKBQKQhRKWUCAlQpSEDuUWgskIUCksooooIEoStCsUoooud0okISpFQKKKSyVUJVAVFFEghKqFZSIKiAlIWUCAlIKUBKlSogJSCFEJCkQlCQlkhKqrJRCVVKlSoFFExli1FFF4OlFFFFIhKEqSBKEhSISgJSKiQhRQWSEKKFKsqpCYCkISEopCFAoFRRRKWUQEqFKQgKLQWSFUJUllFFFBi1FFF4uhFFFFJEhCVIqBQKKRSEBIUiooolkhKqkKSwUQlQWCiAlaBCVUJUqsogJSEShIUikISEskJVVYJRCVVKlWMUUUXi90UUUUkUUUUiEqqsFJAlCQVIhKEhMFRIQooLKBASoFIQEhMBSEKBKWSEKBQKiiiUQlVCsoFIVQlMCygQClKf/2Q==";
-const LogoImg=()=>(<img src={LOGO_SRC} alt="ENEVO Group" style={{width:64,height:64,borderRadius:12,objectFit:"contain",background:"transparent"}}/>);
-
-/* ─── STATIC DATA ─── */
-/* TASK_CATEGORIES defined below after TAXONOMY_GROUPS — see line ~1590 */
-const LEAVE_TYPES  = ["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
-const FUNCTION_CATS = [
-  "Internal Training — Given",
-  "Internal Training — Received",
-  "Tendering Support — Local",
-  "Tendering Support — International",
-  "Mentoring & Coaching",
-  "R&D & Innovation",
-  "Client Meetings",
-  "Documentation & Reporting",
-  "Proposal Writing & BD",
-  "Other Function",
-];
-const FUNC_COLORS = {
-  "Internal Training — Given":        "#a78bfa",
-  "Internal Training — Received":     "#818cf8",
-  "Tendering Support — Local":        "var(--info)",
-  "Tendering Support — International":"#0ea5e9",
-  "Mentoring & Coaching":             "#34d399",
-  "R&D & Innovation":                 "#10b981",
-  "Client Meetings":                  "#fb923c",
-  "Documentation & Reporting":        "#f59e0b",
-  "Proposal Writing & BD":            "#ec4899",
-  "Other Function":                   "#6b7280",
-};
-const MONTHS       = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const PHASES       = ["Design","Basic Engineering","Detailed Engineering","Software","FAT","Commissioning","Closed"];
-const LEVELS       = ["Junior","Mid","Senior"];
-const ROLES_LIST = [
-  // Engineering
-  "Engineering Manager","Technical Lead","Senior Automation Engineer","Senior SCADA Engineer","Senior RTU Engineer","Senior Protection Engineer",
-  "Automation Engineer","SCADA Engineer","RTU Engineer","Protection Engineer","PLC Programmer",
-  "Junior Automation Engineer","Junior SCADA Engineer","Junior RTU Engineer","Junior Protection Engineer",
-  "Commissioning Engineer","Control Systems Engineer","Electrical Engineer","Instrumentation Engineer","Project Engineer",
-  "Renewable Energy Specialist",
-  // Management & Operations
-  "CTO","CEO","General Manager","Operations Manager","Project Manager",
-  // Support
-  "Accountant","Financial Manager","HR Manager","Administrative Manager",
-  "IT Manager","Document Controller","Other",
-];
-// role_type hierarchy: engineer < lead < accountant < admin
-// engineer: post own hours only, no reports
-// lead: post own hours, edit any engineer hours, export individual timesheet PDF
-// accountant: read-only, export invoices + reports, no editing
-// admin: full access
-const ROLE_TYPES   = ["engineer","lead","accountant","senior_management","admin"];
-const ROLE_LABELS  = {engineer:"Engineer",lead:"Lead Engineer",accountant:"Accountant",senior_management:"Senior Management",admin:"Admin"};
-const ROLE_COLORS  = {engineer:"var(--text3)",lead:"var(--info)",accountant:"#a78bfa",senior_management:"#94a3b8",admin:"#34d399"};
-// Only engineer and lead post billable hours — excluded from utilization: accountant, senior_management, admin
-const isBillableRole = r => r==="engineer"||r==="lead";
-
-const fmt          = d => d.toISOString().slice(0,10);
-const today        = new Date();
-const fmtCurrency  = n => `$${(n||0).toLocaleString(undefined,{minimumFractionDigits:0})}`;
-const fmtPct       = n => `${Math.round(n||0)}%`;
-const DAY_NAMES    = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-const DEFAULT_WEEKEND = [5,6];
-
-const getWeekDays7 = date => {
-  const d=new Date(date), day=d.getDay();
-  const sun=new Date(d); sun.setDate(d.getDate()-day);
-  return Array.from({length:7},(_,i)=>{const x=new Date(sun);x.setDate(sun.getDate()+i);return fmt(x);});
-};
-const getWorkDaysInMonth = (y,m,wd=[5,6],fromDay=1) => {
-  const days=[]; const total=new Date(y,m+1,0).getDate();
-  // fromDay lets us start counting from the engineer's join date within the month
-  for(let d=Math.max(1,fromDay);d<=total;d++){const dt=new Date(y,m,d);if(!wd.includes(dt.getDay()))days.push(fmt(dt));}
-  return days;
-};
-// upToDay: for terminated engineers, stop counting after termination day
-const getTargetHrs = (y,m,wd=[5,6],fromDay=1,upToDay=null) => {
-  const total=new Date(y,m+1,0).getDate();
-  const end = upToDay ? Math.min(upToDay,total) : total;
-  let count=0;
-  for(let d=Math.max(1,fromDay);d<=end;d++){const dt=new Date(y,m,d);if(!wd.includes(dt.getDay()))count++;}
-  return count*8;
-};
-
-// Posting limit: 1 month past to 1 month future
-const minPostDate = () => { const d=new Date(today); d.setMonth(d.getMonth()-1); d.setDate(1); return fmt(d); };
-const maxPostDate = () => { const d=new Date(today); d.setMonth(d.getMonth()+2); d.setDate(0); return fmt(d); };
-const isDateAllowed = date => date >= minPostDate() && date <= maxPostDate();
-
-/* ─── PDF HELPERS ─── */
-const PDF_STYLE = `
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'IBM Plex Sans',sans-serif;color:#1a2332;font-size:13px}
-  /* ── Fixed header repeats on every page ── */
-  .pdf-hdr{
-    position:fixed;top:0;left:0;right:0;height:38px;z-index:1000;
-    background:#0a1628;
-    border-bottom:2px solid #0ea5e9;
-    display:flex;align-items:center;justify-content:space-between;
-    padding:0 28px;
-  }
-  .pdf-hdr-left{display:flex;align-items:center;gap:10px}
-  .pdf-hdr-logo{width:26px;height:26px;border-radius:5px;object-fit:contain}
-  .pdf-hdr-brand{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.15em;color:#38bdf8;font-weight:600}
-  .pdf-hdr-title{font-size:12px;color:#94a3b8}
-  .pdf-hdr-right{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#475569}
-  /* ── Fixed footer repeats on every page ── */
-  .pdf-ftr{
-    position:fixed;bottom:0;left:0;right:0;height:28px;z-index:1000;
-    background:#f8fafc;
-    border-top:1px solid #e2e8f0;
-    display:flex;align-items:center;justify-content:space-between;
-    padding:0 28px;
-    font-size:10px;color:#94a3b8;
-  }
-  .pdf-ftr-left{display:flex;align-items:center;gap:8px}
-  .pdf-ftr-dot{width:4px;height:4px;border-radius:50%;background:#0ea5e9}
-  /* ── Content area (pushed below header, above footer) ── */
-  .pdf-body{padding-top:50px;padding-bottom:38px}
-  .cover{background:linear-gradient(135deg,#0a1628,#0f2a50 60%,#153d6e);color:#fff;padding:44px 44px 44px;position:relative;overflow:hidden;margin-top:38px;page-break-after:always}
-  .cover::before{content:'';position:absolute;right:-60px;top:-60px;width:280px;height:280px;border:2px solid rgba(56,189,248,0.15);border-radius:50%}
-  .cl{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;color:#38bdf8;text-transform:uppercase;margin-bottom:8px}
-  .ct{font-size:22px;font-weight:700;line-height:1.2;margin-bottom:6px}.cs{font-size:13px;color:#94a3b8}
-  .cm{display:flex;gap:36px;margin-top:14px}.cm label{font-size:11px;color:#64748b;letter-spacing:.1em;text-transform:uppercase;display:block}
-  .cm span{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#e2e8f0}
-  .body{padding:24px 32px;padding-top:28px}.section{margin-bottom:22px;page-break-inside:avoid}
-  .st{font-size:13px;font-weight:700;color:#0f2a50;text-transform:uppercase;letter-spacing:.08em;padding-bottom:6px;border-bottom:2px solid #0ea5e9;margin-bottom:10px}
-  .kg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:4px}
-  .kp{background:#f0f7ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px}
-  .kv{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;color:#0ea5e9;line-height:1}
-  .kl{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
-  table{width:100%;border-collapse:collapse;font-size:12px}
-  th{background:#0f2a50;color:#fff;padding:6px 8px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.05em;text-transform:uppercase}
-  td{padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top}tr:nth-child(even) td{background:#f8fafc}
-  .cover-page td{vertical-align:middle !important;padding:0 !important}
-  .cover-page th{vertical-align:middle !important;padding:0 !important}
-  .cover-page tr:nth-child(even) td{background:transparent !important}
-  .cover-page table td,.cover-page table th{border:none !important}
-  .footer{display:none}
-  @media print{
-    body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    @page{margin:14mm}
-    .pdf-hdr{display:none !important}
-    .pdf-ftr{display:none !important}
-    .pdf-body{padding-top:0 !important;padding-bottom:0 !important}
-    .cover{margin-top:0 !important}
-    .body{padding-top:16px}
-    .section{page-break-inside:auto}
-    table{page-break-inside:auto}
-    tr{page-break-inside:avoid;page-break-after:auto}
-  }`;
-
-/* Shared logo base64 ref for PDFs */
-function pdfHeader(titleText, subtitleText, now){
-  return `<div class="pdf-hdr">
-    <div class="pdf-hdr-left">
-      <img src="${LOGO_SRC}" class="pdf-hdr-logo" alt="ENEVO"/>
-      <span class="pdf-hdr-brand">ENEVO-ERP</span>
-      <span style="color:#192d47;font-size:12px">|</span>
-      <span class="pdf-hdr-title">${titleText}</span>
-    </div>
-    <div class="pdf-hdr-right">${subtitleText || now}</div>
-  </div>`;
-}
-
-function pdfFooter(leftText, now){
-  return `<div class="pdf-ftr">
-    <div class="pdf-ftr-left">
-      <div class="pdf-ftr-dot"></div>
-      <span>ENEVO Group · Industrial &amp; Renewable Energy Automation</span>
-      <span style="color:#cbd5e1">·</span>
-      <span>${leftText||""}</span>
-    </div>
-    <span>CONFIDENTIAL · ${now}</span>
-  </div>`;
-}
-
-function generatePDF(title, sections, subtitle="ENEVO Group"){
-  const win=window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
-  const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-  let html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${PDF_STYLE}</style></head><body>
-  ${pdfHeader(title, subtitle, now)}
-  ${pdfFooter(subtitle, now)}
-  <div class="cover">
-  <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
-    <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCADwAPADASIAAhEBAxEB/8QAHQABAAIDAQEBAQAAAAAAAAAAAQACBQYHCAQJA//EAEoQAAEDAwIDBAQGDwgBBQAAAAEAAgMEBQYHEQgSIRMxQVEUFSJhGDJCVnGBFjdDUmJydYKRlaGis9LTCSMkM1OSlKOTF2OFsbL/xAAZAQEBAQEBAQAAAAAAAAAAAAABAAIEAwX/xAAkEQEBAQACAgICAgMBAAAAAAAAAQIDERIhMUEEEyJRIzOx8P/aAAwDAQACEQMRAD8A8yhRASvqPjLKBASkEJQEqVKiAlIRKEhSKUJCWSEqqsEohKqlSpUCiiYyUhAUSFkhCikVYKqQoFKEhIKiiikiiiigxSQqpC53VSrBVSmApCEhKKUKBQKiiiUsogJUCkKoStBZIVQlSWUQlQQJQkJFISqpSFgogJUiEoCUslKAlSRRRRSrEhKqkLndRCUJUFlEBK0ClASpUhRASmBEoSFIpQkJBCVVISFglVSpFRRRMBSFUJSyskKqVIpCEqBShISCohKkxCQhRc7qWUCAlSKQhITGSkIUSlkgoUUCooolFKAlQISFUJTAskKoSlLKISoIlCgSKsEqqsEhAUoT4KRCVVWTGSlVCVJiVFAoud1IrKqQpEJQkKBBSqqy0CEqoSpLBRASmBEhCikskIUCRVkqqQkEJQkKRUUUTAUhVCUsrKBASpFIQoFCrJCN0hIYgJQkLnjrRIQooLKBfXZbXc71cI7dZ7dV3Gtl+JT0sLpJHfmtBO3vXS7bw7aw18AmZiDqdpG4FTWwRO/2l+4RdSfNamda+I5UkLsHwaNY/m3SfrSD+ZaPqNgGU6e3Glt+V0EVHUVcJmhbHUMlDmB3KTu0nbqqbzfUovHqTuxrCQt5060kzvUC01F1xW1U9ZSU85p5HyVkcRDw0O22cQT0cOq/rn+juoWCWNt7yWyR01AZmwmWKqjm5XO35eYNJIB2237t9h4p8899drw11316aEoFFuem+l+aahwVs2KW2CsZQvYyoMlVHFylwJb8YjfoD3Jtk91iZtvUaaotm1EwTJtP7tT2rKaKKjq6iD0iJkdQyUGPmLd92kgdWnotZWpZZ3FZZeqQUrf8Y0W1RyOnZU23DbgKeQbslqiyma4eY7QtJH1LPjhr1i+bdIP/AJOD+ZZ/ZmfbX6t36ci3UXSMw0O1KxHG6vIb9Zaamt1GGmaRtfFIW8zg0ey07nq4L+mLaE6l5Pj1Ff7JZ6Kqt1bH2kEvrGFvMN9uoJ3BBBBB7iE/sz132z+vffXTmqgWUyvH7tiuRVmP32k9EuNG4Nmi5g4DdocCCOhBBB3Cxa3L2zZ0sor0kE1XVQ0tNG6WeaRscTGjcvc4gNA95JAXU7jw86rW631FwrbHQwUtNE6aaR1zg2YxoJcT7XgAVm6mfmqY1r4jlKQiMOkc1rGuc55Aa0DcknuAHn7l03F9BdVb/TMqqfFpKKneN2vuEzKckefK48/7q1dTPzRMa18RzNWXaKjhh1Wih546SzTu/wBOO4gO/eaB+1cwzHFchw68eqMmtc1treQSNjkLTzMJIDmlpIIJBG4PgjPJnXxVrj3n3YwwShIW2CEqqsmMsQO5IVUrmdiy+q0W+ru12o7Vb4TNWVk7KeCMfKke4NaP0kL5N11nhGtkVz1/xxszeZlL29Xt+FHE7lP+4gq1ep2s58tSPaekenmN6VYW2jpW07ahkPa3O5SANdO8DdznOPcwddm9wA89yuM5nxe2iiuk1LiuLS3WljcWtrKqq9HbLt8prA1zuU+BOx9wXdNZMbu+XaZ3vGbFW09FXXGAQNmnLgxrC5vODygnqzmHd4ryt8EDPPnNjX/f/IuPj8L73Xdyeeepxxl/hjXf5h0P6zf/AE1yDXbVOp1VvluutVZYbU6hpXU4ZHUGUPBfzb7lo2XSfggZ3858b/7/AORct1n0vvGlt5oLXebjQV0tbTuqGOpOflaA7l2PMB13Xvj9ff8AH5c3J+7x/l8PTfAH9rC+flt38CJduyq2WHNLDe8Sr3xVMMkXo1bE1274S9gew+5wBa5p8wFxHgD+1hfPy27+BEsZlGo3/p9xi1sdfP2djvNFRUtdzH2YnchEc35rjsT964+S8NZut3p041M8ee3lrO8ZuWG5fcsZuzdqugmMZdtsJW97JB7nNIcPpXp7+z3O9szNvlUUh/ckWT43tOPXONQ6gWuDmrrSzs7gGDrJSk9H+8xuO/4rneSxH9ns7/CZqz/3aI/uzL23vz4u3jjj8ObpqvHx9tKxfkQfx5FuXBfpPbfUUWo1/o46msqZHC0xytDmwRtJaZtj8tzgdj4AbjvWl8fpI1PspHeLECP/ADyr1zpzbIrNgGP2mFgYykttPDsPdG3f9u6xrVnFJPtrjxNc2rfpznW/iAxzTa6+oobfNe72GB8tPFKI46cOG7e0eQfaI68oBO3U7bjfk54wrqSdsEotvDe5v/pq+dcMGf5Nml6yGTJceBuNdLUgPM3M1rnEtafY8G8o+pYYcIedfObG/wDv/kWszhk90b1z2+p6Y7VPiTuOeYHc8TnxKkoY69rGmoZXOkLOWRr+jSwb/F27/Fb7wH5t2tDdcCrJvbpybhQBx+Q4gSsH0O5Xbfhlcy1I4ccrwXCrhlVyv1kqaWgax0kVOJe0dzPawbczQO9wXOtLssqMHz+z5RTlxFDUAzsb90hd7MrfrYT9ey9PDGsWYeP7N45JdvQPHlhvY3Cz53SRbMnb6uriB8tu7onH6Rzt+pq8thfpPqnjdHqPpRc7PTSRzNuNGJqCYdR2gAkheD5bhv1Er82pY5IZXxTsMUkbi2RjuhY4HYg/QQU/jb7z1/S/Kx478p9u18G+GfZNqxFd6mLnoMfjFY8kdDOd2wt+o8z/AMwLuvGtmfqDTSPG6WXlrcgl7FwB6tpmbOlP1nkZ+cVmuEjDPsS0hoqmph7O43o+sKjcbODXACJh+hmx+lxXlXiezE5vq7c5KabtKC3n1bREHcFrCQ94/GkLjv5ALzn+Tl7+o9L/AIuDr7rvHBxpTQW/G6bUG90jJ7rcAX24St39Fg7g9oPc9/U7+DdgO8r0kAvgx2gitdgt9sgaGxUlLFAwDwaxgaP/AKX3rm3u713XZx4mMyR/OqnhpqaWoqJWRQxML5HvOzWtA3JJ8gF5a0PmoNYNc8/yS8W+KvsktuFDBBOzdogdIBGNvAlsRduOoLisvxcamg08umWOVQNbUxGS91DT7NJSgczmE+BcOrvJuw73hfbwTWeCyabPvFSTFPklyeKVrh1fHCxwaP3JSvXOfDjuvuvDWvPlmZ8R5n10wKTTnUWtx9rpJaFzRU2+V/xnwP32BPi5pDmk+PLv4rRgvVPH7bog7Ebu1v8Aek1NK8+bdmPb+3m/SvKy7eHXliWvnc+JjkshSEAqL1eNYlIQoud1rLr3B7cIaDiAsHbODW1UdTTAn750Li0fWW7fWuQL78eutbYr7QXq2ydnWUFTHUwOPcHscHDf3dNj7kancsOb46lfpFrxkt7xDSi95NjrKZ9woI45WNqIy9nJ2jQ8kAjuaSe/wXkk8V2qe/8AlY5/wH/1F6000zjFtW8DdU0vYzx1EBgudtlIL4HObs+N7fFp3Ozu5w/ZwzJeDymmuUs2O5m6konvJjp6yi7Z0Q+952vHMB5kb+e65eO4nc3Hbyzeuriuf/Cu1T/0sc/4D/6i51qtqTkepd1orlkjaBs9HA6CL0SExt5S7mO4Ljud13EcHN2+ftD+rH/1FyDXfSyp0pvtutVTeobq6upXVAkjpzEGAP5dti47r2xePv8Ai5uTPL4/y+HpPgC+1hfPy27+BEuKcazdtea7cdHW6kP7rgu1cAX2r75+W3fwIlxrjdbtrrMfO10p/wD2s4/3V6b/ANEegOEzUCDUHTKTGr49lVdLREKOqZL19JpnAtjeQe/du7He9u571ThswKfTfUjULHuV5t8hoqm2yu+6U7jPyjfxLSCw/i7+K8i6LZ3V6dahW/JIOd9Mx3Y18LT/AJ1O4jnb9I2Dh72hfpRa6yjuVvprlQTR1FNVQtlhmZ1D2OG7SD5EHdefLm4t6+K3wanJJb8x4w4/dzqdZQO/1ENv/PKvX2C3CK64TZLnA4Ojq7fTzNIPg6NpXkPj5+2lYvyIP48i3vgx1ZttVjlNpzfKplPcqIuba3SO2FTCSSIwT8thJAHi3bbuK1rNvFLBx7mebUv20fNeJXVKw5jerGYLA0W+4T0wD6F5dyskIbv/AHnkAViPhV6o/wCnjv8AwH/1F3jW/h0seoeQPyO3Xd9iu0zQKoinEsVQQAGuc3dpa7YAEg9QBuN+q5n8D27fPuh/Vj/6i1nXDZ7jG8c8vqub55xA59muJ12MXlllFBXBrZjBSOZJs17XjYl526tHguTrvWqfDXcMDwK55ZPl1LXsoGscadlA6Mv5pGs+MXnb42/d4Lgq6OO4s/i5uWbl/m9ycFWbfZFpk7HKubmr8fkEA3PV1M7cxH6tnM/NC5fqjo6+v4rKK0QU5FmyKT1rMWjoyNp3qm+7dw/7QuccMubfYPq3bKuom7O23A+r67c7NDJCOV5/Ffyn6N1+hbqamfVx1j4InVETHRxyloLmNcQXAHvAJa3fz5R5Ll5LeLds+3XxSc3HJfpoPEDmDMA0kut0pXNhrHxCit7W9NppBytI/FG7vzV+dAeYyJASSz2tyep26r0RxyZp63zqiw+kl5qWyxdrUgHoamUA7H8WPl/3led10fj48cd/25/yt+W+v6fqZaLjT1lgpLqJWNp56VlQHl2zQxzA7cny2K4DrRxDRio+w7Strr1fqp/o4radnaxxvPTlhH3WT3/FHf17l54xuvzbUWhgxSvzimt2P2eibzi41wp6aGnZ0BLBsZnDoNup7u5fReMuxnDLbUWLTH0iesnY6GvymqZ2dRMw9DHTM+4Rnxd8Yj9K8s8El9+3tv8AJtz69T/3w/nX2Oqfe6fTq0VTbrld6rWsvte2TtWtlLub0dr/AJTYzvJK/wCU9u3czr6+t9NSWnUrCsAtHSkx6w1FbKB5EMp4ife7eYrnPCPpezErHPqTlkbaOrnpXOo2Tjl9EpduZ8rt/iueB9TR+EVsvD7dWZBcM41hvEjKOgudUKagkqHBjYaGmBAcSegBJJPvBWeXXffX1/08OfHq35v/ACNJ4/q6LscQtjXAy9pVVDm+TQI2A/pJ/QvKS6JxE6gM1F1KqrvRl/qqljFJb+YbF0TSSX7eHO4l30cq50Cuvhzc4kri/I3N8lsIShIXq8WICUBK53UQlVSpMlj97vGP3JlysV0rLZWsGzZ6WZ0b9vIkd49x6LpNBxG6x0cIibl3bgeNRQQPd+nk3XJQlVzL8wzWs/Fdi+ExrH85KT9VwfyrR9RdQMq1CuNLcMrr4q2opYTDC5lOyINYXcxGzQN+q1VIKJjM+ILvV9Wt7061bzzT+01FrxW7QUdJUTmokY+jjlJeWhu+7gSOjR0WFz3Mcgzm/m+5LVx1deYWQdoyFsQ5G77DlaAPE9Vr6QnxkvYur1136I710rDdctTcRx2lx+x3+KG3UgIgjlo4pSxpJPKHOBO25Ow8FzRITZNfIzq5+K2fUTPMn1Au9Pdcqro6yrp4PR43sp2RAR8xdts0AHq49VrbXFrg5pIIO4IOxB81VITJJ6gtt910fHtctV7FTspqLNK+SFg5Wsq2R1Ow8t5Gl37VmvhK6xfOSk/VkH8q4+kI8Mf0Zybn26RmOuOpWXY3V47fr3T1NtrA0TxNoIoy4NcHD2mjcdWjuXOAtp01wK/5/d56CyNpooqSHt62sq5eyp6WL757vDuPQdeh8AStldphjDCWv1pwTmHfyumcP0hvVXeMeofHe/dcxPUELrdHxGavUtJDSxZLAY4Y2xtL7fC5xAGw3JbuT07ysJp7pm7LMVvGTVGV2aw2y01TKaeevbIWkvA5SC0dASQFlGaNTXS319Rh+d4plVVQU7qmagoZntqHRt7y1rhs7by3HgPEI1rF9VZzySd5c5vd0rr1eay8XOodUV1bO+eolIA53uO5Ow6D6B3L5Atz0606u2Y26vvXrC22SwW7YVl2uUpjgjcRuGN2G737EdB5jzCzlXpDJWWC4XnCszsGYNtkXbVtJQ9pHUxxjveI3jdwG3h9W56Lfnmemf16s7cx2B23AO3ULL4hem49kVJejabddnUr+0ZTV7HPhc8dxc1pG+x6gHpv3grJUWFVlVpdX5+yuphRUdyjt7qctd2jnvDSHA923tD39E6X4TW57kM9loK2mo5YaKasMk7XOaWx7bt9nrueZN1Or2zM67nTetS+IjNc5xOoxqqobVbKSqLRUvohJ2krAdywlzjs0nbfbv227iVz28Zrk91xuhxqru0wslBG2Ont8IEUA268zmt253bknmdudySs9p9pocqwu45bV5XZsftlBVspJZLg2Qjne1pb1aPHmA+lfXedJKqPErlk2NZfjmWUVqAfcGWyV/bU7D8sscOreh+oE9disT9eb1G7+3U8q5sEo7kr3c9WUQEqTEJCEhc7qKQhRSWSqhIVAVFFEghKAlSKQqhKWVlAgJSllAgJUK7dpaH/AAW9VTQb+l+k0fpPJ8b0fdu+/wCDt2m/u3VtFMR0hz68WzF54s3gvk1I6SpnbVU7aXtI2cz+QcpcGk77b/Wuc6aZ7kGAXia4WN9PIyqh7Cso6uLtKeqi+9e3cb952III3PgSFvGOa4UuO3ll6smlOE264sa5rZ6Zk0bgHDZwGzugIXlrOvfTozrF67+md0bjxwcO2okWVT3WG0NvNI2Z9uYx9QNizl5Q/wBnv23926zWlEOBWew5Xlek897veVW60y/4K9uZAYad3+ZMxrG7SEco9nm93TcLidqzmvt+nmQYVHQ0r6S+VcVVNO5zu0jdG5pAaO7Y8vj5o0xzevwO+Vd1oKKmrTV0E1DLDUOcGmOTl3Ps9dxyhV47exOSTp0HJN/gdYj6ASYDkdQbgW9xl/veTm+rl2+pfz4NjONdaHl39H9X1fpe/wAXsuQfG93NyLT9OdSLthtprrCbfbL7j1wIdV2q5xGSF7wAA9pHVjtgOo8h03AWWr9W56ewV9mwzELBh0Nyj7GuqLe176maM97O1ed2tPkP2JuddXPXyJrPc1b8NgtwifwnZgKQbwszCFzdvCM9mGn6NiF/PhCBGptzkI2azHa1zj5D2Oq0vTXUO64TDcqCK3268WW6sDK+13CIvgm2+K7p1a4eY93ToNs3W6uSU1guNnw3DcexCO5xGGuqaBr5KmWM97BI8+y07+A+jZNzrq5/tZ3nuat+G26P2+y3Thgy2kv+Qtx+gdfqQvrTSPqAwhkRaORnU7np7l89qvmnWm+DZdSY3mFTl17yK3+row21yUsFNGeYOc4v7z7RPTyA26krm9szWuoNM7rgcdFSuornXRVslQS7tWOj5dmtHdt7A7/NawmcfdvbN5JJOp76Hd0CQoovZzlIQEhIYlRRRc7qIKUBKkQlVSpLBRASkVEhCigskIUChVglVSFoEJQkKRCUKBQKQhRKWUCAlQpSEDuUWgskIUCksooooIEoStCsUoooud0okISpFQKKKSyVUJVAVFFEghKqFZSIKiAlIWUCAlIKUBKlSogJSCFEJCkQlCQlkhKqrJRCVVKlSoFFExli1FFF4OlFFFFIhKEqSBKEhSISgJSKiQhRQWSEKKFKsqpCYCkISEopCFAoFRRRKWUQEqFKQgKLQWSFUJUllFFFBi1FFF4uhFFFFJEhCVIqBQKKRSEBIUiooolkhKqkKSwUQlQWCiAlaBCVUJUqsogJSEShIUikISEskJVVYJRCVVKlWMUUUXi90UUUUkUUUUiEqqsFJAlCQVIhKEhMFRIQooLKBASoFIQEhMBSEKBKWSEKBQKiiiUQlVCsoFIVQlMCygQClKf/2Q==" alt="ENEVO Group" style="width:52px;height:52px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
-    <div>
-      <div class="cl" style="margin-bottom:2px">ENEVO GROUP · ERP System</div>
-      <div style="font-size:13px;color:#94a3b8">Industrial & Renewable Energy Automation</div>
-    </div>
-  </div>
-  <div class="ct">${title}</div><div class="cs">${subtitle}</div>
-  <div class="cm"><div><label>Generated</label><span>${now}</span></div><div><label>System</label><span>ENEVO GROUP</span></div><div><label>Status</label><span>Confidential</span></div></div>
-  </div><div class="body">`;
-  sections.forEach(s=>{html+=s;});
-  html+=`</div>
-  <script>window.onload=()=>window.print()<\/script></body></html>`;
-  win.document.write(html); win.document.close();
-}
-
-/* ─── VACATION / LEAVE REPORT PDF ─── */
-function buildVacationPDF(engineers, allEntries, leaveEntries, projects, m, y){
-  const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
-  const typeColors={"Annual Leave":"#0ea5e9","Sick Leave":"#ef4444","Public Holiday":"#f97316","Business Travel":"#8b5cf6","Training External":"#10b981","Unpaid Leave":"#6b7280"};
-
-  // Monthly data
-  const leaveByEng=engineers.map(eng=>{
-    const engLeave=leaveEntries.filter(e=>String(e.engineer_id)===String(eng.id));
-    const byType={};
-    engLeave.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
-    return{...eng,totalDays:engLeave.length,byType,entries:engLeave.sort((a,b)=>a.date.localeCompare(b.date))};
-  }).filter(e=>e.totalDays>0);
-
-  // YTD data
-  const ytdByEng=engineers.map(eng=>{
-    const all=allEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave"&&new Date(e.date).getFullYear()===y);
-    const byType={};
-    all.forEach(e=>{const lt=e.leave_type||"Annual Leave";byType[lt]=(byType[lt]||0)+1;});
-    return{...eng,total:all.length,byType};
-  }).filter(e=>e.total>0);
-
-  const thStyle=`style="background:#f0f7ff;color:#0f2a50;font-size:11px;padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0"`;
-  const tdStyle=`style="font-size:11px;padding:5px 8px;text-align:center;border-bottom:1px solid #f1f5f9"`;
-  const nameTd=`style="font-size:11px;padding:5px 8px;font-weight:600;border-bottom:1px solid #f1f5f9"`;
-
-  const monthlyRows=leaveByEng.map(eng=>{
-    const cells=leaveTypes.map(lt=>{
-      const n=eng.byType[lt]||0;
-      return`<td ${tdStyle} style="font-size:11px;padding:5px 8px;text-align:center;border-bottom:1px solid #f1f5f9;color:${n>0?typeColors[lt]:"#94a3b8"};font-weight:${n>0?700:400}">${n||"—"}</td>`;
-    }).join("");
-    return`<tr><td ${nameTd}>${eng.name}<br><span style="font-weight:400;color:#64748b;font-size:10px">${eng.role||""}</span></td>${cells}<td ${tdStyle} style="font-size:11px;padding:5px 8px;text-align:center;border-bottom:1px solid #f1f5f9;font-weight:700;color:#0f2a50">${eng.totalDays}d</td></tr>`;
-  }).join("");
-
-  const ytdRows=ytdByEng.map(eng=>{
-    const cells=leaveTypes.map(lt=>{
-      const n=eng.byType[lt]||0;
-      return`<td ${tdStyle} style="font-size:11px;padding:5px 8px;text-align:center;border-bottom:1px solid #f1f5f9;color:${n>0?typeColors[lt]:"#94a3b8"};font-weight:${n>0?700:400}">${n||"—"}</td>`;
-    }).join("");
-    return`<tr><td ${nameTd}>${eng.name}</td>${cells}<td ${tdStyle} style="font-size:11px;padding:5px 8px;text-align:center;border-bottom:1px solid #f1f5f9;font-weight:700;color:#0f2a50">${eng.total}d</td></tr>`;
-  }).join("");
-
-  const detailRows=leaveByEng.map(eng=>{
-    const chips=eng.entries.map(e=>`<span style="display:inline-block;margin:2px;padding:2px 7px;border-radius:3px;font-size:10px;background:${typeColors[e.leave_type||"Annual Leave"]}20;color:${typeColors[e.leave_type||"Annual Leave"]};border:1px solid ${typeColors[e.leave_type||"Annual Leave"]}40;font-family:'IBM Plex Mono',monospace">${e.date} · ${e.leave_type||"Annual Leave"}</span>`).join("");
-    return`<tr><td style="padding:8px;border-bottom:1px solid #f1f5f9;vertical-align:top;width:120px;font-size:11px;font-weight:600">${eng.name}</td><td style="padding:8px;border-bottom:1px solid #f1f5f9">${chips}</td></tr>`;
-  }).join("");
-
-  const thCols=leaveTypes.map(lt=>`<th ${thStyle} style="background:#f0f7ff;color:${typeColors[lt]};font-size:11px;padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0">${lt}</th>`).join("");
-
-  generatePDF(
-    `Vacation & Leave Report — ${MONTHS_[m]} ${y}`,
-    [
-      `<div class="section"><div class="st">${MONTHS_[m]} ${y} — Leave Summary</div>
-      ${leaveByEng.length===0?`<p style="color:#94a3b8;font-size:13px;text-align:center;padding:20px">No leave recorded for ${MONTHS_[m]} ${y}.</p>`:`
-      <table><thead><tr><th style="background:#f0f7ff;color:#0f2a50;font-size:11px;padding:6px 8px;border-bottom:2px solid #e2e8f0">Engineer</th>${thCols}<th ${thStyle} style="background:#f0f7ff;color:#0f2a50;font-size:11px;padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0">Total</th></tr></thead>
-      <tbody>${monthlyRows}</tbody></table>`}
-      </div>`,
-      `<div class="section"><div class="st">Year-to-Date ${y} — All Leave</div>
-      ${ytdByEng.length===0?`<p style="color:#94a3b8;font-size:13px;text-align:center;padding:20px">No leave recorded for ${y}.</p>`:`
-      <table><thead><tr><th style="background:#f0f7ff;color:#0f2a50;font-size:11px;padding:6px 8px;border-bottom:2px solid #e2e8f0">Engineer</th>${thCols}<th ${thStyle} style="background:#f0f7ff;color:#0f2a50;font-size:11px;padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0">YTD Total</th></tr></thead>
-      <tbody>${ytdRows}</tbody></table>`}
-      </div>`,
-      leaveByEng.length>0?`<div class="section"><div class="st">Leave Detail — ${MONTHS_[m]} ${y}</div>
-      <table><thead><tr><th style="background:#f0f7ff;font-size:11px;padding:6px 8px;border-bottom:2px solid #e2e8f0;width:120px">Engineer</th><th style="background:#f0f7ff;font-size:11px;padding:6px 8px;border-bottom:2px solid #e2e8f0">Leave Days</th></tr></thead>
-      <tbody>${detailRows}</tbody></table></div>`:""
-    ],
-    `Leave & Vacation Report · ${MONTHS_[m]} ${y}`
-  );
-}
-
-/* ─── INDIVIDUAL TIMESHEET PDF ─── */
-function buildTimesheetPDF(eng, monthEntries, projects, m, y){
-  const workE = monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date));
-  const leaveE= monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave").sort((a,b)=>a.date.localeCompare(b.date));
-  const totalW= workE.reduce((s,e)=>s+e.hours,0);
-  const totalL= leaveE.length;
-  const projMap={};
-  workE.forEach(e=>{
-    const p=projects.find(x=>x.id===e.project_id);
-    if(!projMap[e.project_id]) projMap[e.project_id]={id:e.project_id,name:p?.name||"Unknown",hours:0};
-    projMap[e.project_id].hours+=e.hours;
-  });
-  const projRows=Object.values(projMap).sort((a,b)=>b.hours-a.hours).map(p=>`<tr>
-    <td style="font-weight:600">${p.name||p.id}${p.pm?"<br><span style='font-size:10px;color:#8b5cf6'>PM: "+p.pm+"</span>":""}</td>
-    <td style="font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-size:11px">${p.id}</td>
-    <td style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#0ea5e9">${p.hours}h</td>
-    <td>${totalW?Math.round(p.hours/totalW*100):0}%</td></tr>`).join("");
-  const entryRows=workE.map(e=>{
-    const p=projects.find(x=>x.id===e.project_id);
-    return`<tr>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${e.date}</td>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#0ea5e9">${e.project_id||""}</td>
-      <td style="font-size:11px">${p?.name||""}</td>
-      <td style="font-size:11px">${e.task_category||""}</td>
-      <td style="font-size:11px">${e.task_type||""}</td>
-      <td style="font-style:italic;font-size:11px;max-width:200px">${e.activity||""}</td>
-      <td style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#0ea5e9">${e.hours}h</td></tr>`;}).join("");
-  const leaveRows=leaveE.map(e=>`<tr>
-    <td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${e.date}</td>
-    <td style="color:#fb923c;font-size:11px">${e.leave_type}</td>
-    <td>8h</td></tr>`).join("");
-
-  generatePDF(
-    `Monthly Timesheet — ${eng.name}`,
-    [
-      `<div class="section"><div class="st">Engineer Information</div>
-      <div class="kg" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kp"><div class="kv">${totalW}h</div><div class="kl">Work Hours</div></div>
-        <div class="kp"><div class="kv">${totalL}d</div><div class="kl">Leave Days</div></div>
-        <div class="kp"><div class="kv">${Object.keys(projMap).length}</div><div class="kl">Projects</div></div>
-      </div></div>`,
-      `<div class="section"><div class="st">Project Summary</div>
-      <table><thead><tr><th>Project No.</th><th>Project Name</th><th>Hours</th><th>Share %</th></tr></thead>
-      <tbody>${projRows||`<tr><td colspan="4" style="color:#94a3b8;text-align:center;padding:12px">No work entries for ${MONTHS[m]} ${y}</td></tr>`}</tbody></table></div>`,
-      `<div class="section"><div class="st">Daily Work Log — ${MONTHS[m]} ${y}</div>
-      <table><thead><tr><th>Date</th><th>Project No.</th><th>Project Name</th><th>Category</th><th>Task</th><th>Activity Description</th><th>Hours</th></tr></thead>
-      <tbody>${entryRows||`<tr><td colspan="7" style="color:#94a3b8;text-align:center;padding:12px">No entries</td></tr>`}</tbody></table></div>`,
-      leaveE.length>0?`<div class="section"><div class="st">Leave / Absence Log</div>
-      <table><thead><tr><th>Date</th><th>Leave Type</th><th>Duration</th></tr></thead>
-      <tbody>${leaveRows}</tbody></table></div>`:"",
-      `<div class="section" style="margin-top:40px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:20px">
-        <div style="border-top:1px solid #e2e8f0;padding-top:8px"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.08em">Engineer Signature</div><div style="margin-top:4px;font-size:13px;color:#0f2a50;font-weight:600">${eng.name}</div><div style="font-size:11px;color:#94a3b8">${eng.role||""}</div></div>
-        <div style="border-top:1px solid #e2e8f0;padding-top:8px"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.08em">Approved By</div><div style="margin-top:20px;border-bottom:1px solid #e2e8f0;width:200px"></div></div>
-      </div></div>`
-    ],
-    `${eng.role||"Engineer"} · ${MONTHS[m]} ${y}`
-  );
-}
-
-/* ─── INVOICE PDF ─── */
-// filterId: undefined = all projects, or a specific project id
-function buildInvoicePDF(projects, entries, engineers, m, y, filterId){
-  // Include all billable projects (filter by id if specified)
-  const billableProjs=projects.filter(p=>p.billable&&(!filterId||p.id===filterId));
-  // Derive billability from CURRENT project flag, not stale entry.billable
-  // Use UTC+12h shift to match the import date parsing
-  const monthE=entries.filter(e=>{
-    const d=new Date(new Date(e.date+"T12:00:00").getTime());
-    return d.getFullYear()===y&&d.getMonth()===m&&e.entry_type==="work"
-      &&projects.find(p=>p.id===e.project_id&&p.billable);
-  });
-  const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-  const invoiceNo=filterId?`INV-${y}-${String(m+1).padStart(2,"0")}-${filterId}`:`INV-${y}-${String(m+1).padStart(2,"0")}`;
-
-  const projInvoice=billableProjs.map(p=>{
-    const pe=monthE.filter(e=>e.project_id===p.id);
-    if(!pe.length) return null;
-    const hrs=pe.reduce((s,e)=>s+e.hours,0);
-    const rev=hrs*p.rate_per_hour;
-    const engBreak=[...new Set(pe.map(e=>e.engineer_id))].map(eid=>{
-      const eng=engineers.find(x=>x.id===eid);
-      const eh=pe.filter(e=>e.engineer_id===eid).reduce((s,e)=>s+e.hours,0);
-      return`<tr style="background:#f8fafc"><td style="padding-left:20px;font-size:11px;color:#64748b">↳ ${eng?.name||"Unknown"}</td><td></td><td style="font-size:11px;color:#64748b">${eh}h</td><td></td></tr>`;
-    }).join("");
-    return{p,hrs,rev,rows:`<tr style="background:#f0f7ff">
-      <td style="font-weight:600">${p.name||p.id}<br>${p.pm?"<span style='font-size:10px;color:#8b5cf6'>PM: "+p.pm+"</span><br>":""}<span style="font-size:11px;color:#64748b">${p.client||""}</span></td>
-      <td style="font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700;font-size:11px">${p.id}</td>
-      <td style="font-family:'IBM Plex Mono',monospace;font-weight:700">${hrs}h</td>
-      <td style="font-family:'IBM Plex Mono',monospace">$${p.rate_per_hour}/h</td>
-      <td style="font-family:'IBM Plex Mono',monospace;font-weight:700;color:#0ea5e9">${fmtCurrency(rev)}</td></tr>${engBreak}`};
-  }).filter(Boolean);
-
-  const totalRev=projInvoice.reduce((s,x)=>s+x.rev,0);
-  const totalHrs=projInvoice.reduce((s,x)=>s+x.hrs,0);
-
-  generatePDF(
-    `Invoice — ${MONTHS[m]} ${y}`,
-    [
-      `<div class="section">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
-        <div>
-          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.1em">Invoice From</div>
-          <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
-            <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCADwAPADASIAAhEBAxEB/8QAHQABAAIDAQEBAQAAAAAAAAAAAQACBQYHCAQJA//EAEoQAAEDAwIDBAQGDwgBBQAAAAEAAgMEBQYHEQgSIRMxQVEUFSJhGDJCVnGBFjdDUmJydYKRlaGis9LTCSMkM1OSlKOTF2OFsbL/xAAZAQEBAQEBAQAAAAAAAAAAAAABAAIEAwX/xAAkEQEBAQACAgICAgMBAAAAAAAAAQIDERIhMUEEEyJRIzOx8P/aAAwDAQACEQMRAD8A8yhRASvqPjLKBASkEJQEqVKiAlIRKEhSKUJCWSEqqsEohKqlSpUCiiYyUhAUSFkhCikVYKqQoFKEhIKiiikiiiigxSQqpC53VSrBVSmApCEhKKUKBQKiiiUsogJUCkKoStBZIVQlSWUQlQQJQkJFISqpSFgogJUiEoCUslKAlSRRRRSrEhKqkLndRCUJUFlEBK0ClASpUhRASmBEoSFIpQkJBCVVISFglVSpFRRRMBSFUJSyskKqVIpCEqBShISCohKkxCQhRc7qWUCAlSKQhITGSkIUSlkgoUUCooolFKAlQISFUJTAskKoSlLKISoIlCgSKsEqqsEhAUoT4KRCVVWTGSlVCVJiVFAoud1IrKqQpEJQkKBBSqqy0CEqoSpLBRASmBEhCikskIUCRVkqqQkEJQkKRUUUTAUhVCUsrKBASpFIQoFCrJCN0hIYgJQkLnjrRIQooLKBfXZbXc71cI7dZ7dV3Gtl+JT0sLpJHfmtBO3vXS7bw7aw18AmZiDqdpG4FTWwRO/2l+4RdSfNamda+I5UkLsHwaNY/m3SfrSD+ZaPqNgGU6e3Glt+V0EVHUVcJmhbHUMlDmB3KTu0nbqqbzfUovHqTuxrCQt5060kzvUC01F1xW1U9ZSU85p5HyVkcRDw0O22cQT0cOq/rn+juoWCWNt7yWyR01AZmwmWKqjm5XO35eYNJIB2237t9h4p8899drw11316aEoFFuem+l+aahwVs2KW2CsZQvYyoMlVHFylwJb8YjfoD3Jtk91iZtvUaaotm1EwTJtP7tT2rKaKKjq6iD0iJkdQyUGPmLd92kgdWnotZWpZZ3FZZeqQUrf8Y0W1RyOnZU23DbgKeQbslqiyma4eY7QtJH1LPjhr1i+bdIP/AJOD+ZZ/ZmfbX6t36ci3UXSMw0O1KxHG6vIb9Zaamt1GGmaRtfFIW8zg0ey07nq4L+mLaE6l5Pj1Ff7JZ6Kqt1bH2kEvrGFvMN9uoJ3BBBBB7iE/sz132z+vffXTmqgWUyvH7tiuRVmP32k9EuNG4Nmi5g4DdocCCOhBBB3Cxa3L2zZ0sor0kE1XVQ0tNG6WeaRscTGjcvc4gNA95JAXU7jw86rW631FwrbHQwUtNE6aaR1zg2YxoJcT7XgAVm6mfmqY1r4jlKQiMOkc1rGuc55Aa0DcknuAHn7l03F9BdVb/TMqqfFpKKneN2vuEzKckefK48/7q1dTPzRMa18RzNWXaKjhh1Wih546SzTu/wBOO4gO/eaB+1cwzHFchw68eqMmtc1treQSNjkLTzMJIDmlpIIJBG4PgjPJnXxVrj3n3YwwShIW2CEqqsmMsQO5IVUrmdiy+q0W+ru12o7Vb4TNWVk7KeCMfKke4NaP0kL5N11nhGtkVz1/xxszeZlL29Xt+FHE7lP+4gq1ep2s58tSPaekenmN6VYW2jpW07ahkPa3O5SANdO8DdznOPcwddm9wA89yuM5nxe2iiuk1LiuLS3WljcWtrKqq9HbLt8prA1zuU+BOx9wXdNZMbu+XaZ3vGbFW09FXXGAQNmnLgxrC5vODygnqzmHd4ryt8EDPPnNjX/f/IuPj8L73Xdyeeepxxl/hjXf5h0P6zf/AE1yDXbVOp1VvluutVZYbU6hpXU4ZHUGUPBfzb7lo2XSfggZ3858b/7/AORct1n0vvGlt5oLXebjQV0tbTuqGOpOflaA7l2PMB13Xvj9ff8AH5c3J+7x/l8PTfAH9rC+flt38CJduyq2WHNLDe8Sr3xVMMkXo1bE1274S9gew+5wBa5p8wFxHgD+1hfPy27+BEsZlGo3/p9xi1sdfP2djvNFRUtdzH2YnchEc35rjsT964+S8NZut3p041M8ee3lrO8ZuWG5fcsZuzdqugmMZdtsJW97JB7nNIcPpXp7+z3O9szNvlUUh/ckWT43tOPXONQ6gWuDmrrSzs7gGDrJSk9H+8xuO/4rneSxH9ns7/CZqz/3aI/uzL23vz4u3jjj8ObpqvHx9tKxfkQfx5FuXBfpPbfUUWo1/o46msqZHC0xytDmwRtJaZtj8tzgdj4AbjvWl8fpI1PspHeLECP/ADyr1zpzbIrNgGP2mFgYykttPDsPdG3f9u6xrVnFJPtrjxNc2rfpznW/iAxzTa6+oobfNe72GB8tPFKI46cOG7e0eQfaI68oBO3U7bjfk54wrqSdsEotvDe5v/pq+dcMGf5Nml6yGTJceBuNdLUgPM3M1rnEtafY8G8o+pYYcIedfObG/wDv/kWszhk90b1z2+p6Y7VPiTuOeYHc8TnxKkoY69rGmoZXOkLOWRr+jSwb/F27/Fb7wH5t2tDdcCrJvbpybhQBx+Q4gSsH0O5Xbfhlcy1I4ccrwXCrhlVyv1kqaWgax0kVOJe0dzPawbczQO9wXOtLssqMHz+z5RTlxFDUAzsb90hd7MrfrYT9ey9PDGsWYeP7N45JdvQPHlhvY3Cz53SRbMnb6uriB8tu7onH6Rzt+pq8thfpPqnjdHqPpRc7PTSRzNuNGJqCYdR2gAkheD5bhv1Er82pY5IZXxTsMUkbi2RjuhY4HYg/QQU/jb7z1/S/Kx478p9u18G+GfZNqxFd6mLnoMfjFY8kdDOd2wt+o8z/AMwLuvGtmfqDTSPG6WXlrcgl7FwB6tpmbOlP1nkZ+cVmuEjDPsS0hoqmph7O43o+sKjcbODXACJh+hmx+lxXlXiezE5vq7c5KabtKC3n1bREHcFrCQ94/GkLjv5ALzn+Tl7+o9L/AIuDr7rvHBxpTQW/G6bUG90jJ7rcAX24St39Fg7g9oPc9/U7+DdgO8r0kAvgx2gitdgt9sgaGxUlLFAwDwaxgaP/AKX3rm3u713XZx4mMyR/OqnhpqaWoqJWRQxML5HvOzWtA3JJ8gF5a0PmoNYNc8/yS8W+KvsktuFDBBOzdogdIBGNvAlsRduOoLisvxcamg08umWOVQNbUxGS91DT7NJSgczmE+BcOrvJuw73hfbwTWeCyabPvFSTFPklyeKVrh1fHCxwaP3JSvXOfDjuvuvDWvPlmZ8R5n10wKTTnUWtx9rpJaFzRU2+V/xnwP32BPi5pDmk+PLv4rRgvVPH7bog7Ebu1v8Aek1NK8+bdmPb+3m/SvKy7eHXliWvnc+JjkshSEAqL1eNYlIQoud1rLr3B7cIaDiAsHbODW1UdTTAn750Li0fWW7fWuQL78eutbYr7QXq2ydnWUFTHUwOPcHscHDf3dNj7kancsOb46lfpFrxkt7xDSi95NjrKZ9woI45WNqIy9nJ2jQ8kAjuaSe/wXkk8V2qe/8AlY5/wH/1F6000zjFtW8DdU0vYzx1EBgudtlIL4HObs+N7fFp3Ozu5w/ZwzJeDymmuUs2O5m6konvJjp6yi7Z0Q+952vHMB5kb+e65eO4nc3Hbyzeuriuf/Cu1T/0sc/4D/6i51qtqTkepd1orlkjaBs9HA6CL0SExt5S7mO4Ljud13EcHN2+ftD+rH/1FyDXfSyp0pvtutVTeobq6upXVAkjpzEGAP5dti47r2xePv8Ai5uTPL4/y+HpPgC+1hfPy27+BEuKcazdtea7cdHW6kP7rgu1cAX2r75+W3fwIlxrjdbtrrMfO10p/wD2s4/3V6b/ANEegOEzUCDUHTKTGr49lVdLREKOqZL19JpnAtjeQe/du7He9u571ThswKfTfUjULHuV5t8hoqm2yu+6U7jPyjfxLSCw/i7+K8i6LZ3V6dahW/JIOd9Mx3Y18LT/AJ1O4jnb9I2Dh72hfpRa6yjuVvprlQTR1FNVQtlhmZ1D2OG7SD5EHdefLm4t6+K3wanJJb8x4w4/dzqdZQO/1ENv/PKvX2C3CK64TZLnA4Ojq7fTzNIPg6NpXkPj5+2lYvyIP48i3vgx1ZttVjlNpzfKplPcqIuba3SO2FTCSSIwT8thJAHi3bbuK1rNvFLBx7mebUv20fNeJXVKw5jerGYLA0W+4T0wD6F5dyskIbv/AHnkAViPhV6o/wCnjv8AwH/1F3jW/h0seoeQPyO3Xd9iu0zQKoinEsVQQAGuc3dpa7YAEg9QBuN+q5n8D27fPuh/Vj/6i1nXDZ7jG8c8vqub55xA59muJ12MXlllFBXBrZjBSOZJs17XjYl526tHguTrvWqfDXcMDwK55ZPl1LXsoGscadlA6Mv5pGs+MXnb42/d4Lgq6OO4s/i5uWbl/m9ycFWbfZFpk7HKubmr8fkEA3PV1M7cxH6tnM/NC5fqjo6+v4rKK0QU5FmyKT1rMWjoyNp3qm+7dw/7QuccMubfYPq3bKuom7O23A+r67c7NDJCOV5/Ffyn6N1+hbqamfVx1j4InVETHRxyloLmNcQXAHvAJa3fz5R5Ll5LeLds+3XxSc3HJfpoPEDmDMA0kut0pXNhrHxCit7W9NppBytI/FG7vzV+dAeYyJASSz2tyep26r0RxyZp63zqiw+kl5qWyxdrUgHoamUA7H8WPl/3led10fj48cd/25/yt+W+v6fqZaLjT1lgpLqJWNp56VlQHl2zQxzA7cny2K4DrRxDRio+w7Strr1fqp/o4radnaxxvPTlhH3WT3/FHf17l54xuvzbUWhgxSvzimt2P2eibzi41wp6aGnZ0BLBsZnDoNup7u5fReMuxnDLbUWLTH0iesnY6GvymqZ2dRMw9DHTM+4Rnxd8Yj9K8s8El9+3tv8AJtz69T/3w/nX2Oqfe6fTq0VTbrld6rWsvte2TtWtlLub0dr/AJTYzvJK/wCU9u3czr6+t9NSWnUrCsAtHSkx6w1FbKB5EMp4ife7eYrnPCPpezErHPqTlkbaOrnpXOo2Tjl9EpduZ8rt/iueB9TR+EVsvD7dWZBcM41hvEjKOgudUKagkqHBjYaGmBAcSegBJJPvBWeXXffX1/08OfHq35v/ACNJ4/q6LscQtjXAy9pVVDm+TQI2A/pJ/QvKS6JxE6gM1F1KqrvRl/qqljFJb+YbF0TSSX7eHO4l30cq50Cuvhzc4kri/I3N8lsIShIXq8WICUBK53UQlVSpMlj97vGP3JlysV0rLZWsGzZ6WZ0b9vIkd49x6LpNBxG6x0cIibl3bgeNRQQPd+nk3XJQlVzL8wzWs/Fdi+ExrH85KT9VwfyrR9RdQMq1CuNLcMrr4q2opYTDC5lOyINYXcxGzQN+q1VIKJjM+ILvV9Wt7061bzzT+01FrxW7QUdJUTmokY+jjlJeWhu+7gSOjR0WFz3Mcgzm/m+5LVx1deYWQdoyFsQ5G77DlaAPE9Vr6QnxkvYur1136I710rDdctTcRx2lx+x3+KG3UgIgjlo4pSxpJPKHOBO25Ow8FzRITZNfIzq5+K2fUTPMn1Au9Pdcqro6yrp4PR43sp2RAR8xdts0AHq49VrbXFrg5pIIO4IOxB81VITJJ6gtt910fHtctV7FTspqLNK+SFg5Wsq2R1Ow8t5Gl37VmvhK6xfOSk/VkH8q4+kI8Mf0Zybn26RmOuOpWXY3V47fr3T1NtrA0TxNoIoy4NcHD2mjcdWjuXOAtp01wK/5/d56CyNpooqSHt62sq5eyp6WL757vDuPQdeh8AStldphjDCWv1pwTmHfyumcP0hvVXeMeofHe/dcxPUELrdHxGavUtJDSxZLAY4Y2xtL7fC5xAGw3JbuT07ysJp7pm7LMVvGTVGV2aw2y01TKaeevbIWkvA5SC0dASQFlGaNTXS319Rh+d4plVVQU7qmagoZntqHRt7y1rhs7by3HgPEI1rF9VZzySd5c5vd0rr1eay8XOodUV1bO+eolIA53uO5Ow6D6B3L5Atz0606u2Y26vvXrC22SwW7YVl2uUpjgjcRuGN2G737EdB5jzCzlXpDJWWC4XnCszsGYNtkXbVtJQ9pHUxxjveI3jdwG3h9W56Lfnmemf16s7cx2B23AO3ULL4hem49kVJejabddnUr+0ZTV7HPhc8dxc1pG+x6gHpv3grJUWFVlVpdX5+yuphRUdyjt7qctd2jnvDSHA923tD39E6X4TW57kM9loK2mo5YaKasMk7XOaWx7bt9nrueZN1Or2zM67nTetS+IjNc5xOoxqqobVbKSqLRUvohJ2krAdywlzjs0nbfbv227iVz28Zrk91xuhxqru0wslBG2Ont8IEUA268zmt253bknmdudySs9p9pocqwu45bV5XZsftlBVspJZLg2Qjne1pb1aPHmA+lfXedJKqPErlk2NZfjmWUVqAfcGWyV/bU7D8sscOreh+oE9disT9eb1G7+3U8q5sEo7kr3c9WUQEqTEJCEhc7qKQhRSWSqhIVAVFFEghKAlSKQqhKWVlAgJSllAgJUK7dpaH/AAW9VTQb+l+k0fpPJ8b0fdu+/wCDt2m/u3VtFMR0hz68WzF54s3gvk1I6SpnbVU7aXtI2cz+QcpcGk77b/Wuc6aZ7kGAXia4WN9PIyqh7Cso6uLtKeqi+9e3cb952III3PgSFvGOa4UuO3ll6smlOE264sa5rZ6Zk0bgHDZwGzugIXlrOvfTozrF67+md0bjxwcO2okWVT3WG0NvNI2Z9uYx9QNizl5Q/wBnv23926zWlEOBWew5Xlek897veVW60y/4K9uZAYad3+ZMxrG7SEco9nm93TcLidqzmvt+nmQYVHQ0r6S+VcVVNO5zu0jdG5pAaO7Y8vj5o0xzevwO+Vd1oKKmrTV0E1DLDUOcGmOTl3Ps9dxyhV47exOSTp0HJN/gdYj6ASYDkdQbgW9xl/veTm+rl2+pfz4NjONdaHl39H9X1fpe/wAXsuQfG93NyLT9OdSLthtprrCbfbL7j1wIdV2q5xGSF7wAA9pHVjtgOo8h03AWWr9W56ewV9mwzELBh0Nyj7GuqLe176maM97O1ed2tPkP2JuddXPXyJrPc1b8NgtwifwnZgKQbwszCFzdvCM9mGn6NiF/PhCBGptzkI2azHa1zj5D2Oq0vTXUO64TDcqCK3268WW6sDK+13CIvgm2+K7p1a4eY93ToNs3W6uSU1guNnw3DcexCO5xGGuqaBr5KmWM97BI8+y07+A+jZNzrq5/tZ3nuat+G26P2+y3Thgy2kv+Qtx+gdfqQvrTSPqAwhkRaORnU7np7l89qvmnWm+DZdSY3mFTl17yK3+row21yUsFNGeYOc4v7z7RPTyA26krm9szWuoNM7rgcdFSuornXRVslQS7tWOj5dmtHdt7A7/NawmcfdvbN5JJOp76Hd0CQoovZzlIQEhIYlRRRc7qIKUBKkQlVSpLBRASkVEhCigskIUChVglVSFoEJQkKRCUKBQKQhRKWUCAlQpSEDuUWgskIUCksooooIEoStCsUoooud0okISpFQKKKSyVUJVAVFFEghKqFZSIKiAlIWUCAlIKUBKlSogJSCFEJCkQlCQlkhKqrJRCVVKlSoFFExli1FFF4OlFFFFIhKEqSBKEhSISgJSKiQhRQWSEKKFKsqpCYCkISEopCFAoFRRRKWUQEqFKQgKLQWSFUJUllFFFBi1FFF4uhFFFFJEhCVIqBQKKRSEBIUiooolkhKqkKSwUQlQWCiAlaBCVUJUqsogJSEShIUikISEskJVVYJRCVVKlWMUUUXi90UUUUkUUUUiEqqsFJAlCQVIhKEhMFRIQooLKBASoFIQEhMBSEKBKWSEKBQKiiiUQlVCsoFIVQlMCygQClKf/2Q==" style="width:36px;height:36px;border-radius:6px;object-fit:contain"/>
-            <div style="font-size:16px;font-weight:700;color:#0f2a50">ENEVO Group</div>
-          </div>
-          <div style="font-size:13px;color:#64748b;margin-top:2px">ENEVO Group</div>
-          <div style="font-size:13px;color:#64748b">Industrial & Renewable Energy Automation</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:#0ea5e9">${invoiceNo}</div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px">Period: ${MONTHS[m]} ${y}</div>
-          <div style="font-size:12px;color:#64748b">Date: ${now}</div>
-        </div>
-      </div>
-      <div class="kg" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kp"><div class="kv">${fmtCurrency(totalRev)}</div><div class="kl">Total Billable</div></div>
-        <div class="kp"><div class="kv">${totalHrs}h</div><div class="kl">Billable Hours</div></div>
-        <div class="kp"><div class="kv">${projInvoice.length}</div><div class="kl">Projects Billed</div></div>
-      </div></div>`,
-      `<div class="section"><div class="st">Billable Services Detail</div>
-      <table><thead><tr><th>Project No.</th><th>Project / Client</th><th>Hours</th><th>Rate</th><th>Amount</th></tr></thead>
-      <tbody>${projInvoice.map(x=>x.rows).join("")}
-      <tr style="background:#0f2a50;color:#fff"><td colspan="2" style="font-weight:700;font-size:13px">TOTAL</td>
-      <td style="font-family:'IBM Plex Mono',monospace;font-weight:700">${totalHrs}h</td><td></td>
-      <td style="font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:15px">${fmtCurrency(totalRev)}</td></tr>
-      </tbody></table></div>`,
-      `<div class="section" style="margin-top:30px">
-      <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px">
-        <div style="font-size:12px;font-weight:700;color:#0f2a50;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Payment Terms</div>
-        <div style="font-size:12px;color:#64748b;line-height:1.7">
-          Payment due within 30 days of invoice date.<br>
-          Please reference invoice number <strong>${invoiceNo}</strong> in all correspondence.<br>
-          For queries contact: ENEVO Group Management
-        </div>
-      </div></div>`
-    ],
-    `Invoice No. ${invoiceNo} · For Finance & Management`
-  );
-}
-
-/* ─── SIGNUP SCREEN ─── */
-/* ── UNDO HELPER — used by all delete operations ──
-   Removes from UI immediately, gives 5s undo window, fires DB delete after. */
+import { fmtEGP, fmtEGPsigned, JournalLedger, BalanceSheetView, ExpensesView, CashCustodyView, TaxSocialView, FixedAssetsView, FinanceReports, AccountantGuide, ActivityLogTab, FinanceTab } from './components/FinanceTab.jsx';
+import { LOGO_SRC, LogoImg, PDF_STYLE, pdfHeader, pdfFooter, generatePDF, buildVacationPDF, buildTimesheetPDF, buildInvoicePDF } from './pdfHelpers.jsx';
 function applyUndo(showToast, label, removeUI, restoreUI, dbDelete, logFn){
   removeUI();
   let undone = false;
-  showToast(label + " — Undo?", false, ()=>{
+  showToast(label + " â€” Undo?", false, ()=>{
     undone = true;
     restoreUI();
-    showToast("Undo successful ✓");
+    showToast("Undo successful âœ“");
   });
   setTimeout(async()=>{
     if(undone) return;
     const err = await dbDelete();
-    if(err){ restoreUI(); showToast("Delete failed — restored", false); }
+    if(err){ restoreUI(); showToast("Delete failed â€” restored", false); }
     else logFn?.();
   }, 3100);
 }
 
-/* ── CONFIRM DIALOG — replaces window.confirm everywhere ── */
+/* â”€â”€ CONFIRM DIALOG â€” replaces window.confirm everywhere â”€â”€ */
 function ConfirmModal({dlg}){
   React.useEffect(()=>{
     if(!dlg) return;
@@ -448,7 +33,7 @@ function ConfirmModal({dlg}){
     <div style={{position:"fixed",inset:0,background:"#00000099",backdropFilter:"blur(6px)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}
       onClick={e=>{if(e.target===e.currentTarget)dlg.onCancel&&dlg.onCancel();}}>
       <div style={{background:"var(--bg1)",border:`1px solid ${dlg.danger?"#f8711860":"var(--border3)"}`,borderRadius:12,padding:"28px 28px 22px",width:390,maxWidth:"92vw",boxShadow:"0 24px 60px #00000090"}}>
-        <div style={{fontSize:22,marginBottom:8,lineHeight:1}}>{dlg.icon||"⚠"}</div>
+        <div style={{fontSize:22,marginBottom:8,lineHeight:1}}>{dlg.icon||"âڑ "}</div>
         <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:8}}>{dlg.title||"Are you sure?"}</div>
         <div style={{fontSize:13,color:"var(--text3)",marginBottom:24,lineHeight:1.6}}>{dlg.message}</div>
         <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
@@ -474,7 +59,7 @@ function SignupScreen({onBack}){
     const {data,error}=await supabase.auth.signUp({email:form.email,password:form.password});
     if(error){setErr(error.message);setLoading(false);return;}
     if(data.user){
-      // New accounts always get 'engineer' — only admin can upgrade later
+      // New accounts always get 'engineer' â€” only admin can upgrade later
       await supabase.from("engineers").insert({
         user_id:data.user.id,name:form.name.trim(),role:form.role,
         level:form.level,email:form.email,role_type:"engineer",
@@ -490,7 +75,7 @@ function SignupScreen({onBack}){
         });
       }
     }
-    setErr("✓ Account created! Check your email to confirm, then sign in.");
+    setErr("âœ“ Account created! Check your email to confirm, then sign in.");
     setLoading(false);
   };
   return(
@@ -507,23 +92,23 @@ function SignupScreen({onBack}){
       <div><Lbl>Email</Lbl><input type="email" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} placeholder="you@company.com"/></div>
       <div><Lbl>Password</Lbl><input type="password" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} placeholder="Min 6 characters"/></div>
       <div style={{background:"var(--bg3)",border:"1px solid #0ea5e930",borderRadius:6,padding:"8px 12px",fontSize:13,color:"var(--info)"}}>
-        ℹ Account role is set to <strong>Engineer</strong> by default. Your admin can upgrade your access level after registration.
+        â„¹ Account role is set to <strong>Engineer</strong> by default. Your admin can upgrade your access level after registration.
       </div>
-      {err&&<div style={{padding:"8px 12px",borderRadius:6,fontSize:14,background:err.startsWith("✓")?"var(--bg3)":"var(--err-bg)",color:err.startsWith("✓")?"#34d399":"#f87171",border:`1px solid ${err.startsWith("✓")?"#34d399":"#f87171"}`}}>{err}</div>}
-      <button className="bp" onClick={handle} disabled={loading} style={{width:"100%",justifyContent:"center",padding:11}}>{loading?"Creating…":"Create Account"}</button>
-      <div style={{textAlign:"center",fontSize:14,color:"var(--text4)",cursor:"pointer"}} onClick={onBack}>← Back to Sign In</div>
+      {err&&<div style={{padding:"8px 12px",borderRadius:6,fontSize:14,background:err.startsWith("âœ“")?"var(--bg3)":"var(--err-bg)",color:err.startsWith("âœ“")?"#34d399":"#f87171",border:`1px solid ${err.startsWith("âœ“")?"#34d399":"#f87171"}`}}>{err}</div>}
+      <button className="bp" onClick={handle} disabled={loading} style={{width:"100%",justifyContent:"center",padding:11}}>{loading?"Creatingâ€¦":"Create Account"}</button>
+      <div style={{textAlign:"center",fontSize:14,color:"var(--text4)",cursor:"pointer"}} onClick={onBack}>â†گ Back to Sign In</div>
     </div>
   );
 }
 
 const Lbl=({children})=><div style={{fontSize:13,color:"var(--text3)",marginBottom:4}}>{children}</div>;
 
-/* ════════════════════════════════════════════
+/* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
    MAIN APP
-════════════════════════════════════════════ */
+â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 
-/* ── Projects Page Component (extracted to avoid IIFE hook issues) ── */
-/* ── Edit Project Activities (standalone component — hooks-safe) ── */
+/* â”€â”€ Projects Page Component (extracted to avoid IIFE hook issues) â”€â”€ */
+/* â”€â”€ Edit Project Activities (standalone component â€” hooks-safe) â”€â”€ */
 function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setProjStatusFilter,
   monthEntries,projStats,isAdmin,isAcct,isLead,setShowProjModal,setEditProjModal,deleteProject,fmtCurrency,
   activities,setActivities,engineers,supabase,showToast,setProjects,showConfirm}){
@@ -552,7 +137,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
       if(setActivities)setActivities(prev=>[...prev,data]);
     }
     setPvActModal(null);
-    if(showToast)showToast("Activity saved ✓");
+    if(showToast)showToast("Activity saved âœ“");
   };
   // confirmPvAdd: called from AddActivityModal
   const confirmPvAdd=async({category,activity_name,start_date,end_date,assigned_to})=>{
@@ -581,7 +166,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
       }
     }
     setPvActModal(null);
-    if(showToast)showToast("Activity added ✓");
+    if(showToast)showToast("Activity added âœ“");
   };
   const delPvAct=async(id)=>{
     const act=(activities||[]).find(a=>a.id===id);
@@ -615,7 +200,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
           <div>
             <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>SEARCH</div>
             <input value={projSearch} onChange={e=>setProjSearch(e.target.value)}
-              placeholder="Name, ID, client…" style={{width:180}}/>
+              placeholder="Name, ID, clientâ€¦" style={{width:180}}/>
           </div>
           {/* Status chips */}
           <div>
@@ -664,8 +249,8 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                   <span style={{fontSize:12,padding:"2px 7px",borderRadius:3,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,
                     background:p.status==="Active"?"#05603a30":p.status==="On Hold"?"#7c2d1230":"var(--border)",
                     color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span>
-                  {canManage&&<button style={{background:"#0ea5e9",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:13,cursor:"pointer"}} onClick={()=>setEditProjModal({...p})}>✎</button>}
-                  {isAdmin&&<button style={{background:"#ef4444",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:13,cursor:"pointer"}} onClick={()=>deleteProject(p.id)}>✕</button>}
+                  {canManage&&<button style={{background:"#0ea5e9",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:13,cursor:"pointer"}} onClick={()=>setEditProjModal({...p})}>âœژ</button>}
+                  {isAdmin&&<button style={{background:"#ef4444",border:"none",borderRadius:4,padding:"2px 6px",color:"#fff",fontSize:13,cursor:"pointer"}} onClick={()=>deleteProject(p.id)}>âœ•</button>}
                 </div>
               </div>
               {/* Tracker completion bar */}
@@ -678,7 +263,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                 return(
                   <div style={{marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                      <span style={{fontSize:12,color:"var(--text4)"}}>Tracker Progress · {done}/{pActs.length} activities</span>
+                      <span style={{fontSize:12,color:"var(--text4)"}}>Tracker Progress آ· {done}/{pActs.length} activities</span>
                       <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:barColor}}>{pct}%</span>
                     </div>
                     <div style={{background:"var(--bg3)",height:5,borderRadius:3,overflow:"hidden"}}>
@@ -691,7 +276,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                 {p.pm&&<div><span style={{color:"var(--text4)"}}>PM: </span><span style={{color:"#a78bfa",fontWeight:600}}>{p.pm}</span></div>}
                 {p.client&&<div><span style={{color:"var(--text4)"}}>Client: </span>{p.client}</div>}
                 {p.origin&&<div><span style={{color:"var(--text4)"}}>Origin: </span>{p.origin}</div>}
-                <div><span style={{color:"var(--text4)"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase||"—"}</span></div>
+                <div><span style={{color:"var(--text4)"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase||"â€”"}</span></div>
                 {(isAdmin||isAcct)&&<div><span style={{color:"var(--text4)"}}>Rate: </span>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",color:p.billable?"#a78bfa":"var(--text4)"}}>
                     {p.billable?`$${p.rate_per_hour}/h`:"Non-Billable"}
@@ -727,8 +312,8 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                           <span style={{fontFamily:"'IBM Plex Mono',monospace",color:
                             a.status==="Completed"?"#34d399":a.status==="In Progress"?"var(--info)":"var(--text3)",
                             marginLeft:6,whiteSpace:"nowrap"}}>{Math.round((a.progress||0)*100)}%</span>
-                          <button onClick={()=>openPvAct(p.id,a)} style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:13,padding:"0 3px"}}>✎</button>
-                          <button onClick={()=>delPvAct(a.id)} style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:13,padding:"0 3px"}}>✕</button>
+                          <button onClick={()=>openPvAct(p.id,a)} style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:13,padding:"0 3px"}}>âœژ</button>
+                          <button onClick={()=>delPvAct(a.id)} style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:13,padding:"0 3px"}}>âœ•</button>
                         </div>
                       ))}
                       {pActs.length>5&&<div style={{fontSize:12,color:"var(--text4)",textAlign:"center"}}>+{pActs.length-5} more</div>}
@@ -741,7 +326,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
         })}
       </div>
 
-      {/* Activity Modal — reuses same AddActivityModal/ActivityEditModal as Tracker */}
+      {/* Activity Modal â€” reuses same AddActivityModal/ActivityEditModal as Tracker */}
       {pvActModal&&!pvActModal.act&&(
         <AddActivityModal
           projId={pvActModal.projId} subId={null} defaultCat={null}
@@ -761,7 +346,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
 }
 
 
-/* ─── PROJECT TASKS ANALYSIS PDF ─── */
+/* â”€â”€â”€ PROJECT TASKS ANALYSIS PDF â”€â”€â”€ */
 function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurrency, isAdmin, isAcct, periodLabel){
   try{
   const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
@@ -795,11 +380,11 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
   const infoRows=[
     ["Project ID",p.id],
     ["Project Name",p.name],
-    ["Client",p.client||"—"],
-    ["Project Manager",p.pm||"—"],
-    ["Phase",p.phase||"—"],
-    ["Status",p.status||"—"],
-    ["Type",p.type||"—"],
+    ["Client",p.client||"â€”"],
+    ["Project Manager",p.pm||"â€”"],
+    ["Phase",p.phase||"â€”"],
+    ["Status",p.status||"â€”"],
+    ["Type",p.type||"â€”"],
     ...(isAdmin||isAcct?[
       ["Billing",p.billable?"Billable at $"+p.rate_per_hour+"/h":"Non-Billable"],
       ...(p.billable&&p.rate_per_hour>0?[["Revenue",fmtCurrency(pm.totalHrs*p.rate_per_hour)]]:[] ),
@@ -814,7 +399,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
       </tbody></table>
     </div>`;
 
-  // Task breakdown — bars + table
+  // Task breakdown â€” bars + table
   const taskBars=tasksSorted.map(([task,data])=>{
     const tpct=pm.totalHrs?Math.round(data.hrs/pm.totalHrs*100):0;
     const col=taskColorMap[task]||"#0ea5e9";
@@ -838,7 +423,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
 
   const taskSection=`
     <div class="section">
-      <div class="st">Task Breakdown — ${tasksSorted.length} Task Types</div>
+      <div class="st">Task Breakdown â€” ${tasksSorted.length} Task Types</div>
       ${taskBars}
       <table style="margin-top:14px">
         <thead><tr><th>Task Type</th><th style="text-align:right">Hours</th><th style="text-align:right">Share</th><th style="text-align:right">Engineers</th></tr></thead>
@@ -856,7 +441,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
   // Engineer contribution
   const engSection=`
     <div class="section">
-      <div class="st">Engineer Contributions — ${engList.length} Engineers</div>
+      <div class="st">Engineer Contributions â€” ${engList.length} Engineers</div>
       ${engList.map(eng=>{
         const epct=pm.totalHrs?Math.round(eng.hrs/pm.totalHrs*100):0;
         const topTask=Object.entries(eng.tasks).sort((a,b)=>b[1]-a[1])[0];
@@ -888,7 +473,7 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
             <td style="font-weight:500">${eng.name}</td>
             <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700">${eng.hrs}h</td>
             <td style="text-align:right;font-family:'IBM Plex Mono',monospace">${epct}%</td>
-            <td style="color:#64748b;font-size:12px">${topTask?topTask[0]+" ("+topTask[1]+"h)":"—"}</td></tr>`;
+            <td style="color:#64748b;font-size:12px">${topTask?topTask[0]+" ("+topTask[1]+"h)":"â€”"}</td></tr>`;
         }).join("")}</tbody>
       </table>
     </div>`;
@@ -915,19 +500,19 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
     </div>`:"";
 
   // Build full PDF using shared PDF_STYLE + fixed header/footer
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Project Report — ${p.id}</title><style>${PDF_STYLE}</style></head><body>
-  ${pdfHeader(`Project Analysis · ${p.id}`, `${periodLabel||'All Time'}`, now)}
-  ${pdfFooter(`${p.name} — ${p.id}`, now)}
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Project Report â€” ${p.id}</title><style>${PDF_STYLE}</style></head><body>
+  ${pdfHeader(`Project Analysis آ· ${p.id}`, `${periodLabel||'All Time'}`, now)}
+  ${pdfFooter(`${p.name} â€” ${p.id}`, now)}
   <div class="cover">
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
       <img src="${LOGO_SRC}" alt="ENEVO Group" style="width:52px;height:52px;border-radius:10px;object-fit:contain;flex-shrink:0"/>
       <div>
-        <div class="cl" style="margin-bottom:2px">ENEVO GROUP · Project Tasks Analysis</div>
+        <div class="cl" style="margin-bottom:2px">ENEVO GROUP آ· Project Tasks Analysis</div>
         <div style="font-size:13px;color:#94a3b8">Industrial & Renewable Energy Automation</div>
       </div>
     </div>
     <div class="ct">${p.name}</div>
-    <div class="cs">Project ID: ${p.id} · ${periodLabel||'All Time'}</div>
+    <div class="cs">Project ID: ${p.id} آ· ${periodLabel||'All Time'}</div>
     <div class="cm">
       <div><label>Generated</label><span>${now}</span></div>
       <div><label>Total Hours</label><span>${pm.totalHrs}h</span></div>
@@ -951,12 +536,12 @@ function buildProjectTasksPDF(pm, grandTotal, month, year, MONTHS_ARR, fmtCurren
 }
 
 
-/* ─── FINANCE P&L PDF ─── */
+/* â”€â”€â”€ FINANCE P&L PDF â”€â”€â”€ */
 function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate}){
   const totalPayrollUSD=totalPayrollUSDeff; // alias for PDF use
   const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
   const period=`${MONTHS_[finMonth]} ${finYear}`;
-  const netSign=netPL>=0?"▲ PROFIT":"▼ LOSS";
+  const netSign=netPL>=0?"â–² PROFIT":"â–¼ LOSS";
   const marginPct=monthRevUSD>0?Math.round(netPL/monthRevUSD*100):0;
 
   const kpiCards=(items)=>items.map(k=>`
@@ -970,12 +555,12 @@ function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDef
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
       <img src="${LOGO_SRC}" style="width:52px;height:52px;border-radius:10px;object-fit:contain"/>
       <div>
-        <div class="cl">ENEVO GROUP · Financial Report</div>
+        <div class="cl">ENEVO GROUP آ· Financial Report</div>
         <div style="font-size:13px;color:#94a3b8">Profit & Loss Statement</div>
       </div>
     </div>
-    <div class="ct">P&L Report — ${period}</div>
-    <div class="cs">Generated: ${now} · CONFIDENTIAL</div>
+    <div class="ct">P&L Report â€” ${period}</div>
+    <div class="cs">Generated: ${now} آ· CONFIDENTIAL</div>
     <div class="cm">
       <div><label>Revenue</label><span>$${monthRevUSD.toLocaleString()}</span></div>
       <div><label>Total Cost</label><span>$${totalCostUSD.toLocaleString()}</span></div>
@@ -987,7 +572,7 @@ function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDef
 
   const plSection=`
   <div class="section">
-    <div class="st">Profit & Loss Summary — ${period}</div>
+    <div class="st">Profit & Loss Summary â€” ${period}</div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
       ${kpiCards([
         {l:"Revenue",     v:fmtCurrency(monthRevUSD),   c:"#16a34a"},
@@ -999,10 +584,10 @@ function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDef
     <table>
       <thead><tr><th>Item</th><th style="text-align:right">USD</th><th style="text-align:right">EGP</th><th style="text-align:right">Notes</th></tr></thead>
       <tbody>
-        <tr style="background:#f0fdf4"><td style="font-weight:700;color:#16a34a">Revenue — Billable Projects</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#16a34a">${fmtCurrency(monthRevUSD)}</td><td style="text-align:right">—</td><td style="font-size:11px;color:#64748b">Derived from project billing rates × hours</td></tr>
+        <tr style="background:#f0fdf4"><td style="font-weight:700;color:#16a34a">Revenue â€” Billable Projects</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#16a34a">${fmtCurrency(monthRevUSD)}</td><td style="text-align:right">â€”</td><td style="font-size:11px;color:#64748b">Derived from project billing rates أ— hours</td></tr>
         <tr><td style="font-weight:600;color:#dc2626">Total Payroll</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#dc2626;font-weight:700">${fmtCurrency(totalPayrollUSD)}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#ea580c">EGP ${totalPayrollEGP.toLocaleString()}</td><td style="font-size:11px;color:#64748b">${activeStaff.length} active staff</td></tr>
         <tr><td style="font-weight:600;color:#ea580c">Office & Other Expenses</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#ea580c;font-weight:700">${fmtCurrency(totalExpUSD)}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#a78bfa">EGP ${totalExpEGP.toLocaleString()}</td><td style="font-size:11px;color:#64748b">${monthExp.length} expense entries</td></tr>
-        <tr style="background:#0f2a50;color:#fff"><td style="font-weight:700">NET PROFIT / LOSS</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:16px;color:${netColor}">${netPL>=0?"+":""}${fmtCurrency(netPL)}</td><td style="text-align:right;color:#94a3b8">—</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:${netColor}">${marginPct}% margin</td></tr>
+        <tr style="background:#0f2a50;color:#fff"><td style="font-weight:700">NET PROFIT / LOSS</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:16px;color:${netColor}">${netPL>=0?"+":""}${fmtCurrency(netPL)}</td><td style="text-align:right;color:#94a3b8">â€”</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:${netColor}">${marginPct}% margin</td></tr>
       </tbody>
     </table>
   </div>`;
@@ -1034,15 +619,15 @@ function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDef
         <td style="font-size:10px"><span style="padding:2px 5px;border-radius:3px;background:#dbeafe;color:#1e40af">${(s.type||"full_time").replace("_"," ")}</span></td>
         <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#dc2626">${fmtCurrency(s.salary_usd||0)}</td>
         <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#ea580c">EGP ${(s.salary_egp||0).toLocaleString()}</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#0ea5e9">${s.join_date||'—'}</td>
-        <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:${s.termination_date?'#dc2626':'#94a3b8'}">${s.termination_date||'—'}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#0ea5e9">${s.join_date||'â€”'}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:${s.termination_date?'#dc2626':'#94a3b8'}">${s.termination_date||'â€”'}</td>
       </tr>`).join("")}</tbody>
     </table>
   </div>`;
 
   const expSection=`
   <div class="section">
-    <div class="st">Expense Detail — ${period} (${monthExp.length} entries)</div>
+    <div class="st">Expense Detail â€” ${period} (${monthExp.length} entries)</div>
     ${monthExp.length===0?`<p style="color:#94a3b8;font-size:12px;padding:10px 0">No expenses recorded for ${period}.</p>`:`
     <table>
       <thead><tr><th>Category</th><th>Description</th><th style="text-align:right">USD</th><th style="text-align:right">EGP</th><th>Notes</th></tr></thead>
@@ -1058,7 +643,7 @@ function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDef
 
   const projSection=projProfit.length>0?`
   <div class="section">
-    <div class="st">Per-Project Profitability — ${period}</div>
+    <div class="st">Per-Project Profitability â€” ${period}</div>
     <div style="font-size:11px;color:#64748b;margin-bottom:8px">Cost allocated proportionally by hours worked on each billable project.</div>
     <table>
       <thead><tr><th>Project</th><th style="text-align:right">Revenue</th><th style="text-align:right">Alloc. Cost</th><th style="text-align:right">Net P&L</th><th style="text-align:right">Margin</th><th style="text-align:right">Hours</th></tr></thead>
@@ -1066,7 +651,7 @@ function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDef
         const margin=p.rev>0?Math.round(p.net/p.rev*100):0;
         const c=p.net>=0?"#16a34a":"#dc2626";
         return`<tr>
-          <td style="font-weight:600">${p.name} — ${p.id}</td>
+          <td style="font-weight:600">${p.name} â€” ${p.id}</td>
           <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#16a34a;font-weight:700">${fmtCurrency(p.rev)}</td>
           <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#dc2626">${fmtCurrency(Math.round(p.allocatedCost))}</td>
           <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${c}">${p.net>=0?"+":""}${fmtCurrency(Math.round(p.net))}</td>
@@ -1104,13 +689,13 @@ function buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDef
   </div>`;
 
   generatePDF(
-    `P&L Report — ${period}`,
+    `P&L Report â€” ${period}`,
     [plSection, deptSection, staffSection, expSection, projSection, ytdSection],
-    `Financial Statement · ${period} · CONFIDENTIAL`
+    `Financial Statement آ· ${period} آ· CONFIDENTIAL`
   );
 }
 
-/* ─── ALL PROJECTS COMBINED PDF ─── */
+/* â”€â”€â”€ ALL PROJECTS COMBINED PDF â”€â”€â”€ */
 function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAdmin, isAcct, periodLabel){
   const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
   const TASK_COLORS=["#0ea5e9","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#4ade80","#f472b6","#60a5fa"];
@@ -1157,7 +742,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
         <td style="font-weight:600;color:#0f172a;padding:5px 8px">${eng.name}</td>
         <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700;padding:5px 8px">${eng.hrs}h</td>
         <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#334155;font-weight:600;padding:5px 8px">${epct}%</td>
-        <td style="color:#475569;font-size:11px;padding:5px 8px">${top?top[0]+" ("+top[1]+"h)":"—"}</td>
+        <td style="color:#475569;font-size:11px;padding:5px 8px">${top?top[0]+" ("+top[1]+"h)":"â€”"}</td>
       </tr>`;
     }).join("");
 
@@ -1165,7 +750,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
       <div style="margin-top:10px;padding-top:8px;border-top:1px solid #e2e8f0">
         <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
           <span style="color:#64748b">Billable coverage</span>
-          <span style="font-family:'IBM Plex Mono',monospace;color:#10b981;font-weight:700">${billPct}%${p.rate_per_hour>0?" · "+fmtCurrency(pm.totalHrs*p.rate_per_hour):""}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;color:#10b981;font-weight:700">${billPct}%${p.rate_per_hour>0?" آ· "+fmtCurrency(pm.totalHrs*p.rate_per_hour):""}</span>
         </div>
         <div style="background:#e2e8f0;height:6px;border-radius:3px;overflow:hidden">
           <div style="height:100%;width:${billPct}%;background:linear-gradient(90deg,#34d399,#10b981);border-radius:3px"></div>
@@ -1177,13 +762,13 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
       <!-- Project header banner -->
       <div style="background:linear-gradient(135deg,#0a1628,#0f2a50);border-radius:10px;padding:18px 22px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-start">
         <div>
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.18em;color:#38bdf8;margin-bottom:5px;font-weight:700">${idx+1} of ${projList.length}  ·  ${p.id}</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.18em;color:#38bdf8;margin-bottom:5px;font-weight:700">${idx+1} of ${projList.length}  آ·  ${p.id}</div>
           <div style="font-size:20px;font-weight:700;color:#ffffff;margin-bottom:4px;letter-spacing:-.01em">${p.name||p.id}</div>
-          <div style="font-size:12px;color:#94a3b8;margin-top:2px;font-weight:500">${p.client?"Client: "+p.client+"  ·  ":""} Phase: ${p.phase||"—"}${p.type?"  ·  "+p.type:""}${p.pm?"  ·  PM: "+p.pm:""}</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:2px;font-weight:500">${p.client?"Client: "+p.client+"  آ·  ":""} Phase: ${p.phase||"â€”"}${p.type?"  آ·  "+p.type:""}${p.pm?"  آ·  PM: "+p.pm:""}</div>
         </div>
         <div style="text-align:right">
           <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:#38bdf8;line-height:1">${pm.totalHrs}h</div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:3px;font-weight:500">${pct}% of total  ·  ${pm.days} days active</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:3px;font-weight:500">${pct}% of total  آ·  ${pm.days} days active</div>
           <div style="display:flex;gap:5px;margin-top:5px;justify-content:flex-end">
             <span style="font-size:10px;padding:2px 6px;border-radius:3px;background:${p.status==="Active"?"#024b36":"#1e3a5f"};color:${p.status==="Active"?"#34d399":"#60a5fa"}">${p.status||"Active"}</span>
             ${p.billable?`<span style="font-size:10px;padding:2px 6px;border-radius:3px;background:#0c2b4e;color:#38bdf8">BILLABLE</span>`:""}
@@ -1207,7 +792,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
       <!-- Two columns: task breakdown + engineer contribution -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px">
         <div>
-          <div style="font-size:11px;font-weight:700;color:#0e4880;text-transform:uppercase;letter-spacing:.1em;padding-bottom:6px;border-bottom:2px solid #0ea5e9;margin-bottom:10px">Task Breakdown · ${tasksSorted.length} types</div>
+          <div style="font-size:11px;font-weight:700;color:#0e4880;text-transform:uppercase;letter-spacing:.1em;padding-bottom:6px;border-bottom:2px solid #0ea5e9;margin-bottom:10px">Task Breakdown آ· ${tasksSorted.length} types</div>
           ${taskBars||"<div style='color:#94a3b8;font-size:12px'>No task data</div>"}
         </div>
         <div>
@@ -1225,7 +810,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
       </div>
       ${billBar}
       <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:7px;font-size:10px;color:#64748b;display:flex;justify-content:space-between;font-weight:500">
-        <span>ENEVO Group  ·  Project Tasks Analysis  ·  ${periodLabel||"All Time"}</span>
+        <span>ENEVO Group  آ·  Project Tasks Analysis  آ·  ${periodLabel||"All Time"}</span>
         <span>Project ${idx+1} of ${projList.length}</span>
       </div>
     </div>`;
@@ -1247,14 +832,14 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
     </tr>`;
   }).join("");
 
-  // Build summary rows — 100% explicit inline styles, zero inheritance
+  // Build summary rows â€” 100% explicit inline styles, zero inheritance
   const coverSummaryRows = projList.map((pm,i)=>{
     const pct   = grandTotal ? Math.round(pm.totalHrs/grandTotal*100) : 0;
     const bPct  = pm.totalHrs ? Math.round(pm.billableHrs/pm.totalHrs*100) : 0;
     const rowBg = i%2===0 ? "#0f2845" : "#0c1e36";
     const stBg  = pm.proj.status==="Active" ? "#064e3b" : pm.proj.status==="Completed" ? "#1e3a5f" : "#431407";
     const stCol = pm.proj.status==="Active" ? "#6ee7b7" : pm.proj.status==="Completed" ? "#93c5fd" : "#fdba74";
-    // Hours bar — visual width relative to max
+    // Hours bar â€” visual width relative to max
     const barW  = grandTotal ? Math.max(4, Math.round(pm.totalHrs/grandTotal*120)) : 4;
     const displayName = (pm.proj.name && pm.proj.name.trim()) ? pm.proj.name : pm.proj.id;
     return `<tr>
@@ -1298,7 +883,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
         <div style="font-size:15px;color:#4a6580;font-weight:500">Period: ${periodLabel||"All Time"}</div>
       </div>
 
-      <!-- KPI CARDS — 4 columns -->
+      <!-- KPI CARDS â€” 4 columns -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
         ${[
           {l:"Total Hours",   v:grandTotal+"h",   c:"var(--info)", border:"#1d4e6a"},
@@ -1318,7 +903,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
     <div style="padding:28px 52px 44px;background:#060e1c">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
         <div style="width:3px;height:16px;background:#0ea5e9;border-radius:2px"></div>
-        <div style="font-size:11px;font-weight:700;color:#0ea5e9;text-transform:uppercase;letter-spacing:.18em">Project Summary — ${projList.length} Projects</div>
+        <div style="font-size:11px;font-weight:700;color:#0ea5e9;text-transform:uppercase;letter-spacing:.18em">Project Summary â€” ${projList.length} Projects</div>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead>
@@ -1339,7 +924,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
       <div style="margin-top:28px;padding-top:14px;border-top:1px solid #0d1e30;display:flex;align-items:center;justify-content:space-between">
         <div style="display:flex;align-items:center;gap:8px">
           <img src="${LOGO_SRC}" style="width:20px;height:20px;border-radius:4px;object-fit:contain;opacity:.5"/>
-          <span style="font-size:10px;color:#1e3a52;font-family:'IBM Plex Mono',monospace">ENEVO Group EC-ERP · Confidential</span>
+          <span style="font-size:10px;color:#1e3a52;font-family:'IBM Plex Mono',monospace">ENEVO Group EC-ERP آ· Confidential</span>
         </div>
         <span style="font-size:10px;color:#1e3a52;font-family:'IBM Plex Mono',monospace">${now}</span>
       </div>
@@ -1349,10 +934,10 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
   const projectPages=projList.map((pm,i)=>buildProjectBlock(pm,i)).join("");
 
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
-    <title>All Projects Report — ${periodLabel||"All Time"}</title>
+    <title>All Projects Report â€” ${periodLabel||"All Time"}</title>
     <style>${PDF_STYLE}</style>
   </head><body>
-    ${pdfHeader("Project Tasks Analysis · All Projects", periodLabel||"All Time", now)}
+    ${pdfHeader("Project Tasks Analysis آ· All Projects", periodLabel||"All Time", now)}
     ${pdfFooter("All Projects Report", now)}
     ${coverHTML}
     ${projectPages}
@@ -1364,7 +949,7 @@ function buildAllProjectsPDF(projList, grandTotal, MONTHS_ARR, fmtCurrency, isAd
   else{alert("Please allow popups for this site to export PDFs.");}
 }
 
-/* ── ProjectTasksReport Component ── */
+/* â”€â”€ ProjectTasksReport Component â”€â”€ */
 function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fmtPct,isAdmin,isAcct}){
   const [selProj,setSelProj]=useState("ALL");
   // "ALL" means all-time, otherwise "YYYY-MM"
@@ -1428,7 +1013,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
         <div>
           <h2 style={{fontSize:18,fontWeight:700,color:"var(--text0)",margin:0}}>Project Tasks Analysis</h2>
           <p style={{fontSize:14,color:"var(--text4)",marginTop:4}}>
-            {filterMonth==="ALL"?"All Time":filterMonth} · {projList.length} projects · {grandTotal}h total
+            {filterMonth==="ALL"?"All Time":filterMonth} آ· {projList.length} projects آ· {grandTotal}h total
           </p>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
@@ -1445,7 +1030,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
           <select value={selProj} onChange={e=>setSelProj(e.target.value)}
             style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif"}}>
             <option value="ALL">All Projects</option>
-            {projList.map(x=><option key={x.proj.id} value={x.proj.id}>{x.proj.name} — {x.proj.id} ({x.totalHrs}h)</option>)}
+            {projList.map(x=><option key={x.proj.id} value={x.proj.id}>{x.proj.name} â€” {x.proj.id} ({x.totalHrs}h)</option>)}
           </select>
           {/* Export buttons */}
           {selProj==="ALL"
@@ -1453,7 +1038,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                 const label=filterMonth==="ALL"?"All Time":filterMonth;
                 buildAllProjectsPDF(displayList,grandTotal,MONTHS,fmtCurrency,isAdmin,isAcct,label);
               }}>
-                ⬇ Export All ({projList.length})
+                â¬‡ Export All ({projList.length})
               </button>
             : <button className="bp" onClick={()=>{
                 const label=filterMonth==="ALL"?"All Time":filterMonth;
@@ -1461,7 +1046,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                 const pm=displayList[0];
                 if(pm) buildProjectTasksPDF(pm,grandTotal,fm?fm-1:null,fy,MONTHS,fmtCurrency,isAdmin,isAcct,label);
               }}>
-                ⬇ Export PDF
+                â¬‡ Export PDF
               </button>
           }
         </div>
@@ -1532,12 +1117,12 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                 <div style={{fontSize:17,fontWeight:700,color:"var(--text0)"}}>{pm.proj.name}</div>
                 {pm.proj.project_leader&&<div style={{fontSize:13,color:"var(--text2)",marginTop:1,fontWeight:700}}>Leader: <span style={{color:"var(--info)"}}>{pm.proj.project_leader}</span></div>}
                 {pm.proj.pm&&<div style={{fontSize:13,color:"var(--text3)",marginTop:1}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{pm.proj.pm}</span></div>}
-                {pm.proj.client&&<div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Client: {pm.proj.client} · Phase: {pm.proj.phase||"—"}</div>}
+                {pm.proj.client&&<div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Client: {pm.proj.client} آ· Phase: {pm.proj.phase||"â€”"}</div>}
               </div>
               <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
                 <button className="bp" style={{fontSize:13,padding:"5px 10px"}}
                   onClick={()=>{const label=filterMonth==="ALL"?"All Time":filterMonth;const [fy,fm]=filterMonth!=="ALL"?filterMonth.split("-").map(Number):[null,null];buildProjectTasksPDF(pm,grandTotal,fm?fm-1:null,fy,MONTHS,fmtCurrency,isAdmin,isAcct,label);}}>
-                  ⬇ PDF
+                  â¬‡ PDF
                 </button>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:26,fontWeight:700,color:"var(--info)",lineHeight:1}}>{pm.totalHrs}h</div>
                 <div style={{fontSize:13,color:"var(--text4)"}}>{pct}% of month total</div>
@@ -1551,7 +1136,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
                 {l:"Engineers", v:Object.keys(pm.engineers).length, c:"var(--info)"},
                 {l:"Task Types",v:tasksSorted.length,               c:"#a78bfa"},
                 {l:"Work Days", v:pm.days,                     c:"#34d399"},
-                {l:"Avg/Day",   v:pm.days?Math.round(pm.totalHrs/pm.days*10)/10+"h":"—", c:"#fb923c"},
+                {l:"Avg/Day",   v:pm.days?Math.round(pm.totalHrs/pm.days*10)/10+"h":"â€”", c:"#fb923c"},
               ].map((s,i)=>(
                 <div key={i} style={{background:"var(--bg2)",borderRadius:6,padding:"8px 10px"}}>
                   <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em"}}>{s.l}</div>
@@ -1635,7 +1220,7 @@ function ProjectTasksReport({allEntries,projects,engineers,MONTHS,fmtCurrency,fm
   );
 }
 
-/* ── VacationReport Component ── */
+/* â”€â”€ VacationReport Component â”€â”€ */
 function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onExport,isAdmin,vacationBalances={},setVacBalance,showToast}){
   const [vacSearch,setVacSearch] = React.useState("");
   const leaveTypes=["Annual Leave","Sick Leave","Public Holiday","Business Travel","Training External","Unpaid Leave"];
@@ -1663,12 +1248,12 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18,gap:12,flexWrap:"wrap"}}>
         <div>
           <h2 style={{fontSize:18,fontWeight:700,color:"var(--text0)",margin:0}}>Vacation & Leave Report</h2>
-          <p style={{fontSize:14,color:"var(--text4)",marginTop:4}}>{MONTHS[month]} {year} · {monthly.filter(e=>!vacSearch||e.name.toLowerCase().includes(vacSearch.toLowerCase())).length} engineers</p>
+          <p style={{fontSize:14,color:"var(--text4)",marginTop:4}}>{MONTHS[month]} {year} آ· {monthly.filter(e=>!vacSearch||e.name.toLowerCase().includes(vacSearch.toLowerCase())).length} engineers</p>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <input value={vacSearch} onChange={e=>setVacSearch(e.target.value)} placeholder="Search engineer…"
+          <input value={vacSearch} onChange={e=>setVacSearch(e.target.value)} placeholder="Search engineerâ€¦"
             style={{padding:"7px 12px",borderRadius:7,border:"1px solid var(--border3)",background:"var(--bg2)",color:"var(--text0)",fontSize:13,minWidth:160,outline:"none"}}/>
-          <button style={{background:"#0ea5e9",border:"none",borderRadius:6,padding:"8px 16px",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={onExport}>⬇ Export PDF</button>
+          <button style={{background:"#0ea5e9",border:"none",borderRadius:6,padding:"8px 16px",color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={onExport}>â¬‡ Export PDF</button>
         </div>
       </div>
 
@@ -1681,7 +1266,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
       {/* Monthly summary */}
       <div className="card" style={{marginBottom:14,overflowX:"auto"}}>
-        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>{MONTHS[month]} {year} — Monthly Summary</h4>
+        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>{MONTHS[month]} {year} â€” Monthly Summary</h4>
         {monthly.length===0
           ? <p style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:20}}>No leave recorded for {MONTHS[month]} {year}. Import timesheets first.</p>
           : <table style={{minWidth:600}}>
@@ -1703,7 +1288,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
                   </td>
                   {leaveTypes.map(lt=>(
                     <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"var(--text4)",fontWeight:eng.byType[lt]?700:400}}>
-                      {eng.byType[lt]||"—"}
+                      {eng.byType[lt]||"â€”"}
                     </td>
                   ))}
                   <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--text0)"}}>{eng.total}d</td>
@@ -1715,7 +1300,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
       {/* YTD summary */}
       <div className="card" style={{marginBottom:14,overflowX:"auto"}}>
-        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Year-to-Date {year} — All Leave</h4>
+        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:12}}>Year-to-Date {year} â€” All Leave</h4>
         {ytd.length===0
           ? <p style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:20}}>No leave recorded for {year}.</p>
           : <table style={{minWidth:600}}>
@@ -1729,7 +1314,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
                   <td style={{fontSize:14,fontWeight:600}}>{eng.name}</td>
                   {leaveTypes.map(lt=>(
                     <td key={lt} style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",color:eng.byType[lt]?typeColors[lt]:"var(--text4)",fontWeight:eng.byType[lt]?700:400}}>
-                      {eng.byType[lt]||"—"}
+                      {eng.byType[lt]||"â€”"}
                     </td>
                   ))}
                   <td style={{textAlign:"center",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--text0)"}}>{eng.total}d</td>
@@ -1739,12 +1324,12 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
         }
       </div>
 
-      {/* ── ANNUAL LEAVE BALANCE TRACKER ── */}
+      {/* â”€â”€ ANNUAL LEAVE BALANCE TRACKER â”€â”€ */}
       {(()=>{
         const yearBalances = (vacationBalances||{})[year]||{};
         const annualOnly   = allEntries.filter(e=>
           e.entry_type==="leave" && (e.leave_type==="Annual Leave"||!e.leave_type) &&
-          e.activity!=="PENDING_APPROVAL" &&  // exclude pending — not yet approved
+          e.activity!=="PENDING_APPROVAL" &&  // exclude pending â€” not yet approved
           new Date(e.date+"T12:00:00").getFullYear()===year
         );
         const rows = engineers
@@ -1762,7 +1347,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
           <div className="card" style={{marginBottom:14}}>
             {/* Header */}
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:10}}>
-              <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",margin:0}}>Annual Leave Balance — {year}</h4>
+              <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",margin:0}}>Annual Leave Balance â€” {year}</h4>
               {isAdmin&&(
                 <div style={{fontSize:13,color:"var(--text4)"}}>
                   Edit each person's entitlement in the <span style={{color:"var(--info)",fontWeight:600}}>Balance</span> column, then click Save
@@ -1788,7 +1373,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
               <tbody>
                 {rows.sort((a,b)=>b.used-a.used).map((eng,i)=>{
                   const barColor = eng.pct>=90?"#f87171":eng.pct>=60?"#fb923c":"#34d399";
-                  const status   = eng.pct>=100?"🚨 Exceeded":eng.pct>=90?"⚠ Critical":eng.pct>=60?"▲ High":"✓ Healthy";
+                  const status   = eng.pct>=100?"ًںڑ¨ Exceeded":eng.pct>=90?"âڑ  Critical":eng.pct>=60?"â–² High":"âœ“ Healthy";
                   return(
                     <tr key={eng.id} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
                       {/* Engineer */}
@@ -1801,12 +1386,12 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
                           </div>
                         </div>
                       </td>
-                      {/* Entitlement — editable for admin */}
+                      {/* Entitlement â€” editable for admin */}
                       <td style={{textAlign:"center",padding:"6px 10px"}}>
                         {isAdmin?(
                           <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
                             <button onClick={()=>setVacBalance&&setVacBalance(year,eng.id,eng.entitlement-1)}
-                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:26,height:30,cursor:"pointer",color:"var(--text2)",fontSize:16,lineHeight:1,flexShrink:0}}>−</button>
+                              style={{background:"var(--bg3)",border:"1px solid var(--border3)",borderRadius:4,width:26,height:30,cursor:"pointer",color:"var(--text2)",fontSize:16,lineHeight:1,flexShrink:0}}>âˆ’</button>
                             <input type="number" min={0} max={365} value={eng.entitlement}
                               onChange={e=>setVacBalance&&setVacBalance(year,eng.id,+e.target.value||0)}
                               style={{width:60,textAlign:"center",background:"var(--bg2)",border:"1px solid var(--info)",borderRadius:6,color:"var(--info)",fontSize:15,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,padding:"4px 6px",outline:"none"}}/>
@@ -1853,12 +1438,12 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
             {isAdmin&&(
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,paddingTop:10,borderTop:"1px solid var(--border3)"}}>
                 <span style={{fontSize:13,color:"var(--text4)"}}>
-                  💡 Balances are per-year and per-person. Changes are auto-saved when you click 💾 Save.
+                  ًں’، Balances are per-year and per-person. Changes are auto-saved when you click ًں’¾ Save.
                 </span>
                 <button className="bp" style={{fontSize:13,padding:"7px 22px",flexShrink:0}} onClick={()=>{
                   try{localStorage.setItem('ec_vacation_balances',JSON.stringify(vacationBalances));}catch(err){}
-                  showToast&&showToast("Vacation balances saved ✓");
-                }}>💾 Save</button>
+                  showToast&&showToast("Vacation balances saved âœ“");
+                }}>ًں’¾ Save</button>
               </div>
             )}
           </div>
@@ -1867,7 +1452,7 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
       {/* Per-engineer day detail */}
       {monthly.length>0&&<div>
-        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:10}}>Detail — Leave Days {MONTHS[month]} {year}</h4>
+        <h4 style={{fontSize:14,fontWeight:600,color:"var(--text2)",marginBottom:10}}>Detail â€” Leave Days {MONTHS[month]} {year}</h4>
         {monthly.map(eng=>(
           <div key={eng.id} className="card" style={{marginBottom:8}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -1900,11 +1485,11 @@ function VacationReport({engineers,leaveEntries,allEntries,month,year,MONTHS,onE
 
 
 
-/* ════════════════════════════════════════════════════════
+/* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
    PROJECT ACTIVITY TAXONOMY
-   ════════════════════════════════════════════════════════ */
+   â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 const ACTIVITY_TAXONOMY = {
-  /* ── SCADA ── */
+  /* â”€â”€ SCADA â”€â”€ */
   "Templates": [
     "Block Template","Turbine Template","ESS Template",
     "Inverter MA Template","Inverter MB Template","Inverter ME Template",
@@ -1952,7 +1537,7 @@ const ACTIVITY_TAXONOMY = {
     "110 kV Equipment Symbol","33 kV Equipment Symbol","20 kV Equipment Symbol","0.4 kV Equipment Symbol",
     "Animated Status Symbol","Alarm Indicator Symbol","Custom Symbol","Other Symbol",
   ],
-  /* ── RTU-PLC ── */
+  /* â”€â”€ RTU-PLC â”€â”€ */
   "RTU Configuration": [
     "Hardware Configuration","Communication Configuration",
     "Application & Protocol Configuration","RTU Settings",
@@ -1967,9 +1552,9 @@ const ACTIVITY_TAXONOMY = {
     "PLC Communication (Modbus TCP)","PLC Communication (Profibus)","PLC Communication (Profinet)",
     "PLC Communication (EtherNet/IP)","PLC Communication (IEC-61850)",
     "HMI Integration","PLC Alarm Configuration","PLC Data Logging",
-    "PLC Control Logic — Inverter","PLC Control Logic — Transformer",
-    "PLC Control Logic — Generator","PLC Control Logic — Feeder",
-    "PLC Control Logic — BESS","PLC Control Logic — Weather Station",
+    "PLC Control Logic â€” Inverter","PLC Control Logic â€” Transformer",
+    "PLC Control Logic â€” Generator","PLC Control Logic â€” Feeder",
+    "PLC Control Logic â€” BESS","PLC Control Logic â€” Weather Station",
     "PLC Interlock Logic","PLC Sequence Logic","PLC FAT Testing","PLC SAT Testing",
     "PLC Factory Acceptance Test","PLC Site Acceptance Test",
     "PLC Backup & Version Control","Other PLC",
@@ -1982,7 +1567,7 @@ const ACTIVITY_TAXONOMY = {
     "FAT Preparation","FAT Execution","SAT Preparation","SAT Execution",
     "Site Support","Remote Commissioning","Loop Check","Punch List Resolution","Other Commissioning",
   ],
-  /* ── Protection ── */
+  /* â”€â”€ Protection â”€â”€ */
   "Protection Relays": [
     "Siemens 7SJ82 Configuration","Siemens 7SJ82 IEC 61850 SCD",
     "Siemens 7SJ82 Protection Functions","Siemens 7SJ82 Protection Settings",
@@ -2000,7 +1585,7 @@ const ACTIVITY_TAXONOMY = {
     "End-to-End Testing","Trip Circuit Verification","Protection Commissioning",
     "COMTRADE Analysis","Other Protection Testing",
   ],
-  /* ── General ── */
+  /* â”€â”€ General â”€â”€ */
   "Documentation": [
     "TQ Register","Operating Manual","As-Built Documentation",
     "Test Procedures","Project Handover","Lessons Learned","Other Documentation",
@@ -2013,7 +1598,7 @@ const ACTIVITY_TAXONOMY = {
 };
 const TAXONOMY_CATS = Object.keys(ACTIVITY_TAXONOMY);
 
-/* ── Category Groups ── */
+/* â”€â”€ Category Groups â”€â”€ */
 const TAXONOMY_GROUPS = {
   "SCADA":      ["Templates","Database","Displays","Reports","Dashboard","GIS","Symbols"],
   "RTU-PLC":    ["RTU Configuration","PLC Programming","PPC","Commissioning"],
@@ -2027,13 +1612,13 @@ const TASK_TYPES = ACTIVITY_TAXONOMY;
 const CAT_TO_GROUP = {};
 Object.entries(TAXONOMY_GROUPS).forEach(([g,cats])=>cats.forEach(c=>{CAT_TO_GROUP[c]=g;}));
 
-/* ════════════════════════════════════════════════════════
-   PROJECT TRACKER — standalone component (no IIFE, no re-render loops)
-   ════════════════════════════════════════════════════════ */
+/* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+   PROJECT TRACKER â€” standalone component (no IIFE, no re-render loops)
+   â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 const STATUS_COLOR={"Completed":"#34d399","In Progress":"var(--info)","Not Started":"var(--text3)","On Hold":"#fb923c"};
 const STATUS_BG={"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started":"#1e293b40","On Hold":"#78350f30"};
 
-/* ── Inline category/activity editor modal ── */
+/* â”€â”€ Inline category/activity editor modal â”€â”€ */
 function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfile}){
   const initGroup = act.group_name && TAXONOMY_GROUP_NAMES.includes(act.group_name)
     ? act.group_name
@@ -2047,7 +1632,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
   const [commentText, setCommentText] = useState("");
   const [submitting,  setSubmitting]  = useState(false);
 
-  // ── LOCAL COMMENTS STATE ──
+  // â”€â”€ LOCAL COMMENTS STATE â”€â”€
   // Must be local state (not derived from act.comments prop) so that:
   //   a) comments accumulate visually while the modal is open
   //   b) clicking "Save Activity" includes the latest comments in the payload
@@ -2058,7 +1643,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
   };
   const [localComments, setLocalComments] = useState(()=>parseComments(act.comments));
 
-  const isCustom = draft.activity_name==="Custom…";
+  const isCustom = draft.activity_name==="Customâ€¦";
   const catActs  = ACTIVITY_TAXONOMY[draft.category]||[];
   const INP = {width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13,boxSizing:"border-box"};
   const LBL = {fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4};
@@ -2076,7 +1661,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
 
   const submitComment=async()=>{
     if(!commentText.trim()||!onComment) return;
-    // If no real comments yet and remarks has content → auto-migrate remarks as first entry
+    // If no real comments yet and remarks has content â†’ auto-migrate remarks as first entry
     const legacyBase = (localComments.length===0 && act.remarks && act.remarks.trim())
       ? [{
           id:"legacy_"+Date.now().toString(36),
@@ -2104,7 +1689,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
       projectId: act.project_id
     });
     if(!err){
-      setLocalComments(next);  // ← update local state so draft picks it up on Save
+      setLocalComments(next);  // â†گ update local state so draft picks it up on Save
       setCommentText("");
     }
     setSubmitting(false);
@@ -2122,7 +1707,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
     };
     const next=[...localComments,legacy];
     setSubmitting(true);
-    const err=await onComment(act.id, next, null); // migration — no notification
+    const err=await onComment(act.id, next, null); // migration â€” no notification
     if(!err){
       setLocalComments(next);
       setDraft(p=>({...p,remarks:""}));
@@ -2133,7 +1718,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
   const removeComment=async cid=>{
     if(!onComment) return;
     const next=localComments.filter(c=>c.id!==cid);
-    const err=await onComment(act.id, next, null); // deletion — no notification
+    const err=await onComment(act.id, next, null); // deletion â€” no notification
     if(!err) setLocalComments(next);
   };
 
@@ -2183,10 +1768,10 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
           <label style={LBL}>ACTIVITY NAME</label>
           {catActs.length>0?(
             <>
-            <select value={catActs.includes(draft.activity_name)?draft.activity_name:"Custom…"}
+            <select value={catActs.includes(draft.activity_name)?draft.activity_name:"Customâ€¦"}
               onChange={e=>setDraft(p=>({...p,activity_name:e.target.value}))} style={INP}>
               {catActs.map(a=><option key={a}>{a}</option>)}
-              <option value="Custom…">Custom…</option>
+              <option value="Customâ€¦">Customâ€¦</option>
             </select>
             {!catActs.includes(draft.activity_name)&&(
               <input autoFocus={isCustom} value={isCustom?customName:draft.activity_name}
@@ -2194,7 +1779,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
                   if(isCustom) setCustomName(e.target.value);
                   else setDraft(p=>({...p,activity_name:e.target.value}));
                 }}
-                placeholder="Type activity name…"
+                placeholder="Type activity nameâ€¦"
                 style={{...INP,marginTop:6,border:"1px solid #38bdf8"}}/>
             )}
             </>
@@ -2238,12 +1823,12 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
           <label style={LBL}>ASSIGNED TO</label>
           {engineers&&engineers.length>0?(
             <select value={draft.assigned_to||""} onChange={e=>setDraft(p=>({...p,assigned_to:e.target.value}))} style={INP}>
-              <option value="">— Unassigned —</option>
-              {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} — {e.role}</option>)}
+              <option value="">â€” Unassigned â€”</option>
+              {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} â€” {e.role}</option>)}
             </select>
           ):(
             <input value={draft.assigned_to||""} onChange={e=>setDraft(p=>({...p,assigned_to:e.target.value}))}
-              placeholder="Engineer name…" style={INP}/>
+              placeholder="Engineer nameâ€¦" style={INP}/>
           )}
         </div>
 
@@ -2251,18 +1836,18 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
         <div>
           <label style={LBL}>REMARKS / BLOCKERS</label>
           <textarea value={draft.remarks||""} onChange={e=>setDraft(p=>({...p,remarks:e.target.value}))} rows={2}
-            placeholder="e.g. Waiting for IOA addresses…"
+            placeholder="e.g. Waiting for IOA addressesâ€¦"
             style={{...INP,color:"var(--text2)",resize:"vertical"}}/>
         </div>
 
-        {/* ── Comment Thread ── */}
+        {/* â”€â”€ Comment Thread â”€â”€ */}
         <div style={{borderTop:"1px solid var(--border3)",paddingTop:12,marginTop:2}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
             <label style={{...LBL,marginBottom:0}}>COMMENTS</label>
             {comments.length>0&&<span style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",background:"#a78bfa20",color:"#a78bfa",padding:"1px 7px",borderRadius:10,fontWeight:700}}>{comments.length}</span>}
           </div>
 
-          {/* ── Legacy Remarks Migration Banner ── */}
+          {/* â”€â”€ Legacy Remarks Migration Banner â”€â”€ */}
           {hasLegacyRemark&&(
             <div style={{background:"#fb923c08",border:"1px solid #fb923c40",borderRadius:8,
               padding:"10px 12px",marginBottom:12,display:"flex",gap:10,alignItems:"flex-start"}}>
@@ -2273,7 +1858,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4,flexWrap:"wrap"}}>
                   <span style={{fontSize:13,fontWeight:700,color:"var(--text0)"}}>Admin</span>
-                  <span style={{fontSize:11,padding:"1px 6px",borderRadius:4,background:"#fb923c20",color:"#fb923c",fontWeight:600}}>From Remarks — not yet saved to comments</span>
+                  <span style={{fontSize:11,padding:"1px 6px",borderRadius:4,background:"#fb923c20",color:"#fb923c",fontWeight:600}}>From Remarks â€” not yet saved to comments</span>
                 </div>
                 <div style={{fontSize:13,color:"var(--text1)",background:"var(--bg3)",borderRadius:"0 8px 8px 8px",
                   padding:"7px 11px",lineHeight:1.55,borderLeft:"2px solid #fb923c",marginBottom:8}}>
@@ -2316,7 +1901,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
                     {onComment&&(isOwn||myProfile?.role_type==="admin")&&(
                       <button onClick={()=>removeComment(c.id)}
                         style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:12,padding:"0 2px"}}
-                        title="Delete comment">✕</button>
+                        title="Delete comment">âœ•</button>
                     )}
                   </div>
                   <div style={{fontSize:13,color:"var(--text1)",background:"var(--bg3)",
@@ -2339,7 +1924,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
             </div>
             <input value={commentText} onChange={e=>setCommentText(e.target.value)}
               onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submitComment();}}}
-              placeholder="Add a comment… (Enter to send)"
+              placeholder="Add a commentâ€¦ (Enter to send)"
               style={{flex:1,background:"var(--bg2)",border:"1px solid #a78bfa40",borderRadius:20,
                 color:"var(--text0)",padding:"6px 14px",fontSize:13,outline:"none"}}/>
             <button className="bp" style={{fontSize:13,padding:"5px 16px",
@@ -2356,7 +1941,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
         <button className="bp" onClick={()=>{
           const finalName = isCustom&&customName.trim()
             ? customName.trim()
-            : draft.activity_name==="Custom…" ? "" : draft.activity_name;
+            : draft.activity_name==="Customâ€¦" ? "" : draft.activity_name;
           if(!finalName) return;
           // Always include the latest local comments so Save Activity never overwrites them
           onSave({...draft, activity_name: finalName, comments: localComments});
@@ -2366,8 +1951,8 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
   </div>);
 }
 
-/* ── Add Activity modal ── */
-/* ── Add Activity modal ── */
+/* â”€â”€ Add Activity modal â”€â”€ */
+/* â”€â”€ Add Activity modal â”€â”€ */
 function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers}){
   // Determine initial group from defaultCat
   const initGroup = defaultCat ? (CAT_TO_GROUP[defaultCat]||TAXONOMY_GROUP_NAMES[0]) : TAXONOMY_GROUP_NAMES[0];
@@ -2382,7 +1967,7 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
 
   const groupCats = TAXONOMY_GROUPS[group]||[];
   const catActs   = ACTIVITY_TAXONOMY[cat]||[];
-  const finalName = actName==="Custom…" ? custom : actName;
+  const finalName = actName==="Customâ€¦" ? custom : actName;
 
   const handleGroupChange = g => {
     setGroup(g);
@@ -2435,13 +2020,13 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
           {catActs.length>0?(
             <select value={actName} onChange={e=>setActName(e.target.value)} style={INP}>
               {catActs.map(a=><option key={a}>{a}</option>)}
-              <option value="Custom…">Custom…</option>
+              <option value="Customâ€¦">Customâ€¦</option>
             </select>
           ):(
-            <input value={actName} onChange={e=>setActName(e.target.value)} placeholder="Activity name…" style={INP}/>
+            <input value={actName} onChange={e=>setActName(e.target.value)} placeholder="Activity nameâ€¦" style={INP}/>
           )}
-          {actName==="Custom…"&&(
-            <input value={custom} onChange={e=>setCustom(e.target.value)} placeholder="Type custom activity name…"
+          {actName==="Customâ€¦"&&(
+            <input value={custom} onChange={e=>setCustom(e.target.value)} placeholder="Type custom activity nameâ€¦"
               style={{...INP,marginTop:6,border:"1px solid #38bdf8"}}/>
           )}
         </div>
@@ -2465,8 +2050,8 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
         <div>
           <label style={LBL}>ASSIGNED TO <span style={{color:"var(--text3)",fontWeight:400}}>(optional)</span></label>
           <select value={assignedTo} onChange={e=>setAssignedTo(e.target.value)} style={INP}>
-            <option value="">— Unassigned —</option>
-            {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} — {e.role}</option>)}
+            <option value="">â€” Unassigned â€”</option>
+            {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} â€” {e.role}</option>)}
           </select>
         </div>)}
       </div>
@@ -2511,17 +2096,17 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
     if(error){if(showToast)showToast("Error: "+error.message,false);return;}
     if(setActivities)setActivities(prev=>[...prev,data]);
     await autoAssignEngineer(assigned_to);
-    // ── Notification: activity_assigned ──
+    // â”€â”€ Notification: activity_assigned â”€â”€
     if(assigned_to){
       const aEng=engineers.find(e=>e.name===assigned_to);
       if(aEng&&String(aEng.id)!==String(myProfile?.id)){
         const aProj=projects.find(p=>p.id===projId);
         const _addNow=new Date().toISOString();
         const _addIsAdmin=myProfile?.role_type==="admin";
-        // Notify engineer — fire-and-forget
+        // Notify engineer â€” fire-and-forget
         insertNotif({
           type:"activity_assigned",engineer_id:aEng.id,read:false,
-          message:`You were assigned to "${activity_name}"${aProj?" · "+aProj.name:""}`,
+          message:`You were assigned to "${activity_name}"${aProj?" آ· "+aProj.name:""}`,
           created_at:_addNow,
           meta:JSON.stringify({recipient_engineer_id:String(aEng.id),project_id:projId,assigned_by:myProfile?.name})
         });
@@ -2530,20 +2115,20 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
           const _ldrEng=engineers.find(e=>e.name===aProj.project_leader);
           if(_ldrEng&&String(_ldrEng.id)!==String(myProfile?.id)&&String(_ldrEng.id)!==String(aEng.id)){
             insertNotif({type:"activity_assigned",engineer_id:_ldrEng.id,read:false,
-              message:`${myProfile?.name||"Admin"} assigned "${activity_name}" to ${aEng.name}${aProj?" · "+aProj.name:""}`,
+              message:`${myProfile?.name||"Admin"} assigned "${activity_name}" to ${aEng.name}${aProj?" آ· "+aProj.name:""}`,
               created_at:_addNow,meta:JSON.stringify({recipient_engineer_id:String(_ldrEng.id),project_id:projId,assigned_to:aEng.name,assigned_by:myProfile?.name,role:"project_leader"})});
           }
         }
-        // If lead is creating + assigning, notify all admins (admin already knows — they did it)
+        // If lead is creating + assigning, notify all admins (admin already knows â€” they did it)
         if(!_addIsAdmin){
-          const _adminAddMsg=`${myProfile?.name||"Lead"} assigned "${activity_name}" to ${aEng.name}${aProj?" · "+aProj.name:""}`;
+          const _adminAddMsg=`${myProfile?.name||"Lead"} assigned "${activity_name}" to ${aEng.name}${aProj?" آ· "+aProj.name:""}`;
           const _ap1=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_assigned",engineer_id:adminEng.id,read:false,message:_adminAddMsg,created_at:_addNow,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),project_id:projId,assigned_to:aEng.name,assigned_by:myProfile?.name})}));
           if(_ap1.length) supabase.from("notifications").insert(_ap1).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
         }
       }
     }
     setAddModal(false);
-    if(showToast)showToast("Activity added ✓");
+    if(showToast)showToast("Activity added âœ“");
   };
 
   const saveAct = async(draft)=>{
@@ -2555,7 +2140,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
     if(error){if(showToast)showToast("Error: "+error.message,false);return;}
     if(setActivities)setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
     await autoAssignEngineer(fields.assigned_to);
-    // ── Notifications for saveAct (EditProjActivities modal) ──
+    // â”€â”€ Notifications for saveAct (EditProjActivities modal) â”€â”€
     const _saProj=projects.find(p=>p.id===(fields.project_id||prevAct?.project_id));
     const _saNow=new Date().toISOString();
     const _saIsAdmin=myProfile?.role_type==="admin";
@@ -2578,9 +2163,9 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
     if(fields.assigned_to&&fields.assigned_to!==prevAct?.assigned_to){
       const _eng=engineers.find(e=>e.name===fields.assigned_to);
       if(_eng&&String(_eng.id)!==String(myProfile?.id)){
-        const _msg=`You were assigned to "${fields.activity_name||data.activity_name}"${_saProj?" · "+_saProj.name:""}`;
+        const _msg=`You were assigned to "${fields.activity_name||data.activity_name}"${_saProj?" آ· "+_saProj.name:""}`;
         if(insertNotif) insertNotif({type:"activity_assigned",engineer_id:_eng.id,read:false,message:_msg,created_at:_saNow,meta:JSON.stringify({activity_id:id,project_id:fields.project_id,assigned_by:myProfile?.name})});
-        _saNotifyLeaderAndAdmins("activity_assigned",`${myProfile?.name||"Admin"} assigned "${fields.activity_name||data.activity_name}" to ${_eng.name}${_saProj?" · "+_saProj.name:""}`,{activity_id:id,project_id:fields.project_id,assigned_to:_eng.name,assigned_by:myProfile?.name},String(_eng.id));
+        _saNotifyLeaderAndAdmins("activity_assigned",`${myProfile?.name||"Admin"} assigned "${fields.activity_name||data.activity_name}" to ${_eng.name}${_saProj?" آ· "+_saProj.name:""}`,{activity_id:id,project_id:fields.project_id,assigned_to:_eng.name,assigned_by:myProfile?.name},String(_eng.id));
       }
     }
     // status changed
@@ -2588,9 +2173,9 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
       const _actName=fields.activity_name||data.activity_name;
       const _assignedEng=prevAct?.assigned_to?engineers.find(e=>e.name===prevAct.assigned_to):null;
       if(_assignedEng&&String(_assignedEng.id)!==String(myProfile?.id)){
-        if(insertNotif) insertNotif({type:"activity_status_changed",engineer_id:_assignedEng.id,read:false,message:`"${_actName}" marked ${fields.status}${_saProj?" · "+_saProj.name:""}`,created_at:_saNow,meta:JSON.stringify({activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})});
+        if(insertNotif) insertNotif({type:"activity_status_changed",engineer_id:_assignedEng.id,read:false,message:`"${_actName}" marked ${fields.status}${_saProj?" آ· "+_saProj.name:""}`,created_at:_saNow,meta:JSON.stringify({activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})});
       }
-      _saNotifyLeaderAndAdmins("activity_status_changed",`"${_actName}" marked ${fields.status}${_saProj?" · "+_saProj.name:""}`,{activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name},_assignedEng?String(_assignedEng.id):null);
+      _saNotifyLeaderAndAdmins("activity_status_changed",`"${_actName}" marked ${fields.status}${_saProj?" آ· "+_saProj.name:""}`,{activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name},_assignedEng?String(_assignedEng.id):null);
     }
     // deadline changed
     if(fields.end_date!==undefined&&fields.end_date!==prevAct?.end_date){
@@ -2598,12 +2183,12 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
       const _assignedEng=prevAct?.assigned_to?engineers.find(e=>e.name===prevAct.assigned_to):null;
       const _dl=fields.end_date?new Date(fields.end_date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}):"removed";
       if(_assignedEng&&String(_assignedEng.id)!==String(myProfile?.id)){
-        if(insertNotif) insertNotif({type:"activity_deadline_changed",engineer_id:_assignedEng.id,read:false,message:`Deadline for "${_actName}" changed to ${_dl}${_saProj?" · "+_saProj.name:""}`,created_at:_saNow,meta:JSON.stringify({activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})});
+        if(insertNotif) insertNotif({type:"activity_deadline_changed",engineer_id:_assignedEng.id,read:false,message:`Deadline for "${_actName}" changed to ${_dl}${_saProj?" آ· "+_saProj.name:""}`,created_at:_saNow,meta:JSON.stringify({activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})});
       }
-      _saNotifyLeaderAndAdmins("activity_deadline_changed",`Deadline for "${_actName}" changed to ${_dl}${_saProj?" · "+_saProj.name:""}`,{activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name},_assignedEng?String(_assignedEng.id):null);
+      _saNotifyLeaderAndAdmins("activity_deadline_changed",`Deadline for "${_actName}" changed to ${_dl}${_saProj?" آ· "+_saProj.name:""}`,{activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name},_assignedEng?String(_assignedEng.id):null);
     }
     setEditAct(null);
-    if(showToast)showToast("Activity saved ✓");
+    if(showToast)showToast("Activity saved âœ“");
   };
   const delAct = async(id)=>{
     const act=(activities||[]).find(a=>a.id===id);
@@ -2629,7 +2214,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
       </div>
       {projActs.length===0&&(
         <div style={{textAlign:"center",padding:"28px 0",color:"var(--border)",fontSize:13,border:"1px dashed #0f1e2e",borderRadius:6}}>
-          No activities yet — add the first one above.
+          No activities yet â€” add the first one above.
         </div>
       )}
       <div style={{display:"grid",gap:5,maxHeight:320,overflowY:"auto"}}>
@@ -2646,21 +2231,21 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
                   <span style={{fontSize:12,padding:"1px 6px",borderRadius:3,background:gc+"20",color:gc}}>{a.group_name}</span>
                   {a.category&&a.category!==a.group_name&&<span style={{fontSize:12,color:"var(--text3)"}}>{a.category}</span>}
                   <span style={{fontSize:12,padding:"1px 6px",borderRadius:3,background:ss.bg,color:ss.color}}>{a.status}</span>
-                  {a.assigned_to&&<span style={{fontSize:12,color:"var(--text2)"}}>👤 {a.assigned_to}</span>}
+                  {a.assigned_to&&<span style={{fontSize:12,color:"var(--text2)"}}>ًں‘¤ {a.assigned_to}</span>}
                 </div>
                 {pct>0&&<div style={{marginTop:6,background:"var(--bg3)",borderRadius:3,height:4,overflow:"hidden"}}>
                   <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:3}}/>
                 </div>}
               </div>
               <div style={{display:"flex",gap:4,flexShrink:0}}>
-                <button className="be" style={{fontSize:12,padding:"3px 7px"}} onClick={()=>setEditAct({...a})}>✎</button>
-                <button className="bd" style={{fontSize:12,padding:"3px 7px"}} onClick={()=>delAct(a.id)}>✕</button>
+                <button className="be" style={{fontSize:12,padding:"3px 7px"}} onClick={()=>setEditAct({...a})}>âœژ</button>
+                <button className="bd" style={{fontSize:12,padding:"3px 7px"}} onClick={()=>delAct(a.id)}>âœ•</button>
               </div>
             </div>
           </div>);
         })}
       </div>
-      {/* Shared modals — same as Tracker */}
+      {/* Shared modals â€” same as Tracker */}
       {addModal&&<AddActivityModal projId={projId} subId={null} defaultCat={null}
         onSave={confirmAdd} onClose={()=>setAddModal(false)} engineers={engineers}/>}
       {editAct&&<ActivityEditModal act={editAct}
@@ -2672,7 +2257,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
 }
 
 
-/* ── Single activity row ── */
+/* â”€â”€ Single activity row â”€â”€ */
 function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect, onComment, myProfile, isEngineerRole}){
   const [commentOpen, setCommentOpen] = React.useState(false);
   const [commentText, setCommentText] = React.useState("");
@@ -2733,7 +2318,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
   return(
   <React.Fragment>
     <tr style={{cursor:isEngineerRole&&!canComment?"default":"pointer",background:isSelected?"#0ea5e910":undefined}}
-      title={isEngineerRole&&!canComment?"View only — you are not assigned to this activity":undefined}
+      title={isEngineerRole&&!canComment?"View only â€” you are not assigned to this activity":undefined}
       onClick={()=>{ if(isEngineerRole){ if(canComment) setCommentOpen(o=>!o); } else onEdit(a); }}>
       {onSelect&&<td style={{width:28,paddingLeft:8}} onClick={e=>e.stopPropagation()}>
         <input type="checkbox" checked={!!isSelected} onChange={()=>onSelect(a.id)}
@@ -2752,19 +2337,19 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
           <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:sc}}>{pct}%</span>
         </div>
       </td>
-      <td style={{fontSize:13,color:"var(--text2)",whiteSpace:"nowrap"}}>{a.assigned_to||"—"}</td>
+      <td style={{fontSize:13,color:"var(--text2)",whiteSpace:"nowrap"}}>{a.assigned_to||"â€”"}</td>
       <td style={{fontSize:12,whiteSpace:"nowrap"}}>
         {(a.start_date||a.end_date)?(
           <div style={{display:"flex",flexDirection:"column",gap:1}}>
-            {a.start_date&&<span style={{color:"var(--text3)"}}>▶ {fmtDate(a.start_date)}</span>}
+            {a.start_date&&<span style={{color:"var(--text3)"}}>â–¶ {fmtDate(a.start_date)}</span>}
             {a.end_date&&<span style={{color:isOverdue?"#f87171":"#fb923c",fontWeight:isOverdue?700:400}}>
-              {isOverdue?"⚠ ":"■ "}{fmtDate(a.end_date)}
+              {isOverdue?"âڑ  ":"â–  "}{fmtDate(a.end_date)}
             </span>}
           </div>
-        ):<span style={{color:"var(--text4)"}}>—</span>}
+        ):<span style={{color:"var(--text4)"}}>â€”</span>}
       </td>
-      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:actHrs>0?"var(--info)":"var(--text4)"}}>{actHrs>0?actHrs+"h":"—"}</td>
-      {/* Comment bubble — visible to admin/lead AND to the assigned engineer */}
+      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:actHrs>0?"var(--info)":"var(--text4)"}}>{actHrs>0?actHrs+"h":"â€”"}</td>
+      {/* Comment bubble â€” visible to admin/lead AND to the assigned engineer */}
       {canComment&&<td onClick={e=>e.stopPropagation()} style={{width:36}}>
         <button title={hasComments?`${comments.length} comment${comments.length!==1?"s":""}`:("Add comment")}
           onClick={e=>{e.stopPropagation();setCommentOpen(o=>!o);}}
@@ -2779,12 +2364,12 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
           {hasComments&&<span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{comments.length}</span>}
         </button>
       </td>}
-      {/* Delete — admin/lead only */}
+      {/* Delete â€” admin/lead only */}
       {isAdmin&&<td onClick={e=>e.stopPropagation()} style={{width:28}}>
-        <button className="bd" style={{fontSize:13,padding:"1px 5px"}} onClick={e=>{e.stopPropagation();onDelete(a.id);}}>✕</button>
+        <button className="bd" style={{fontSize:13,padding:"1px 5px"}} onClick={e=>{e.stopPropagation();onDelete(a.id);}}>âœ•</button>
       </td>}
     </tr>
-    {/* ── Inline comment thread ── */}
+    {/* â”€â”€ Inline comment thread â”€â”€ */}
     {commentOpen&&(
     <tr style={{background:"#a78bfa06",borderTop:"1px solid #a78bfa20"}}>
       <td colSpan={99} style={{padding:"12px 18px 14px"}} onClick={e=>e.stopPropagation()}>
@@ -2815,7 +2400,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
                   {(isAdmin||isOwn)&&(
                     <button onClick={()=>removeComment(c.id)}
                       style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:12,padding:"0 2px",lineHeight:1}}
-                      title="Delete comment">✕</button>
+                      title="Delete comment">âœ•</button>
                   )}
                 </div>
                 <div style={{fontSize:13,color:"var(--text1)",background:"var(--bg3)",borderRadius:"0 8px 8px 8px",padding:"8px 12px",lineHeight:1.5,borderLeft:`2px solid ${isOwn?"var(--info)":"#a78bfa"}`}}>
@@ -2835,7 +2420,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
           </div>
           <input value={commentText} onChange={e=>setCommentText(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submitComment();}}}
-            placeholder="Add a comment… (Enter to send)"
+            placeholder="Add a commentâ€¦ (Enter to send)"
             style={{flex:1,background:"var(--bg2)",border:"1px solid #a78bfa40",borderRadius:20,
               color:"var(--text0)",padding:"6px 14px",fontSize:13,outline:"none"}}/>
           <button className="bp" style={{fontSize:13,padding:"5px 16px",opacity:submitting||!commentText.trim()?0.5:1}}
@@ -2848,5047 +2433,9 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
   </React.Fragment>);
 }
 
-/* ════════════════════════════════════════════════════════
-   PROJECT TRACKER — standalone component
-   ════════════════════════════════════════════════════════ */
-function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, isEngineerRole, activitiesLoaded, setActivities, setProjects, setNotifications, showToast, logAction, showConfirm, myProfile, onActivityComment,
-  trackerProj,  setTrackerProj,
-  trackerSub,   setTrackerSub,
-  trackerSearch, setTrackerSearch,
-  trackerStatus, setTrackerStatus,
-  actClipboard,  setActClipboard,
-  insertNotif,
-}){
-  const canEdit = isAdmin || isLead;
-  // Persistent state lifted to parent (survives remounts/minimize)
-  const trackerSearch_ = trackerSearch;
-  const setTrackerSearch_ = setTrackerSearch;
-  const trackerStatusF = trackerStatus;
-  const setTrackerStatusF = setTrackerStatus;
-  // Transient state — fine to reset on remount
-  const [editActivity, setEditActivity] = useState(null);
-  const [addModal,     setAddModal]     = useState(null);
-  const [expandedCats, setExpandedCats] = useState({});
-  const [bulkSelected, setBulkSelected] = useState(new Set());
-  const [bulkStatus,   setBulkStatus]   = useState("Completed");
-  // Paste destination state
-  const [pasteTargetProj, setPasteTargetProj] = useState("");
-  const [pasteTargetSub,  setPasteTargetSub]  = useState("");
-  const [dlPanelOpen,    setDlPanelOpen]      = useState(true); // Deadline panel open/closed
-
-  // ── Memoised lookups ──
-  const activityHrsMap = useMemo(()=>{
-    const m={};
-    for(const e of entries){
-      if(e.entry_type!=="work"||!e.activity_id) continue;
-      const k=String(e.activity_id);
-      m[k]=(m[k]||0)+e.hours;
-    }
-    return m;
-  },[entries]);
-
-  const projectHrsMap = useMemo(()=>{
-    const m={};
-    for(const e of entries){
-      if(e.entry_type!=="work"||!e.project_id) continue;
-      m[e.project_id]=(m[e.project_id]||0)+e.hours;
-    }
-    return m;
-  },[entries]);
-
-  const actsByProj = useMemo(()=>{
-    const m={};
-    for(const a of activities){
-      if(!m[a.project_id]) m[a.project_id]=[];
-      m[a.project_id].push(a);
-    }
-    return m;
-  },[activities]);
-
-  const getHrs     = useCallback((actId)=>activityHrsMap[String(actId)]||0, [activityHrsMap]);
-  const getProjHrs = useCallback((pid)=>projectHrsMap[pid]||0,              [projectHrsMap]);
-  const toggleCat  = useCallback((cat)=>setExpandedCats(p=>({...p,[cat]:!p[cat]})),[]);
-
-  // ── Callbacks ──
-  const saveActivity = useCallback(async(draft)=>{
-    const {id,...fields}=draft;
-    const grp = CAT_TO_GROUP[fields.category]||fields.group_name||"SCADA";
-    const payload={...fields, group_name:grp, category:fields.category||null, updated_at:new Date().toISOString()};
-    const prevActivity=activities.find(a=>a.id===id);
-    const {data,error}=await supabase.from("project_activities").update(payload).eq("id",id).select().single();
-    if(error){showToast("Error: "+error.message,false);return;}
-    setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
-
-    const _now=new Date().toISOString();
-    const _changerIsAdmin=myProfile?.role_type==="admin";
-    const _proj=projects.find(p=>p.id===(fields.project_id||prevActivity?.project_id));
-
-    // ── Notification: activity_assigned ──
-    if(fields.assigned_to && fields.assigned_to!==prevActivity?.assigned_to){
-      const assignedEng=engineers.find(e=>e.name===fields.assigned_to);
-      if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
-        const assignMsg=`You were assigned to "${fields.activity_name||data.activity_name}"${_proj?" · "+_proj.name:""}`;
-        const assignMeta={recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,assigned_by:myProfile?.name};
-        // Notify engineer — fire-and-forget (engineer gets via RT/loadAll; don't add to assigner state)
-        insertNotif({type:"activity_assigned",engineer_id:assignedEng.id,read:false,message:assignMsg,created_at:_now,meta:JSON.stringify(assignMeta)});
-        // Notify project leader (if set, not the changer, and not the assigned engineer)
-        if(_proj?.project_leader){
-          const _ldrEng2=engineers.find(e=>e.name===_proj.project_leader);
-          if(_ldrEng2&&String(_ldrEng2.id)!==String(myProfile?.id)&&String(_ldrEng2.id)!==String(assignedEng.id)){
-            insertNotif({type:"activity_assigned",engineer_id:_ldrEng2.id,read:false,
-              message:`${myProfile?.name||"Admin"} assigned "${fields.activity_name||data.activity_name}" to ${assignedEng.name}${_proj?" · "+_proj.name:""}`,
-              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrEng2.id),activity_id:id,project_id:fields.project_id,assigned_to:assignedEng.name,assigned_by:myProfile?.name,role:"project_leader"})});
-          }
-        }
-        // If lead is assigning, also notify all admins (admin already knows — they did it)
-        if(!_changerIsAdmin){
-          const adminMsg=`${myProfile?.name||"Lead"} assigned "${fields.activity_name||data.activity_name}" to ${assignedEng.name}${_proj?" · "+_proj.name:""}`;
-          const _ap2=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_assigned",engineer_id:adminEng.id,read:false,message:adminMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,assigned_to:assignedEng.name,assigned_by:myProfile?.name})}));
-          if(_ap2.length) supabase.from("notifications").insert(_ap2).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
-        }
-      }
-    }
-
-    // ── Notification: activity_status_changed ──
-    if(fields.status && fields.status!==prevActivity?.status){
-      const actName=fields.activity_name||data.activity_name;
-      const statusMsg=`"${actName}" marked ${fields.status}${_proj?" · "+_proj.name:""}`;
-      // Notify assigned engineer (if exists and not the changer)
-      if(prevActivity?.assigned_to){
-        const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
-        if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
-          // Fire-and-forget for engineer
-          insertNotif({
-            type:"activity_status_changed",engineer_id:assignedEng.id,read:false,message:statusMsg,created_at:_now,
-            meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})
-          });
-        }
-      }
-      // Notify project leader on status change (if not the changer)
-      if(_proj?.project_leader){
-        const _ldrS=engineers.find(e=>e.name===_proj.project_leader);
-        if(_ldrS&&String(_ldrS.id)!==String(myProfile?.id)){
-          const _ldrAssigned=prevActivity?.assigned_to&&engineers.find(e=>e.name===prevActivity.assigned_to);
-          if(!_ldrAssigned||String(_ldrS.id)!==String(_ldrAssigned.id)){
-            insertNotif({type:"activity_status_changed",engineer_id:_ldrS.id,read:false,
-              message:`${myProfile?.name||"Admin"} marked "${actName}" as ${fields.status}${_proj?" · "+_proj.name:""}`,
-              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrS.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name,role:"project_leader"})});
-          }
-        }
-      }
-      // If lead changed status, notify all admins (admin already knows)
-      if(!_changerIsAdmin){
-        const adminStatusMsg=`${myProfile?.name||"Lead"} marked "${actName}" as ${fields.status}${_proj?" · "+_proj.name:""}`;
-        const _ap3=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_status_changed",engineer_id:adminEng.id,read:false,message:adminStatusMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})}));
-        if(_ap3.length) supabase.from("notifications").insert(_ap3).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
-      }
-    }
-
-    // ── Notification: activity_progress_changed ──
-    // Notify assigned engineer + admins (when lead changes) when progress % is updated
-    if(fields.progress!==undefined && fields.progress!==prevActivity?.progress && prevActivity?.assigned_to){
-      const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
-      const actName=fields.activity_name||data.activity_name;
-      const pct=Math.round((fields.progress||0)*100);
-      // Notify engineer
-      if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
-        const progMsg=`"${actName}" progress updated to ${pct}%${_proj?" · "+_proj.name:""}`;
-        insertNotif({
-          type:"activity_progress_changed",engineer_id:assignedEng.id,read:false,message:progMsg,created_at:_now,
-          meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name})
-        });
-      }
-      // Notify project leader on progress change (if not the changer or the assigned eng)
-      if(_proj?.project_leader){
-        const _ldrP=engineers.find(e=>e.name===_proj.project_leader);
-        if(_ldrP&&String(_ldrP.id)!==String(myProfile?.id)){
-          const _ldrIsAssigned=assignedEng&&String(_ldrP.id)===String(assignedEng.id);
-          if(!_ldrIsAssigned){
-            insertNotif({type:"activity_progress_changed",engineer_id:_ldrP.id,read:false,
-              message:`"${actName}" progress updated to ${pct}%${_proj?" · "+_proj.name:""}`,
-              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrP.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name,role:"project_leader"})});
-          }
-        }
-      }
-      // If lead changed progress, notify all admins (admin already knows)
-      if(!_changerIsAdmin){
-        const adminProgMsg=`${myProfile?.name||"Lead"} updated "${actName}" to ${pct}%${_proj?" · "+_proj.name:""}`;
-        const _ap4=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_progress_changed",engineer_id:adminEng.id,read:false,message:adminProgMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name})}));
-        if(_ap4.length) supabase.from("notifications").insert(_ap4).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
-      }
-    }
-
-    // ── Notification: activity_deadline_changed ──
-    // Notify assigned engineer AND admins (when lead changes) when deadline moves
-    if(fields.end_date!==undefined && fields.end_date!==prevActivity?.end_date && prevActivity?.assigned_to){
-      const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
-      const actName=fields.activity_name||data.activity_name;
-      const newDeadline=fields.end_date
-        ? new Date(fields.end_date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})
-        : "removed";
-      if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
-        const dlMsg=`Deadline for "${actName}" changed to ${newDeadline}${_proj?" · "+_proj.name:""}`;
-        insertNotif({
-          type:"activity_deadline_changed",engineer_id:assignedEng.id,read:false,message:dlMsg,created_at:_now,
-          meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})
-        });
-      }
-      // Notify project leader on deadline change (if not the changer or the assigned eng)
-      if(_proj?.project_leader){
-        const _ldrD=engineers.find(e=>e.name===_proj.project_leader);
-        if(_ldrD&&String(_ldrD.id)!==String(myProfile?.id)){
-          const _ldrIsAssignedD=assignedEng&&String(_ldrD.id)===String(assignedEng.id);
-          if(!_ldrIsAssignedD){
-            insertNotif({type:"activity_deadline_changed",engineer_id:_ldrD.id,read:false,
-              message:`Deadline for "${actName}" changed to ${newDeadline}${_proj?" · "+_proj.name:""}`,
-              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrD.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name,role:"project_leader"})});
-          }
-        }
-      }
-      // If lead changed deadline, notify admins too (admin already knows)
-      if(!_changerIsAdmin){
-        const adminDlMsg=`${myProfile?.name||"Lead"} changed deadline for "${actName}" to ${newDeadline}${_proj?" · "+_proj.name:""}`;
-        const _ap5=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_deadline_changed",engineer_id:adminEng.id,read:false,message:adminDlMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})}));
-        if(_ap5.length) supabase.from("notifications").insert(_ap5).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
-      }
-    }
-
-    setEditActivity(null);
-    logAction("UPDATE","Tracker",`Updated activity: ${fields.activity_name} on ${fields.project_id}`,{id,project_id:fields.project_id,activity:fields.activity_name,status:fields.status,progress:fields.progress});
-    // Auto-assign engineer to project when assigned_to is set (covers sub-site activities too — always assign to parent project)
-    if(fields.assigned_to){
-      const eng=engineers.find(e=>e.name===fields.assigned_to);
-      if(eng){
-        const projId=fields.project_id;
-        const proj=projects.find(p=>p.id===projId);
-        const ae=(proj?.assigned_engineers||[]).map(String);
-        if(!ae.includes(String(eng.id))){
-          const newAe=[...ae,String(eng.id)];
-          await supabase.from("projects").update({assigned_engineers:newAe}).eq("id",projId);
-          setProjects(prev=>prev.map(p=>p.id===projId?{...p,assigned_engineers:newAe}:p));
-          showToast(`${fields.assigned_to} added to ${projId} team ✓`);
-          return; // showToast already called
-        }
-      }
-    }
-    showToast("Activity saved ✓");
-  },[activities,setActivities,showToast,logAction,engineers,projects,setProjects,setNotifications,myProfile]);
-
-  const confirmAdd = useCallback(async({category,activity_name,start_date,end_date,assigned_to})=>{
-    if(!addModal) return;
-    const {projId,subId}=addModal;
-    const grp = CAT_TO_GROUP[category]||"General";
-    const {data,error}=await supabase.from("project_activities").insert({
-      project_id:projId, subproject_id:subId||null,
-      group_name:grp, category:category||null,
-      activity_name, status:"Not Started", progress:0,
-      start_date:start_date||null, end_date:end_date||null,
-      assigned_to:assigned_to||null,
-      sort_order:(actsByProj[projId]||[]).length
-    }).select().single();
-    if(error){showToast("Error: "+error.message,false);return;}
-    setActivities(prev=>[...prev,data]);
-    logAction("CREATE","Tracker",`Added activity: ${activity_name} on ${projId}`,{project_id:projId,category,activity:activity_name,assigned_to:assigned_to||null});
-    // Auto-assign engineer to project if not already assigned
-    if(assigned_to){
-      const eng=engineers.find(e=>e.name===assigned_to);
-      if(eng){
-        const proj=projects.find(p=>p.id===projId);
-        const ae=(proj?.assigned_engineers||[]).map(String);
-        if(!ae.includes(String(eng.id))){
-          const newAe=[...ae,String(eng.id)];
-          await supabase.from("projects").update({assigned_engineers:newAe}).eq("id",projId);
-          setProjects(prev=>prev.map(p=>p.id===projId?{...p,assigned_engineers:newAe}:p));
-          showToast(`${assigned_to} added to ${projId} team ✓`);
-        }
-      }
-    }
-    setAddModal(null);
-    showToast("Activity added ✓");
-    if(category) setExpandedCats(p=>({...p,[category]:true}));
-  },[addModal,actsByProj,setActivities,showToast,logAction,engineers,projects,setProjects,setNotifications,myProfile]);
-
-  const bulkUpdateStatus = useCallback(async()=>{
-    if(!bulkSelected.size) return;
-    const ids=[...bulkSelected];
-    const prog=bulkStatus==="Completed"?1:bulkStatus==="In Progress"?0.5:0;
-    const{error}=await supabase.from("project_activities")
-      .update({status:bulkStatus,progress:prog}).in("id",ids);
-    if(error){showToast("Bulk update failed: "+error.message,false);return;}
-    setActivities(prev=>prev.map(a=>ids.includes(a.id)?{...a,status:bulkStatus,progress:prog}:a));
-    setBulkSelected(new Set());
-    showToast(`${ids.length} activit${ids.length===1?"y":"ies"} → ${bulkStatus} ✓`);
-    logAction("UPDATE","Tracker",`Bulk set ${ids.length} activities to ${bulkStatus}`,{count:ids.length,status:bulkStatus});
-  },[bulkSelected,bulkStatus,showToast,logAction]);
-
-  // ── Copy selected activities to clipboard ──
-  const copyActivities = useCallback(()=>{
-    if(!bulkSelected.size){showToast("Select activities first",false);return;}
-    const acts=activities.filter(a=>bulkSelected.has(a.id));
-    const fromProj=trackerProj;
-    const fromSub=trackerSub;
-    const fromProjName=projects.find(p=>p.id===fromProj)?.name||fromProj;
-    setActClipboard({acts, fromProj, fromSub, fromProjName});
-    setBulkSelected(new Set());
-    showToast(`${acts.length} activit${acts.length===1?"y":"ies"} copied to clipboard ✓`);
-  },[bulkSelected,activities,trackerProj,trackerSub,projects,setActClipboard,showToast]);
-
-  // ── Paste clipboard activities into target project / sub-site ──
-  const pasteActivities = useCallback(async()=>{
-    if(!actClipboard||!actClipboard.acts.length){showToast("Nothing in clipboard",false);return;}
-    const targetProj=pasteTargetProj||trackerProj;
-    if(!targetProj){showToast("Select a target project",false);return;}
-    const targetSub=pasteTargetSub||null;
-    const inserts=actClipboard.acts.map((a,i)=>({
-      project_id:   targetProj,
-      subproject_id:targetSub||null,
-      group_name:   a.group_name||null,
-      category:     a.category||null,
-      activity_name:a.activity_name,
-      status:       "Not Started",   // always reset
-      progress:     0,               // always reset
-      assigned_to:  a.assigned_to||null,
-      start_date:   a.start_date||null,
-      end_date:     a.end_date||null,
-      sort_order:   (actsByProj[targetProj]||[]).length + i,
-    }));
-    const{data,error}=await supabase.from("project_activities").insert(inserts).select();
-    if(error){showToast("Paste failed: "+error.message,false);return;}
-    if(data) setActivities(prev=>[...prev,...data]);
-    // Auto-assign all pasted engineers to the target project
-    const proj=projects.find(p=>p.id===targetProj);
-    let ae=(proj?.assigned_engineers||[]).map(String);
-    let assigned=false;
-    for(const a of actClipboard.acts){
-      if(!a.assigned_to) continue;
-      const eng=engineers.find(e=>e.name===a.assigned_to);
-      if(eng&&!ae.includes(String(eng.id))){
-        ae=[...ae,String(eng.id)];
-        assigned=true;
-      }
-    }
-    if(assigned){
-      await supabase.from("projects").update({assigned_engineers:ae}).eq("id",targetProj);
-      setProjects(prev=>prev.map(p=>p.id===targetProj?{...p,assigned_engineers:ae}:p));
-    }
-    const destName=projects.find(p=>p.id===targetProj)?.name||targetProj;
-    const pastedActIds=(data||[]).map(a=>a.id);
-    // Offer undo — clicking removes the pasted activities from UI and DB
-    showToast(
-      `${inserts.length} activit${inserts.length===1?"y":"ies"} pasted into ${destName}`,
-      true,
-      async()=>{
-        setActivities(prev=>prev.filter(a=>!pastedActIds.includes(a.id)));
-        await supabase.from("project_activities").delete().in("id",pastedActIds);
-        showToast("Paste undone ✓");
-      }
-    );
-    logAction("CREATE","Tracker",`Pasted ${inserts.length} activities from ${actClipboard.fromProjName} → ${destName}`,{count:inserts.length,from:actClipboard.fromProj,to:targetProj});
-    setPasteTargetProj(""); setPasteTargetSub("");
-  },[actClipboard,pasteTargetProj,pasteTargetSub,trackerProj,actsByProj,projects,engineers,setActivities,setProjects,showToast,logAction]);
-
-  const deleteActivity = useCallback(async(id)=>{
-    const act=activities.find(a=>a.id===id);
-    showConfirm(`Delete activity "${act?.activity_name||id}"?`,()=>{
-      applyUndo(
-        showToast,"Activity deleted",
-        ()=>setActivities(prev=>prev.filter(a=>a.id!==id)),
-        ()=>{ if(act)setActivities(prev=>[act,...prev]); },
-        async()=>{ const{error}=await supabase.from("project_activities").delete().eq("id",id); return error||null; },
-        ()=>logAction("DELETE","Tracker",`Deleted activity: ${act?.activity_name||id} on ${act?.project_id||""}`,{id,project_id:act?.project_id,activity:act?.activity_name})
-      );
-    },{title:"Delete Activity",confirmLabel:"Delete"});
-  },[setActivities,activities,logAction,showConfirm,showToast]);
-
-  // ── Comment handler — delegates to app-level appHandleActivityComment for consistent notification routing ──
-  const handleActivityComment = onActivityComment;
-  if(!activitiesLoaded) return(
-    <div style={{padding:32,textAlign:"center",color:"var(--text4)",fontSize:15}}>Loading project tracker…</div>
-  );
-
-  // ── OVERVIEW ──
-  if(!trackerProj){
-    // Engineers see only projects they are assigned to
-  const baseProjects=isEngineerRole
-    ? projects.filter(p=>(p.assigned_engineers||[]).map(String).includes(String(myProfile?.id))&&(actsByProj[p.id]||[]).length>0)
-    : (canEdit||isAcct)
-      ? projects
-      : projects.filter(p=>(actsByProj[p.id]||[]).length>0);
-    const allTrackerProjects=baseProjects.filter(p=>{
-      if(trackerStatusF!=="ALL" && p.status!==trackerStatusF) return false;
-      if(trackerSearch_){
-        const q=trackerSearch_.toLowerCase();
-        if(!p.id.toLowerCase().includes(q)&&!(p.name||"").toLowerCase().includes(q)&&!(p.client||"").toLowerCase().includes(q)) return false;
-      }
-      return true;
-    });
-    return(<>
-    <div style={{display:"grid",gap:14}}>
-      <div style={{display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",justifyContent:"space-between"}}>
-        <div>
-          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>PROJECT TRACKER</div>
-          <div style={{fontSize:22,fontWeight:800,color:"var(--text0)"}}>{allTrackerProjects.length}{trackerStatusF!=="ALL"&&<span style={{fontSize:13,color:"var(--text4)",fontWeight:400}}> / {baseProjects.length}</span>} <span style={{fontSize:14,fontWeight:400,color:"var(--text3)"}}>projects · {activities.length} activities</span></div>
-        </div>
-        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-          {/* Search */}
-          <div>
-            <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>SEARCH</div>
-            <input value={trackerSearch_} onChange={e=>setTrackerSearch_(e.target.value)}
-              placeholder="Search projects…" style={{width:180}}/>
-          </div>
-          {/* Status chips */}
-          <div>
-            <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>STATUS</div>
-            <div style={{display:"flex",gap:4}}>
-              {[
-                {v:"ALL",      l:"All",     c:"var(--text2)"},
-                {v:"Active",   l:"Active",  c:"#34d399"},
-                {v:"On Hold",  l:"On Hold", c:"#fb923c"},
-                {v:"Completed",l:"Done",    c:"#a78bfa"},
-              ].map(chip=>{
-                // Show counts from FULL baseProjects (not filtered) so user knows total per status
-                const cnt=chip.v==="ALL"?allTrackerProjects.length:baseProjects.filter(p=>p.status===chip.v).length;
-                const active=trackerStatusF===chip.v;
-                return(
-                  <button type="button" key={chip.v} onClick={()=>setTrackerStatusF(chip.v)}
-                    style={{padding:"6px 12px",borderRadius:20,border:`1px solid ${active?chip.c+"90":"var(--border)"}`,
-                      background:active?chip.c+"18":"transparent",color:active?chip.c:"var(--text3)",
-                      fontSize:13,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
-                      display:"flex",alignItems:"center",gap:5,transition:"all .15s",whiteSpace:"nowrap"}}>
-                    {chip.l}
-                    <span style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",opacity:.8}}>{cnt}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-      {/* ── Deadline Panel ── */}
-      {(()=>{
-        // FIX: build today string from LOCAL date parts (not toISOString which is UTC)
-        const _now=new Date();
-        const _todayStr=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}-${String(_now.getDate()).padStart(2,"0")}`;
-        const _addDays=(n)=>{const d=new Date(_now);d.setDate(_now.getDate()+n);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
-        const _7dStr=_addDays(7);
-        const _14dStr=_addDays(14);
-        // FIX: exclude Cancelled + activities on Completed projects + accountant sees nothing
-        const _inactiveProjIds=new Set(projects.filter(p=>p.status==="Completed"||p.status==="On Hold").map(p=>p.id));
-        const _scopedActs=activities.filter(a=>{
-          if(!a.end_date) return false;
-          if(a.status==="Completed"||a.status==="Cancelled"||a.status==="On Hold") return false;
-          if(a.end_date>_14dStr) return false;
-          if(_inactiveProjIds.has(a.project_id)) return false; // skip On Hold + Completed projects
-          if(isAcct&&!isAdmin) return false; // accountant does not see deadline panel; admin is also isAcct so must exclude explicitly
-          if(isEngineerRole) return !!(a.assigned_to&&myProfile?.name&&a.assigned_to.trim()===myProfile.name.trim());
-          if(isLead&&!isAdmin){ const _ids=new Set(baseProjects.map(p=>p.id)); return _ids.has(a.project_id); }
-          return true; // admin: all
-        });
-        if(!_scopedActs.length) return null;
-        const _overdue  =_scopedActs.filter(a=>a.end_date<_todayStr).sort((a,b)=>a.end_date.localeCompare(b.end_date));
-        const _thisWeek =_scopedActs.filter(a=>a.end_date>=_todayStr&&a.end_date<=_7dStr).sort((a,b)=>a.end_date.localeCompare(b.end_date));
-        const _upcoming =_scopedActs.filter(a=>a.end_date>_7dStr).sort((a,b)=>a.end_date.localeCompare(b.end_date));
-        const _fmtDate=d=>new Date(d+"T12:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"2-digit",month:"short"});
-        // FIX: use string comparison for "Due today" to avoid timezone arithmetic bug
-        const _daysLeft=d=>{
-          if(d===_todayStr) return "Due today";
-          if(d<_todayStr){
-            // count overdue days via string-safe calc
-            const diff=Math.round((new Date(d+"T12:00:00")-new Date(_todayStr+"T12:00:00"))/(1000*60*60*24));
-            return `${Math.abs(diff)}d overdue`;
-          }
-          const diff=Math.round((new Date(d+"T12:00:00")-new Date(_todayStr+"T12:00:00"))/(1000*60*60*24));
-          if(diff===1) return "Due tomorrow";
-          return `${diff}d left`;
-        };
-        // Plain render function — NOT a component, no hooks
-        const _renderRow=(a,urgent)=>{
-          const _proj=projects.find(p=>p.id===a.project_id);
-          const _ov=a.end_date<_todayStr;
-          const _col=_ov?"#f87171":urgent?"#fb923c":"#34d399";
-          const _bg=_ov?"#7f1d1d18":urgent?"#78350f18":"#14532d18";
-          return(
-            <div key={a.id}
-              onClick={()=>{setTrackerProj(a.project_id);setTrackerSub(null);}}
-              onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){setTrackerProj(a.project_id);setTrackerSub(null);}}}
-              role="button" tabIndex={0}
-              title={`Open ${_proj?.name||a.project_id}`}
-              style={{display:"flex",alignItems:"center",gap:10,padding:"7px 12px",borderRadius:7,
-                background:_bg,border:`1px solid ${_col}30`,cursor:"pointer",transition:"border-color .15s"}}
-              onMouseEnter={e=>e.currentTarget.style.borderColor=_col+"80"}
-              onMouseLeave={e=>e.currentTarget.style.borderColor=_col+"30"}>
-              <span style={{fontSize:13,flexShrink:0}}>{_ov?"🔴":urgent?"🟡":"🟢"}</span>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                  <span style={{fontSize:12,fontWeight:700,color:_col,fontFamily:"'IBM Plex Mono',monospace"}}>{_fmtDate(a.end_date)}</span>
-                  <span style={{fontSize:12,color:"var(--text4)"}}>·</span>
-                  <span style={{fontSize:13,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</span>
-                </div>
-                <div style={{display:"flex",gap:6,marginTop:2,alignItems:"center"}}>
-                  <span style={{fontSize:11,color:"var(--text4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{_proj?.name||a.project_id}</span>
-                  {a.assigned_to&&!isEngineerRole&&<><span style={{fontSize:11,color:"var(--text4)"}}>·</span><span style={{fontSize:11,color:"var(--info)",fontWeight:600}}>{a.assigned_to}</span></>}
-                </div>
-              </div>
-              <span style={{fontSize:11,fontWeight:700,color:_col,fontFamily:"'IBM Plex Mono',monospace",
-                background:_col+"20",padding:"2px 7px",borderRadius:10,whiteSpace:"nowrap",flexShrink:0}}>
-                {_daysLeft(a.end_date)}
-              </span>
-            </div>
-          );
-        };
-        const _total=_overdue.length+_thisWeek.length+_upcoming.length;
-        return(
-          <div style={{background:"var(--bg1)",border:`1px solid ${_overdue.length?"#f8717140":"var(--border3)"}`,borderRadius:10,overflow:"hidden",marginBottom:2}}>
-            <div onClick={()=>setDlPanelOpen(o=>!o)}
-              style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",cursor:"pointer",
-                background:_overdue.length?"#7f1d1d10":"var(--bg0)",userSelect:"none"}}>
-              <span style={{fontSize:15}}>{_overdue.length?"🔴":"📅"}</span>
-              <span style={{fontSize:13,fontWeight:700,color:_overdue.length?"#f87171":"var(--text0)"}}>
-                Deadlines
-                {_overdue.length>0&&<span style={{marginLeft:6,background:"#f8717130",color:"#f87171",fontSize:11,padding:"1px 7px",borderRadius:8,fontWeight:700}}>{_overdue.length} overdue</span>}
-                {_thisWeek.length>0&&<span style={{marginLeft:6,background:"#fb923c20",color:"#fb923c",fontSize:11,padding:"1px 7px",borderRadius:8,fontWeight:700}}>{_thisWeek.length} this week</span>}
-                {_upcoming.length>0&&<span style={{marginLeft:6,background:"#34d39920",color:"#34d399",fontSize:11,padding:"1px 7px",borderRadius:8,fontWeight:700}}>{_upcoming.length} upcoming</span>}
-              </span>
-              <span style={{marginLeft:"auto",fontSize:12,color:"var(--text4)"}}>{dlPanelOpen?"▲":"▼"} {_total} · click to {dlPanelOpen?"collapse":"expand"}</span>
-            </div>
-            {dlPanelOpen&&(
-              <div style={{padding:"10px 12px",display:"grid",gap:5}}>
-                {_overdue.length>0&&<>
-                  <div style={{fontSize:11,fontWeight:700,color:"#f87171",textTransform:"uppercase",letterSpacing:".08em",padding:"4px 4px 2px"}}>🔴 Overdue</div>
-                  {_overdue.map(a=>_renderRow(a,false))}
-                </>}
-                {_thisWeek.length>0&&<>
-                  <div style={{fontSize:11,fontWeight:700,color:"#fb923c",textTransform:"uppercase",letterSpacing:".08em",padding:"4px 4px 2px",marginTop:_overdue.length?6:0}}>🟡 Due This Week</div>
-                  {_thisWeek.map(a=>_renderRow(a,true))}
-                </>}
-                {_upcoming.length>0&&<>
-                  <div style={{fontSize:11,fontWeight:700,color:"#34d399",textTransform:"uppercase",letterSpacing:".08em",padding:"4px 4px 2px",marginTop:(_overdue.length||_thisWeek.length)?6:0}}>🟢 Next 14 Days</div>
-                  {_upcoming.map(a=>_renderRow(a,false))}
-                </>}
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
-        {allTrackerProjects.map(p=>{
-          const projActs=actsByProj[p.id]||[];
-          const hasSubs=subprojects.some(s=>s.project_id===p.id);
-          const totalHrs=getProjHrs(p.id);
-          const overallPct=projActs.length>0?Math.round(projActs.reduce((s,a)=>s+a.progress,0)/projActs.length*100):0;
-          const barColor=overallPct>=90?"#34d399":overallPct>=60?"var(--info)":overallPct>=30?"#fb923c":"#f87171";
-          const done=projActs.filter(a=>a.status==="Completed").length;
-          const active=projActs.filter(a=>a.status==="In Progress").length;
-          const pending=projActs.filter(a=>a.status==="Not Started").length;
-          return(
-          <div key={p.id} onClick={()=>setTrackerProj(p.id)}
-            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:10,padding:"14px 16px",cursor:"pointer",transition:"border-color .15s"}}
-            onMouseEnter={e=>e.currentTarget.style.borderColor="var(--info)"}
-            onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border3)"}>
-            {/* Header */}
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-              <div style={{flex:1,minWidth:0,paddingRight:8}}>
-                <div style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name||p.id}</div>
-                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</span>
-                  {p.status!=="Active"&&<span style={{fontSize:11,fontWeight:600,padding:"1px 6px",borderRadius:3,
-                    background:p.status==="On Hold"?"#fb923c15":"#a78bfa15",
-                    color:p.status==="On Hold"?"#fb923c":"#a78bfa"}}>{p.status}</span>}
-                </div>
-                {p.project_leader&&<div style={{fontSize:12,color:"var(--info)",marginTop:2,fontWeight:700}}>Leader: {p.project_leader}</div>}
-                {p.pm&&<div style={{fontSize:12,color:"#a78bfa",marginTop:1}}>PM: <span style={{fontWeight:600}}>{p.pm}</span></div>}
-              </div>
-              <div style={{textAlign:"right",flexShrink:0}}>
-                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:800,color:barColor,lineHeight:1}}>{overallPct}%</div>
-                <div style={{fontSize:11,color:"var(--text4)",marginTop:2}}>{totalHrs}h logged</div>
-              </div>
-            </div>
-            {/* Progress bar */}
-            <div style={{background:"var(--bg1)",borderRadius:4,height:5,overflow:"hidden",marginBottom:10}}>
-              <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4,transition:"width .4s"}}/>
-            </div>
-            {/* Activity chips */}
-            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-              {done>0&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"#34d39915",color:"#34d399",fontWeight:600,border:"1px solid #34d39930"}}>{done} Done</span>}
-              {active>0&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"var(--info)15",color:"var(--info)",fontWeight:600,border:"1px solid var(--info)30"}}>{active} Active</span>}
-              {pending>0&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text3)",fontWeight:600}}>{pending} Pending</span>}
-              {hasSubs&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"#a78bfa15",color:"#a78bfa",fontWeight:600,border:"1px solid #a78bfa30"}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-sites</span>}
-              {projActs.length===0&&canEdit&&(
-                <span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"transparent",color:"var(--info)",border:"1px dashed var(--border3)",cursor:"pointer"}}
-                  onClick={e=>{e.stopPropagation();setTrackerProj(p.id);}}>
-                  + Add activities
-                </span>
-              )}
-              {projActs.length===0&&!canEdit&&<span style={{fontSize:11,color:"var(--text4)",fontStyle:"italic"}}>No activities yet</span>}
-            </div>
-          </div>);
-        })}
-      </div>
-    </div>
-    {addModal&&<AddActivityModal projId={addModal.projId} subId={addModal.subId} defaultCat={addModal.defaultCat} engineers={engineers} onSave={confirmAdd} onClose={()=>setAddModal(null)}/>}
-    </>);
-  }
-
-  // ── PROJECT DETAIL ──
-  const selProj=projects.find(p=>p.id===trackerProj);
-  if(!selProj) return null;
-  const projSubs=subprojects.filter(s=>s.project_id===trackerProj);
-  const hasSubs=projSubs.length>0;
-  const projActs=actsByProj[trackerProj]||[];
-  const visActs=trackerSub
-    ? projActs.filter(a=>String(a.subproject_id)===String(trackerSub))
-    : projActs;
-
-  // Group by category — ordered by TAXONOMY_GROUPS definition so SCADA categories stay together
-  // Build ordered list: for each group in order, add its categories that have activities
-  const ORDERED_GROUPS = ["SCADA","RTU-PLC","Protection","General"];
-  const orderedCats = [];
-  ORDERED_GROUPS.forEach(grp=>{
-    (TAXONOMY_GROUPS[grp]||[]).forEach(cat=>{
-      if(visActs.some(a=>(a.category===cat)||(a.group_name===cat&&!a.category))){
-        orderedCats.push(cat);
-      }
-    });
-  });
-  // Also add any categories not in taxonomy (custom ones) at the end
-  const knownCats = new Set(orderedCats);
-  visActs.forEach(a=>{
-    const cat = a.category||(CAT_TO_GROUP[a.group_name]?null:a.group_name)||null;
-    if(cat&&!knownCats.has(cat)){ orderedCats.push(cat); knownCats.add(cat); }
-  });
-  const catNames = orderedCats;
-  // Activity belongs to a category if: a.category===cat OR (no category and group_name===cat)
-  const getActsForCat = cat => visActs.filter(a=>
-    a.category===cat || ((!a.category)&&(a.group_name===cat))
-  );
-  const uncategorised=visActs.filter(a=>!a.group_name&&!a.category);
-
-  const overallPct=projActs.length>0?Math.round(projActs.reduce((s,a)=>s+a.progress,0)/projActs.length*100):0;
-  const barColor=overallPct>=90?"#34d399":overallPct>=60?"var(--info)":overallPct>=30?"#fb923c":"#f87171";
-  const totalHrs=getProjHrs(trackerProj);
-
-  return(<>
-  <div style={{display:"grid",gap:14}}>
-    {/* Breadcrumb */}
-    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-      <button className="bg" style={{fontSize:13}} onClick={()=>{setTrackerProj(null);setTrackerSub(null);setExpandedCats({});}}>← All Projects</button>
-      <span style={{color:"var(--text4)"}}>/</span>
-      <span style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>{selProj.name||trackerProj}</span>
-      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{trackerProj}</span>
-      {hasSubs&&trackerSub&&(
-        <><span style={{color:"var(--text4)"}}>/</span>
-        <span style={{fontSize:14,color:"#a78bfa"}}>{projSubs.find(s=>String(s.id)===String(trackerSub))?.name}</span>
-        <button className="bg" style={{fontSize:13}} onClick={()=>setTrackerSub(null)}>All Sites</button></>
-      )}
-      <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
-        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:barColor}}>{overallPct}%</div>
-        <div style={{fontSize:13,color:"var(--text4)"}}>{totalHrs}h logged</div>
-        {canEdit&&<button className="bp" style={{fontSize:13}} onClick={()=>setAddModal({projId:trackerProj,subId:trackerSub||null})}>+ Add Activity</button>}
-      </div>
-    </div>
-
-    {/* Progress bar */}
-    <div style={{background:"var(--bg2)",borderRadius:4,height:8,overflow:"hidden"}}>
-      <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4,transition:"width .5s"}}/>
-    </div>
-
-    {/* Sub-site tabs */}
-    {hasSubs&&(
-    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-      <button onClick={()=>{setTrackerSub(null);setExpandedCats({});}}
-        style={{fontSize:13,padding:"4px 12px",borderRadius:5,border:`1px solid ${!trackerSub?"var(--info)":"var(--border)"}`,background:!trackerSub?"var(--bg3)":"transparent",color:!trackerSub?"var(--info)":"var(--text3)",cursor:"pointer"}}>
-        All Sites
-      </button>
-      {projSubs.map(sp=>{
-        const spActs=projActs.filter(a=>String(a.subproject_id)===String(sp.id));
-        const spPct=spActs.length>0?Math.round(spActs.reduce((s,a)=>s+a.progress,0)/spActs.length*100):0;
-        const isSel=String(trackerSub)===String(sp.id);
-        const sc=spPct>=90?"#34d399":spPct>=60?"var(--info)":spPct>=30?"#fb923c":"#f87171";
-        return(
-        <button key={sp.id} onClick={()=>{setTrackerSub(sp.id);setExpandedCats({});}}
-          style={{fontSize:13,padding:"4px 10px",borderRadius:5,border:`1px solid ${isSel?sc:"var(--border)"}`,background:isSel?sc+"20":"transparent",color:isSel?sc:"var(--text3)",cursor:"pointer"}}>
-          {sp.name} <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{spPct}%</span>
-        </button>);
-      })}
-    </div>)}
-
-    {/* ── Activity Clipboard Paste Bar ── */}
-    {actClipboard&&canEdit&&(
-      <div style={{display:"flex",gap:10,alignItems:"center",padding:"12px 16px",background:"#a78bfa15",border:"1px solid #a78bfa40",borderRadius:10,flexWrap:"wrap"}}>
-        
-        <div style={{flex:1,minWidth:200}}>
-          <div style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>
-            {actClipboard.acts.length} activit{actClipboard.acts.length===1?"y":"ies"} in clipboard
-          </div>
-          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
-            From: <span style={{color:"var(--text0)",fontWeight:600}}>{actClipboard.fromProjName}</span>
-            {actClipboard.fromSub&&<span> › {subprojects.find(s=>String(s.id)===String(actClipboard.fromSub))?.name}</span>}
-            <span style={{marginLeft:8,fontSize:12,color:"var(--text4)"}}>· Status resets to Not Started on paste</span>
-          </div>
-        </div>
-        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <div>
-            <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:3}}>Target Project</div>
-            <select value={pasteTargetProj||trackerProj||""} onChange={e=>setPasteTargetProj(e.target.value)} style={{fontSize:13,width:160}}>
-              {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.name||p.id}</option>)}
-            </select>
-          </div>
-          {(()=>{
-            const tProj=pasteTargetProj||trackerProj;
-            const tSubs=subprojects.filter(s=>s.project_id===tProj);
-            if(!tSubs.length) return null;
-            return(
-              <div>
-                <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:3}}>Sub-site (optional)</div>
-                <select value={pasteTargetSub} onChange={e=>setPasteTargetSub(e.target.value)} style={{fontSize:13,width:140}}>
-                  <option value="">— No sub-site —</option>
-                  {tSubs.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
-            );
-          })()}
-          <button className="bp" style={{fontSize:13,padding:"7px 18px",alignSelf:"flex-end"}} onClick={pasteActivities}>
-            ⎙ Paste {actClipboard.acts.length}
-          </button>
-          <button className="bg" style={{fontSize:13,alignSelf:"flex-end"}} onClick={()=>{setActClipboard(null);setPasteTargetProj("");setPasteTargetSub("");}}>
-            ✕ Clear
-          </button>
-        </div>
-      </div>
-    )}
-
-    {/* Category accordion sections — grouped by TAXONOMY order */}
-    {canEdit&&bulkSelected.size>0&&(
-      <div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 14px",background:"#0ea5e915",border:"1px solid #0ea5e930",borderRadius:8,flexWrap:"wrap"}}>
-        <span style={{fontSize:13,fontWeight:700,color:"var(--info)"}}>{bulkSelected.size} selected</span>
-        <span style={{color:"var(--text4)",fontSize:13}}>→ Set to:</span>
-        <select value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)}
-          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:13}}>
-          {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
-        </select>
-        <button className="bp" style={{fontSize:13,padding:"4px 14px"}} onClick={bulkUpdateStatus}>Apply</button>
-        <button style={{fontSize:13,padding:"4px 14px",borderRadius:6,border:"1px solid #a78bfa50",background:"#a78bfa15",color:"#a78bfa",cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600}}
-          onClick={copyActivities}>
-          📋 Copy selection
-        </button>
-        <button className="bg" style={{fontSize:13,padding:"4px 10px"}} onClick={()=>setBulkSelected(new Set())}>✕ Clear</button>
-      </div>
-    )}
-    <div style={{display:"grid",gap:8}}>
-      {catNames.map(cat=>{
-        const catActs=getActsForCat(cat);
-        const catPct=Math.round(catActs.reduce((s,a)=>s+a.progress,0)/catActs.length*100);
-        const catDone=catActs.filter(a=>a.status==="Completed").length;
-        const isOpen=expandedCats[cat]!==false;
-        const catGroup=CAT_TO_GROUP[cat]||null;
-        const GROUP_COLORS_MAP={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
-        const catColor=GROUP_COLORS_MAP[catGroup]||(catPct>=90?"#34d399":catPct>=60?"var(--info)":catPct>=30?"#fb923c":"#f87171");
-        return(
-        <div key={cat} style={{background:"var(--bg2)",border:`1px solid ${catColor}30`,borderRadius:8,overflow:"hidden"}}>
-          {/* Category header — clickable to collapse */}
-          <div onClick={()=>toggleCat(cat)}
-            style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",background:"var(--bg0)"}}
-            onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
-            onMouseLeave={e=>e.currentTarget.style.background="var(--bg0)"}>
-            <span style={{fontSize:13,color:"var(--text4)",transition:"transform .2s",display:"inline-block",transform:isOpen?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
-            {catGroup&&<span style={{fontSize:11,padding:"1px 6px",borderRadius:3,background:catColor+"20",color:catColor,fontWeight:700,flexShrink:0}}>{catGroup}</span>}
-            <span style={{fontSize:13,fontWeight:700,color:catColor,flex:1}}>{cat}</span>
-            {/* Mini progress bar */}
-            <div style={{width:80,height:5,background:"var(--bg1)",borderRadius:3,overflow:"hidden"}}>
-              <div style={{height:"100%",width:`${catPct}%`,background:catColor,borderRadius:3}}/>
-            </div>
-            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:catColor,width:32,textAlign:"right"}}>{catPct}%</span>
-            <span style={{fontSize:12,color:"var(--text4)",width:60,textAlign:"right"}}>{catDone}/{catActs.length} done</span>
-            {canEdit&&<button className="bp" style={{fontSize:12,padding:"1px 7px",marginLeft:4}}
-              onClick={e=>{e.stopPropagation();setAddModal({projId:trackerProj,subId:trackerSub||null,defaultCat:cat});}}>+</button>}
-          </div>
-          {/* Activity rows */}
-          {isOpen&&(
-          <table style={{margin:0}}>
-            <thead><tr>
-              {canEdit&&<th style={{width:28}}></th>}
-              <th>Activity</th><th>Status</th><th>Progress</th>
-              <th>Assigned</th><th>Dates</th><th>Hours</th>
-              {(canEdit||isEngineerRole)&&<th style={{width:36}}></th>}
-              {canEdit&&<th style={{width:28}}></th>}
-            </tr></thead>
-            <tbody>
-              {catActs.map(a=>(
-                <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)}
-                  isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}
-                  isSelected={bulkSelected.has(a.id)}
-                  onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}
-                  onComment={handleActivityComment} myProfile={myProfile} isEngineerRole={isEngineerRole}/>
-              ))}
-            </tbody>
-          </table>)}
-        </div>
-        );
-      })}
-
-      {/* Uncategorised activities */}
-      {uncategorised.length>0&&(
-      <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,overflow:"hidden"}}>
-        <div style={{padding:"8px 14px",background:"var(--bg0)",fontSize:13,color:"var(--text3)",fontWeight:700}}>UNCATEGORISED</div>
-        <table style={{margin:0}}>
-          <thead><tr>
-            {canEdit&&<th style={{width:28}}></th>}
-            <th>Activity</th><th>Status</th><th>Progress</th>
-            <th>Assigned</th><th>Dates</th><th>Hours</th>
-            {(canEdit||isEngineerRole)&&<th style={{width:36}}></th>}
-            {canEdit&&<th style={{width:28}}></th>}
-          </tr></thead>
-          <tbody>
-            {uncategorised.map(a=>(
-              <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)}
-                isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}
-                isSelected={bulkSelected.has(a.id)}
-                onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}
-                onComment={handleActivityComment} myProfile={myProfile} isEngineerRole={isEngineerRole}/>
-            ))}
-          </tbody>
-        </table>
-      </div>)}
-
-      {visActs.length===0&&(
-        <div style={{textAlign:"center",padding:"40px 24px",background:"var(--bg2)",borderRadius:8,border:"1px dashed var(--border3)"}}>
-          
-          <div style={{fontSize:15,fontWeight:600,color:"var(--text0)",marginBottom:6}}>No activities yet</div>
-          <div style={{fontSize:13,color:"var(--text4)",marginBottom:canEdit?18:0}}>
-            {trackerSub
-              ? "No activities have been added to this sub-site yet."
-              : "This project has no tracker activities."}
-          </div>
-          {canEdit&&(
-            <button className="bp" style={{fontSize:13,padding:"7px 18px"}}
-              onClick={()=>setAddModal({projId:trackerProj,subId:trackerSub||null})}>
-              + Add First Activity
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-
-    {/* Summary strip */}
-    <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
-      {[
-        {label:"Completed",  count:visActs.filter(a=>a.status==="Completed").length,  color:"#34d399",bg:"var(--bg3)"},
-        {label:"In Progress",count:visActs.filter(a=>a.status==="In Progress").length, color:"var(--info)",bg:"var(--bg3)"},
-        {label:"Not Started",count:visActs.filter(a=>a.status==="Not Started").length, color:"var(--text3)",bg:"var(--bg3)"},
-        {label:"On Hold",    count:visActs.filter(a=>a.status==="On Hold").length,     color:"#fb923c",bg:"var(--bg3)"},
-      ].filter(s=>s.count>0).map(s=>(
-        <div key={s.label} style={{display:"flex",gap:6,alignItems:"center",background:s.bg,border:`1px solid ${s.color}25`,borderRadius:6,padding:"5px 10px"}}>
-          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:s.color}}>{s.count}</span>
-          <span style={{fontSize:13,color:"var(--text3)"}}>{s.label}</span>
-        </div>
-      ))}
-      <div style={{marginLeft:"auto",fontSize:13,color:"var(--text4)"}}>Click row to edit · Click category header to collapse</div>
-    </div>
-  </div>
-
-  {/* Edit modal */}
-  {editActivity&&(
-    <ActivityEditModal
-      act={{...editActivity, category: editActivity.category||editActivity.group_name||""}}
-      onSave={saveActivity}
-      onClose={()=>setEditActivity(null)}
-      engineers={engineers}
-      onComment={handleActivityComment}
-      myProfile={myProfile}/>
-  )}
-
-  {/* Add modal */}
-  {addModal&&(
-    <AddActivityModal
-      projId={addModal.projId} subId={addModal.subId}
-      defaultCat={addModal.defaultCat}
-      onSave={confirmAdd}
-      onClose={()=>setAddModal(null)}/>
-  )}
-  </>);
-}
-
-
-
-/* ════════════════════════════════════════════════════════
-   SUB-PROJECT MODAL (add / edit)
-   ════════════════════════════════════════════════════════ */
-function SubProjectModal({projectId, sub, engineers, onSave, onClose}){
-  const isEdit = !!sub;
-  const [draft, setDraft] = useState(sub
-    ? {...sub}
-    : {project_id:projectId, name:"", pm_name:"", pm_comments:"", pendings:""}
-  );
-  const engList = engineers.filter(e=>e.role_type!=="accountant");
-  return(
-  <div className="modal-ov" onClick={onClose}>
-    <div className="modal" style={{maxWidth:440}} onClick={e=>e.stopPropagation()}>
-      <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:16}}>
-        {isEdit?"Edit Sub-site":"Add Sub-site"}
-        <span style={{fontSize:13,color:"#a78bfa",marginLeft:8,fontWeight:400}}>Project: {projectId}</span>
-      </h3>
-      <div style={{display:"grid",gap:10}}>
-        <div>
-          <label style={{fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>SUB-SITE NAME <span style={{color:"#f87171"}}>*</span></label>
-          <input value={draft.name} onChange={e=>setDraft(p=>({...p,name:e.target.value}))}
-            placeholder="e.g. Ipotesti, Craiova, Bradu…"
-            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13,boxSizing:"border-box"}}/>
-        </div>
-        <div>
-          <label style={{fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>BU ROMANIA PM</label>
-          <input value={draft.pm_name||""} onChange={e=>setDraft(p=>({...p,pm_name:e.target.value}))}
-            placeholder="e.g. Cosmin, Irena, Alexanda…"
-            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13,boxSizing:"border-box"}}/>
-        </div>
-        <div>
-          <label style={{fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>ASSIGNED ENGINEERS</label>
-          <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,maxHeight:140,overflowY:"auto"}}>
-            {engList.map(e=>{
-              const assignedArr = (draft.assigned_engineers||[]).map(String);
-              const sel = assignedArr.includes(String(e.id));
-              return(
-              <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"2px 4px",borderRadius:3,background:sel?"var(--bg3)":"transparent"}}>
-                <input type="checkbox" checked={sel} onChange={()=>setDraft(p=>{
-                  const cur=(p.assigned_engineers||[]).map(String);
-                  return {...p, assigned_engineers: sel ? cur.filter(x=>x!==String(e.id)) : [...cur,String(e.id)]};
-                })} style={{accentColor:"var(--info)"}}/>
-                <span style={{fontSize:13,color:sel?"var(--info)":"var(--text2)"}}>{e.name}</span>
-              </label>);
-            })}
-          </div>
-        </div>
-        <div>
-          <label style={{fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>PM COMMENTS</label>
-          <textarea value={draft.pm_comments||""} onChange={e=>setDraft(p=>({...p,pm_comments:e.target.value}))} rows={2}
-            placeholder="Comments from BU Romania PM…"
-            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text2)",padding:"6px 8px",fontSize:13,resize:"vertical",boxSizing:"border-box"}}/>
-        </div>
-        <div>
-          <label style={{fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>PENDING ITEMS</label>
-          <textarea value={draft.pendings||""} onChange={e=>setDraft(p=>({...p,pendings:e.target.value}))} rows={2}
-            placeholder="e.g. Waiting for IP list, IOA addresses…"
-            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"#f87171",padding:"6px 8px",fontSize:13,resize:"vertical",boxSizing:"border-box"}}/>
-        </div>
-      </div>
-      <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
-        <button className="bg" onClick={onClose}>Cancel</button>
-        <button className="bp" disabled={!draft.name.trim()} onClick={()=>onSave(draft)}>
-          {isEdit?"Save Changes":"Add Sub-site"}
-        </button>
-      </div>
-    </div>
-  </div>);
-}
-
-/* ════════════════════════════════════════════════════════
-   PROJECTS TAB — standalone component (prevents hang)
-   ════════════════════════════════════════════════════════ */
-function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, setExpandedProj,
-  setShowProjModal, setEditProjModal, setSubProjModal, deleteProject, deleteSubProject,
-  activities, setActivities, supabase, showToast, isAdmin, isLead, isAcct, showConfirm}){
-  const [actModal,setActModal] = React.useState(null); // {projId, act:null|object}
-  const [actDraft,setActDraft] = React.useState({});
-  const [projSearch,setProjSearch]   = React.useState("");
-  const [projStatus,setProjStatus]   = React.useState("ALL");
-  const [projType,setProjType]       = React.useState("ALL");
-  const [projPhase,setProjPhase]     = React.useState("ALL");
-  const [projBilling,setProjBilling] = React.useState("ALL");
-  const canEdit = isAdmin||isLead;
-  const canManageActs = isAdmin||isLead;
-
-  const openActModal=(projId,act=null)=>{
-    setActDraft(act?{...act}:{project_id:projId,group_name:"SCADA",category:"Templates",activity_name:"",status:"Not Started",progress:0,assigned_to:"",remarks:""});
-    setActModal({projId,act});
-  };
-  const saveAct=async()=>{
-    if(!actDraft.activity_name?.trim()){if(showToast)showToast("Activity name required",false);return;}
-    if(actModal.act){
-      const{id,...fields}=actDraft;
-      const{data,error}=await supabase.from("project_activities").update(fields).eq("id",id).select().single();
-      if(error){if(showToast)showToast("Error: "+error.message,false);return;}
-      if(setActivities) setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
-    } else {
-      const{data,error}=await supabase.from("project_activities").insert(actDraft).select().single();
-      if(error){if(showToast)showToast("Error: "+error.message,false);return;}
-      if(setActivities) setActivities(prev=>[...prev,data]);
-    }
-    setActModal(null);
-    if(showToast)showToast("Activity saved ✓");
-  };
-  const delAct=async(id)=>{
-    const act=(activities||[]).find(a=>a.id===id);
-    showConfirm("Delete this activity?",()=>{
-      applyUndo(
-        showToast,"Activity deleted",
-        ()=>{ if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id)); },
-        ()=>{ if(setActivities&&act)setActivities(prev=>[act,...prev]); },
-        async()=>{ const{error}=await supabase.from("project_activities").delete().eq("id",id); return error||null; },
-        null
-      );
-    },{title:"Delete Activity",confirmLabel:"Delete"});
-  };
-
-  const projHrsMap = useMemo(()=>{
-    const m={};
-    for(const e of entries){ if(e.entry_type==="work"&&e.project_id) m[e.project_id]=(m[e.project_id]||0)+e.hours; }
-    return m;
-  },[entries]);
-
-  return(
-  <div style={{display:"grid",gap:12}}>
-    <div className="card" style={{padding:0,overflow:"hidden"}}>
-      {/* ── Header row ── */}
-      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
-        <div>
-          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Projects</div>
-          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
-            {projects.filter(p=>{
-              const ms=projStatus==="ALL"||p.status===projStatus;
-              const mt=projType==="ALL"||p.type===projType;
-              const mph=projPhase==="ALL"||p.phase===projPhase;
-              const mb=projBilling==="ALL"||(projBilling==="Billable"?p.billable:!p.billable);
-              const mq=!projSearch||(p.name||"").toLowerCase().includes(projSearch.toLowerCase())||(p.id||"").toLowerCase().includes(projSearch.toLowerCase())||(p.client||"").toLowerCase().includes(projSearch.toLowerCase());
-              return ms&&mt&&mph&&mb&&mq;
-            }).length} of {projects.length} projects
-          </div>
-        </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="Search name, ID, client…"
-            style={{width:200,padding:"7px 12px",borderRadius:7,border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text0)",fontSize:13}}/>
-          {canEdit&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
-        </div>
-      </div>
-      {/* ── Filter bar ── */}
-      <div style={{padding:"10px 20px",borderBottom:"1px solid var(--border)",background:"var(--bg1)",display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end"}}>
-        {/* Status */}
-        <div>
-          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Status</div>
-          <div style={{display:"flex",gap:4}}>
-            {[["ALL","All"],["Active","Active"],["On Hold","On Hold"],["Completed","Done"]].map(([v,l])=>{
-              const cnt=v==="ALL"?projects.length:projects.filter(p=>p.status===v).length;
-              const col=v==="Active"?"#34d399":v==="On Hold"?"#fb923c":v==="Completed"?"#a78bfa":"var(--text2)";
-              const active=projStatus===v;
-              return(<button key={v} onClick={()=>setProjStatus(v)}
-                style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${active?col+"90":"var(--border)"}`,
-                  background:active?col+"18":"transparent",color:active?col:"var(--text3)",
-                  fontSize:12,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",whiteSpace:"nowrap"}}>
-                {l} <span style={{fontSize:11,opacity:.8}}>{cnt}</span>
-              </button>);
-            })}
-          </div>
-        </div>
-        {/* Type */}
-        <div>
-          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Type</div>
-          <div style={{display:"flex",gap:4}}>
-            {[["ALL","All"],["Renewable Energy","Renewable"],["Industrial","Industrial"]].map(([v,l])=>{
-              const col=v==="Renewable Energy"?"#34d399":v==="Industrial"?"#818cf8":"var(--text2)";
-              const active=projType===v;
-              return(<button key={v} onClick={()=>setProjType(v)}
-                style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${active?col+"90":"var(--border)"}`,
-                  background:active?col+"18":"transparent",color:active?col:"var(--text3)",
-                  fontSize:12,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",whiteSpace:"nowrap"}}>
-                {l}
-              </button>);
-            })}
-          </div>
-        </div>
-        {/* Billing */}
-        <div>
-          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Billing</div>
-          <div style={{display:"flex",gap:4}}>
-            {[["ALL","All"],["Billable","Billable"],["Internal","Internal"]].map(([v,l])=>{
-              const col=v==="Billable"?"#34d399":v==="Internal"?"var(--text3)":"var(--text2)";
-              const active=projBilling===v;
-              return(<button key={v} onClick={()=>setProjBilling(v)}
-                style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${active?col+"90":"var(--border)"}`,
-                  background:active?col+"18":"transparent",color:active?col:"var(--text3)",
-                  fontSize:12,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",whiteSpace:"nowrap"}}>
-                {l}
-              </button>);
-            })}
-          </div>
-        </div>
-        {/* Phase */}
-        <div>
-          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Phase</div>
-          <select value={projPhase} onChange={e=>setProjPhase(e.target.value)}
-            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"4px 10px",color:"var(--text0)",fontSize:12,fontWeight:600,outline:"none",cursor:"pointer",minWidth:120}}>
-            <option value="ALL">All Phases</option>
-            {["Design","Basic Engineering","Detailed Engineering","Software","FAT","Commissioning","Closed"].map(ph=><option key={ph}>{ph}</option>)}
-          </select>
-        </div>
-        {/* Clear all */}
-        {(projStatus!=="ALL"||projType!=="ALL"||projPhase!=="ALL"||projBilling!=="ALL"||projSearch)&&(
-          <button onClick={()=>{setProjStatus("ALL");setProjType("ALL");setProjPhase("ALL");setProjBilling("ALL");setProjSearch("");}}
-            style={{padding:"4px 12px",borderRadius:20,border:"1px solid #f8717160",background:"#f8717112",color:"#f87171",
-              fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",alignSelf:"flex-end",marginBottom:1}}>
-            ✕ Clear filters
-          </button>
-        )}
-      </div>
-      <table>
-        <thead><tr>
-          <th style={{width:28}}></th>
-          <th>Name</th><th>No.</th><th>PM</th><th>Client</th><th>Phase</th>
-          <th>Status</th><th>Billing</th><th>Hours</th>
-          <th>Sub-sites</th>
-          <th style={{width:110}}>Actions</th>
-        </tr></thead>
-        <tbody>{projects.filter(p=>{
-          const ms=projStatus==="ALL"||p.status===projStatus;
-          const mt=projType==="ALL"||p.type===projType;
-          const mph=projPhase==="ALL"||p.phase===projPhase;
-          const mb=projBilling==="ALL"||(projBilling==="Billable"?p.billable:!p.billable);
-          const mq=!projSearch||(p.name||"").toLowerCase().includes(projSearch.toLowerCase())||(p.id||"").toLowerCase().includes(projSearch.toLowerCase())||(p.client||"").toLowerCase().includes(projSearch.toLowerCase());
-          return ms&&mt&&mph&&mb&&mq;
-        }).map(p=>{
-          const pSubs = subprojects.filter(s=>s.project_id===p.id);
-          const isExp = expandedProj[p.id];
-          const hrs   = projHrsMap[p.id]||0;
-          return(<React.Fragment key={p.id}>
-            <tr>
-              <td style={{textAlign:"center"}}>
-                {pSubs.length>0&&(
-                  <button onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}
-                    style={{background:"none",border:"none",color:"#a78bfa",cursor:"pointer",fontSize:13,padding:0,
-                      transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>▶</button>
-                )}
-              </td>
-              <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)"}}>{p.id}</td>
-              <td style={{fontSize:13,color:"#a78bfa"}}>{p.pm||"—"}</td>
-              <td style={{color:"var(--text2)",fontSize:13}}>{p.client}</td>
-              <td style={{color:"#60a5fa",fontSize:13}}>{p.phase}</td>
-              <td><span style={{fontSize:12,padding:"2px 6px",borderRadius:3,fontWeight:700,
-                background:p.status==="Active"?"#05603a30":p.status==="On Hold"?"#7c2d1230":"var(--border)",
-                color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span></td>
-              <td><span style={{fontSize:12,padding:"2px 6px",borderRadius:3,fontWeight:700,
-                background:p.billable?"var(--bg3)":"#fb923c20",color:p.billable?"var(--info)":"#fb923c"}}>
-                {p.billable?"Billable":"Non-Bill"}</span></td>
-              <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{hrs}h</td>
-              <td>
-                {pSubs.length>0
-                  ? <span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"#a78bfa",
-                      fontWeight:700,cursor:"pointer"}}
-                      onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}>
-                      {pSubs.length} sub-site{pSubs.length>1?"s":""}
-                    </span>
-                  : <span style={{fontSize:12,color:"var(--text4)"}}>—</span>
-                }
-              </td>
-              <td><div style={{display:"flex",gap:4}}>
-                {canEdit&&<button className="be" title="Edit project" onClick={()=>setEditProjModal({...p})}>✎</button>}
-                {canEdit&&<button style={{fontSize:13,padding:"2px 7px",borderRadius:4,background:"var(--bg3)",
-                  border:"1px solid #a78bfa30",color:"#a78bfa",cursor:"pointer"}}
-                  title="Add sub-site" onClick={()=>setSubProjModal({projectId:p.id,sub:null})}>+⊕</button>}
-                {isAdmin&&<button className="bd" title="Delete project" onClick={()=>deleteProject(p.id)}>✕</button>}
-              </div></td>
-            </tr>
-            {/* Sub-project rows */}
-            {isExp&&pSubs.map(sp=>(
-              <tr key={sp.id} style={{background:"var(--bg2)"}}>
-                <td></td>
-                <td colSpan={2} style={{paddingLeft:24}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{color:"var(--text4)",fontSize:13}}>└</span>
-                    <span style={{fontSize:13,color:"#a78bfa",fontWeight:600}}>{sp.name}</span>
-                  </div>
-                </td>
-                <td style={{fontSize:13,color:"var(--text2)"}}>{sp.pm_name||"—"}</td>
-                <td colSpan={2} style={{fontSize:13,color:"var(--info)"}}>
-                  {(sp.assigned_engineers||[]).map(eid=>engineers.find(e=>String(e.id)===String(eid))?.name).filter(Boolean).join(", ")||"—"}
-                </td>
-                <td colSpan={2} style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",
-                  maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sp.pendings||""}</td>
-                <td></td>
-                <td><div style={{display:"flex",gap:4}}>
-                  {canEdit&&<button className="be" style={{fontSize:13}} onClick={()=>setSubProjModal({projectId:p.id,sub:sp})}>✎</button>}
-                  {isAdmin&&<button className="bd" style={{fontSize:13}} onClick={()=>deleteSubProject(sp.id)}>✕</button>}
-                </div></td>
-              </tr>
-            ))}
-          </React.Fragment>);
-        })}</tbody>
-      </table>
-    </div>
-  </div>);
-}
-
-
-
-/* ════════════════════════════════════════════════════════
-   FINANCE MODULE COMPONENTS — Excel-matched tabs
-   ════════════════════════════════════════════════════════ */
-
-/* ── Shared helpers (module-level, no hooks) ── */
-const fmtEGP = v => v != null ? `EGP ${Math.abs(+v).toLocaleString("en-EG",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—";
-const fmtEGPsigned = v => `${+v>=0?"+":"-"} EGP ${Math.abs(+v).toLocaleString("en-EG",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-const MO_SHORT = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const MAIN_ACCOUNTS = [
-  "Fixed Assets","Cash & Cash Equivalents","Cash Custody","Customers","Non-Current assets",
-  "Accrued Expenses","Creditors and other accounts payable","Payable Notes",
-  "Tax and Social Insurance Authority","Capital","Share holders",
-  "Revenue","Administrative expenses","Operating Costs"
-];
-
-/* ═══════════════════════════════════════════════════════════
-   TRACKER PROGRESS REPORT
-   ═══════════════════════════════════════════════════════════ */
-function TrackerProgressReport({activities,projects,subprojects,engineers}){
-  const [period,  setPeriod]  = React.useState("weekly");
-  const [selProj, setSelProj] = React.useState("ALL");
-  const [selStat, setSelStat] = React.useState("ALL");
-  const [showInactiveProj, setShowInactiveProj] = React.useState(false); // Active projects only by default
-  const today = new Date();
-  const fmtD = function(d){ return d ? new Date(d+"T12:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}) : "—"; };
-  const GC = {"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
-  const SC = {"Completed":"#34d399","In Progress":"var(--info)","Not Started":"var(--text3)","On Hold":"#fb923c"};
-  const SB = {"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started":"#1e293b40","On Hold":"#78350f30"};
-  const PERIOD_LABEL = {daily:"Daily (Last 24h)",weekly:"Weekly (Last 7 days)",monthly:"Monthly (Last 30 days)",full:"Full Project"};
-
-  // Filter projects by status — Active only unless showInactiveProj is checked
-  const visibleProjIds = React.useMemo(function(){
-    const ids=new Set();
-    projects.forEach(function(p){
-      if(showInactiveProj||(p.status||"Active")==="Active") ids.add(p.id);
-    });
-    return ids;
-  },[projects,showInactiveProj]);
-
-  const acts = React.useMemo(function(){
-    return activities.filter(function(a){
-      if(!visibleProjIds.has(a.project_id)) return false; // exclude inactive projects
-      if(selProj!=="ALL"&&a.project_id!==selProj) return false;
-      if(selStat!=="ALL"&&a.status!==selStat) return false;
-      return true;
-    });
-  },[activities,selProj,selStat,visibleProjIds]);
-
-  const grouped = React.useMemo(function(){
-    const map={};
-    acts.forEach(function(a){
-      if(!map[a.project_id]) map[a.project_id]={pid:a.project_id,cats:{},subs:{}};
-      const cat=a.category||a.group_name||"General";
-      const subId=a.subproject_id?String(a.subproject_id):null;
-      if(subId){
-        if(!map[a.project_id].subs[subId]){
-          const sp=subprojects.find(function(s){return String(s.id)===subId;});
-          map[a.project_id].subs[subId]={subId:subId,subName:sp?sp.name:"Sub-site",cats:{}};
-        }
-        if(!map[a.project_id].subs[subId].cats[cat]) map[a.project_id].subs[subId].cats[cat]=[];
-        map[a.project_id].subs[subId].cats[cat].push(a);
-      } else {
-        if(!map[a.project_id].cats[cat]) map[a.project_id].cats[cat]=[];
-        map[a.project_id].cats[cat].push(a);
-      }
-    });
-    return Object.values(map).sort(function(a,b){
-      const na=projects.find(function(p){return p.id===a.pid;});
-      const nb=projects.find(function(p){return p.id===b.pid;});
-      return (na?na.name:a.pid).localeCompare(nb?nb.name:b.pid);
-    });
-  },[acts,projects,subprojects]);
-
-  const total=acts.length;
-  const done=acts.filter(function(a){return a.status==="Completed";}).length;
-  const inprog=acts.filter(function(a){return a.status==="In Progress";}).length;
-  const onhold=acts.filter(function(a){return a.status==="On Hold";}).length;
-  const avg=total?Math.round(acts.reduce(function(s,a){return s+(a.progress||0);},0)/total*100):0;
-
-  const buildPDF=function(){
-    const now=today.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-    const label=PERIOD_LABEL[period];
-    const stBgMap={"Completed":"#dcfce7","In Progress":"#dbeafe","Not Started":"#f1f5f9","On Hold":"#fff7ed"};
-    const stCMap={"Completed":"#166534","In Progress":"#1d4ed8","Not Started":"#64748b","On Hold":"#9a3412"};
-
-    // Helper: renders activity rows for a given cats object, with optional indent level
-    function buildCatRows(cats, indentPx){
-      var rows="";
-      Object.entries(cats).forEach(function(entry){
-        var cat=entry[0]; var catActs=entry[1];
-        rows+='<tr style="background:#f0f4f8"><td colspan="7" style="padding:4px 6px 4px '+indentPx+'px;font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.08em;border-top:1px solid #e2e8f0">'+cat+'</td></tr>';
-        catActs.forEach(function(a){
-          var pct=Math.round((a.progress||0)*100);
-          var ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
-          var stBg=stBgMap[a.status]||"#f1f5f9";
-          var stC=stCMap[a.status]||"#64748b";
-          var pctCol=pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b";
-          var barCol=pct===100?"#22c55e":pct>=50?"#3b82f6":"#f97316";
-          var bar='<div style="display:inline-block;vertical-align:middle;width:55px;height:4px;background:#e2e8f0;border-radius:2px;margin-left:4px"><div style="width:'+pct+'%;height:100%;background:'+barCol+';border-radius:2px"></div></div>';
-          var cs=a.comments?Array.isArray(a.comments)?a.comments:(function(){try{return JSON.parse(a.comments);}catch(e){return[];}})():[];
-          var commentHTML=cs.length?'<div style="margin-top:5px;border-top:1px solid #e2e8f0;padding-top:4px">'+cs.map(function(c){var tsStr=c.ts?new Date(c.ts).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";return'<div style="display:flex;gap:5px;margin-bottom:3px"><div style="width:18px;height:18px;border-radius:50%;background:'+(c._migrated?"#fff7ed":"#f5f3ff")+';color:'+(c._migrated?"#c2410c":"#7c3aed")+';font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(c.author||"?").slice(0,2).toUpperCase()+'</div><div style="flex:1"><div style="font-size:9px;color:#475569;margin-bottom:1px"><b>'+c.author+'</b>'+(c.role?' · '+c.role:'')+' <span style="float:right;color:#94a3b8">'+tsStr+'</span></div><div style="font-size:10px;color:#334155;background:#f8fafc;border-left:2px solid '+(c._migrated?"#f97316":"#7c3aed")+';padding:2px 6px;border-radius:0 3px 3px 0">'+c.text+'</div></div></div>';}).join('')+'</div>':'';
-          rows+='<tr><td style="padding:5px 6px 5px '+(indentPx+10)+'px;font-size:11px">'+a.activity_name+'</td>'
-            +'<td style="padding:5px 6px"><span style="background:'+stBg+';color:'+stC+';padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">'+a.status+'</span></td>'
-            +'<td style="padding:5px 6px;white-space:nowrap"><b style="font-size:11px;color:'+pctCol+'">'+pct+'%</b>'+bar+'</td>'
-            +'<td style="padding:5px 6px;font-size:10px;color:#475569">'+(a.assigned_to||"—")+'</td>'
-            +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap">'+fmtD(a.start_date)+'</td>'
-            +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap;color:'+(ov?"#dc2626":"#475569")+';font-weight:'+(ov?"700":"400")+'">'+fmtD(a.end_date)+(ov?" ⚠":"")+'</td>'
-            +'<td style="padding:5px 6px;font-size:10px;color:#64748b">'+(a.remarks||"")+(cs.length?' '+commentHTML:'')+'</td></tr>';
-        });
-      });
-      return rows;
-    }
-
-    var tableHead='<thead><tr style="background:#f1f5f9">'
-      +'<th style="padding:5px 6px 5px 22px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ACTIVITY</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">STATUS</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">PROGRESS</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ASSIGNED</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">START</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">DEADLINE</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">NOTES</th>'
-      +'</tr></thead>';
-
-    var projHTML="";
-    var SUB_COLORS=["#7c3aed","#0369a1","#047857","#b45309","#be123c","#0f766e","#6d28d9","#0284c7"];
-    grouped.forEach(function(g){
-      var proj=projects.find(function(p){return p.id===g.pid;});
-      var subList=Object.values(g.subs);
-      var hasSubs=subList.length>0;
-      // All acts: sub-site acts + unassigned acts
-      var allActs=[].concat(
-        Object.values(g.cats).flat(),
-        subList.flatMap(function(s){return Object.values(s.cats).flat();})
-      );
-      var pd=allActs.filter(function(a){return a.status==="Completed";}).length;
-      var pp=allActs.length?Math.round(allActs.reduce(function(s,a){return s+(a.progress||0);},0)/allActs.length*100):0;
-      var bc=pp===100?"#22c55e":pp>=50?"#3b82f6":"#f97316";
-
-      // Project banner
-      var banner='<div style="background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:10px 14px;border-radius:7px 7px 0 0;display:flex;justify-content:space-between;align-items:center">'
-        +'<div>'
-        +'<div style="font-size:15px;font-weight:700">'+(proj?proj.name:g.pid)+'</div>'
-        +'<div style="font-size:10px;color:#93c5fd;margin-top:2px">'+g.pid
-          +(proj&&proj.project_leader?' · Leader: '+proj.project_leader:'')
-          +(proj&&proj.pm?' · PM: '+proj.pm:'')
-          +(proj&&proj.phase?' · Phase: '+proj.phase:'')
-          +(proj&&proj.client?' · '+proj.client:'')
-        +'</div>'
-        +(hasSubs?'<div style="font-size:10px;color:#a5b4fc;margin-top:3px">'+subList.length+' sub-site'+(subList.length!==1?'s':'')+': '+subList.map(function(s){return s.subName;}).join(' · ')+'</div>':'')
-        +'</div>'
-        +'<div style="text-align:right">'
-        +'<div style="font-size:22px;font-weight:800;color:'+bc+'">'+pp+'%</div>'
-        +'<div style="font-size:10px;color:#93c5fd">'+pd+'/'+allActs.length+' done</div>'
-        +'</div></div>';
-
-      // Overall progress bar
-      var progBar='<div style="height:5px;background:#e2e8f0"><div style="width:'+pp+'%;height:100%;background:'+bc+'"></div></div>';
-
-      var body="";
-
-      if(hasSubs){
-        // Sub-site summary strip
-        var summaryRow='<div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0">';
-        subList.forEach(function(s,si){
-          var sActs=Object.values(s.cats).flat();
-          var sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
-          var sd=sActs.filter(function(a){return a.status==="Completed";}).length;
-          var sc2=sp2===100?"#22c55e":sp2>=50?"#3b82f6":"#f97316";
-          summaryRow+='<span style="padding:3px 10px;border-radius:12px;border:1px solid '+sc2+';font-size:10px;background:'+sc2+'18;color:'+sc2+';font-weight:700">'+s.subName+': '+sp2+'% ('+sd+'/'+sActs.length+')</span>';
-        });
-        // Unassigned count
-        var unassgActs=Object.values(g.cats).flat();
-        if(unassgActs.length) summaryRow+='<span style="padding:3px 10px;border-radius:12px;border:1px solid #94a3b8;font-size:10px;color:#64748b">No Sub-site: '+unassgActs.length+' act.</span>';
-        summaryRow+='</div>';
-
-        // Per sub-site sections
-        var subSections="";
-        subList.forEach(function(s,si){
-          var sActs=Object.values(s.cats).flat();
-          var sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
-          var sd=sActs.filter(function(a){return a.status==="Completed";}).length;
-          var sc2=SUB_COLORS[si%SUB_COLORS.length];
-          var catRows=buildCatRows(s.cats,22);
-          subSections+='<tr style="background:'+sc2+'15"><td colspan="7" style="padding:6px 10px;font-weight:700;color:'+sc2+';font-size:11px;border-top:2px solid '+sc2+'">'
-            +'📍 '+s.subName
-            +' <span style="font-weight:400;color:#64748b;font-size:10px">'
-            +sp2+'% · '+sd+'/'+sActs.length+' done'
-            +'</span></td></tr>'
-            +catRows;
-        });
-
-        // Activities not assigned to any sub-site
-        var unRows=Object.keys(g.cats).length>0?
-          '<tr style="background:#f9fafb"><td colspan="7" style="padding:6px 10px;font-weight:700;color:#64748b;font-size:11px;border-top:2px solid #cbd5e1"No Sub-site Assigned</td></tr>'
-          +buildCatRows(g.cats,22):"";
-
-        body=summaryRow
-          +'<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none">'
-          +tableHead+'<tbody>'+subSections+unRows+'</tbody></table>';
-      } else {
-        // No sub-sites — original flat layout
-        var catRows=buildCatRows(g.cats,22);
-        body='<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none">'
-          +tableHead+'<tbody>'+catRows+'</tbody></table>';
-      }
-
-      projHTML+='<div style="margin-bottom:22px">'+banner+progBar+body+'</div>';
-    });
-    const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Tracker Report</title>'
-      +'<style>body{font-family:\'Segoe UI\',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}'
-      +'@media print{body{padding:0}@page{margin:14mm}.proj-block{page-break-inside:auto}table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f">'
-      +'<div><div style="font-size:20px;font-weight:800;color:#1e3a5f">ENEVO GROUP</div>'
-      +'<div style="font-size:15px;font-weight:700;color:#334155;margin-top:2px">Activity Tracker Progress Report</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-top:3px">Period: <b>'+label+'</b> · '+(showInactiveProj?'All project statuses':'Active projects only')+' · Generated: '+now+'</div></div>'
-      +'<div style="text-align:right;font-size:11px;color:#64748b;line-height:1.8">'
-      +'<div>'+acts.length+' activities · '+grouped.length+' projects</div>'
-      +'<div>Completed: <b style="color:#16a34a">'+done+'</b>  In Progress: <b style="color:#2563eb">'+inprog+'</b>  On Hold: <b style="color:#ea580c">'+onhold+'</b></div>'
-      +'<div>Avg: <b style="font-size:14px">'+avg+'%</b></div></div></div>'
-      +(grouped.length===0?'<p style="text-align:center;padding:30px;color:#94a3b8">No activities found.</p>':projHTML)
-      +'<div style="margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP — Internal Report — '+now+'</div>'
-      +'</body></html>';
-    var w=window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
-    if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
-  };
-
-  // ── Build sub-site focused PDF ──
-  const buildSubPDF=function(subId,subName){
-    var now=today.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-    var label=PERIOD_LABEL[period];
-    var stBgMap={"Completed":"#dcfce7","In Progress":"#dbeafe","Not Started":"#f1f5f9","On Hold":"#fff7ed"};
-    var stCMap={"Completed":"#166534","In Progress":"#1d4ed8","Not Started":"#64748b","On Hold":"#9a3412"};
-    // Find project info
-    var projGroup=grouped.find(function(g){return Object.values(g.subs).some(function(s){return s.subId===subId;});});
-    var proj=projGroup?projects.find(function(p){return p.id===projGroup.pid;}):null;
-    var sub=projGroup?projGroup.subs[subId]:null;
-    if(!sub) return;
-    var sActs=Object.values(sub.cats).flat();
-    var sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
-    var sd=sActs.filter(function(a){return a.status==="Completed";}).length;
-    var bc=sp2===100?"#22c55e":sp2>=50?"#3b82f6":"#f97316";
-    var tableHead='<thead><tr style="background:#f1f5f9">'
-      +'<th style="padding:5px 6px 5px 12px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ACTIVITY</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">STATUS</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">PROGRESS</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">ASSIGNED</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">START</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">DEADLINE</th>'
-      +'<th style="padding:5px 6px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0">NOTES</th>'
-      +'</tr></thead>';
-    var bodyRows="";
-    Object.entries(sub.cats).forEach(function(entry){
-      var cat=entry[0]; var catActs=entry[1];
-      bodyRows+='<tr style="background:#f0f4f8"><td colspan="7" style="padding:4px 6px 4px 12px;font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.08em;border-top:1px solid #e2e8f0">'+cat+'</td></tr>';
-      catActs.forEach(function(a){
-        var pct=Math.round((a.progress||0)*100);
-        var ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
-        var stBg=stBgMap[a.status]||"#f1f5f9"; var stC=stCMap[a.status]||"#64748b";
-        var pctCol=pct===100?"#166534":pct>=50?"#1d4ed8":"#64748b";
-        var barCol=pct===100?"#22c55e":pct>=50?"#3b82f6":"#f97316";
-        var bar='<div style="display:inline-block;vertical-align:middle;width:55px;height:4px;background:#e2e8f0;border-radius:2px;margin-left:4px"><div style="width:'+pct+'%;height:100%;background:'+barCol+';border-radius:2px"></div></div>';
-        var cs=a.comments?Array.isArray(a.comments)?a.comments:(function(){try{return JSON.parse(a.comments);}catch(e){return[];}})():[];
-        var commentHTML=cs.length?'<div style="margin-top:4px;border-top:1px solid #e2e8f0;padding-top:3px">'+cs.map(function(c){var tsStr=c.ts?new Date(c.ts).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";return'<div style="font-size:9px;color:#334155;margin-bottom:2px"><b>'+c.author+'</b><span style="color:#94a3b8;float:right">'+tsStr+'</span><br>'+c.text+'</div>';}).join('')+'</div>':'';
-        bodyRows+='<tr><td style="padding:5px 6px 5px 12px;font-size:11px">'+a.activity_name+'</td>'
-          +'<td style="padding:5px 6px"><span style="background:'+stBg+';color:'+stC+';padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">'+a.status+'</span></td>'
-          +'<td style="padding:5px 6px;white-space:nowrap"><b style="font-size:11px;color:'+pctCol+'">'+pct+'%</b>'+bar+'</td>'
-          +'<td style="padding:5px 6px;font-size:10px;color:#475569">'+(a.assigned_to||"—")+'</td>'
-          +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap">'+fmtD(a.start_date)+'</td>'
-          +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap;color:'+(ov?"#dc2626":"#475569")+';font-weight:'+(ov?"700":"400")+'">'+fmtD(a.end_date)+(ov?" ⚠":"")+'</td>'
-          +'<td style="padding:5px 6px;font-size:10px;color:#64748b">'+(a.remarks||"")+(cs.length?' '+commentHTML:'')+'</td></tr>';
-      });
-    });
-    var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+subName+' — Progress Report</title>'
-      +'<style>body{font-family:\'Segoe UI\',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}'
-      +'@media print{body{padding:0}@page{margin:14mm}table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f">'
-      +'<div><div style="font-size:20px;font-weight:800;color:#1e3a5f">ENEVO GROUP</div>'
-      +'<div style="font-size:15px;font-weight:700;color:#334155;margin-top:2px">Sub-site Report — '+subName+'</div>'
-      +'<div style="font-size:12px;color:#7c3aed;font-weight:600;margin-top:2px">Part of: '+(proj?proj.name:projGroup?.pid||"")+(proj&&proj.id?' ('+proj.id+')':'')+'</div>'
-      +'<div style="font-size:11px;color:#64748b;margin-top:3px">Period: <b>'+label+'</b> · Generated: '+now+'</div></div>'
-      +'<div style="text-align:right;font-size:11px;color:#64748b;line-height:1.8">'
-      +'<div style="font-size:22px;font-weight:800;color:'+bc+'">'+sp2+'%</div>'
-      +'<div>'+sd+'/'+sActs.length+' completed</div></div></div>'
-      +'<div style="height:6px;background:#e2e8f0;border-radius:3px;margin-bottom:16px"><div style="width:'+sp2+'%;height:100%;background:'+bc+';border-radius:3px"></div></div>'
-      +'<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0">'
-      +tableHead+'<tbody>'+bodyRows+'</tbody></table>'
-      +'<div style="margin-top:20px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP · '+subName+' · '+now+'</div>'
-      +'</body></html>';
-    var w=window.open("","subpdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
-    if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
-  };
-
-  // Detect sub-sites for the selected project
-  const selectedProjGroup = selProj!=="ALL" ? grouped.find(function(g){return g.pid===selProj;}) : null;
-  const selectedProjSubs  = selectedProjGroup ? Object.values(selectedProjGroup.subs) : [];
-
-  return(
-  <div>
-    <div className="card" style={{marginBottom:14}}>
-      <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",justifyContent:"space-between"}}>
-        <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
-          <div>
-            <div style={{fontSize:12,fontWeight:700,color:"var(--text3)",marginBottom:5}}>PERIOD</div>
-            <div style={{display:"flex",gap:5}}>
-              {[{v:"daily",l:"Daily"},{v:"weekly",l:"Weekly"},{v:"monthly",l:"Monthly"},{v:"full",l:"Full Project"}].map(function(o){return(
-                <button key={o.v} onClick={function(){setPeriod(o.v);}}
-                  style={{padding:"6px 12px",borderRadius:5,cursor:"pointer",fontSize:13,
-                    fontWeight:period===o.v?700:400,
-                    border:"1px solid "+(period===o.v?"var(--info)":"var(--border3)"),
-                    background:period===o.v?"var(--info)20":"var(--bg2)",
-                    color:period===o.v?"var(--info)":"var(--text2)"}}>
-                  {o.l}
-                </button>
-              );})}
-            </div>
-          </div>
-          <div>
-            <div style={{fontSize:12,fontWeight:700,color:"var(--text3)",marginBottom:5}}>PROJECT</div>
-            <select value={selProj} onChange={function(e){setSelProj(e.target.value);}}
-              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:190}}>
-              <option value="ALL">All Projects</option>
-              {[...new Set(activities.filter(function(a){return visibleProjIds.has(a.project_id);}).map(function(a){return a.project_id;}))].sort(function(a,b){
-                const na=projects.find(function(p){return p.id===a;});
-                const nb=projects.find(function(p){return p.id===b;});
-                return (na?na.name:a).localeCompare(nb?nb.name:b);
-              }).map(function(pid){
-                const p=projects.find(function(x){return x.id===pid;});
-                return <option key={pid} value={pid}>{p?p.name:pid}</option>;
-              })}
-            </select>
-          </div>
-          <div>
-            <div style={{fontSize:12,fontWeight:700,color:"var(--text3)",marginBottom:5}}>STATUS</div>
-            <select value={selStat} onChange={function(e){setSelStat(e.target.value);}}
-              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13}}>
-              <option value="ALL">All Statuses</option>
-              {["Not Started","In Progress","On Hold","Completed"].map(function(s){return <option key={s}>{s}</option>;})}
-            </select>
-          </div>
-          {/* Project status toggle */}
-          <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",paddingBottom:2}}>
-            <input type="checkbox" checked={showInactiveProj}
-              onChange={function(e){setShowInactiveProj(e.target.checked);setSelProj("ALL");}}
-              style={{accentColor:"var(--info)",width:15,height:15,cursor:"pointer"}}/>
-            <span style={{fontSize:13,color:"var(--text3)",userSelect:"none"}}>Include On Hold & Completed projects</span>
-          </label>
-        </div>
-        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <button className="bp" onClick={buildPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>⬇ Export PDF</button>
-          {/* Sub-site individual exports — only shown when a single project with sub-sites is selected */}
-          {selectedProjSubs.length>0&&(
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-              <span style={{fontSize:12,color:"var(--text4)",fontWeight:600,whiteSpace:"nowrap"}}>Sub-sites:</span>
-              {selectedProjSubs.map(function(s){
-                const sActs=Object.values(s.cats).flat();
-                const sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
-                const sc=sp2===100?"#34d399":sp2>=50?"var(--info)":"#fb923c";
-                return(
-                  <button key={s.subId} onClick={function(){buildSubPDF(s.subId,s.subName);}}
-                    style={{height:36,padding:"0 14px",borderRadius:6,border:"1px solid #a78bfa50",
-                      background:"#a78bfa12",color:"#a78bfa",cursor:"pointer",fontSize:13,
-                      fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
-                    ⬇ {s.subName}
-                    <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:sc,fontWeight:700}}>{sp2}%</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
-      {[{l:"Total",v:total,c:"var(--info)"},{l:"Completed",v:done,c:"#34d399"},
-        {l:"In Progress",v:inprog,c:"var(--info)"},{l:"On Hold",v:onhold,c:"#fb923c"},
-        {l:"Avg Progress",v:avg+"%",c:avg>=75?"#34d399":avg>=40?"#fb923c":"#f87171"}
-      ].map(function(k){return(
-        <div key={k.l} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:k.c,lineHeight:1}}>{k.v}</div>
-          <div style={{fontSize:12,color:"var(--text4)",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{k.l}</div>
-        </div>
-      );})}
-    </div>
-    {onhold>0&&<div style={{background:"#78350f15",border:"1px solid #fb923c60",borderRadius:6,padding:"9px 14px",marginBottom:12,fontSize:13,color:"#fb923c"}}>
-      ⚠ {onhold} {onhold===1?"activity":"activities"} On Hold — review required
-    </div>}
-    {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)",fontSize:14}}>No activities match filters.</div>}
-    {grouped.map(function(g){
-      const proj=projects.find(function(p){return p.id===g.pid;});
-      const subList=Object.values(g.subs);
-      const hasSubs=subList.length>0;
-      const allActs=[].concat(
-        Object.values(g.cats).flat(),
-        subList.flatMap(function(s){return Object.values(s.cats).flat();})
-      );
-      const pd=allActs.filter(function(a){return a.status==="Completed";}).length;
-      const pp=allActs.length?Math.round(allActs.reduce(function(s,a){return s+(a.progress||0);},0)/allActs.length*100):0;
-      const bc=pp===100?"#34d399":pp>=50?"var(--info)":"#fb923c";
-      const SUB_COLORS=["#7c3aed","#0369a1","#047857","#b45309","#be123c","#0f766e","#6d28d9","#0284c7"];
-      return(
-      <div key={g.pid} className="card" style={{marginBottom:12}}>
-        {/* Project header */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--border3)"}}>
-          <div>
-            <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{proj?proj.name:g.pid}</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",marginTop:1}}>{g.pid}</div>
-            {proj&&proj.project_leader&&<div style={{fontSize:13,color:"var(--text2)",marginTop:1,fontWeight:700}}>Leader: <span style={{color:"var(--info)"}}>{proj.project_leader}</span></div>}
-            {proj&&proj.project_leader&&<div style={{fontSize:13,color:"var(--text2)",marginTop:1,fontWeight:700}}>Leader: <span style={{color:"var(--info)"}}>{proj.project_leader}</span></div>}
-            {proj&&proj.pm&&<div style={{fontSize:13,color:"var(--text3)",marginTop:1}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{proj.pm}</span></div>}
-            {proj&&proj.phase&&<div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span>{proj.status&&<span> · <span style={{color:proj.status==="Active"?"#34d399":"var(--text3)"}}>{proj.status}</span></span>}</div>}
-            {hasSubs&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}}>
-              {subList.map(function(s,si){
-                const sActs=Object.values(s.cats).flat();
-                const sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
-                const sd=sActs.filter(function(a){return a.status==="Completed";}).length;
-                const sc2=SUB_COLORS[si%SUB_COLORS.length];
-                const spColor=sp2===100?"#34d399":sp2>=50?"var(--info)":"#fb923c";
-                return <span key={s.subId} style={{fontSize:12,padding:"2px 9px",borderRadius:12,border:"1px solid "+sc2+"60",background:sc2+"18",color:sc2,fontWeight:600}}>
-                  📍 {s.subName}: <span style={{color:spColor}}>{sp2}%</span> <span style={{color:"var(--text4)",fontWeight:400}}>({sd}/{sActs.length})</span>
-                </span>;
-              })}
-            </div>}
-          </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:24,fontWeight:700,color:bc}}>{pp}%</div>
-            <div style={{fontSize:12,color:"var(--text4)"}}>{pd}/{allActs.length} completed</div>
-            <div style={{marginTop:5,background:"var(--bg3)",borderRadius:4,height:5,width:100,overflow:"hidden",marginLeft:"auto"}}>
-              <div style={{height:"100%",width:pp+"%",background:bc,borderRadius:4}}/>
-            </div>
-          </div>
-        </div>
-
-        {/* Sub-site sections (if any) */}
-        {hasSubs&&subList.map(function(s,si){
-          const sc2=SUB_COLORS[si%SUB_COLORS.length];
-          const sActs=Object.values(s.cats).flat();
-          const sp2=sActs.length?Math.round(sActs.reduce(function(r,a){return r+(a.progress||0);},0)/sActs.length*100):0;
-          const sd=sActs.filter(function(a){return a.status==="Completed";}).length;
-          const sbColor=sp2===100?"#34d399":sp2>=50?"var(--info)":"#fb923c";
-          return(
-          <div key={s.subId} style={{marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",background:sc2+"18",borderRadius:6,border:"1px solid "+sc2+"40",marginBottom:6}}>
-              <span style={{fontSize:13,fontWeight:700,color:sc2}}>📍 {s.subName}</span>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:sbColor}}>{sp2}% <span style={{fontSize:12,color:"var(--text4)",fontWeight:400}}>({sd}/{sActs.length})</span></span>
-            </div>
-            {Object.entries(s.cats).map(function(entry){
-              const cat=entry[0]; const catActs=entry[1];
-              const gc=GC[catActs[0]?catActs[0].group_name:""]||sc2;
-              return(
-              <div key={cat} style={{marginBottom:8,paddingLeft:8}}>
-                <div style={{fontSize:12,fontWeight:700,color:gc,textTransform:"uppercase",letterSpacing:".07em",marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
-                  <div style={{width:6,height:6,borderRadius:2,background:gc}}/>{cat}
-                </div>
-                <div style={{display:"grid",gap:4}}>
-                  {catActs.map(function(a){
-                    const pct=Math.round((a.progress||0)*100);
-                    const ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
-                    return(
-                    <div key={a.id} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 12px"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:4}}>{a.activity_name}</div>
-                          <div style={{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}}>
-                            <span style={{fontSize:12,padding:"2px 7px",borderRadius:3,background:SB[a.status]||"var(--bg3)",color:SC[a.status]||"var(--text3)",fontWeight:600}}>{a.status}</span>
-                            {a.assigned_to&&<span style={{fontSize:12,color:"var(--text3)"}}>👤 {a.assigned_to}</span>}
-                            {a.start_date&&<span style={{fontSize:12,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
-                            {a.end_date&&<span style={{fontSize:12,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"⚠ ":""}⏎ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
-                          </div>
-                          {a.remarks&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>{a.remarks}</div>}
-                          {(()=>{
-                            var cs=a.comments?Array.isArray(a.comments)?a.comments:JSON.parse(a.comments||'[]'):[];
-                            if(!cs.length) return null;
-                            return <div style={{marginTop:6,borderTop:"1px solid var(--border3)",paddingTop:6,display:"grid",gap:5}}>
-                              {cs.map(function(c){
-                                var ts=c.ts?new Date(c.ts).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";
-                                return <div key={c.id} style={{display:"flex",gap:6,alignItems:"flex-start"}}>
-                                  <div style={{width:20,height:20,borderRadius:"50%",flexShrink:0,background:c._migrated?"#fb923c20":"#a78bfa20",color:c._migrated?"#fb923c":"#a78bfa",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{(c.author||"?").slice(0,2).toUpperCase()}</div>
-                                  <div style={{flex:1,minWidth:0}}>
-                                    <div style={{fontSize:11,color:"var(--text3)",marginBottom:1}}><span style={{fontWeight:700,color:"var(--text2)"}}>{c.author}</span>{c.role?" · "+c.role:""}<span style={{float:"right",color:"var(--text4)",fontSize:10}}>{ts}</span></div>
-                                    <div style={{fontSize:12,color:"var(--text1)",background:"var(--bg3)",borderRadius:"0 5px 5px 5px",padding:"4px 8px",borderLeft:"2px solid "+(c._migrated?"#fb923c":"#a78bfa")}}>{c.text}</div>
-                                  </div>
-                                </div>;
-                              })}
-                            </div>;
-                          })()}
-                        </div>
-                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,flexShrink:0,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text3)"}}>{pct}%</div>
-                      </div>
-                      {pct>0&&<div style={{marginTop:6,background:"var(--bg3)",borderRadius:2,height:3,overflow:"hidden"}}>
-                        <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:2}}/>
-                      </div>}
-                    </div>);
-                  })}
-                </div>
-              </div>);
-            })}
-          </div>);
-        })}
-
-        {/* Activities not assigned to any sub-site */}
-        {Object.keys(g.cats).length>0&&(
-          <div>
-            {hasSubs&&<div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6,padding:"4px 8px",background:"var(--bg2)",borderRadius:4}}>No Sub-site Assigned</div>}
-            {Object.entries(g.cats).map(function(entry){
-              const cat=entry[0]; const catActs=entry[1];
-              const gc=GC[catActs[0]?catActs[0].group_name:""]||"var(--info)";
-              return(
-              <div key={cat} style={{marginBottom:10,paddingLeft:hasSubs?8:0}}>
-                <div style={{fontSize:12,fontWeight:700,color:gc,textTransform:"uppercase",letterSpacing:".07em",marginBottom:5,display:"flex",alignItems:"center",gap:6}}>
-                  <div style={{width:7,height:7,borderRadius:2,background:gc}}/>{cat}
-                </div>
-                <div style={{display:"grid",gap:4}}>
-                  {catActs.map(function(a){
-                    const pct=Math.round((a.progress||0)*100);
-                    const ov=a.end_date&&new Date(a.end_date)<today&&a.status!=="Completed";
-                    return(
-                    <div key={a.id} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 12px"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:4}}>{a.activity_name}</div>
-                          <div style={{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}}>
-                            <span style={{fontSize:12,padding:"2px 7px",borderRadius:3,background:SB[a.status]||"var(--bg3)",color:SC[a.status]||"var(--text3)",fontWeight:600}}>{a.status}</span>
-                            {a.assigned_to&&<span style={{fontSize:12,color:"var(--text3)"}}>👤 {a.assigned_to}</span>}
-                            {a.start_date&&<span style={{fontSize:12,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
-                            {a.end_date&&<span style={{fontSize:12,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"⚠ ":""}⏎ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
-                          </div>
-                          {a.remarks&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>{a.remarks}</div>}
-                          {(()=>{
-                            var cs=a.comments?Array.isArray(a.comments)?a.comments:JSON.parse(a.comments||'[]'):[];
-                            if(!cs.length) return null;
-                            return <div style={{marginTop:6,borderTop:"1px solid var(--border3)",paddingTop:6,display:"grid",gap:5}}>
-                              {cs.map(function(c){
-                                var ts=c.ts?new Date(c.ts).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";
-                                return <div key={c.id} style={{display:"flex",gap:6,alignItems:"flex-start"}}>
-                                  <div style={{width:20,height:20,borderRadius:"50%",flexShrink:0,background:c._migrated?"#fb923c20":"#a78bfa20",color:c._migrated?"#fb923c":"#a78bfa",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{(c.author||"?").slice(0,2).toUpperCase()}</div>
-                                  <div style={{flex:1,minWidth:0}}>
-                                    <div style={{fontSize:11,color:"var(--text3)",marginBottom:1}}><span style={{fontWeight:700,color:"var(--text2)"}}>{c.author}</span>{c.role?" · "+c.role:""}<span style={{float:"right",color:"var(--text4)",fontSize:10}}>{ts}</span></div>
-                                    <div style={{fontSize:12,color:"var(--text1)",background:"var(--bg3)",borderRadius:"0 5px 5px 5px",padding:"4px 8px",borderLeft:"2px solid "+(c._migrated?"#fb923c":"#a78bfa")}}>{c.text}</div>
-                                  </div>
-                                </div>;
-                              })}
-                            </div>;
-                          })()}
-                        </div>
-                        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,flexShrink:0,color:pct===100?"#34d399":pct>=50?"var(--info)":"var(--text3)"}}>{pct}%</div>
-                      </div>
-                      {pct>0&&<div style={{marginTop:6,background:"var(--bg3)",borderRadius:2,height:3,overflow:"hidden"}}>
-                        <div style={{height:"100%",width:pct+"%",background:pct===100?"#34d399":"var(--info)",borderRadius:2}}/>
-                      </div>}
-                    </div>);
-                  })}
-                </div>
-              </div>);
-            })}
-          </div>
-        )}
-      </div>);
-    })}
-  </div>
-  );
-}
-
-/* ═══ ASSIGNMENT REPORT ═══ */
-function AssignmentReport({entries,projects,engineers,month,year}){
-  const [selProj,setSelProj]=React.useState("ALL");
-  const [selEng,setSelEng]=React.useState("ALL");
-  const [showInactive,setShowInactive]=React.useState(false); // default: Active projects only
-  const MN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-  // Active-only filter applied to projects — On Hold and Completed excluded by default
-  const visibleProjects=React.useMemo(function(){
-    return projects.filter(function(p){
-      if(showInactive) return true; // show everything when toggled
-      return (p.status||"Active")==="Active";
-    });
-  },[projects,showInactive]);
-
-  // Work entries for the selected month — month is 0-based to match app state
-  const workE=React.useMemo(function(){
-    const activeIds=new Set(visibleProjects.map(function(p){return p.id;}));
-    return entries.filter(function(e){
-      var d=new Date(e.date+"T12:00:00");
-      if(d.getFullYear()!==year||d.getMonth()!==month||e.entry_type!=="work") return false;
-      if(e.project_id&&!activeIds.has(e.project_id)) return false; // exclude inactive projects
-      if(selProj!=="ALL"&&e.project_id!==selProj) return false;
-      if(selEng!=="ALL"&&String(e.engineer_id)!==String(selEng)) return false;
-      return true;
-    });
-  },[entries,year,month,selProj,selEng,visibleProjects]);
-
-  // Build hours map: {project_id: {engineer_id: {hours, tasks}}}
-  const hoursMap=React.useMemo(function(){
-    var map={};
-    workE.forEach(function(e){
-      var pid=e.project_id||"?";
-      if(!map[pid]) map[pid]={};
-      var eid=String(e.engineer_id);
-      if(!map[pid][eid]) map[pid][eid]={hours:0,tasks:{}};
-      map[pid][eid].hours+=e.hours;
-      var t=e.task_type||"General";
-      map[pid][eid].tasks[t]=(map[pid][eid].tasks[t]||0)+e.hours;
-    });
-    return map;
-  },[workE]);
-
-  // Build grouped list: derive from ASSIGNED engineers on each project (not just hours logged)
-  // This ensures engineers assigned to a project but with 0 hours still appear
-  const grouped=React.useMemo(function(){
-    // Collect all relevant project IDs from VISIBLE (status-filtered) projects only
-    var projIds=new Set();
-    visibleProjects.forEach(function(p){
-      if(selProj!=="ALL"&&p.id!==selProj) return;
-      var ae=(p.assigned_engineers||[]).map(String);
-      if(selEng==="ALL"){
-        if(ae.length>0||(hoursMap[p.id]&&Object.keys(hoursMap[p.id]).length>0)) projIds.add(p.id);
-      } else {
-        if(ae.includes(String(selEng))||(hoursMap[p.id]&&hoursMap[p.id][String(selEng)])) projIds.add(p.id);
-      }
-    });
-    // Also include visible projects that have hours but no assigned_engineers set (legacy data)
-    const visibleIds=new Set(visibleProjects.map(function(p){return p.id;}));
-    Object.keys(hoursMap).forEach(function(pid){
-      if(!visibleIds.has(pid)) return; // skip inactive-project entries
-      if(selProj!=="ALL"&&pid!==selProj) return;
-      projIds.add(pid);
-    });
-
-    return Array.from(projIds).map(function(pid){
-      var proj=projects.find(function(p){return p.id===pid;});
-      var ae=(proj?.assigned_engineers||[]).map(String);
-      var engMap={};
-      // Add all assigned engineers (may have 0 hours)
-      ae.forEach(function(eid){
-        if(selEng!=="ALL"&&eid!==String(selEng)) return;
-        var eng=engineers.find(function(e){return String(e.id)===eid;});
-        if(!eng) return; // skip if engineer not in scoped list
-        var logged=(hoursMap[pid]&&hoursMap[pid][eid])||{hours:0,tasks:{}};
-        engMap[eid]=logged;
-      });
-      // Also add engineers who logged hours but may not be in assigned_engineers (legacy)
-      if(hoursMap[pid]){
-        Object.keys(hoursMap[pid]).forEach(function(eid){
-          if(selEng!=="ALL"&&eid!==String(selEng)) return;
-          if(!engMap[eid]) engMap[eid]=hoursMap[pid][eid];
-        });
-      }
-      var tot=Object.values(engMap).reduce(function(s,x){return s+x.hours;},0);
-      var assignedCount=ae.length;
-      return{pid,engs:engMap,tot,assignedCount};
-    }).filter(function(g){return Object.keys(g.engs).length>0;})
-      .sort(function(a,b){return b.tot-a.tot;});
-  },[workE,hoursMap,visibleProjects,engineers,selProj,selEng]);
-
-  var totHrs=grouped.reduce(function(s,g){return s+g.tot;},0);
-  var totEngs=new Set(grouped.flatMap(function(g){return Object.keys(g.engs);})).size;
-
-  var exportPDF=function(){
-    var now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-    var period=(MN[month]||"")+" "+year;
-    var blocks=grouped.map(function(g){
-      var proj=projects.find(function(p){return p.id===g.pid;});
-      var rows=Object.entries(g.engs).sort(function(a,b){return b[1].hours-a[1].hours;}).map(function(kv){
-        var eng=engineers.find(function(e){return String(e.id)===kv[0];});
-        var tasks=Object.entries(kv[1].tasks).map(function(t){return t[0]+": "+t[1]+"h";}).join(", ")||"—";
-        var hoursStr=kv[1].hours>0?kv[1].hours+"h":"0h (assigned, no hours)";
-        var hrsColor=kv[1].hours>0?"#1d4ed8":"#94a3b8";
-        return "<tr><td style='padding:5px 8px 5px 20px;font-size:12px'>"+(eng?eng.name:kv[0])+"</td>"
-          +"<td style='padding:5px 8px;font-size:11px;color:#64748b'>"+(eng?eng.role||"":"")+"</td>"
-          +"<td style='padding:5px 8px;font-size:11px;color:#64748b'>"+tasks+"</td>"
-          +"<td style='padding:5px 8px;text-align:right;font-family:monospace;font-weight:700;color:"+hrsColor+"'>"+hoursStr+"</td></tr>";
-      }).join("");
-      return "<div style='margin-bottom:16px;page-break-inside:avoid'>"
-        +"<div style='background:linear-gradient(135deg,#1e3a5f,#1e4d8c);color:#fff;padding:9px 14px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between'>"
-        +"<div><div style='font-size:14px;font-weight:700'>"+(proj?proj.name:g.pid)+"</div>"
-        +"<div style='font-size:10px;color:#93c5fd'>"+g.pid+(proj&&proj.project_leader?" · Leader: "+proj.project_leader:"")+(proj&&proj.pm?" · PM: "+proj.pm:"")+(proj&&proj.phase?" · "+proj.phase:"")+"</div></div>"
-        +"<div style='text-align:right'><div style='font-size:20px;font-weight:800;color:#60a5fa'>"+g.tot+"h</div>"
-        +"<div style='font-size:10px;color:#93c5fd'>"+g.assignedCount+" assigned · "+Object.keys(g.engs).length+" shown</div></div></div>"
-        +"<table style='width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none'>"
-        +"<thead><tr style='background:#f1f5f9'>"
-        +"<th style='padding:5px 8px 5px 20px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>ENGINEER</th>"
-        +"<th style='padding:5px 8px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>ROLE</th>"
-        +"<th style='padding:5px 8px;text-align:left;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>TASKS</th>"
-        +"<th style='padding:5px 8px;text-align:right;font-size:9px;color:#64748b;border-bottom:1px solid #e2e8f0'>HRS</th>"
-        +"</tr></thead><tbody>"+rows+"</tbody></table></div>";
-    }).join("");
-    var html="<!DOCTYPE html><html><head><meta charset='utf-8'><title>Assignment Report</title>"
-      +"<style>body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}@media print{body{padding:0}@page{margin:14mm}.proj-block{page-break-inside:auto}table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}}</style>"
-      +"</head><body>"
-      +"<div style='display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f'>"
-      +"<div><div style='font-size:20px;font-weight:800;color:#1e3a5f'>ENEVO GROUP</div>"
-      +"<div style='font-size:15px;font-weight:700;color:#334155;margin-top:2px'>Assignment Report — "+period+"</div>"
-      +"<div style='font-size:11px;color:#64748b;margin-top:3px'>Generated: "+now+(showInactive?" · All statuses":" · Active projects only")+" · Includes assigned engineers with 0 hours</div></div>"
-      +"<div style='text-align:right;font-size:11px;color:#64748b;line-height:1.9'>"
-      +"<div>"+grouped.length+" projects · "+totEngs+" engineers</div>"
-      +"<div>Total: <b>"+totHrs+"h</b></div></div></div>"
-      +(grouped.length===0?"<p style='text-align:center;color:#94a3b8'>No assignments found.</p>":blocks)
-      +"<div style='margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center'>ENEVO GROUP — "+now+"</div>"
-      +"</body></html>";
-    var w=window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
-    if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
-  };
-
-  return(<div>
-    <div className="card" style={{marginBottom:14}}>
-      <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end",justifyContent:"space-between"}}>
-        <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
-          <div><div style={{fontSize:12,fontWeight:700,color:"var(--text3)",marginBottom:5}}>PROJECT</div>
-            <select value={selProj} onChange={function(e){setSelProj(e.target.value);}}
-              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:190}}>
-              <option value="ALL">All Projects</option>
-              {visibleProjects.filter(function(p){
-                return (p.assigned_engineers||[]).length>0||Object.keys(hoursMap[p.id]||{}).length>0;
-              }).map(function(p){return <option key={p.id} value={p.id}>{p.name||p.id}</option>;})}
-            </select></div>
-          <div><div style={{fontSize:12,fontWeight:700,color:"var(--text3)",marginBottom:5}}>ENGINEER</div>
-            <select value={selEng} onChange={function(e){setSelEng(e.target.value);}}
-              style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 10px",fontSize:13,minWidth:160}}>
-              <option value="ALL">All Engineers</option>
-              {engineers.map(function(e){return <option key={e.id} value={String(e.id)}>{e.name}</option>;})}
-            </select></div>
-          {/* Status toggle — Active only by default */}
-          <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",paddingBottom:2}}>
-            <input type="checkbox" checked={showInactive} onChange={function(e){setShowInactive(e.target.checked);setSelProj("ALL");}}
-              style={{accentColor:"var(--info)",width:15,height:15,cursor:"pointer"}}/>
-            <span style={{fontSize:13,color:"var(--text3)",userSelect:"none"}}>
-              Include On Hold & Completed
-            </span>
-          </label>
-        </div>
-        <button className="bp" onClick={exportPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>&#11015; Export PDF</button>
-      </div>
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-      {[{l:"Projects",v:grouped.length,c:"var(--info)"},{l:"Engineers",v:totEngs,c:"#34d399"},{l:"Total Hours",v:totHrs+"h",c:"#a78bfa"}].map(function(k){return(
-        <div key={k.l} className="card" style={{textAlign:"center",padding:"12px 8px"}}>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:k.c,lineHeight:1}}>{k.v}</div>
-          <div style={{fontSize:12,color:"var(--text4)",marginTop:4,textTransform:"uppercase",letterSpacing:".05em"}}>{k.l}</div>
-        </div>);})}
-    </div>
-    {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No assignments found for {MN[month]} {year}.</div>}
-    {grouped.map(function(g){
-      var proj=projects.find(function(p){return p.id===g.pid;});
-      return(<div key={g.pid} className="card" style={{marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,paddingBottom:10,borderBottom:"1px solid var(--border3)"}}>
-          <div>
-            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>{proj?proj.name:g.pid}</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",marginTop:1}}>{g.pid}</div>
-            {proj&&proj.pm&&<div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>PM: <span style={{color:"#a78bfa",fontWeight:600}}>{proj.pm}</span></div>}
-            {proj&&proj.phase&&<div style={{fontSize:13,color:"var(--text3)",marginTop:1}}>Phase: <span style={{color:"#60a5fa"}}>{proj.phase}</span></div>}
-          </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,fontWeight:700,color:"var(--info)"}}>{g.tot}h</div>
-            <div style={{fontSize:12,color:"var(--text4)"}}>{g.assignedCount} assigned · {Object.keys(g.engs).length} shown</div>
-          </div>
-        </div>
-        {Object.entries(g.engs).sort(function(a,b){return b[1].hours-a[1].hours;}).map(function(kv){
-          var eng=engineers.find(function(e){return String(e.id)===kv[0];});
-          var hasHours=kv[1].hours>0;
-          return(<div key={kv[0]} style={{marginBottom:8,background:"var(--bg2)",borderRadius:6,padding:"8px 12px",
-            border:"1px solid var(--border3)",opacity:hasHours?1:0.7}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:hasHours?5:0}}>
-              <div>
-                <span style={{fontSize:13,fontWeight:600,color:"var(--text0)"}}>{eng?eng.name:kv[0]}</span>
-                {eng&&<span style={{fontSize:12,color:"var(--text4)",marginLeft:8}}>{eng.role}</span>}
-              </div>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,
-                color:hasHours?"var(--info)":"var(--text4)"}}>
-                {hasHours?kv[1].hours+"h":"0h"}
-                {!hasHours&&<span style={{fontSize:11,marginLeft:5,color:"var(--text4)"}}>assigned</span>}
-              </span>
-            </div>
-            {hasHours&&<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-              {Object.entries(kv[1].tasks).map(function(t){return(
-                <span key={t[0]} style={{background:"var(--bg3)",borderRadius:4,padding:"2px 7px",fontSize:12}}>
-                  <span style={{color:"var(--text2)",fontWeight:600}}>{t[0]}</span>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",marginLeft:4}}>{t[1]}h</span>
-                </span>);})}
-            </div>}
-          </div>);
-        })}
-      </div>);
-    })}
-  </div>);
-}
-
-const ENTRY_TYPES = ["Custody","Accrued Salaries","Revenue","Creditors","Opening","Shareholders","project in process"];
-
-/* ══════════════════════════════════════════════════════════
-   1. JOURNAL LEDGER
-   ══════════════════════════════════════════════════════════ */
-function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDelete, onEdit, loading, showToast}) {
-  const [filterType,  setFilterType]  = React.useState("ALL");
-  const [filterMonth, setFilterMonth] = React.useState("ALL");
-  const [search,      setSearch]      = React.useState("");
-  const [editLine,    setEditLine]    = React.useState(null);
-  const [showAdd,     setShowAdd]     = React.useState(false);
-  const [voucherEntry,setVoucherEntry]= React.useState(null);
-
-  // ── Voucher header (shared across all lines in one entry) ──
-  const blankHeader = {entry_no:"",entry_date:"",entry_type:"Custody",description:""};
-  const blankLine   = {account_name:"",main_account:"",statement_type:"Profit & Loss Sheet",debit:"",credit:""};
-  const [vHeader,   setVHeader]  = React.useState(blankHeader);
-  const [vLines,    setVLines]   = React.useState([{...blankLine},{...blankLine}]);
-
-  const canWrite  = isAcct || isAdmin;
-  const types     = React.useMemo(()=>["ALL",...new Set(journalEntries.map(e=>e.entry_type))].sort(),[journalEntries]);
-  const months    = React.useMemo(()=>["ALL",...new Set(journalEntries.map(e=>e.month))].sort((a,b)=>+a-+b),[journalEntries]);
-  const acctNames = React.useMemo(()=>accounts.map(a=>a.account_name).sort(),[accounts]);
-  const acctMap   = React.useMemo(()=>{const m={};accounts.forEach(a=>{m[a.account_name]=a;});return m;},[accounts]);
-
-  const filtered = React.useMemo(()=>journalEntries.filter(e=>{
-    if(filterType!=="ALL" && e.entry_type!==filterType) return false;
-    if(filterMonth!=="ALL" && String(e.month)!==String(filterMonth)) return false;
-    if(search && !`${e.entry_no} ${e.account_name} ${e.description} ${e.main_account}`.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  }),[journalEntries,filterType,filterMonth,search]);
-
-  const totDr  = filtered.reduce((s,e)=>s+(+e.debit||0),0);
-  const totCr  = filtered.reduce((s,e)=>s+(+e.credit||0),0);
-  const balanced = Math.abs(totDr-totCr)<0.01;
-
-  const typeColor = t=>({Opening:"#38bdf8","Accrued Salaries":"#a78bfa",Revenue:"#34d399",
-    Custody:"#fb923c",Creditors:"#f87171",Shareholders:"#facc15","project in process":"#94a3b8"}[t]||"var(--text3)");
-
-  // Group by entry_no for voucher view
-  const entryGroups = React.useMemo(()=>{
-    const g={};
-    filtered.forEach(e=>{if(!g[e.entry_no]) g[e.entry_no]=[];g[e.entry_no].push(e);});
-    return g;
-  },[filtered]);
-
-  // ── Voucher totals ──
-  const vDr = vLines.reduce((s,l)=>s+(+l.debit||0),0);
-  const vCr = vLines.reduce((s,l)=>s+(+l.credit||0),0);
-  const vBal = Math.abs(vDr-vCr)<0.01 && vDr>0;
-
-  const updateLine=(i,field,val)=>setVLines(prev=>prev.map((l,idx)=>{
-    if(idx!==i) return l;
-    const next={...l,[field]:val};
-    if(field==="account_name"){
-      const a=acctMap[val];
-      if(a){next.main_account=a.main_account||"";next.statement_type=a.statement_type||"Profit & Loss Sheet";}
-    }
-    return next;
-  }));
-
-  const openAdd=()=>{
-    // Auto-suggest next entry no
-    const maxNo=journalEntries.reduce((m,e)=>{const n=parseInt(e.entry_no,10);return isNaN(n)?m:Math.max(m,n);},0);
-    setVHeader({...blankHeader,entry_no:String(maxNo+1),entry_date:new Date().toISOString().slice(0,10)});
-    setVLines([{...blankLine},{...blankLine}]);
-    setShowAdd(true);
-  };
-
-  const INP={background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,
-    color:"var(--text0)",padding:"5px 8px",fontSize:13,width:"100%",boxSizing:"border-box"};
-
-  return(<>
-    <div>
-      {/* Toolbar */}
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12,alignItems:"center"}}>
-        <input placeholder="🔍 Search..." value={search} onChange={e=>setSearch(e.target.value)}
-          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,width:190}}/>
-        <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)}
-          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
-          <option value="ALL">All Months</option>
-          {months.filter(m=>m!=="ALL").map(m=><option key={m} value={m}>{MO_SHORT[+m]||m}</option>)}
-        </select>
-        <select value={filterType} onChange={e=>setFilterType(e.target.value)}
-          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13}}>
-          <option value="ALL">All Types</option>
-          {types.filter(t=>t!=="ALL").map(t=><option key={t}>{t}</option>)}
-        </select>
-        <span style={{fontSize:13,color:"var(--text4)",marginLeft:"auto"}}>{filtered.length} lines / {Object.keys(entryGroups).length} entries</span>
-        {canWrite&&<button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={openAdd}>+ New Journal Entry</button>}
-      </div>
-
-      {/* Balance strip */}
-      <div style={{display:"flex",gap:8,marginBottom:12}}>
-        {[
-          {l:"Filtered Debit",  v:fmtEGP(totDr), c:"#34d399"},
-          {l:"Filtered Credit", v:fmtEGP(totCr), c:"#f87171"},
-          {l:"Balanced",        v:balanced?"✓ YES":"✗ NO", c:balanced?"#34d399":"#f87171"},
-        ].map((k,i)=>(
-          <div key={i} style={{background:"var(--bg2)",border:`1px solid ${k.c}30`,borderRadius:8,padding:"7px 14px",minWidth:155}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:k.c}}>{k.v}</div>
-            <div style={{fontSize:12,color:"var(--text4)",marginTop:1}}>{k.l}</div>
-          </div>
-        ))}
-      </div>
-
-      {loading ? <div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>Loading journal…</div> : (
-      <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead>
-            <tr style={{background:"var(--bg2)"}}>
-              {["Entry#","Date","Type","Account","Category","Debit","Credit","Description",""].map(h=>(
-                <th key={h} style={{padding:"7px 10px",textAlign:["Debit","Credit"].includes(h)?"right":"left",
-                  color:"var(--text3)",fontWeight:600,fontSize:13,borderBottom:"1px solid var(--border3)",whiteSpace:"nowrap"}}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((e,i)=>(
-              <tr key={i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)",cursor:"pointer"}}
-                onClick={()=>setVoucherEntry(e.entry_no)}>
-                <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text2)",whiteSpace:"nowrap"}}>{e.entry_no}</td>
-                <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text3)",whiteSpace:"nowrap"}}>{String(e.entry_date).slice(0,10)}</td>
-                <td style={{padding:"6px 10px"}}>
-                  <span style={{background:typeColor(e.entry_type)+"20",color:typeColor(e.entry_type),padding:"2px 6px",borderRadius:4,fontSize:12,fontWeight:600}}>{e.entry_type}</span>
-                </td>
-                <td style={{padding:"6px 10px",color:"var(--text1)",fontWeight:500,whiteSpace:"nowrap"}}>{e.account_name}</td>
-                <td style={{padding:"6px 10px"}}>
-                  <div style={{fontSize:12,color:"var(--text3)"}}>{e.main_account}</div>
-                  <span style={{fontSize:11,color:e.statement_type==="Balance Sheet"?"#38bdf8":"#a78bfa",fontWeight:600}}>{e.statement_type==="Balance Sheet"?"BS":"P&L"}</span>
-                </td>
-                <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#34d399",textAlign:"right"}}>{+e.debit>0?fmtEGP(+e.debit):""}</td>
-                <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#f87171",textAlign:"right"}}>{+e.credit>0?fmtEGP(+e.credit):""}</td>
-                <td style={{padding:"6px 10px",color:"var(--text3)",fontSize:13,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={e.description}>{e.description}</td>
-                <td style={{padding:"6px 10px"}}>
-                  {canWrite && (
-                    <div style={{display:"flex",gap:2}}>
-                      <button onClick={ev=>{ev.stopPropagation();setEditLine({...e});}} title="Edit"
-                        style={{background:"transparent",border:"none",color:"var(--info)",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✎</button>
-                      <button onClick={ev=>{ev.stopPropagation();onDelete(e.id);}} title="Delete"
-                        style={{background:"transparent",border:"none",color:"#f87171",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✕</button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      )}
-
-      {/* ── Voucher View Modal ── */}
-      {voucherEntry && (()=>{
-        const lines = journalEntries.filter(e=>e.entry_no===voucherEntry);
-        const dr = lines.reduce((s,e)=>s+(+e.debit||0),0);
-        const cr = lines.reduce((s,e)=>s+(+e.credit||0),0);
-        const bal = Math.abs(dr-cr)<0.01;
-        return(
-          <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>setVoucherEntry(null)}>
-            <div className="card" style={{width:640,maxHeight:"90vh",overflowY:"auto",padding:24}} onClick={e=>e.stopPropagation()}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                <div>
-                  <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>Journal Voucher — Entry #{voucherEntry}</div>
-                  <div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>{lines[0]?.entry_date} · {lines[0]?.entry_type} · {lines.length} line{lines.length!==1?"s":""}</div>
-                </div>
-                <button onClick={()=>setVoucherEntry(null)} style={{background:"none",border:"none",color:"var(--text3)",fontSize:22,cursor:"pointer"}}>×</button>
-              </div>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:12}}>
-                <thead><tr style={{background:"var(--bg2)"}}>
-                  {["Account","Category","Stmt","Debit","Credit"].map(h=>(
-                    <th key={h} style={{padding:"7px 10px",textAlign:["Debit","Credit"].includes(h)?"right":"left",color:"var(--text3)",fontSize:13,fontWeight:600}}>{h}</th>
-                  ))}
-                </tr></thead>
-                <tbody>
-                  {lines.map((e,i)=>(
-                    <tr key={i} style={{borderBottom:"1px solid var(--border3)"}}>
-                      <td style={{padding:"6px 10px",color:"var(--text1)",fontWeight:500}}>{e.account_name}</td>
-                      <td style={{padding:"6px 10px",color:"var(--text4)",fontSize:13}}>{e.main_account}</td>
-                      <td style={{padding:"6px 10px"}}><span style={{fontSize:11,color:e.statement_type==="Balance Sheet"?"#38bdf8":"#a78bfa",fontWeight:600}}>{e.statement_type==="Balance Sheet"?"BS":"P&L"}</span></td>
-                      <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#34d399",textAlign:"right"}}>{+e.debit>0?fmtEGP(+e.debit):""}</td>
-                      <td style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#f87171",textAlign:"right"}}>{+e.credit>0?fmtEGP(+e.credit):""}</td>
-                    </tr>
-                  ))}
-                  <tr style={{background:"var(--bg2)",fontWeight:700}}>
-                    <td colSpan={3} style={{padding:"8px 10px",color:"var(--text0)"}}>TOTAL — {bal?"✅ Balanced":"❌ Unbalanced"}</td>
-                    <td style={{padding:"8px 10px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#34d399"}}>{fmtEGP(dr)}</td>
-                    <td style={{padding:"8px 10px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#f87171"}}>{fmtEGP(cr)}</td>
-                  </tr>
-                </tbody>
-              </table>
-              {lines[0]?.description && <div style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",padding:"8px 0",borderTop:"1px solid var(--border3)"}}>{lines[0].description}</div>}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ══════════════════════════════════════════════════
-          NEW JOURNAL ENTRY — Double-Entry Voucher Modal
-          Debit + Credit lines in the same window
-         ══════════════════════════════════════════════════ */}
-      {showAdd && canWrite && (
-        <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-          <div className="card" style={{width:820,maxHeight:"94vh",overflowY:"auto",padding:0}} onClick={e=>e.stopPropagation()}>
-
-            {/* Header */}
-            <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border3)",padding:"16px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div>
-                <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>New Journal Entry</div>
-                <div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Double-entry — Debit and Credit lines in one transaction</div>
-              </div>
-              <button onClick={()=>setShowAdd(false)} style={{background:"none",border:"none",color:"var(--text3)",fontSize:22,cursor:"pointer"}}>×</button>
-            </div>
-
-            <div style={{padding:24}}>
-              {/* ── Entry Header Fields ── */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 2fr",gap:10,marginBottom:16}}>
-                <div>
-                  <div style={{fontSize:12,color:"var(--text4)",fontWeight:600,marginBottom:4}}>Entry No *</div>
-                  <input value={vHeader.entry_no} placeholder="e.g. 68"
-                    onChange={e=>setVHeader(p=>({...p,entry_no:e.target.value}))}
-                    style={INP}/>
-                </div>
-                <div>
-                  <div style={{fontSize:12,color:"var(--text4)",fontWeight:600,marginBottom:4}}>Date *</div>
-                  <input type="date" value={vHeader.entry_date}
-                    onChange={e=>setVHeader(p=>({...p,entry_date:e.target.value}))}
-                    style={INP}/>
-                </div>
-                <div>
-                  <div style={{fontSize:12,color:"var(--text4)",fontWeight:600,marginBottom:4}}>Entry Type *</div>
-                  <select value={vHeader.entry_type} onChange={e=>setVHeader(p=>({...p,entry_type:e.target.value}))}
-                    style={{...INP,background:"var(--bg1)"}}>
-                    {ENTRY_TYPES.map(t=><option key={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <div style={{fontSize:12,color:"var(--text4)",fontWeight:600,marginBottom:4}}>Description</div>
-                  <input value={vHeader.description} placeholder="e.g. March salaries accrual"
-                    onChange={e=>setVHeader(p=>({...p,description:e.target.value}))}
-                    style={INP}/>
-                </div>
-              </div>
-
-              {/* ── Lines Table ── */}
-              <div style={{border:"1px solid var(--border3)",borderRadius:8,overflow:"hidden",marginBottom:12}}>
-                {/* Table header */}
-                <div style={{display:"grid",gridTemplateColumns:"2fr 1.4fr 80px 130px 130px 32px",gap:0,
-                  background:"var(--bg2)",padding:"8px 12px",
-                  fontSize:12,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em"}}>
-                  <div>Account</div>
-                  <div>Category / Statement</div>
-                  <div style={{textAlign:"center"}}>Stmt</div>
-                  <div style={{textAlign:"right",color:"#34d399"}}>Debit (EGP)</div>
-                  <div style={{textAlign:"right",color:"#f87171"}}>Credit (EGP)</div>
-                  <div/>
-                </div>
-
-                {/* Lines */}
-                {vLines.map((line,i)=>(
-                  <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1.4fr 80px 130px 130px 32px",gap:0,
-                    padding:"6px 12px",borderTop:"1px solid var(--border3)",alignItems:"center",
-                    background:i%2===0?"transparent":"var(--bg0)"}}>
-                    {/* Account */}
-                    <div style={{paddingRight:8}}>
-                      <select value={line.account_name}
-                        onChange={e=>updateLine(i,"account_name",e.target.value)}
-                        style={{...INP,background:"var(--bg1)",fontSize:12}}>
-                        <option value="">— Select account —</option>
-                        {acctNames.map(a=><option key={a}>{a}</option>)}
-                      </select>
-                    </div>
-                    {/* Main account */}
-                    <div style={{paddingRight:8}}>
-                      <input value={line.main_account} placeholder="auto-filled"
-                        onChange={e=>updateLine(i,"main_account",e.target.value)}
-                        style={{...INP,fontSize:12,color:"var(--text3)"}}/>
-                    </div>
-                    {/* Statement type pill */}
-                    <div style={{textAlign:"center"}}>
-                      <button onClick={()=>updateLine(i,"statement_type",
-                        line.statement_type==="Balance Sheet"?"Profit & Loss Sheet":"Balance Sheet")}
-                        title={line.statement_type}
-                        style={{background:line.statement_type==="Balance Sheet"?"#38bdf820":"#a78bfa20",
-                          color:line.statement_type==="Balance Sheet"?"#38bdf8":"#a78bfa",
-                          border:`1px solid ${line.statement_type==="Balance Sheet"?"#38bdf840":"#a78bfa40"}`,
-                          borderRadius:4,padding:"3px 6px",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                        {line.statement_type==="Balance Sheet"?"BS":"P&L"}
-                      </button>
-                    </div>
-                    {/* Debit */}
-                    <div style={{paddingLeft:8}}>
-                      <input type="number" min="0" step="0.01" value={line.debit} placeholder="0.00"
-                        onChange={e=>updateLine(i,"debit",e.target.value)}
-                        style={{...INP,textAlign:"right",color:"#34d399",fontFamily:"'IBM Plex Mono',monospace",
-                          fontSize:13,fontWeight:600,borderColor:+line.debit>0?"#34d39960":"var(--border3)"}}/>
-                    </div>
-                    {/* Credit */}
-                    <div style={{paddingLeft:4}}>
-                      <input type="number" min="0" step="0.01" value={line.credit} placeholder="0.00"
-                        onChange={e=>updateLine(i,"credit",e.target.value)}
-                        style={{...INP,textAlign:"right",color:"#f87171",fontFamily:"'IBM Plex Mono',monospace",
-                          fontSize:13,fontWeight:600,borderColor:+line.credit>0?"#f8717160":"var(--border3)"}}/>
-                    </div>
-                    {/* Remove line */}
-                    <div style={{textAlign:"center"}}>
-                      {vLines.length>2&&(
-                        <button onClick={()=>setVLines(prev=>prev.filter((_,idx)=>idx!==i))}
-                          style={{background:"none",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:15,padding:"2px 4px"}}
-                          title="Remove line">✕</button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                {/* Add line button */}
-                <div style={{padding:"8px 12px",borderTop:"1px solid var(--border3)",background:"var(--bg2)"}}>
-                  <button onClick={()=>setVLines(prev=>[...prev,{...blankLine}])}
-                    style={{background:"none",border:"1px dashed var(--border3)",borderRadius:5,padding:"4px 12px",
-                      color:"var(--text3)",cursor:"pointer",fontSize:13,fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                    + Add Line
-                  </button>
-                </div>
-              </div>
-
-              {/* ── Live Balance Footer ── */}
-              <div style={{display:"flex",gap:10,alignItems:"center",padding:"12px 16px",
-                background:vBal?"#05603a20":vDr===0?"var(--bg2)":"#7f1d1d20",
-                border:`1px solid ${vBal?"#34d39940":vDr===0?"var(--border3)":"#f8717140"}`,
-                borderRadius:8,marginBottom:16}}>
-                <div style={{flex:1,display:"flex",gap:24}}>
-                  <div>
-                    <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Total Debit</div>
-                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:800,color:"#34d399"}}>{fmtEGP(vDr)}</div>
-                  </div>
-                  <div>
-                    <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Total Credit</div>
-                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:800,color:"#f87171"}}>{fmtEGP(vCr)}</div>
-                  </div>
-                  <div>
-                    <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Difference</div>
-                    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:800,
-                      color:Math.abs(vDr-vCr)<0.01&&vDr>0?"#34d399":"#f87171"}}>
-                      {fmtEGP(Math.abs(vDr-vCr))}
-                    </div>
-                  </div>
-                </div>
-                <div style={{textAlign:"right"}}>
-                  {vBal
-                    ?<span style={{color:"#34d399",fontWeight:700,fontSize:15}}>✅ Balanced — ready to post</span>
-                    :vDr===0&&vCr===0
-                    ?<span style={{color:"var(--text4)",fontSize:13}}>Enter amounts above</span>
-                    :<span style={{color:"#f87171",fontWeight:700,fontSize:14}}>❌ Entry must balance (Dr = Cr)</span>}
-                </div>
-              </div>
-
-              {/* ── Action buttons ── */}
-              <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-                <button onClick={()=>setShowAdd(false)}
-                  style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,
-                    padding:"8px 18px",color:"var(--text2)",cursor:"pointer",fontSize:14}}>Cancel</button>
-                <button className="bp"
-                  disabled={!vBal||!vHeader.entry_no||!vHeader.entry_date}
-                  style={{opacity:(!vBal||!vHeader.entry_no||!vHeader.entry_date)?0.4:1,
-                    cursor:(!vBal||!vHeader.entry_no||!vHeader.entry_date)?"not-allowed":"pointer",fontSize:14}}
-                  onClick={async()=>{
-                    if(!vBal||!vHeader.entry_no||!vHeader.entry_date) return;
-                    const month=vHeader.entry_date?new Date(vHeader.entry_date+"T12:00:00").getMonth()+1:null;
-                    const linesToPost=vLines.filter(l=>l.account_name&&(+l.debit>0||+l.credit>0)).map(l=>({
-                      entry_no:   vHeader.entry_no,
-                      entry_date: vHeader.entry_date,
-                      month:      month,
-                      entry_type: vHeader.entry_type,
-                      account_name:   l.account_name,
-                      main_account:   l.main_account||"",
-                      statement_type: l.statement_type,
-                      debit:   +l.debit||0,
-                      credit:  +l.credit||0,
-                      balance: (+l.debit||0)-(+l.credit||0),
-                      description: vHeader.description||"",
-                      posted_by: "accountant",
-                    }));
-                    if(linesToPost.length<2){showToast("Please fill at least 2 account lines with account + debit or credit.",false);return;}
-                    await onAdd(linesToPost);
-                    setShowAdd(false);
-                    setVHeader(blankHeader);
-                    setVLines([{...blankLine},{...blankLine}]);
-                  }}>
-                  Post Entry ({vLines.filter(l=>l.account_name&&(+l.debit>0||+l.credit>0)).length} lines)
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-
-    {/* ── Edit Journal Line Modal ── */}
-    {editLine&&(
-      <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100}}
-        onClick={()=>setEditLine(null)}>
-        <div className="card" style={{width:560,maxHeight:"92vh",overflowY:"auto",padding:24}} onClick={e=>e.stopPropagation()}>
-          <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:16}}>Edit Journal Line — #{editLine.entry_no}</h3>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            {[{label:"Entry No",key:"entry_no",type:"text"},{label:"Date",key:"entry_date",type:"date"},
-              {label:"Month",key:"month",type:"number"},{label:"Entry Type",key:"entry_type",type:"text"}].map(({label,key,type})=>(
-              <div key={key}><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>{label}</label>
-                <input type={type} value={editLine[key]||""} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))}
-                  style={{width:"100%",boxSizing:"border-box"}}/></div>
-            ))}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            <div><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Account Name</label>
-              <select value={editLine.account_name||""} onChange={e=>{
-                const a=acctMap[e.target.value];
-                setEditLine(p=>({...p,account_name:e.target.value,
-                  main_account:a?.main_account||p.main_account,
-                  statement_type:a?.statement_type||p.statement_type}));
-              }} style={{width:"100%",boxSizing:"border-box"}}>
-                <option value="">— Select account —</option>
-                {acctNames.map(a=><option key={a}>{a}</option>)}
-              </select></div>
-            <div><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Main Account</label>
-              <input value={editLine.main_account||""} onChange={e=>setEditLine(p=>({...p,main_account:e.target.value}))}
-                style={{width:"100%",boxSizing:"border-box"}}/></div>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            <div><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Statement Type</label>
-              <select value={editLine.statement_type||""} onChange={e=>setEditLine(p=>({...p,statement_type:e.target.value}))} style={{width:"100%",boxSizing:"border-box"}}>
-                <option value="Profit & Loss Sheet">Profit &amp; Loss Sheet</option>
-                <option value="Balance Sheet">Balance Sheet</option>
-              </select></div>
-            <div/>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            {[{label:"Debit (EGP)",key:"debit"},{label:"Credit (EGP)",key:"credit"}].map(({label,key})=>(
-              <div key={key}><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>{label}</label>
-                <input type="number" step="0.01" value={editLine[key]||""} onChange={e=>setEditLine(p=>({...p,[key]:e.target.value}))}
-                  style={{width:"100%",boxSizing:"border-box"}}/></div>
-            ))}
-          </div>
-          <div style={{marginBottom:16}}><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Description</label>
-            <textarea rows={2} value={editLine.description||""} onChange={e=>setEditLine(p=>({...p,description:e.target.value}))}
-              style={{width:"100%",boxSizing:"border-box",resize:"vertical",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,color:"var(--text0)",padding:"6px 8px",fontFamily:"inherit",fontSize:13}}/>
-          </div>
-          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-            <button className="bg" onClick={()=>setEditLine(null)}>Cancel</button>
-            <button className="bp" onClick={async()=>{if(onEdit)await onEdit({...editLine});setEditLine(null);}}>Save Changes</button>
-          </div>
-        </div>
-      </div>
-    )}
-  </>);
-}
-
-
-/* ══════════════════════════════════════════════════════════
-   2. BALANCE SHEET
-   ══════════════════════════════════════════════════════════ */
-function BalanceSheetView({journalEntries, finYear}) {
-  const ASSET_G  = ['Fixed Assets','Cash & Cash Equivalents','Cash Custody','Customers','Non-Current assets'];
-  const LIAB_G   = ['Accrued Expenses','Creditors and other accounts payable','Tax and Social Insurance Authority','Payable Notes'];
-  const EQUITY_G = ['Capital','Share holders'];
-
-  const {bsMap, totalAssets, totalLiab, totalEquity, netProfit, bsCheck} = React.useMemo(()=>{
-    // Balance Sheet is cumulative (all periods) for BS accounts, but P&L net is year-scoped
-    // P&L entries scoped to finYear; BS accounts cumulative (accounting standard)
-    const bsEntries = finYear
-      ? journalEntries.filter(e=>e.statement_type!=="Profit & Loss Sheet"||!e.entry_date||(new Date(String(e.entry_date)+"T12:00:00").getFullYear()===finYear))
-      : journalEntries;
-    const map={};
-    bsEntries.forEach(e=>{
-      const k=e.main_account;
-      if(!map[k]) map[k]={main:k,stmt:e.statement_type,accounts:{}};
-      if(!map[k].accounts[e.account_name]) map[k].accounts[e.account_name]={name:e.account_name,dr:0,cr:0};
-      map[k].accounts[e.account_name].dr += +e.debit||0;
-      map[k].accounts[e.account_name].cr += +e.credit||0;
-    });
-    const gDrCr = g => Object.values(map[g]?.accounts||{}).reduce((s,a)=>({dr:s.dr+a.dr,cr:s.cr+a.cr}),{dr:0,cr:0});
-    // Assets: debit-normal (Custody: credit-normal because cash is held by staff)
-    const totAssets = ASSET_G.reduce((s,g)=>{
-      if(!map[g]) return s;
-      const {dr,cr}=gDrCr(g);
-      return s + (g==='Cash Custody' ? Math.max(0,cr-dr) : Math.max(0,dr-cr));
-    },0);
-    // Liabilities: credit-normal. Tax: split by sub-account sign
-    const totLiab = LIAB_G.reduce((s,g)=>{
-      if(!map[g]) return s;
-      if(g==='Tax and Social Insurance Authority'){
-        return s + Object.values(map[g].accounts).reduce((ss,a)=>ss+Math.max(0,a.cr-a.dr),0);
-      }
-      const {dr,cr}=gDrCr(g);
-      return s + Math.max(0,cr-dr);
-    },0);
-    const totEquity = EQUITY_G.reduce((s,g)=>{
-      if(!map[g]) return s;
-      const {dr,cr}=gDrCr(g);
-      return s + (cr-dr);
-    },0);
-    const netP = bsEntries.filter(e=>e.statement_type==="Profit & Loss Sheet").reduce((s,e)=>s+(+e.credit||0)-(+e.debit||0),0);
-    const check = Math.abs(totAssets-(totLiab+totEquity+netP));
-    return {bsMap:map,totalAssets:totAssets,totalLiab:totLiab,totalEquity:totEquity,netProfit:netP,bsCheck:check};
-  },[journalEntries,finYear]);
-
-  const Row = ({label,sub,dr,cr,net,isTotal,isNote}) => (
-    <tr style={{borderBottom:"1px solid var(--border3)",background:isTotal?"var(--bg2)":"transparent"}}>
-      <td style={{padding:"7px 16px",color:isNote?"var(--text3)":isTotal?"var(--text0)":"var(--text2)",fontStyle:isNote?"italic":"normal",fontWeight:isTotal?700:400,paddingLeft:isTotal?16:28}}>{label}</td>
-      <td style={{padding:"7px 16px",color:"var(--text4)",fontSize:13}}>{sub||""}</td>
-      <td style={{padding:"7px 16px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399"}}>{dr>0.01?fmtEGP(dr):""}</td>
-      <td style={{padding:"7px 16px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{cr>0.01?fmtEGP(cr):""}</td>
-      <td style={{padding:"7px 16px",fontFamily:"'IBM Plex Mono',monospace",fontSize:isTotal?14:13,textAlign:"right",color:net>=0?"#34d399":"#f87171",fontWeight:isTotal?700:500}}>{fmtEGP(Math.abs(net))}</td>
-    </tr>
-  );
-
-  const SectionHead = ({title,total,c}) => (
-    <tr style={{background:c+"18"}}>
-      <td colSpan={4} style={{padding:"10px 16px",fontWeight:700,color:c,fontSize:13,letterSpacing:".06em"}}>{title}</td>
-      <td style={{padding:"10px 16px",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:c,textAlign:"right",fontSize:13}}>{fmtEGP(total)}</td>
-    </tr>
-  );
-
-  const THead = () => (
-    <thead><tr style={{background:"var(--bg2)"}}>
-      {["Account","Category","Debit","Credit","Net Balance"].map(h=>(
-        <th key={h} style={{padding:"7px 16px",textAlign:["Debit","Credit","Net Balance"].includes(h)?"right":"left",
-          color:"var(--text3)",fontWeight:600,fontSize:13,borderBottom:"1px solid var(--border3)"}}>{h}</th>
-      ))}
-    </tr></thead>
-  );
-
-  return(
-    <div style={{display:"grid",gap:14}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-        {[
-          {l:"Total Assets",     v:fmtEGP(totalAssets),                      c:"#34d399"},
-          {l:"Total Liabilities",v:fmtEGP(totalLiab),                        c:"#f87171"},
-          {l:"Total Equity",     v:fmtEGP(totalEquity+netProfit),             c:"#38bdf8"},
-          {l:"BS Check",         v:bsCheck<1?"✓ Balanced":"⚠ Check entries", c:bsCheck<1?"#34d399":"#fb923c"},
-        ].map((k,i)=>(
-          <div key={i} className="card" style={{textAlign:"center",padding:"14px 8px"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:k.c}}>{k.v}</div>
-            <div style={{fontSize:12,color:"var(--text4)",marginTop:4,textTransform:"uppercase",letterSpacing:".06em"}}>{k.l}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><THead/><tbody>
-          <SectionHead title="▸ ASSETS" total={totalAssets} c="#34d399"/>
-          {ASSET_G.filter(g=>bsMap[g]).map(g=>
-            Object.values(bsMap[g].accounts).map(a=>{
-              const net = g==='Cash Custody' ? a.cr-a.dr : a.dr-a.cr;
-              if(Math.abs(net)<0.01) return null;
-              return <Row key={g+a.name} label={a.name} sub={g} dr={a.dr} cr={a.cr} net={Math.abs(net)}/>;
-            })
-          )}
-          <Row label="TOTAL ASSETS" dr={0} cr={0} net={totalAssets} isTotal/>
-
-          <SectionHead title="▸ LIABILITIES" total={totalLiab} c="#f87171"/>
-          {LIAB_G.filter(g=>bsMap[g]).map(g=>
-            Object.values(bsMap[g].accounts).map(a=>{
-              if(g==='Tax and Social Insurance Authority'){
-                const net=a.cr-a.dr;
-                if(Math.abs(net)<0.01) return null;
-                return <Row key={a.name} label={a.name} sub={net>0?"🔴 payable":"🟢 receivable"} dr={a.dr} cr={a.cr} net={Math.abs(net)}/>;
-              }
-              const net=a.cr-a.dr;
-              if(Math.abs(net)<0.01) return null;
-              return <Row key={g+a.name} label={a.name} sub={g} dr={a.dr} cr={a.cr} net={Math.abs(net)}/>;
-            })
-          )}
-          <Row label="TOTAL LIABILITIES" dr={0} cr={0} net={totalLiab} isTotal/>
-
-          <SectionHead title="▸ EQUITY" total={totalEquity+netProfit} c="#38bdf8"/>
-          {EQUITY_G.filter(g=>bsMap[g]).map(g=>
-            Object.values(bsMap[g].accounts).map(a=>{
-              const net=a.cr-a.dr; if(Math.abs(net)<0.01) return null;
-              return <Row key={g+a.name} label={a.name} sub={g} dr={a.dr} cr={a.cr} net={Math.abs(net)}/>;
-            })
-          )}
-          <Row label="Retained Earnings (Current Year)" sub="Net P&L — open period" dr={0} cr={0} net={netProfit} isNote/>
-          <Row label="TOTAL EQUITY" dr={0} cr={0} net={totalEquity+netProfit} isTotal/>
-        </tbody></table>
-      </div>
-
-      {bsCheck>=1 && <div style={{background:"#fb923c15",border:"1px solid #fb923c",borderRadius:8,padding:"10px 16px",fontSize:13,color:"#fb923c"}}>
-        ⚠ Balance Sheet off by EGP {bsCheck.toLocaleString("en-EG",{maximumFractionDigits:2})} — may indicate missing entries or opening balance adjustments.
-      </div>}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════
-   3. EXPENSES — mirrors Excel "expenses" pivot
-   ══════════════════════════════════════════════════════════ */
-function ExpensesView({journalEntries, oldExpenses, egpRate, finYear}) {
-  const [viewMode, setViewMode] = React.useState("pivot");
-
-  // P&L data from journal — fixed pivot bug (no m[m.length])
-  const {plEntries, revEntries, pivot, activeMonths, totalExpenses, totalRevenue, netPL} = React.useMemo(()=>{
-    const yearEntries = finYear ? journalEntries.filter(e=>{
-      if(!e.entry_date) return true;
-      return new Date(String(e.entry_date)+"T12:00:00").getFullYear()===finYear;
-    }) : journalEntries;
-    const plE = yearEntries.filter(e=>e.statement_type==="Profit & Loss Sheet" && +e.debit>0);
-    const revE = yearEntries.filter(e=>e.statement_type==="Profit & Loss Sheet" && +e.credit>0);
-    const months = [...new Set(plE.map(e=>e.month))].sort((a,b)=>+a-+b);
-    const piv={};
-    plE.forEach(e=>{
-      if(!piv[e.main_account]) piv[e.main_account]={cat:e.main_account,accounts:{},catTotal:0};
-      if(!piv[e.main_account].accounts[e.account_name])
-        piv[e.main_account].accounts[e.account_name]={name:e.account_name,months:{},total:0};
-      piv[e.main_account].accounts[e.account_name].months[e.month] =
-        (piv[e.main_account].accounts[e.account_name].months[e.month]||0)+(+e.debit);
-      piv[e.main_account].accounts[e.account_name].total += +e.debit;
-      piv[e.main_account].catTotal += +e.debit;
-    });
-    const totExp = plE.reduce((s,e)=>s+(+e.debit),0);
-    const totRev = revE.reduce((s,e)=>s+(+e.credit),0);
-    return {plEntries:plE,revEntries:revE,pivot:piv,activeMonths:months,
-            totalExpenses:totExp,totalRevenue:totRev,netPL:totRev-totExp};
-  },[journalEntries,finYear]);
-
-  const monthTotal = mo => plEntries.filter(e=>e.month===mo).reduce((s,e)=>s+(+e.debit),0);
-  const monthRev   = mo => revEntries.filter(e=>e.month===mo).reduce((s,e)=>s+(+e.credit),0);
-
-  // Old system expenses (from expenses table) — shown as supplementary data
-  const oldData = React.useMemo(()=>{
-    if(!oldExpenses||!oldExpenses.length) return null;
-    const totUSD = oldExpenses.reduce((s,e)=>s+(+e.amount_usd||0),0);
-    const totEGP = oldExpenses.reduce((s,e)=>s+(+e.amount_egp||0),0);
-    const withRate = oldExpenses.filter(e=>e.entry_rate>0);
-    return {count:oldExpenses.length,totUSD,totEGP,withRate:withRate.length};
-  },[oldExpenses]);
-
-  return(
-    <div style={{display:"grid",gap:14}}>
-      {/* KPI */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-        {[
-          {l:"Total Revenue (EGP)",  v:fmtEGP(totalRevenue),  c:"#34d399"},
-          {l:"Total Expenses (EGP)", v:fmtEGP(totalExpenses), c:"#f87171"},
-          {l:"Net P&L (EGP)",        v:fmtEGP(netPL),         c:netPL>=0?"#34d399":"#f87171"},
-        ].map((k,i)=>(
-          <div key={i} className="card" style={{textAlign:"center",padding:"14px 8px"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:k.c}}>{k.v}</div>
-            <div style={{fontSize:12,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{k.l}</div>
-          </div>
-        ))}
-      </div>
-
-      {oldData && (
-        <div style={{background:"#38bdf810",border:"1px solid #38bdf840",borderRadius:8,padding:"10px 16px",fontSize:13,color:"#38bdf8"}}>
-          📂 Legacy expense records: {oldData.count} entries · USD {oldData.totUSD.toLocaleString("en-US",{minimumFractionDigits:2})} · EGP {oldData.totEGP.toLocaleString()} · {oldData.withRate} entries have exchange rate. These pre-date the journal system. Post to journal to include in reports.
-        </div>
-      )}
-
-      {/* Pivot table */}
-      <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Expenses Breakdown</div>
-          <div style={{display:"flex",gap:4}}>
-            {[{id:"pivot",l:"Pivot"},{id:"monthly",l:"Monthly"}].map(b=>(
-              <button key={b.id} onClick={()=>setViewMode(b.id)}
-                style={{background:viewMode===b.id?"linear-gradient(135deg,#0ea5e9,#0369a1)":"transparent",border:`1px solid ${viewMode===b.id?"transparent":"var(--border)"}`,
-                  borderRadius:6,padding:"4px 12px",color:viewMode===b.id?"#fff":"var(--text2)",cursor:"pointer",fontSize:14,fontWeight:viewMode===b.id?600:400,fontFamily:"'IBM Plex Sans',sans-serif"}}>
-                {b.l}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {viewMode==="pivot" ? (
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead>
-                <tr style={{background:"var(--bg2)"}}>
-                  <th style={{padding:"7px 14px",textAlign:"left",color:"var(--text3)",fontSize:13,minWidth:150}}>Category</th>
-                  <th style={{padding:"7px 14px",textAlign:"left",color:"var(--text3)",fontSize:13,minWidth:200}}>Account</th>
-                  {activeMonths.map(m=>(
-                    <th key={m} style={{padding:"7px 10px",textAlign:"right",color:"var(--text3)",fontSize:13,whiteSpace:"nowrap"}}>{MO_SHORT[+m]}</th>
-                  ))}
-                  <th style={{padding:"7px 14px",textAlign:"right",color:"var(--text3)",fontSize:13}}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.values(pivot).sort((a,b)=>b.catTotal-a.catTotal).map(cat=>{
-                  const accts = Object.values(cat.accounts).sort((a,b)=>b.total-a.total);
-                  return accts.map((acc,i)=>(
-                    <tr key={cat.cat+acc.name} style={{borderBottom:"1px solid var(--border3)"}}>
-                      <td style={{padding:"6px 14px",color:"var(--text4)",fontSize:13,fontStyle:"italic"}}>{i===0?cat.cat:""}</td>
-                      <td style={{padding:"6px 14px",color:"var(--text1)",fontWeight:500}}>{acc.name}</td>
-                      {activeMonths.map(m=>(
-                        <td key={m} style={{padding:"6px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"var(--text2)"}}>
-                          {acc.months[m]?Math.round(acc.months[m]).toLocaleString("en-EG"):"-"}
-                        </td>
-                      ))}
-                      <td style={{padding:"6px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c",fontWeight:600}}>{fmtEGP(acc.total)}</td>
-                    </tr>
-                  ));
-                })}
-                <tr style={{borderTop:"2px solid #34d39940",background:"#34d39908"}}>
-                  <td style={{padding:"7px 14px",color:"#34d399",fontWeight:700}}>Revenue</td>
-                  <td style={{padding:"7px 14px",color:"var(--text2)"}}>Enevo Group S.R.L.</td>
-                  {activeMonths.map(m=>(
-                    <td key={m} style={{padding:"7px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399"}}>
-                      {monthRev(m)?Math.round(monthRev(m)).toLocaleString("en-EG"):"-"}
-                    </td>
-                  ))}
-                  <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399",fontWeight:700}}>{fmtEGP(totalRevenue)}</td>
-                </tr>
-                <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)"}}>
-                  <td colSpan={2} style={{padding:"9px 14px",fontWeight:700,color:"var(--text0)"}}>TOTAL EXPENSES</td>
-                  {activeMonths.map(m=>(
-                    <td key={m} style={{padding:"9px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",fontWeight:700,color:"#f87171"}}>
-                      {Math.round(monthTotal(m)).toLocaleString("en-EG")}
-                    </td>
-                  ))}
-                  <td style={{padding:"9px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",fontWeight:700,color:"#f87171"}}>{fmtEGP(totalExpenses)}</td>
-                </tr>
-                <tr style={{background:netPL>=0?"#34d39910":"#f8711810"}}>
-                  <td colSpan={2} style={{padding:"9px 14px",fontWeight:700,color:netPL>=0?"#34d399":"#f87171"}}>NET P&L</td>
-                  {activeMonths.map(m=>(
-                    <td key={m} style={{padding:"9px 10px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",fontWeight:700,color:monthRev(m)-monthTotal(m)>=0?"#34d399":"#f87171"}}>
-                      {Math.round(monthRev(m)-monthTotal(m)).toLocaleString("en-EG")}
-                    </td>
-                  ))}
-                  <td style={{padding:"9px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",fontWeight:700,color:netPL>=0?"#34d399":"#f87171"}}>{fmtEGP(netPL)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{padding:16,display:"grid",gap:16}}>
-            {activeMonths.map(m=>{
-              const mExp=monthTotal(m); const mRev=monthRev(m); const mNet=mRev-mExp;
-              const max=Math.max(mExp,mRev,1);
-              const mEntries=plEntries.filter(e=>e.month===m);
-              return(
-                <div key={m} style={{borderBottom:"1px solid var(--border3)",paddingBottom:16}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                    <span style={{fontWeight:700,color:"var(--text0)",fontSize:15}}>{MO_SHORT[+m]}</span>
-                    <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:mNet>=0?"#34d399":"#f87171",fontWeight:600}}>Net: {fmtEGP(mNet)}</span>
-                  </div>
-                  {[{l:"Revenue",v:mRev,c:"#34d399"},{l:"Expenses",v:mExp,c:"#f87171"}].map(bar=>(
-                    <div key={bar.l} style={{display:"grid",gridTemplateColumns:"80px 1fr 140px",gap:8,alignItems:"center",marginBottom:6}}>
-                      <span style={{fontSize:13,color:"var(--text3)"}}>{bar.l}</span>
-                      <div style={{height:10,background:"var(--bg2)",borderRadius:4,overflow:"hidden"}}>
-                        <div style={{height:"100%",width:`${Math.round(bar.v/max*100)}%`,background:bar.c,borderRadius:4}}/>
-                      </div>
-                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:bar.c,textAlign:"right"}}>{fmtEGP(bar.v)}</span>
-                    </div>
-                  ))}
-                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:8}}>
-                    {mEntries.sort((a,b)=>+b.debit-+a.debit).slice(0,8).map((e,i)=>(
-                      <span key={i} style={{fontSize:12,background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,padding:"2px 7px",color:"var(--text3)"}}>
-                        {e.account_name}: {Math.round(+e.debit).toLocaleString("en-EG")}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════
-   4. CASH CUSTODY
-   ══════════════════════════════════════════════════════════ */
-function CashCustodyView({journalEntries}) {
-  const [selected, setSelected] = React.useState("ALL");
-
-  const {persons, totalHeld} = React.useMemo(()=>{
-    const m={};
-    journalEntries.filter(e=>e.main_account==="Cash Custody").forEach(e=>{
-      const name=e.account_name.trim();
-      if(!m[name]) m[name]={name,totalOut:0,totalBack:0,transactions:[]};
-      m[name].totalOut  += +e.credit||0;
-      m[name].totalBack += +e.debit||0;
-      m[name].transactions.push(e);
-    });
-    Object.values(m).forEach(p=>p.held=p.totalOut-p.totalBack);
-    return {persons:m, totalHeld:Object.values(m).reduce((s,p)=>s+p.held,0)};
-  },[journalEntries]);
-
-  const allCustody = journalEntries.filter(e=>e.main_account==="Cash Custody");
-  const selectedTx = (selected==="ALL" ? allCustody : (persons[selected]?.transactions||[]))
-    .sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date)));
-
-  // Dynamic color from name hash — no hardcoded names
-  const pColor = n => {
-    const PALETTE=["#38bdf8","#a78bfa","#fb923c","#34d399","#facc15","#f87171","#e879f9","#4ade80"];
-    let h=0; for(let i=0;i<(n||"").length;i++) h=(h*31+n.charCodeAt(i))&0xffff;
-    return PALETTE[h%PALETTE.length];
-  };
-
-  return(
-    <div style={{display:"grid",gap:14}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
-        {Object.values(persons).sort((a,b)=>b.held-a.held).map(p=>(
-          <div key={p.name} className="card" style={{textAlign:"center",padding:"12px 8px",cursor:"pointer",
-            border:`2px solid ${selected===p.name?pColor(p.name):"var(--border3)"}`}}
-            onClick={()=>setSelected(selected===p.name?"ALL":p.name)}>
-            <div style={{fontSize:12,color:pColor(p.name),fontWeight:700,marginBottom:4}}>{p.name}</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:p.held>0?"#34d399":"var(--text4)"}}>{fmtEGP(p.held)}</div>
-            <div style={{fontSize:11,color:"var(--text4)",marginTop:2}}>currently holds · {p.transactions.length} tx</div>
-          </div>
-        ))}
-      </div>
-      <div style={{background:"var(--bg2)",border:"1px solid #34d39440",borderRadius:8,padding:"10px 16px",display:"flex",justifyContent:"space-between"}}>
-        <span style={{fontSize:13,color:"var(--text2)"}}>Total company cash held by all custodians</span>
-        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:"#34d399"}}>{fmtEGP(totalHeld)}</span>
-      </div>
-      <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"#fb923c15",borderBottom:"2px solid #fb923c",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:13,fontWeight:700,color:"#fb923c"}}>TRANSACTIONS{selected!=="ALL"?` — ${selected}`:""}</span>
-          {selected!=="ALL"&&<button onClick={()=>setSelected("ALL")} style={{background:"transparent",border:"1px solid var(--border3)",borderRadius:4,padding:"2px 8px",color:"var(--text3)",cursor:"pointer",fontSize:13}}>Show All</button>}
-        </div>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-            <thead><tr style={{background:"var(--bg2)"}}>
-              {["Date","Entry#","Person","Type","Cash Out","Cash Back/Spent","Net","Description"].map(h=>(
-                <th key={h} style={{padding:"7px 12px",textAlign:["Cash Out","Cash Back/Spent","Net"].includes(h)?"right":"left",
-                  color:"var(--text3)",fontWeight:600,fontSize:13,borderBottom:"1px solid var(--border3)",whiteSpace:"nowrap"}}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {selectedTx.map((e,i)=>{
-                const net=(+e.debit||0)-(+e.credit||0);
-                return(
-                  <tr key={i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text3)"}}>{String(e.entry_date).slice(0,10)}</td>
-                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text4)"}}>{e.entry_no}</td>
-                    <td style={{padding:"6px 12px"}}><span style={{color:pColor(e.account_name.trim()),fontWeight:600,fontSize:13}}>{e.account_name.trim()}</span></td>
-                    <td style={{padding:"6px 12px"}}><span style={{background:"#fb923c20",color:"#fb923c",padding:"1px 6px",borderRadius:4,fontSize:12}}>{e.entry_type}</span></td>
-                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{+e.credit>0.01?fmtEGP(+e.credit):""}</td>
-                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399"}}>{+e.debit>0.01?fmtEGP(+e.debit):""}</td>
-                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:net>0?"#34d399":"#f87171",fontWeight:600}}>{fmtEGP(Math.abs(net))}</td>
-                    <td style={{padding:"6px 12px",color:"var(--text3)",fontSize:13,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={e.description}>{e.description}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════
-   5. TAX & SOCIAL INSURANCE
-   ══════════════════════════════════════════════════════════ */
-function TaxSocialView({journalEntries}) {
-  const taxEntries = journalEntries.filter(e=>e.main_account==="Tax and Social Insurance Authority");
-  const {byAccount, activeMonths} = React.useMemo(()=>{
-    const m={};
-    taxEntries.forEach(e=>{
-      const name=e.account_name;
-      if(!m[name]) m[name]={name,entries:[],totalDr:0,totalCr:0,byMonth:{}};
-      m[name].entries.push(e);
-      m[name].totalDr += +e.debit||0;
-      m[name].totalCr += +e.credit||0;
-      const mo=e.month;
-      if(!m[name].byMonth[mo]) m[name].byMonth[mo]={dr:0,cr:0};
-      m[name].byMonth[mo].dr += +e.debit||0;
-      m[name].byMonth[mo].cr += +e.credit||0;
-    });
-    Object.values(m).forEach(a=>{a.net=a.totalCr-a.totalDr; a.isLiab=a.net>0;});
-    return {byAccount:m, activeMonths:[...new Set(taxEntries.map(e=>e.month))].sort((a,b)=>+a-+b)};
-  },[taxEntries]);
-
-  const totalLiab = Object.values(byAccount).filter(a=>a.isLiab).reduce((s,a)=>s+a.net,0);
-  const totalAsset= Object.values(byAccount).filter(a=>!a.isLiab).reduce((s,a)=>s+Math.abs(a.net),0);
-  const aColor = n=>({
-    "Payroll Tax":"#f87171","Social Insurance Authority":"#fb923c",
-    "Martyrs Families Fund":"#a78bfa","VAT":"#34d399"}[n]||"var(--text3)");
-
-  return(
-    <div style={{display:"grid",gap:14}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-        {[
-          {l:"Tax Liabilities",    v:fmtEGP(totalLiab),                 c:"#f87171"},
-          {l:"VAT Receivable",     v:fmtEGP(totalAsset),                c:"#34d399"},
-          {l:"Net Payable to Gov", v:fmtEGP(Math.abs(totalLiab-totalAsset)), c:"#fb923c"},
-        ].map((k,i)=>(
-          <div key={i} className="card" style={{textAlign:"center",padding:"14px 8px"}}>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
-            <div style={{fontSize:12,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{k.l}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        {Object.values(byAccount).map(a=>(
-          <div key={a.name} className="card" style={{padding:0,overflow:"hidden"}}>
-            <div style={{background:aColor(a.name)+"18",borderBottom:`2px solid ${aColor(a.name)}`,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{fontSize:13,fontWeight:700,color:aColor(a.name)}}>{a.name}</span>
-              <span style={{fontSize:13,fontWeight:600,color:a.isLiab?"#f87171":"#34d399"}}>
-                {a.isLiab?"🔴":""}{!a.isLiab?"🟢":""} {fmtEGP(Math.abs(a.net))}
-              </span>
-            </div>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:"var(--bg2)"}}>
-                {["Month","Debit","Credit","Net"].map(h=>(
-                  <th key={h} style={{padding:"6px 12px",textAlign:h==="Month"?"left":"right",color:"var(--text3)",fontSize:13}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {activeMonths.filter(m=>a.byMonth[m]).map((m,i)=>{
-                  const mo=a.byMonth[m]; const net=mo.cr-mo.dr;
-                  return(<tr key={m} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                    <td style={{padding:"6px 12px",color:"var(--text2)",fontWeight:500}}>{MO_SHORT[+m]}</td>
-                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399"}}>{mo.dr>0.01?fmtEGP(mo.dr):""}</td>
-                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{mo.cr>0.01?fmtEGP(mo.cr):""}</td>
-                    <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:net>0?"#f87171":"#34d399",fontWeight:600}}>{fmtEGP(Math.abs(net))}</td>
-                  </tr>);
-                })}
-                <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)"}}>
-                  <td style={{padding:"7px 12px",fontWeight:700,color:"var(--text0)"}}>TOTAL</td>
-                  <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399",fontWeight:700}}>{a.totalDr>0.01?fmtEGP(a.totalDr):""}</td>
-                  <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171",fontWeight:700}}>{a.totalCr>0.01?fmtEGP(a.totalCr):""}</td>
-                  <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:a.isLiab?"#f87171":"#34d399",fontWeight:700}}>{fmtEGP(Math.abs(a.net))}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════
-   6. FIXED ASSETS
-   ══════════════════════════════════════════════════════════ */
-function FixedAssetsView({fixedAssets, loading}) {
-  const TODAY = new Date();
-  const [assetSearch, setAssetSearch] = React.useState("");
-
-  const assetsWithDepr = React.useMemo(()=>fixedAssets.map(a=>{
-    if(!a.purchase_date) return {...a,annual:0,acc:0,net:+a.cost_egp||0,pct:0};
-    const purchased=new Date(a.purchase_date+"T12:00:00");
-    const yrs=Math.max(0,(TODAY-purchased)/(365.25*24*3600*1000));
-    const annual=+a.useful_life_years>0?(+a.cost_egp/+a.useful_life_years):0;
-    const acc=Math.min(+a.cost_egp,annual*yrs);
-    const net=Math.max(0,+a.cost_egp-acc);
-    return {...a,annual,acc,net,pct:+a.cost_egp>0?(acc/+a.cost_egp*100):0};
-  }),[fixedAssets]);
-
-  const filteredAssets = React.useMemo(()=>{
-    if(!assetSearch) return assetsWithDepr;
-    const q=assetSearch.toLowerCase();
-    return assetsWithDepr.filter(a=>
-      (a.asset_name||"").toLowerCase().includes(q)||
-      (a.category||"").toLowerCase().includes(q)||
-      (a.purchase_date||"").includes(q)
-    );
-  },[assetsWithDepr,assetSearch]);
-
-  const byCategory=React.useMemo(()=>{
-    const m={};
-    filteredAssets.forEach(a=>{
-      if(!m[a.category]) m[a.category]={cat:a.category,assets:[],cost:0,depr:0,net:0};
-      m[a.category].assets.push(a);
-      m[a.category].cost+=+a.cost_egp;
-      m[a.category].depr+=a.acc;
-      m[a.category].net+=a.net;
-    });
-    return m;
-  },[filteredAssets]);
-
-  const totCost=filteredAssets.reduce((s,a)=>s+(+a.cost_egp),0);
-  const totDepr=filteredAssets.reduce((s,a)=>s+a.acc,0);
-  const totNet=filteredAssets.reduce((s,a)=>s+a.net,0);
-  const cColor=c=>({
-    "Computers & Programs":"#38bdf8","Furniture":"#a78bfa",
-    "Aircondition":"#34d399","Decoration & Furnishing":"#fb923c","Electrical Equipment":"#facc15"
-  }[c]||"var(--text3)");
-
-  if(loading) return <div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>Loading assets…</div>;
-  return(
-    <div style={{display:"grid",gap:14}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,flex:1}}>
-          {[{l:"Total at Cost",v:fmtEGP(totCost),c:"#38bdf8"},{l:"Accumulated Depr.",v:fmtEGP(totDepr),c:"#fb923c"},{l:"Net Book Value",v:fmtEGP(totNet),c:"#34d399"}].map((k,i)=>(
-            <div key={i} className="card" style={{textAlign:"center",padding:"14px 8px"}}>
-              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:k.c}}>{k.v}</div>
-              <div style={{fontSize:12,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>{k.l}</div>
-            </div>
-          ))}
-        </div>
-        <input value={assetSearch} onChange={e=>setAssetSearch(e.target.value)}
-          placeholder="🔍 Search assets…"
-          style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"7px 12px",color:"var(--text0)",fontSize:13,width:200,flexShrink:0}}/>
-      </div>
-      {filteredAssets.length===0&&assetSearch&&(
-        <div style={{textAlign:"center",padding:24,color:"var(--text4)",fontSize:13}}>No assets match "{assetSearch}"</div>
-      )}
-      {Object.values(byCategory).sort((a,b)=>b.cost-a.cost).map(cat=>(
-        <div key={cat.cat} className="card" style={{padding:0,overflow:"hidden"}}>
-          <div style={{background:cColor(cat.cat)+"15",borderBottom:`2px solid ${cColor(cat.cat)}`,padding:"10px 16px",display:"flex",justifyContent:"space-between"}}>
-            <span style={{fontSize:13,fontWeight:700,color:cColor(cat.cat)}}>{cat.cat}</span>
-            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text3)"}}>
-              {cat.assets.length} items · Cost {fmtEGP(cat.cost)} · Net {fmtEGP(cat.net)}
-            </span>
-          </div>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:"var(--bg2)"}}>
-                {["Asset","Purchased","Cost","Life","Annual Depr.","Acc. Depr.","Net Book","Worn %"].map(h=>(
-                  <th key={h} style={{padding:"7px 12px",textAlign:h==="Asset"||h==="Purchased"?"left":"right",color:"var(--text3)",fontSize:13,whiteSpace:"nowrap"}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {cat.assets.map((a,i)=>(
-                  <tr key={i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                    <td style={{padding:"7px 12px",color:"var(--text1)"}}>{a.asset_name}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text3)"}}>{a.purchase_date}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#38bdf8"}}>{fmtEGP(+a.cost_egp)}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"var(--text3)"}}>{a.useful_life_years}y</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"var(--text2)"}}>{fmtEGP(a.annual)}/yr</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{fmtEGP(a.acc)}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399",fontWeight:600}}>{fmtEGP(a.net)}</td>
-                    <td style={{padding:"7px 12px",textAlign:"right"}}>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6}}>
-                        <div style={{width:50,height:6,background:"var(--bg2)",borderRadius:3,overflow:"hidden"}}>
-                          <div style={{height:"100%",width:`${Math.min(100,a.pct).toFixed(0)}%`,background:cColor(cat.cat),borderRadius:3}}/>
-                        </div>
-                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text3)",minWidth:35}}>{a.pct.toFixed(1)}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════
-   7. FINANCE REPORTS — Monthly PDF-ready summary
-   ══════════════════════════════════════════════════════════ */
-function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate}) {
-  const [reportType, setReportType] = React.useState("pl");
-  const [repMonth,   setRepMonth]   = React.useState(new Date().getMonth()||1);
-  const [repYear,    setRepYear]    = React.useState(2026);
-
-  const MONTHS_ = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-  // ── P&L STATEMENT (journal-based, EGP)
-  const plReport = React.useMemo(()=>{
-    const rev = journalEntries
-      .filter(e=>e.statement_type==="Profit & Loss Sheet" && +e.credit>0)
-      .reduce((s,e)=>s+(+e.credit||0),0);
-    const byAcct={};
-    journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet" && +e.debit>0).forEach(e=>{
-      if(!byAcct[e.account_name]) byAcct[e.account_name]={name:e.account_name,cat:e.main_account,total:0};
-      byAcct[e.account_name].total += +e.debit;
-    });
-    const expenses = Object.values(byAcct).sort((a,b)=>b.total-a.total);
-    const totExp = expenses.reduce((s,e)=>s+e.total,0);
-    return {rev,expenses,totExp,net:rev-totExp};
-  },[journalEntries]);
-
-  // ── PAYROLL SUMMARY (from staff table + journal accruals by month)
-  const payrollReport = React.useMemo(()=>{
-    const MO_IDX = repMonth; // 1-based
-    const activeThisMonth = staff.filter(s=>{
-      if(!s.join_date) return true;
-      const joined = new Date(s.join_date+"T12:00:00");
-      const mEnd = new Date(repYear, MO_IDX, 0);
-      if(joined > mEnd) return false;
-      if(s.termination_date){
-        const term = new Date(s.termination_date+"T12:00:00");
-        const mStart = new Date(repYear, MO_IDX-1, 1);
-        if(term < mStart) return false;
-      }
-      return true;
-    });
-    // Journal accruals for this month
-    const accrualLines = journalEntries.filter(e=>e.entry_type==="Accrued Salaries" && +e.month===MO_IDX);
-    const grossCost = accrualLines.filter(e=>e.main_account==="Operating Costs" && +e.debit>0).reduce((s,e)=>s+(+e.debit),0);
-    const grossAdmin = accrualLines.filter(e=>e.main_account==="Administrative expenses" && +e.debit>0).reduce((s,e)=>s+(+e.debit),0);
-    const taxLine = accrualLines.filter(e=>e.account_name==="Payroll Tax" && +e.credit>0).reduce((s,e)=>s+(+e.credit),0);
-    const siLine  = accrualLines.filter(e=>e.account_name==="Social Insurance Authority" && +e.credit>0).reduce((s,e)=>s+(+e.credit),0);
-    const mfLine  = accrualLines.filter(e=>e.account_name==="Martyrs Families Fund" && +e.credit>0).reduce((s,e)=>s+(+e.credit),0);
-    const netSalary = accrualLines.filter(e=>e.account_name==="Accrued Salaries" && +e.credit>0).reduce((s,e)=>s+(+e.credit),0);
-    const deptMap={};
-    activeThisMonth.forEach(s=>{
-      const d=s.department||"Other";
-      if(!deptMap[d]) deptMap[d]={dept:d,count:0,usd:0,egp:0};
-      deptMap[d].count++;
-      deptMap[d].usd += +s.salary_usd||0;
-      deptMap[d].egp += +s.salary_egp||0;
-    });
-    return {activeThisMonth,grossCost,grossAdmin,taxLine,siLine,mfLine,netSalary,deptMap:Object.values(deptMap)};
-  },[journalEntries,staff,repMonth,repYear]);
-
-  // ── CASH FLOW (simplified — operating + investing)
-  const cashFlow = React.useMemo(()=>{
-    const revenue = journalEntries.filter(e=>e.main_account==="Revenue").reduce((s,e)=>s+(+e.credit),0);
-    // Cash paid for expenses (from custody/creditor payments)
-    const cashPaid = journalEntries.filter(e=>e.main_account!=="Cash Custody" && e.main_account!=="Customers"
-      && e.statement_type==="Profit & Loss Sheet" && +e.debit>0).reduce((s,e)=>s+(+e.debit),0);
-    const fixedAssetCost = fixedAssets.reduce((s,a)=>s+(+a.cost_egp),0);
-    const cashInBank = journalEntries.filter(e=>e.main_account==="Cash & Cash Equivalents").reduce((s,e)=>s+(+e.debit)-(+e.credit),0);
-    const cashInCustody = journalEntries.filter(e=>e.main_account==="Cash Custody").reduce((s,e)=>s+(+e.credit)-(+e.debit),0);
-    // Tax outstanding
-    const taxOwed = journalEntries.filter(e=>e.main_account==="Tax and Social Insurance Authority").reduce((s,e)=>s+(+e.credit)-(+e.debit),0);
-    return {revenue,cashPaid,fixedAssetCost,cashInBank,cashInCustody,taxOwed,
-      netOpCash:revenue-cashPaid, netInvest:-fixedAssetCost};
-  },[journalEntries,fixedAssets]);
-
-  const btnStyle = id => ({
-    padding:"7px 14px",fontSize:13,cursor:"pointer",borderRadius:6,
-    background:reportType===id?"var(--accent)":"var(--bg2)",
-    border:`1px solid ${reportType===id?"var(--accent)":"var(--border3)"}`,
-    color:reportType===id?"#fff":"var(--text2)"
-  });
-
-  const handleExport = () => {
-    const now = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-    const mo = MONTHS_[repMonth-1];
-
-    if(reportType==="pl"){
-      const expRows = ["Operating Costs","Administrative expenses"].map(cat=>{
-        const items = plReport.expenses.filter(e=>e.cat===cat);
-        if(!items.length) return "";
-        return `<tr style="background:#f8fafc"><td colspan="2" style="padding:6px 16px 6px 20px;color:#64748b;font-size:12px;font-style:italic">${cat}</td></tr>`
-          +items.map(e=>`<tr><td style="padding:6px 16px 6px 32px">${e.name}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#fb923c">${fmtEGP(e.total)}</td></tr>`).join("");
-      }).join("");
-      generatePDF(
-        `P&L Statement — Year to Date ${repYear}`,
-        [`<div class="section"><div class="st">Profit & Loss Statement — Year to Date (EGP)</div>
-          <div style="font-size:12px;color:#64748b;margin-bottom:12px;text-align:center">Enevo Egypt LLC — All periods up to ${now}</div>
-          <table><tbody>
-            <tr style="background:#f0fdf4"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#16a34a;font-size:13px">REVENUE</td></tr>
-            <tr><td style="padding:7px 16px 7px 28px">Service Revenue — Enevo Group S.R.L.</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:600">${fmtEGP(plReport.rev)}</td></tr>
-            <tr style="background:#f0fdf4"><td style="padding:8px 16px;font-weight:700;color:#16a34a">TOTAL REVENUE</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#34d399">${fmtEGP(plReport.rev)}</td></tr>
-            <tr style="background:#fff7f0"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#dc2626;font-size:13px">EXPENSES</td></tr>
-            ${expRows}
-            <tr style="background:#fff7f0"><td style="padding:8px 16px;font-weight:700;color:#dc2626">TOTAL EXPENSES</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171">${fmtEGP(plReport.totExp)}</td></tr>
-            <tr style="background:${plReport.net>=0?"#f0fdf4":"#fff0f0"}">
-              <td style="padding:12px 16px;font-weight:700;font-size:14px;color:${plReport.net>=0?"#16a34a":"#dc2626"}">NET ${plReport.net>=0?"PROFIT":"LOSS"}</td>
-              <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:15px;color:${plReport.net>=0?"#16a34a":"#dc2626"}">${fmtEGP(plReport.net)}</td>
-            </tr>
-          </tbody></table></div>`],
-        `Financial Report · P&L Statement · ${now} · CONFIDENTIAL`
-      );
-    } else if(reportType==="payroll"){
-      const accrualSection = payrollReport.grossCost+payrollReport.grossAdmin > 0
-        ? `<div class="section"><div class="st">Payroll Accrual Summary — ${mo} ${repYear}</div>
-           <table><tbody>
-             <tr style="background:#f8f0ff"><td colspan="2" style="padding:8px 16px;font-weight:700;font-size:13px">GROSS PAYROLL</td></tr>
-             <tr><td style="padding:7px 16px 7px 28px">Cost of Work Staff (Salaries-Cost)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#fb923c">${fmtEGP(payrollReport.grossCost)}</td></tr>
-             <tr><td style="padding:7px 16px 7px 28px">Administrative Staff (Salaries-Admin)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#fb923c">${fmtEGP(payrollReport.grossAdmin)}</td></tr>
-             <tr style="background:#f8f0ff"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#dc2626;font-size:13px">DEDUCTIONS (Government)</td></tr>
-             <tr><td style="padding:7px 16px 7px 28px">Payroll Tax</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${fmtEGP(payrollReport.taxLine)}</td></tr>
-             <tr><td style="padding:7px 16px 7px 28px">Social Insurance Authority</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${fmtEGP(payrollReport.siLine)}</td></tr>
-             <tr><td style="padding:7px 16px 7px 28px">Martyrs Families Fund</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${fmtEGP(payrollReport.mfLine)}</td></tr>
-             <tr style="background:#f0fdf4">
-               <td style="padding:10px 16px;font-weight:700;color:#16a34a;font-size:13px">NET SALARY PAYABLE (Accrued)</td>
-               <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:14px;color:#34d399">${fmtEGP(payrollReport.netSalary)}</td>
-             </tr>
-           </tbody></table></div>`
-        : `<div class="section"><p style="color:#94a3b8;padding:20px 0;text-align:center">No payroll accrual posted for ${mo} ${repYear}. Post a salary journal entry first.</p></div>`;
-      const staffSection = payrollReport.activeThisMonth.length > 0
-        ? `<div class="section"><div class="st">Staff Roster — ${mo} ${repYear} (${payrollReport.activeThisMonth.length} active)</div>
-           <table>
-             <thead><tr><th>Name</th><th>Department</th><th>Role</th><th style="text-align:right">USD Salary</th><th style="text-align:right">EGP Salary</th></tr></thead>
-             <tbody>${payrollReport.activeThisMonth.map((s,i)=>`
-               <tr style="${i%2!==0?"background:#f8fafc":""}">
-                 <td style="padding:6px 12px;font-weight:600">${s.name||""}</td>
-                 <td style="padding:6px 12px;color:#64748b;font-size:12px">${s.department||""}</td>
-                 <td style="padding:6px 12px;color:#64748b;font-size:12px">${s.role||""}</td>
-                 <td style="text-align:right;padding:6px 12px;font-family:'IBM Plex Mono',monospace;color:#38bdf8;font-size:12px">${s.salary_usd>0?`$${(+s.salary_usd).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"}</td>
-                 <td style="text-align:right;padding:6px 12px;font-family:'IBM Plex Mono',monospace;color:#fb923c;font-size:12px">${s.salary_egp>0?fmtEGP(+s.salary_egp):"—"}</td>
-               </tr>`).join("")}
-             </tbody>
-           </table></div>`
-        : "";
-      generatePDF(
-        `Payroll Summary — ${mo} ${repYear}`,
-        [accrualSection, staffSection],
-        `Payroll Report · ${mo} ${repYear} · CONFIDENTIAL`
-      );
-    } else if(reportType==="cashflow"){
-      generatePDF(
-        `Cash Flow Statement — ${now}`,
-        [`<div class="section"><div class="st">Cash Flow Statement (Simplified)</div>
-          <div style="font-size:12px;color:#64748b;margin-bottom:12px">Enevo Egypt LLC — Based on all journal entries</div>
-          <table><tbody>
-            <tr style="background:#f0fdf4"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#16a34a;font-size:13px">A. OPERATING ACTIVITIES</td></tr>
-            <tr><td style="padding:7px 16px 7px 28px">Revenue Accrued (Invoice)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399">${fmtEGP(cashFlow.revenue)}</td></tr>
-            <tr><td style="padding:7px 16px 7px 28px">Operating Expenses Paid</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">(${fmtEGP(cashFlow.cashPaid)})</td></tr>
-            <tr><td style="padding:7px 16px 7px 28px">Taxes Outstanding (not yet paid)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">(${fmtEGP(cashFlow.taxOwed)})</td></tr>
-            <tr style="background:#f0fdf4"><td style="padding:8px 16px;font-weight:700;color:#16a34a">Net Operating Cash Flow</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#34d399">${fmtEGP(cashFlow.netOpCash)}</td></tr>
-            <tr style="background:#fff7f0"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#ea580c;font-size:13px">B. INVESTING ACTIVITIES</td></tr>
-            <tr><td style="padding:7px 16px 7px 28px">Fixed Asset Purchases</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">(${fmtEGP(cashFlow.fixedAssetCost)})</td></tr>
-            <tr style="background:#fff7f0"><td style="padding:8px 16px;font-weight:700;color:#ea580c">Net Investing Cash Flow</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171">(${fmtEGP(cashFlow.fixedAssetCost)})</td></tr>
-            <tr style="background:#eff6ff"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#1d4ed8;font-size:13px">C. CASH BALANCES</td></tr>
-            <tr><td style="padding:7px 16px 7px 28px">Cash at Bank (Credit Agricole)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#38bdf8">${fmtEGP(cashFlow.cashInBank)}</td></tr>
-            <tr><td style="padding:7px 16px 7px 28px">Cash in Custody (all custodians)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#38bdf8">${fmtEGP(cashFlow.cashInCustody)}</td></tr>
-            <tr style="background:#eff6ff"><td style="padding:8px 16px;font-weight:700;color:#1d4ed8">TOTAL CASH POSITION</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#38bdf8;font-size:14px">${fmtEGP(cashFlow.cashInBank+cashFlow.cashInCustody)}</td></tr>
-          </tbody></table></div>`],
-        `Cash Flow Statement · ${now} · CONFIDENTIAL`
-      );
-    } else if(reportType==="custody"){
-      const custodyMap={};
-      journalEntries.filter(e=>e.main_account==="Cash Custody").forEach(e=>{
-        const n=e.account_name.trim();
-        if(!custodyMap[n]) custodyMap[n]={name:n,lines:[],totalOut:0,totalBack:0};
-        custodyMap[n].lines.push(e);
-        custodyMap[n].totalOut += +e.credit||0;
-        custodyMap[n].totalBack += +e.debit||0;
-      });
-      const custodySections = Object.values(custodyMap).map(p=>{
-        let runBal=0;
-        const rows=p.lines.sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date))).map((e,i)=>{
-          runBal += (+e.credit||0)-(+e.debit||0);
-          return `<tr style="${i%2!==0?"background:#f8fafc":""}">
-            <td style="padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#64748b">${String(e.entry_date||"").slice(0,10)}</td>
-            <td style="padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#94a3b8">${e.entry_no||""}</td>
-            <td style="padding:5px 10px;font-size:11px">${e.description||""}</td>
-            <td style="text-align:right;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#f87171">${+e.credit>0.01?fmtEGP(+e.credit):""}</td>
-            <td style="text-align:right;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#34d399">${+e.debit>0.01?fmtEGP(+e.debit):""}</td>
-            <td style="text-align:right;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:${runBal>0?"#34d399":"#64748b"}">${fmtEGP(runBal)}</td>
-          </tr>`;
-        }).join("");
-        return `<div class="section"><div class="st">${p.name} — Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div>
-          <table>
-            <thead><tr><th>Date</th><th>Entry#</th><th>Description</th><th style="text-align:right">Cash Out</th><th style="text-align:right">Back/Spent</th><th style="text-align:right">Running Bal.</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table></div>`;
-      });
-      if(custodySections.length===0) custodySections.push(`<div class="section"><p style="color:#94a3b8;text-align:center;padding:20px 0">No custody entries found in journal.</p></div>`);
-      generatePDF(`Custody Ledger Report`, custodySections, `Cash Custody · ${now} · CONFIDENTIAL`);
-    } else if(reportType==="assets"){
-      const TODAY=new Date();
-      const rows=fixedAssets.map((a,i)=>{
-        if(!a.purchase_date) return {...a,annual:0,acc:0,net:+a.cost_egp||0,pct:0};
-    const purchased=new Date(a.purchase_date+"T12:00:00");
-        const yrs=Math.max(0,(TODAY-purchased)/(365.25*24*3600*1000));
-        const annual=+a.useful_life_years>0?(+a.cost_egp/+a.useful_life_years):0;
-        const acc=Math.min(+a.cost_egp,annual*yrs);
-        const net=Math.max(0,+a.cost_egp-acc);
-        const fullyDepr=new Date(purchased.getTime()+a.useful_life_years*365.25*24*3600*1000);
-        const done=net<=1;
-        return `<tr style="${i%2!==0?"background:#f8fafc":""}">
-          <td style="padding:6px 10px;font-weight:600;font-size:12px">${a.asset_name||""}</td>
-          <td style="padding:6px 10px;font-size:11px;color:#64748b">${a.category||""}</td>
-          <td style="padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#94a3b8">${a.purchase_date||""}</td>
-          <td style="text-align:right;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:12px">${fmtEGP(+a.cost_egp)}</td>
-          <td style="text-align:center;padding:6px 10px;font-size:11px">${a.useful_life_years}y</td>
-          <td style="text-align:right;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#fb923c">${fmtEGP(annual)}</td>
-          <td style="text-align:right;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#f87171">${fmtEGP(acc)}</td>
-          <td style="text-align:right;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:${done?"400":"600"};color:${done?"#94a3b8":"#34d399"}">${fmtEGP(net)}</td>
-          <td style="text-align:center;padding:6px 10px;font-size:11px;color:${done?"#f87171":"#64748b"}">${done?"✓ FULLY":fullyDepr.toLocaleDateString("en-GB",{year:"numeric",month:"short"})}</td>
-        </tr>`;
-      }).join("");
-      const totalCost=fixedAssets.reduce((s,a)=>s+(+a.cost_egp),0);
-      const totalAcc=fixedAssets.reduce((s,a)=>{
-        const p=new Date(a.purchase_date+"T12:00:00");
-        const y2=Math.max(0,(TODAY-p)/(365.25*24*3600*1000));
-        return s+Math.min(+a.cost_egp,(+a.cost_egp/+a.useful_life_years)*y2);
-      },0);
-      const totalNet=Math.max(0,totalCost-totalAcc);
-      generatePDF(
-        `Fixed Assets Schedule — ${now}`,
-        [`<div class="section"><div class="st">Fixed Assets Depreciation Schedule — Straight-Line Method</div>
-          <div style="font-size:11px;color:#64748b;margin-bottom:10px">Enevo Egypt LLC · As of ${now}</div>
-          <table>
-            <thead><tr>
-              <th>Asset</th><th>Category</th><th>Purchased</th>
-              <th style="text-align:right">Cost (EGP)</th><th style="text-align:center">Life</th>
-              <th style="text-align:right">Annual Depr.</th><th style="text-align:right">Acc. Depr.</th>
-              <th style="text-align:right">Net Book Value</th><th style="text-align:center">Fully Depr.</th>
-            </tr></thead>
-            <tbody>
-              ${rows}
-              <tr style="background:#f0f7ff;border-top:2px solid #bfdbfe">
-                <td colspan="3" style="padding:7px 10px;font-weight:700">TOTAL (${fixedAssets.length} assets)</td>
-                <td style="text-align:right;padding:7px 10px;font-family:'IBM Plex Mono',monospace;font-weight:700">${fmtEGP(totalCost)}</td>
-                <td colspan="2"></td>
-                <td style="text-align:right;padding:7px 10px;font-family:'IBM Plex Mono',monospace;color:#f87171;font-weight:700">${fmtEGP(totalAcc)}</td>
-                <td style="text-align:right;padding:7px 10px;font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:700;font-size:13px">${fmtEGP(totalNet)}</td>
-                <td></td>
-              </tr>
-            </tbody>
-          </table></div>`],
-        `Asset Depreciation Report · ${now} · CONFIDENTIAL`
-      );
-    }
-  };
-
-  return(
-    <div style={{display:"grid",gap:14}}>
-      {/* Report selector + filter + export */}
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-        <button style={btnStyle("pl")}     onClick={()=>setReportType("pl")}>P&L Statement</button>
-        <button style={btnStyle("payroll")}onClick={()=>setReportType("payroll")}>Payroll Summary</button>
-        <button style={btnStyle("cashflow")}onClick={()=>setReportType("cashflow")}>💧 Cash Flow</button>
-        <button style={btnStyle("custody")}onClick={()=>setReportType("custody")}>Custody Ledger</button>
-        <button style={btnStyle("assets")} onClick={()=>setReportType("assets")}>Asset Schedule</button>
-        <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
-          <span style={{fontSize:13,color:"var(--text4)"}}>Filter:</span>
-          <select value={repMonth} onChange={e=>setRepMonth(+e.target.value)}
-            style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 8px",color:"var(--text0)",fontSize:13}}>
-            {MONTHS_.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
-          </select>
-          <select value={repYear} onChange={e=>setRepYear(+e.target.value)}
-            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer",minWidth:80}}>
-            {Array.from({length:6},(_,i)=>new Date().getFullYear()-2+i).map(y=><option key={y}>{y}</option>)}
-          </select>
-          <button className="bp" onClick={handleExport} style={{padding:"6px 14px",fontSize:13,marginLeft:4}}>⬇ Export PDF</button>
-        </div>
-      </div>
-
-      {/* P&L STATEMENT */}
-      {reportType==="pl" && (
-        <div className="card">
-          <div style={{textAlign:"center",marginBottom:20}}>
-            <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>PROFIT & LOSS STATEMENT</div>
-            <div style={{fontSize:13,color:"var(--text4)"}}>Enevo Egypt LLC — Year to Date (EGP)</div>
-          </div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-            <tbody>
-              <tr style={{background:"var(--bg2)"}}><td colSpan={2} style={{padding:"8px 16px",fontWeight:700,color:"#34d399",fontSize:13}}>REVENUE</td></tr>
-              <tr style={{borderBottom:"1px solid var(--border3)"}}><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Service Revenue — Enevo Group S.R.L.</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontWeight:600}}>{fmtEGP(plReport.rev)}</td></tr>
-              <tr><td style={{padding:"8px 16px",fontWeight:700,color:"#34d399"}}>TOTAL REVENUE</td><td style={{padding:"8px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#34d399"}}>{fmtEGP(plReport.rev)}</td></tr>
-
-              <tr style={{background:"var(--bg2)"}}><td colSpan={2} style={{padding:"8px 16px",fontWeight:700,color:"#f87171",fontSize:13}}>EXPENSES</td></tr>
-              {["Operating Costs","Administrative expenses"].map(cat=>{
-                const items = plReport.expenses.filter(e=>e.cat===cat);
-                if(!items.length) return null;
-                return [
-                  <tr key={cat} style={{background:"var(--bg1)"}}><td colSpan={2} style={{padding:"6px 16px 6px 20px",color:"var(--text4)",fontSize:13,fontStyle:"italic"}}>{cat}</td></tr>,
-                  ...items.map(e=>(
-                    <tr key={e.name} style={{borderBottom:"1px solid var(--border3)"}}><td style={{padding:"6px 16px 6px 32px",color:"var(--text2)"}}>{e.name}</td><td style={{padding:"6px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>{fmtEGP(e.total)}</td></tr>
-                  ))
-                ];
-              })}
-              <tr style={{background:"var(--bg2)"}}><td style={{padding:"8px 16px",fontWeight:700,color:"#f87171"}}>TOTAL EXPENSES</td><td style={{padding:"8px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#f87171"}}>{fmtEGP(plReport.totExp)}</td></tr>
-              <tr style={{background:plReport.net>=0?"#34d39918":"#f8711818",borderTop:"2px solid var(--border)"}}>
-                <td style={{padding:"12px 16px",fontWeight:700,fontSize:15,color:plReport.net>=0?"#34d399":"#f87171"}}>NET {plReport.net>=0?"PROFIT":"LOSS"}</td>
-                <td style={{padding:"12px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,fontSize:16,color:plReport.net>=0?"#34d399":"#f87171"}}>{fmtEGP(plReport.net)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* PAYROLL SUMMARY */}
-      {reportType==="payroll" && (
-        <div style={{display:"grid",gap:12}}>
-          <div className="card">
-            <div style={{textAlign:"center",marginBottom:16}}>
-              <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>PAYROLL SUMMARY — {MONTHS_[repMonth-1]} {repYear}</div>
-              <div style={{fontSize:13,color:"var(--text4)"}}>Enevo Egypt LLC</div>
-            </div>
-            {payrollReport.grossCost+payrollReport.grossAdmin > 0 ? (
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                <tbody>
-                  <tr style={{background:"var(--bg2)"}}><td colSpan={2} style={{padding:"8px 16px",fontWeight:700,color:"var(--text2)"}}>GROSS PAYROLL</td></tr>
-                  <tr style={{borderBottom:"1px solid var(--border3)"}}><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Cost of Work Staff (Salaries-Cost)</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>{fmtEGP(payrollReport.grossCost)}</td></tr>
-                  <tr style={{borderBottom:"1px solid var(--border3)"}}><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Administrative Staff (Salaries-Admin)</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#fb923c"}}>{fmtEGP(payrollReport.grossAdmin)}</td></tr>
-                  <tr style={{background:"var(--bg2)"}}><td colSpan={2} style={{padding:"8px 16px",fontWeight:700,color:"var(--text2)"}}>DEDUCTIONS (Government)</td></tr>
-                  <tr style={{borderBottom:"1px solid var(--border3)"}}><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Payroll Tax</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>{fmtEGP(payrollReport.taxLine)}</td></tr>
-                  <tr style={{borderBottom:"1px solid var(--border3)"}}><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Social Insurance Authority</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>{fmtEGP(payrollReport.siLine)}</td></tr>
-                  <tr style={{borderBottom:"1px solid var(--border3)"}}><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Martyrs Families Fund</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>{fmtEGP(payrollReport.mfLine)}</td></tr>
-                  <tr style={{background:"#34d39918",borderTop:"2px solid var(--border)"}}>
-                    <td style={{padding:"10px 16px",fontWeight:700,color:"#34d399"}}>NET SALARY PAYABLE (Accrued)</td>
-                    <td style={{padding:"10px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,fontSize:15,color:"#34d399"}}>{fmtEGP(payrollReport.netSalary)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            ) : (
-              <div style={{textAlign:"center",padding:24,color:"var(--text4)"}}>No payroll accrual posted for {MONTHS_[repMonth-1]} {repYear}. Post a salary journal entry first.</div>
-            )}
-          </div>
-          {/* Staff breakdown from staff table */}
-          {payrollReport.activeThisMonth.length > 0 && (
-            <div className="card">
-              <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"12px 20px",margin:"-1px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
-                <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Staff Roster</div>
-                <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS_[repMonth-1]} {repYear} · {payrollReport.activeThisMonth.length} active</div>
-              </div>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                <thead><tr style={{background:"var(--bg2)"}}>
-                  {["Name","Department","Role","USD Salary","EGP Salary"].map(h=>(
-                    <th key={h} style={{padding:"6px 12px",textAlign:["USD Salary","EGP Salary"].includes(h)?"right":"left",color:"var(--text3)",fontSize:13}}>{h}</th>
-                  ))}
-                </tr></thead>
-                <tbody>
-                  {payrollReport.activeThisMonth.map((s,i)=>(
-                    <tr key={i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                      <td style={{padding:"6px 12px",color:"var(--text1)",fontWeight:500}}>{s.name}</td>
-                      <td style={{padding:"6px 12px",color:"var(--text3)"}}>{s.department}</td>
-                      <td style={{padding:"6px 12px",color:"var(--text3)",fontSize:13}}>{s.role}</td>
-                      <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#38bdf8"}}>{s.salary_usd>0?`$${(+s.salary_usd).toLocaleString("en-US",{minimumFractionDigits:2})}`:"-"}</td>
-                      <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{s.salary_egp>0?fmtEGP(+s.salary_egp):"-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* CASH FLOW */}
-      {reportType==="cashflow" && (
-        <div className="card">
-          <div style={{textAlign:"center",marginBottom:20}}>
-            <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>CASH FLOW STATEMENT (Simplified)</div>
-            <div style={{fontSize:13,color:"var(--text4)"}}>Enevo Egypt LLC — Based on Journal Entries</div>
-          </div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-            <tbody>
-              <tr style={{background:"var(--bg2)"}}><td colSpan={2} style={{padding:"8px 16px",fontWeight:700,color:"#34d399"}}>A. OPERATING ACTIVITIES</td></tr>
-              <tr><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Revenue Accrued (Invoice EGY-001)</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399"}}>{fmtEGP(cashFlow.revenue)}</td></tr>
-              <tr><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Operating Expenses Paid</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>({fmtEGP(cashFlow.cashPaid)})</td></tr>
-              <tr><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Taxes Outstanding (not yet paid)</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>({fmtEGP(cashFlow.taxOwed)})</td></tr>
-              <tr style={{background:"var(--bg2)"}}><td style={{padding:"8px 16px",fontWeight:700,color:"#34d399"}}>Net Operating Cash Flow</td><td style={{padding:"8px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#34d399"}}>{fmtEGP(cashFlow.netOpCash)}</td></tr>
-
-              <tr style={{background:"var(--bg2)"}}><td colSpan={2} style={{padding:"8px 16px",fontWeight:700,color:"#fb923c"}}>B. INVESTING ACTIVITIES</td></tr>
-              <tr><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Fixed Asset Purchases</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#f87171"}}>({fmtEGP(cashFlow.fixedAssetCost)})</td></tr>
-              <tr style={{background:"var(--bg2)"}}><td style={{padding:"8px 16px",fontWeight:700,color:"#fb923c"}}>Net Investing Cash Flow</td><td style={{padding:"8px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#f87171"}}>({fmtEGP(cashFlow.fixedAssetCost)})</td></tr>
-
-              <tr style={{background:"var(--bg2)"}}><td colSpan={2} style={{padding:"8px 16px",fontWeight:700,color:"#38bdf8"}}>C. BALANCES</td></tr>
-              <tr><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Cash at Bank (Credit Agricole)</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{fmtEGP(cashFlow.cashInBank)}</td></tr>
-              <tr><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Cash in Custody (all custodians)</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#38bdf8"}}>{fmtEGP(cashFlow.cashInCustody)}</td></tr>
-              <tr style={{background:"var(--bg2)"}}><td style={{padding:"8px 16px",fontWeight:700,color:"#38bdf8"}}>Total Cash Position</td><td style={{padding:"8px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#38bdf8"}}>{fmtEGP(cashFlow.cashInBank+cashFlow.cashInCustody)}</td></tr>
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* CUSTODY LEDGER per person */}
-      {reportType==="custody" && (
-        <div style={{display:"grid",gap:12}}>
-          {(() => {
-            const custodyMap={};
-            journalEntries.filter(e=>e.main_account==="Cash Custody").forEach(e=>{
-              const n=e.account_name.trim();
-              if(!custodyMap[n]) custodyMap[n]={name:n,lines:[],totalOut:0,totalBack:0};
-              custodyMap[n].lines.push(e);
-              custodyMap[n].totalOut += +e.credit||0;
-              custodyMap[n].totalBack += +e.debit||0;
-            });
-            return Object.values(custodyMap).map(p=>(
-              <div key={p.name} className="card" style={{padding:0,overflow:"hidden"}}>
-                <div style={{background:"var(--bg2)",borderBottom:"2px solid var(--border)",padding:"10px 16px",display:"flex",justifyContent:"space-between"}}>
-                  <span style={{fontWeight:700,color:"var(--text0)",fontSize:14}}>{p.name}</span>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#34d399",fontWeight:700}}>Balance: {fmtEGP(p.totalOut-p.totalBack)}</span>
-                </div>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                  <thead><tr style={{background:"var(--bg2)"}}>
-                    {["Date","Entry#","Description","Cash Out","Cash Spent/Returned","Running Balance"].map(h=>(
-                      <th key={h} style={{padding:"6px 12px",textAlign:["Cash Out","Cash Spent/Returned","Running Balance"].includes(h)?"right":"left",color:"var(--text3)",fontSize:13}}>{h}</th>
-                    ))}
-                  </tr></thead>
-                  <tbody>
-                    {p.lines.sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date))).reduce((acc,e,i)=>{
-                      const prevBal = acc.length>0?acc[acc.length-1].runBal:0;
-                      const runBal = prevBal + (+e.credit||0) - (+e.debit||0);
-                      acc.push({...e,runBal});
-                      return acc;
-                    },[]).map((e,i)=>(
-                      <tr key={i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text3)"}}>{String(e.entry_date).slice(0,10)}</td>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text4)"}}>{e.entry_no}</td>
-                        <td style={{padding:"6px 12px",color:"var(--text2)",fontSize:13,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis"}}>{e.description}</td>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{+e.credit>0.01?fmtEGP(+e.credit):""}</td>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399"}}>{+e.debit>0.01?fmtEGP(+e.debit):""}</td>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:e.runBal>0?"#34d399":"var(--text3)",fontWeight:600}}>{fmtEGP(e.runBal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ));
-          })()}
-        </div>
-      )}
-
-      {/* FIXED ASSET DEPRECIATION SCHEDULE */}
-      {reportType==="assets" && (
-        <div className="card" style={{padding:0,overflow:"hidden"}}>
-          <div style={{background:"var(--bg2)",borderBottom:"2px solid var(--border)",padding:"10px 16px"}}>
-            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>FIXED ASSETS DEPRECIATION SCHEDULE</div>
-            <div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Enevo Egypt LLC — Straight-Line Method — As of {new Date().toLocaleDateString("en-EG")}</div>
-          </div>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:"var(--bg2)"}}>
-                {["Asset","Category","Purchased","Cost","Life","Annual Depr.","Acc. Depr.","Net Book Value","Fully Depr."].map(h=>(
-                  <th key={h} style={{padding:"7px 12px",textAlign:["Cost","Annual Depr.","Acc. Depr.","Net Book Value"].includes(h)?"right":"left",color:"var(--text3)",fontSize:13,whiteSpace:"nowrap"}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {(()=>{
-                  const TODAY=new Date();
-                  return fixedAssets.map((a,i)=>{
-                    if(!a.purchase_date) return {...a,annual:0,acc:0,net:+a.cost_egp||0,pct:0};
-    const purchased=new Date(a.purchase_date+"T12:00:00");
-                    const yrs=Math.max(0,(TODAY-purchased)/(365.25*24*3600*1000));
-                    const annual=+a.useful_life_years>0?(+a.cost_egp/+a.useful_life_years):0;
-                    const acc=Math.min(+a.cost_egp,annual*yrs);
-                    const net=Math.max(0,+a.cost_egp-acc);
-                    const fullyDepr=new Date(purchased.getTime()+a.useful_life_years*365.25*24*3600*1000);
-                    return(
-                      <tr key={i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                        <td style={{padding:"6px 12px",color:"var(--text1)",fontWeight:500}}>{a.asset_name}</td>
-                        <td style={{padding:"6px 12px",color:"var(--text3)",fontSize:13}}>{a.category}</td>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text4)"}}>{a.purchase_date}</td>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#38bdf8"}}>{fmtEGP(+a.cost_egp)}</td>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"var(--text3)"}}>{a.useful_life_years}y</td>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"var(--text2)"}}>{fmtEGP(annual)}</td>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{fmtEGP(acc)}</td>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:net>0?"#34d399":"var(--text4)",fontWeight:600}}>{fmtEGP(net)}</td>
-                        <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text4)"}}>{fullyDepr.toLocaleDateString("en-EG")}</td>
-                      </tr>
-                    );
-                  });
-                })()}
-                <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)",fontWeight:700}}>
-                  <td colSpan={3} style={{padding:"8px 12px",color:"var(--text0)"}}>TOTAL</td>
-                  <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#38bdf8"}}>{fmtEGP(fixedAssets.reduce((s,a)=>s+(+a.cost_egp),0))}</td>
-                  <td/>
-                  <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"var(--text2)"}}>{fmtEGP(fixedAssets.reduce((s,a)=>s+(+a.cost_egp/+a.useful_life_years),0))}/yr</td>
-                  <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#fb923c"}}>{fmtEGP((()=>{const T=new Date();return fixedAssets.reduce((s,a)=>{const p=new Date(a.purchase_date+"T12:00:00");const y=Math.max(0,(T-p)/(365.25*24*3600*1000));return s+Math.min(+a.cost_egp,(+a.cost_egp/+a.useful_life_years)*y);},0);})())}</td>
-                  <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#34d399"}}>{fmtEGP((()=>{const T=new Date();return fixedAssets.reduce((s,a)=>{const p=new Date(a.purchase_date+"T12:00:00");const y=Math.max(0,(T-p)/(365.25*24*3600*1000));return s+Math.max(0,+a.cost_egp-Math.min(+a.cost_egp,(+a.cost_egp/+a.useful_life_years)*y));},0);})())}</td>
-                  <td/>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════
-   8. ACCOUNTANT WORKFLOW GUIDE — How to post entries
-   ══════════════════════════════════════════════════════════ */
-function AccountantGuide({journalEntries, staff, egpRate}) {
-  const [step, setStep] = React.useState("monthly");
-  const MO = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-  // Calculate next entry number
-  const nextEntryNo = React.useMemo(()=>{
-    const nums = journalEntries.map(e=>+e.entry_no).filter(n=>!isNaN(n));
-    return nums.length>0 ? Math.max(...nums)+1 : 67;
-  },[journalEntries]);
-
-  // Active staff for salary template
-  const activeStaff = staff.filter(s=>s.active!==false);
-  const totalSalaryEGP = activeStaff.reduce((s,x)=>s+(+x.salary_egp||0),0);
-
-  // What month to post next
-  const postedMonths = [...new Set(journalEntries.filter(e=>e.entry_type==="Accrued Salaries").map(e=>e.month))].sort((a,b)=>+a-+b);
-  const lastPostedMonth = postedMonths[postedMonths.length-1]||0;
-  const nextMonth = lastPostedMonth>=12 ? 1 : lastPostedMonth+1;
-
-  const steps = [
-    {id:"monthly",   label:"Monthly Close"},
-    {id:"custody",   label:"Custody Expense"},
-    {id:"salary",    label:"Salary Accrual"},
-    {id:"revenue",   label:"Revenue Invoice"},
-    {id:"asset",     label:"Asset Purchase"},
-  ];
-
-  return(
-    <div style={{display:"grid",gap:14}}>
-      <div style={{background:"#38bdf810",border:"1px solid #38bdf840",borderRadius:8,padding:"12px 16px"}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#38bdf8",marginBottom:4}}>Accountant Workflow Guide — How to use the Journal</div>
-        <div style={{fontSize:13,color:"var(--text2)"}}>Next suggested Entry No: <strong style={{color:"#38bdf8"}}>#{nextEntryNo}</strong> · Last salary posted: {MO[lastPostedMonth]||"none"} · Next to post: {MO[nextMonth]}</div>
-      </div>
-
-      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-        {steps.map(s=>(
-          <button key={s.id} onClick={()=>setStep(s.id)}
-            style={{padding:"7px 14px",fontSize:13,cursor:"pointer",borderRadius:6,
-              background:step===s.id?"var(--accent)":"var(--bg2)",
-              border:`1px solid ${step===s.id?"var(--accent)":"var(--border3)"}`,
-              color:step===s.id?"#fff":"var(--text2)"}}>
-            {s.label}
-          </button>
-        ))}
-      </div>
-
-      {/* MONTHLY CLOSE CHECKLIST */}
-      {step==="monthly" && (
-        <div className="card">
-          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>Monthly Close Checklist</div>
-          {[
-            {n:1,title:"Post Salary Accrual",desc:"Go to Journal → Post Entry Line. Use entry type 'Accrued Salaries'. Must post 8 lines per month (see Salary Accrual guide).",done:postedMonths.includes(nextMonth)},
-            {n:2,title:"Post Custody Expenses",desc:"For every petty cash receipt, post a line: Dr=expense account, Cr=Cash Custody (the person who paid). Use entry type 'Custody'.",done:false},
-            {n:3,title:"Post Revenue Invoice",desc:"When invoice is issued to Enevo Group S.R.L., post Dr=Customers, Cr=Revenue. Enter USD amount + exchange rate.",done:false},
-            {n:4,title:"Verify Journal Balance",desc:"In Journal, filter by month. Check Debit = Credit strip at top. Must be ✓ Balanced.",done:false},
-            {n:5,title:"Review Balance Sheet",desc:"Check Balance Sheet — Assets = Liabilities + Equity (+ current year profit). No unexplained gaps.",done:false},
-            {n:6,title:"Review Tax Position",desc:"Check Tax tab — confirm payroll tax and social insurance liabilities match payroll accrual.",done:false},
-          ].map(item=>(
-            <div key={item.n} style={{display:"flex",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border3)",alignItems:"flex-start"}}>
-              <div style={{width:28,height:28,borderRadius:"50%",background:item.done?"#34d39920":"var(--bg2)",border:`2px solid ${item.done?"#34d399":"var(--border3)"}`,display:"flex",alignItems:"center",justifyContent:"center",color:item.done?"#34d399":"var(--text4)",fontWeight:700,fontSize:13,flexShrink:0}}>
-                {item.done?"✓":item.n}
-              </div>
-              <div>
-                <div style={{fontWeight:600,color:"var(--text1)",fontSize:13,marginBottom:2}}>{item.title}</div>
-                <div style={{fontSize:13,color:"var(--text3)"}}>{item.desc}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* CUSTODY EXPENSE GUIDE */}
-      {step==="custody" && (
-        <div className="card">
-          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>How to Post a Custody Expense</div>
-          <div style={{background:"var(--bg2)",borderRadius:6,padding:"12px 16px",marginBottom:14,fontSize:13,color:"var(--text2)"}}>
-            <strong>Example:</strong> Omar Faheem spent EGP 3,334.50 purchasing kitchen supplies in Dec-2025.
-          </div>
-          <div style={{display:"grid",gap:8}}>
-            {[
-              {step:"Open Journal → click + Post Entry Line",detail:""},
-              {step:"Entry No",detail:`${nextEntryNo} (next available)`},
-              {step:"Date",detail:"Date on the receipt"},
-              {step:"Entry Type",detail:"Custody"},
-              {step:"Line 1 — Expense side",detail:"Account: Kitchen Supplies · Main: Administrative expenses · Debit: 3,334.50 · Credit: 0"},
-              {step:"Line 2 — Custody side",detail:"Account: Omar Faheem · Main: Cash Custody · Debit: 0 · Credit: 3,334.50"},
-              {step:"Description",detail:"Purchasing kitchen supplies"},
-              {step:"⚠ Verify balance",detail:"Both lines must have equal Debit/Credit total for entry to balance"},
-            ].map((r,i)=>(
-              <div key={i} style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:8,borderBottom:"1px solid var(--border3)",padding:"7px 0"}}>
-                <span style={{fontWeight:600,color:"var(--text2)",fontSize:13}}>{r.step}</span>
-                <span style={{fontSize:13,color:"var(--text3)",fontFamily:r.detail.includes(":")?"'IBM Plex Mono',monospace":"inherit"}}>{r.detail}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{marginTop:14,background:"#fb923c15",border:"1px solid #fb923c40",borderRadius:6,padding:"10px 14px",fontSize:13,color:"#fb923c"}}>
-            💡 If expense was in USD: Enter USD Amount and Exchange Rate in the USD section. The EGP equivalent auto-fills the Debit field. The system stores both USD and EGP for the record.
-          </div>
-        </div>
-      )}
-
-      {/* SALARY ACCRUAL GUIDE */}
-      {step==="salary" && (
-        <div className="card">
-          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>How to Post Monthly Salary Accrual</div>
-          <div style={{fontSize:13,color:"var(--text4)",marginBottom:14}}>Based on actual payroll data from Enevo Excel. Post 8 lines under the SAME Entry No.</div>
-          <div style={{background:"var(--bg2)",borderRadius:6,padding:"12px 16px",marginBottom:12,fontSize:13,color:"var(--text2)"}}>
-            <strong>Staff table total EGP salary:</strong> {fmtEGP(totalSalaryEGP)} / month · <strong>{activeStaff.length} active staff</strong>
-          </div>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:"var(--bg2)"}}>
-                {["#","Account","Main Account","Statement","Dr","Cr","Notes"].map(h=>(
-                  <th key={h} style={{padding:"6px 10px",textAlign:["Dr","Cr"].includes(h)?"right":"left",color:"var(--text3)",fontSize:13}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {[
-                  {n:1,acct:"Salaries-Cost",main:"Operating Costs",stmt:"P&L",dr:"Cost staff gross",cr:"—",note:"Dr side: total gross for engineers/leads"},
-                  {n:2,acct:"Social Insurance-Cost",main:"Operating Costs",stmt:"P&L",dr:"SI cost staff",cr:"—",note:"24.75% of cost staff gross"},
-                  {n:3,acct:"Salaries-Administrative",main:"Administrative expenses",stmt:"P&L",dr:"Admin gross",cr:"—",note:"Dr side: admin/management gross"},
-                  {n:4,acct:"Social Insurance-Administrative",main:"Administrative expenses",stmt:"P&L",dr:"SI admin",cr:"—",note:"24.75% of admin gross"},
-                  {n:5,acct:"Accrued Salaries",main:"Accrued Expenses",stmt:"BS",dr:"—",cr:"Net payable",note:"Cr: total gross − tax − SI"},
-                  {n:6,acct:"Payroll Tax",main:"Tax and Social Insurance Authority",stmt:"BS",dr:"—",cr:"Tax amount",note:"Per Egyptian income tax brackets"},
-                  {n:7,acct:"Social Insurance Authority",main:"Tax and Social Insurance Authority",stmt:"BS",dr:"—",cr:"SI amount",note:"Employee portion (11.25%)"},
-                  {n:8,acct:"Martyrs Families Fund",main:"Tax and Social Insurance Authority",stmt:"BS",dr:"—",cr:"MFF amount",note:"Small fixed deduction"},
-                ].map(r=>(
-                  <tr key={r.n} style={{borderBottom:"1px solid var(--border3)"}}>
-                    <td style={{padding:"6px 10px",color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{r.n}</td>
-                    <td style={{padding:"6px 10px",color:"var(--text1)",fontWeight:500,fontSize:13}}>{r.acct}</td>
-                    <td style={{padding:"6px 10px",color:"var(--text3)",fontSize:13}}>{r.main}</td>
-                    <td style={{padding:"6px 10px"}}>
-                      <span style={{fontSize:11,color:r.stmt==="BS"?"#38bdf8":"#a78bfa",fontWeight:700,background:r.stmt==="BS"?"#38bdf820":"#a78bfa20",padding:"1px 5px",borderRadius:3}}>{r.stmt}</span>
-                    </td>
-                    <td style={{padding:"6px 10px",color:"#34d399",fontSize:13,textAlign:"right"}}>{r.dr}</td>
-                    <td style={{padding:"6px 10px",color:"#f87171",fontSize:13,textAlign:"right"}}>{r.cr}</td>
-                    <td style={{padding:"6px 10px",color:"var(--text4)",fontSize:12}}>{r.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div style={{marginTop:12,background:"#a78bfa15",border:"1px solid #a78bfa40",borderRadius:6,padding:"10px 14px",fontSize:13,color:"#a78bfa"}}>
-            💡 The Payroll Report (under Reports) shows you last month's posted amounts to use as reference. Compare staff table salaries to the accrual each month.
-          </div>
-        </div>
-      )}
-
-      {/* REVENUE INVOICE GUIDE */}
-      {step==="revenue" && (
-        <div className="card">
-          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>How to Post a Revenue Invoice</div>
-          <div style={{background:"var(--bg2)",borderRadius:6,padding:"12px 16px",marginBottom:14,fontSize:13,color:"var(--text2)"}}>
-            <strong>Example:</strong> Invoice EGY-002 for Feb-2026 = $106,427.36 USD @ 46.90 EGP/$ = EGP 4,991,442.18
-          </div>
-          {[
-            {step:"Entry Type",detail:"Revenue"},
-            {step:"Line 1 — Receivable",detail:"Account: Enevo Group S.R.L. · Main: Customers · BS · Debit: EGP amount · Credit: 0"},
-            {step:"Line 2 — Revenue",detail:"Account: Revenue · Main: Revenue · P&L · Debit: 0 · Credit: EGP amount"},
-            {step:"USD Fields",detail:"Enter USD invoice amount + exchange rate on Line 1. System stores both."},
-            {step:"Description",detail:"Accrued Invoice NO. EGY-002 for Feb-2026 equivalent to $106,427.36 USD"},
-          ].map((r,i)=>(
-            <div key={i} style={{display:"grid",gridTemplateColumns:"160px 1fr",gap:8,borderBottom:"1px solid var(--border3)",padding:"8px 0"}}>
-              <span style={{fontWeight:600,color:"var(--text2)",fontSize:13}}>{r.step}</span>
-              <span style={{fontSize:13,color:"var(--text3)"}}>{r.detail}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ASSET PURCHASE GUIDE */}
-      {step==="asset" && (
-        <div className="card">
-          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>How to Post an Asset Purchase</div>
-          <div style={{background:"var(--bg2)",borderRadius:6,padding:"12px 16px",marginBottom:14,fontSize:13,color:"var(--text2)"}}>
-            <strong>Example:</strong> 3 laptops purchased for EGP 273,600 (from Eng Shady custody).
-          </div>
-          <div style={{fontSize:13,color:"var(--text3)",marginBottom:12}}>Step 1 — Post Journal Entry (Fixed Assets + Custody):</div>
-          {[
-            {step:"Line 1",detail:"Account: Computers and Programs · Main: Fixed Assets · BS · Debit: 273,600 · Credit: 0"},
-            {step:"Line 2",detail:"Account: Eng Shady · Main: Cash Custody · BS · Debit: 273,600 · Credit: 0"},
-          ].map((r,i)=>(
-            <div key={i} style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,borderBottom:"1px solid var(--border3)",padding:"7px 0"}}>
-              <span style={{fontWeight:600,color:"var(--text2)",fontSize:13}}>{r.step}</span>
-              <span style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{r.detail}</span>
-            </div>
-          ))}
-          <div style={{fontSize:13,color:"var(--text3)",margin:"12px 0 8px"}}>Step 2 — Add to Fixed Asset Register (contact admin to add row to finance_fixed_assets table with asset name, category, cost, purchase date, useful life).</div>
-          <div style={{background:"#34d39915",border:"1px solid #34d39940",borderRadius:6,padding:"10px 14px",fontSize:13,color:"#34d399"}}>
-            ✅ The Fixed Assets tab calculates depreciation automatically from the asset register. No manual entry needed for depreciation — it's calculated in real-time.
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-
-/* ════════════════════════════════════════════════════════
-   FINANCE TAB — main container
-   ════════════════════════════════════════════════════════ */
-/* ══════════════════════════════════════════════════════════
-   ACTIVITY LOG TAB — admin only
-   ══════════════════════════════════════════════════════════ */
-function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archiveLoaded,
-  onRefresh, onArchive, onLoadArchive, onPruneArchive, retentionDays, setRetentionDays}) {
-
-  const [tab,        setTab]       = React.useState("live");   // live | archive
-  const [search,     setSearch]    = React.useState("");
-  const [modFilter,  setModFilter] = React.useState("ALL");
-  const [actFilter,  setActFilter] = React.useState("ALL");
-  const [userFilter, setUserFilter]= React.useState("ALL");
-  const [dateFrom,   setDateFrom]  = React.useState("");
-  const [dateTo,     setDateTo]    = React.useState("");
-  const [page,       setPage]      = React.useState(0);
-  const PAGE_SIZE = 100;
-
-  const source = tab==="live" ? activityLog : archiveLog;
-
-  const modules = React.useMemo(()=>["ALL",...new Set(source.map(l=>l.module))].sort(),[source]);
-  const actions = React.useMemo(()=>["ALL",...new Set(source.map(l=>l.action))].sort(),[source]);
-  const users   = React.useMemo(()=>["ALL",...new Set(source.map(l=>l.user_name).filter(Boolean))].sort(),[source]);
-
-  // Reset page when filters change — use separate effect, NOT inside useMemo
-  React.useEffect(()=>{ setPage(0); },[source,modFilter,actFilter,userFilter,dateFrom,dateTo,search]);
-
-  const filtered = React.useMemo(()=>{
-    return source.filter(l=>{
-      if(modFilter!=="ALL"  && l.module!==modFilter)    return false;
-      if(actFilter!=="ALL"  && l.action!==actFilter)    return false;
-      if(userFilter!=="ALL" && l.user_name!==userFilter) return false;
-      // Compare date portion only — avoids timezone-suffix corruption in ISO strings
-      const entryDate = l.created_at ? l.created_at.slice(0,10) : "";
-      if(dateFrom && entryDate && entryDate < dateFrom) return false;
-      if(dateTo   && entryDate && entryDate > dateTo)   return false;
-      if(search && !`${l.detail||""} ${l.user_name||""} ${l.module} ${l.action}`.toLowerCase().includes(search.toLowerCase())) return false;
-      return true;
-    });
-  // eslint-disable-next-line
-  },[source,modFilter,actFilter,userFilter,dateFrom,dateTo,search]);
-
-  const page_count = Math.ceil(filtered.length / PAGE_SIZE);
-  const visible    = filtered.slice(page*PAGE_SIZE, (page+1)*PAGE_SIZE);
-
-  const actionColor = a=>({
-    CREATE:"#34d399",UPDATE:"#38bdf8",DELETE:"#f87171",
-    LOGIN:"#a78bfa", LOGOUT:"#fb923c",EXPORT:"#facc15",IMPORT:"#34d399"
-  }[a]||"var(--text3)");
-  const moduleColor = m=>({
-    Journal:"#a78bfa",TimeEntry:"#38bdf8",Staff:"#fb923c",
-    Project:"#34d399",Engineer:"#38bdf8",Expense:"#facc15",
-    Auth:"#f87171",   Finance:"#34d399", Import:"#fb923c"
-  }[m]||"var(--text3)");
-
-  const exportCSV = ()=>{
-    const rows = [
-      ["Timestamp","User","Role","Action","Module","Detail","Meta"],
-      ...filtered.map(l=>[
-        l.created_at ? new Date(l.created_at).toLocaleString("en-EG") : "",
-        l.user_name||"", l.user_role||"", l.action||"", l.module||"",
-        '"' + (l.detail||"").replace(/"/g,'""') + '"',
-        '"' + (l.meta||"").replace(/"/g,'""') + '"',
-      ])
-    ].map(r=>r.join(",")).join("\n");
-    const a=Object.assign(document.createElement("a"),{
-      href:URL.createObjectURL(new Blob([rows],{type:"text/csv"})),
-      download:`EC-ERP_ActivityLog_${tab}_${new Date().toISOString().slice(0,10)}.csv`
-    });
-    a.click();
-  };
-
-  const resetFilters=()=>{ setSearch("");setModFilter("ALL");setActFilter("ALL");setUserFilter("ALL");setDateFrom("");setDateTo(""); };
-
-  const hasFilters = search||modFilter!=="ALL"||actFilter!=="ALL"||userFilter!=="ALL"||dateFrom||dateTo;
-
-  return(
-    <div style={{display:"grid",gap:16}}>
-
-      {/* ── Pill nav ── */}
-      <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",width:"fit-content"}}>
-        {[
-          {id:"live",    label:"Live Log",    count:activityLog.length},
-          {id:"archive", label:"Archive",     count:archiveLog.length},
-        ].map(t=>{
-          const active=tab===t.id;
-          return(
-            <button key={t.id} onClick={()=>{setTab(t.id);resetFilters();setPage(0);}}
-              style={{padding:"8px 16px",borderRadius:7,border:"none",cursor:"pointer",fontSize:14,fontWeight:active?700:500,
-                fontFamily:"'IBM Plex Sans',sans-serif",transition:"all .15s",
-                background:active?"linear-gradient(135deg,#0ea5e9,#0369a1)":"transparent",
-                color:active?"#fff":"var(--text2)"}}>
-              {t.label} <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,opacity:.8}}>({t.count})</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Archive management card ── */}
-      {tab==="live"&&(()=>{
-        const cutoffDate=new Date();cutoffDate.setDate(cutoffDate.getDate()-retentionDays);
-        const cutoffStr=cutoffDate.toISOString().slice(0,10);
-        // Count archivable: entries with real timestamp older than cutoff OR null timestamp (legacy)
-        const archivable=activityLog.filter(l=>
-          !l.created_at || l.created_at.slice(0,10)<cutoffStr
-        );
-        return(
-        <div className="card" style={{padding:0,overflow:"hidden"}}>
-          <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"12px 20px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Archive Management</div>
-            <div style={{fontSize:13,color:"var(--text3)",marginLeft:"auto"}}>Live table stays fast · Archive keeps data forever</div>
-          </div>
-          <div style={{padding:"12px 20px",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-            <span style={{fontSize:14,color:"var(--text2)"}}>Move entries older than</span>
-            <select value={retentionDays} onChange={e=>setRetentionDays(+e.target.value)}
-              style={{width:"auto",padding:"6px 10px",fontSize:14}}>
-              {[7,14,30,60,90,180].map(d=><option key={d} value={d}>{d} days</option>)}
-            </select>
-            <span style={{fontSize:14,color:"var(--text2)"}}>to archive</span>
-            <span style={{
-              fontSize:13,padding:"3px 10px",borderRadius:6,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,
-              background:archivable.length>0?"#f8711820":"var(--bg3)",
-              color:archivable.length>0?"#f87171":"var(--text4)",
-              border:`1px solid ${archivable.length>0?"#f8711840":"var(--border)"}`,
-            }}>
-              {archivable.length>0?`${archivable.length} eligible`:"0 eligible — all recent"}
-            </span>
-            <button onClick={onArchive}
-              style={{background:"#f8711820",border:"1px solid #f8711840",borderRadius:7,padding:"7px 16px",color:"#f87171",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"'IBM Plex Sans',sans-serif"}}>
-              ⬆ Archive Now
-            </button>
-            <button onClick={onPruneArchive}
-              style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:7,padding:"7px 14px",color:"var(--text3)",cursor:"pointer",fontSize:14,fontFamily:"'IBM Plex Sans',sans-serif",marginLeft:"auto"}}>
-              🗑 Prune &gt;1yr
-            </button>
-          </div>
-          {archivable.length===0&&activityLog.length>0&&(
-            <div style={{padding:"8px 20px 12px",fontSize:13,color:"var(--text4)"}}>
-              ℹ All {activityLog.length} entries in the live log are within the last {retentionDays} days. Try reducing the retention window above, or this count reflects what is loaded (up to 5000 rows — the DB may have older entries that will still be found during archive).
-            </div>
-          )}
-        </div>
-        );
-      })()}
-
-      {/* ── Archive load prompt ── */}
-      {tab==="archive"&&!archiveLoaded&&!archiveLoading&&(
-        <div style={{textAlign:"center",padding:24,background:"var(--bg2)",borderRadius:8,border:"1px solid var(--border3)"}}>
-          <div style={{fontSize:14,color:"var(--text2)",marginBottom:10}}>Archive not loaded — kept separate to keep the UI fast.</div>
-          <button className="bp" onClick={onLoadArchive}>Load Archive Data</button>
-        </div>
-      )}
-      {tab==="archive"&&archiveLoaded&&archiveLog.length===0&&!archiveLoading&&(
-        <div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>No archived entries yet.</div>
-      )}
-      {tab==="archive"&&archiveLoading&&(
-        <div style={{textAlign:"center",padding:24,color:"var(--text4)"}}>Loading archive…</div>
-      )}
-
-      {/* ── Filter toolbar ── */}
-      {(tab==="live"||(tab==="archive"&&archiveLog.length>0))&&(
-      <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>
-            {tab==="live"?"Live Log":"Archive"}
-            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:400,color:"var(--text3)",marginLeft:8}}>{filtered.length} of {source.length} entries</span>
-          </div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <button className="be" onClick={exportCSV}>⬇ Export CSV</button>
-            <button className="bp" onClick={onRefresh}>↺ Refresh</button>
-          </div>
-        </div>
-        <div style={{padding:"12px 20px",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-        <input placeholder="🔍 Search…" value={search} onChange={e=>setSearch(e.target.value)}
-          style={{width:200,padding:"7px 12px",fontSize:14}}/>
-        <select value={modFilter} onChange={e=>setModFilter(e.target.value)} style={{width:"auto",padding:"7px 12px",fontSize:14}}>
-          <option value="ALL">All Modules</option>
-          {modules.filter(m=>m!=="ALL").map(m=><option key={m}>{m}</option>)}
-        </select>
-        <select value={actFilter} onChange={e=>setActFilter(e.target.value)} style={{width:"auto",padding:"7px 12px",fontSize:14}}>
-          <option value="ALL">All Actions</option>
-          {actions.filter(a=>a!=="ALL").map(a=><option key={a}>{a}</option>)}
-        </select>
-        <select value={userFilter} onChange={e=>setUserFilter(e.target.value)} style={{width:"auto",padding:"7px 12px",fontSize:14}}>
-          <option value="ALL">All Users</option>
-          {users.filter(u=>u!=="ALL").map(u=><option key={u}>{u}</option>)}
-        </select>
-        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} title="From date" style={{width:"auto",padding:"7px 10px",fontSize:14}}/>
-        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} title="To date" style={{width:"auto",padding:"7px 10px",fontSize:14}}/>
-        {hasFilters&&<button onClick={resetFilters} className="bg" style={{fontSize:13}}>✕ Clear</button>}
-        </div>
-      </div>
-      )}
-
-      {/* ── KPI strip (live only) ── */}
-      {tab==="live"&&(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
-          {[
-            {l:"Live Events",  v:activityLog.length,                                                                                              c:"var(--info)",  sub:"Total logged"},
-            {l:"Logins Today", v:activityLog.filter(l=>l.created_at&&new Date(l.created_at).toDateString()===new Date().toDateString()&&l.action==="LOGIN").length, c:"#a78bfa", sub:"Active sessions"},
-            {l:"Creates",      v:activityLog.filter(l=>l.action==="CREATE").length,                                                               c:"#34d399",      sub:"New records"},
-            {l:"Deletes",      v:activityLog.filter(l=>l.action==="DELETE").length,                                                               c:"#f87171",      sub:"Removals"},
-            {l:"Exports",      v:activityLog.filter(l=>l.action==="EXPORT"||l.action==="IMPORT").length,                                          c:"#facc15",      sub:"Reports & imports"},
-          ].map((k,i)=>(
-            <div key={i} style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,padding:"16px",borderTop:`3px solid ${k.c}`}}>
-              <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>{k.l}</div>
-              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:24,fontWeight:800,color:k.c,marginBottom:4}}>{k.v}</div>
-              <div style={{fontSize:12,color:"var(--text4)"}}>{k.sub}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── Table ── */}
-      {(loading&&tab==="live") ? (
-        <div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>Loading…</div>
-      ) : (tab==="live"||archiveLog.length>0) ? (
-        filtered.length===0 ? (
-          <div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>
-            {source.length===0 ? "No events yet." : "No results match your filters."}
-          </div>
-        ) : (
-        <div className="card" style={{padding:0,overflow:"hidden"}}>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:"var(--bg2)"}}>
-                {["Timestamp","User","Role","Action","Module","Detail","Meta"].map(h=>(
-                  <th key={h} style={{padding:"7px 12px",textAlign:"left",color:"var(--text3)",fontWeight:600,fontSize:13,borderBottom:"1px solid var(--border3)",whiteSpace:"nowrap"}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {visible.map((l,i)=>{
-                  let meta={};
-                  try{meta=JSON.parse(l.meta||"{}");}catch(e){}
-                  const ts = l.created_at
-                    ? new Date(l.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})
-                    : "—";
-                  return(
-                    <tr key={l.id||i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                      <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text4)",whiteSpace:"nowrap"}}>{ts}</td>
-                      <td style={{padding:"6px 12px",color:"var(--text1)",fontWeight:500,fontSize:13,whiteSpace:"nowrap"}}>{l.user_name||"—"}</td>
-                      <td style={{padding:"6px 12px"}}><span style={{fontSize:11,padding:"2px 5px",borderRadius:3,background:"var(--bg2)",color:"var(--info)",fontWeight:600}}>{l.user_role||"—"}</span></td>
-                      <td style={{padding:"6px 12px"}}><span style={{fontSize:12,padding:"2px 7px",borderRadius:4,background:actionColor(l.action)+"20",color:actionColor(l.action),fontWeight:700}}>{l.action}</span></td>
-                      <td style={{padding:"6px 12px"}}><span style={{fontSize:12,padding:"2px 7px",borderRadius:4,background:moduleColor(l.module)+"15",color:moduleColor(l.module),fontWeight:600}}>{l.module}</span></td>
-                      <td style={{padding:"6px 12px",color:"var(--text2)",fontSize:13,maxWidth:280,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={l.detail}>{l.detail||"—"}</td>
-                      <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--text4)",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}
-                        title={JSON.stringify(meta)}>
-                        {Object.keys(meta).length>0 ? Object.entries(meta).slice(0,3).map(([k,v])=>`${k}:${v}`).join(" · ") : ""}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {page_count>1&&(
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",borderTop:"1px solid var(--border3)",background:"var(--bg2)"}}>
-              <span style={{fontSize:13,color:"var(--text4)"}}>Showing {page*PAGE_SIZE+1}–{Math.min((page+1)*PAGE_SIZE,filtered.length)} of {filtered.length}</span>
-              <div style={{display:"flex",gap:4}}>
-                {[{l:"«",v:0},{l:"‹",v:page-1}].map(b=>(
-                  <button key={b.l} onClick={()=>setPage(Math.max(0,b.v))} disabled={page===0}
-                    style={{padding:"3px 8px",background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text2)",cursor:page===0?"not-allowed":"pointer",fontSize:13,opacity:page===0?0.4:1}}>{b.l}</button>
-                ))}
-                {Array.from({length:Math.min(7,page_count)},(_,i)=>{
-                  const pg=Math.max(0,Math.min(page_count-7,page-3))+i;
-                  return <button key={pg} onClick={()=>setPage(pg)}
-                    style={{padding:"3px 8px",background:pg===page?"var(--accent)":"var(--bg1)",border:`1px solid ${pg===page?"var(--accent)":"var(--border3)"}`,borderRadius:4,color:pg===page?"#fff":"var(--text2)",cursor:"pointer",fontSize:13}}>{pg+1}</button>;
-                })}
-                {[{l:"›",v:page+1},{l:"»",v:page_count-1}].map(b=>(
-                  <button key={b.l} onClick={()=>setPage(Math.min(page_count-1,b.v))} disabled={page===page_count-1}
-                    style={{padding:"3px 8px",background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text2)",cursor:page===page_count-1?"not-allowed":"pointer",fontSize:13,opacity:page===page_count-1?0.4:1}}>{b.l}</button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-        )
-      ) : null}
-    </div>
-  );
-}
-
-
-function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, setEgpRate,
-  finTab, setFinTab, finMonth, setFinMonth, finYear, setFinYear,
-  setEditStaff, setShowStaffModal, setEditExp, setNewExp, setShowExpModal,
-  deleteStaff, deleteExpense, fmtCurrency, buildFinancePDF, isAdmin, isSenior, isAcct,
-  journalEntries, setJournalEntries, fixedAssets, journalLoading, assetsLoading,
-  finSubTab, setFinSubTab, accounts, showToast, logAction, supabase, showConfirm}){
-
-  // staffSearch lives here (function scope) so it's not inside the salaries IIFE
-  const [staffSearch, setStaffSearch] = React.useState("");
-  // Pay slip state — must be at FinanceTab top level (Rules of Hooks)
-  const [psAdj,       setPsAdj]       = React.useState({});
-  const [psSelectAll, setPsSelectAll] = React.useState(true);
-  const [psSelected,  setPsSelected]  = React.useState(new Set());
-
-  const derived = useMemo(()=>{
-    const activeStaff=staff.filter(s=>s.active!==false);
-const totalPayrollUSD=activeStaff.reduce((s,x)=>s+(x.salary_usd||0),0);
-const totalPayrollEGP=activeStaff.reduce((s,x)=>s+(x.salary_egp||0),0);
-
-const toUSD=(usd,egp,rate)=>(usd&&usd>0)?usd:((egp||0)/(rate||egpRate||1));
-
-const allJoinDates=activeStaff.map(s=>s.join_date).filter(Boolean).map(d=>new Date(d));
-const companyStart=allJoinDates.length>0?new Date(Math.min(...allJoinDates)):null;
-
-const wasEmployed=(s,y,m)=>{
-  const monthStart=new Date(y,m,1);
-  const monthEnd=new Date(y,m+1,0);
-  const effectiveJoin=s.join_date?new Date(s.join_date+"T12:00:00"):companyStart;
-  if(effectiveJoin&&effectiveJoin>monthEnd) return false;
-  if(s.termination_date){
-    const term=new Date(s.termination_date+"T12:00:00");
-    const mStart=new Date(y,m,1);
-    if(term<mStart) return false;
-  }
-  return true;
-};
-
-const prorateStaff=(s,y,m)=>{
-  const daysInMonth=new Date(y,m+1,0).getDate();
-  const mStart=new Date(y,m,1); const mEnd=new Date(y,m+1,0);
-  const join=s.join_date?new Date(s.join_date+"T12:00:00"):mStart;
-  const term=s.termination_date?new Date(s.termination_date+"T12:00:00"):mEnd;
-  const effStart=join>mStart?join:mStart;
-  const effEnd=term<mEnd?term:mEnd;
-  const days=Math.max(0,Math.floor((effEnd-effStart)/(86400000))+1);
-  return days/daysInMonth;
-};
-
-const staffThisMonth=activeStaff.filter(s=>wasEmployed(s,finYear,finMonth));
-const monthExp=expenses.filter(e=>+e.month===finMonth&&+e.year===finYear);
-const monthExpNonSalary=monthExp.filter(e=>e.category!=="Salaries");
-const toUSDexp=(e)=>{
-  if(e.amount_usd>0) return e.amount_usd;
-  if(e.amount_egp>0&&e.entry_rate>0) return e.amount_egp/e.entry_rate;
-  return 0;
-};
-const totalExpUSD=monthExpNonSalary.reduce((s,e)=>s+toUSDexp(e),0);
-const totalExpEGP=monthExpNonSalary.reduce((s,e)=>s+(e.amount_egp||0),0);
-const salaryCatUSD=monthExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
-const monthRevUSD=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===finMonth&&e.entry_type==="work"&&projects.find(p=>String(p.id)===String(e.project_id)&&p.billable!==false);}).reduce((s,e)=>s+e.hours*(e.rate||0),0);
-
-const totalPayrollUSDeff=staffThisMonth.reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp)*prorateStaff(x,finYear,finMonth),0);
-const totalCostUSD=totalPayrollUSDeff+salaryCatUSD+totalExpUSD;
-const netPL=monthRevUSD-totalCostUSD;
-const netColor=netPL>=0?"#34d399":"#f87171";
-
-const deptMap={};
-staffThisMonth.forEach(s=>{
-  const d=s.department||"Other";
-  if(!deptMap[d]) deptMap[d]={dept:d,count:0,usd:0,egp:0};
-  deptMap[d].count++;
-  const prorate=prorateStaff(s,finYear,finMonth);
-  deptMap[d].usd+=toUSD(s.salary_usd,s.salary_egp)*prorate;
-  deptMap[d].egp+=(s.salary_egp||0)*prorate;
-});
-const deptList=Object.values(deptMap).sort((a,b)=>b.usd-a.usd);
-
-const ytdData=Array.from({length:finMonth+1},(_,m)=>{
-  const mStaff=activeStaff.filter(s=>wasEmployed(s,finYear,m));
-  const mExp=expenses.filter(e=>+e.month===m&&+e.year===finYear);
-  const mMonthExpNS=mExp.filter(e=>e.category!=="Salaries");
-  const mSalaryCat=mExp.filter(e=>e.category==="Salaries").reduce((s,e)=>s+toUSD(e.amount_usd,e.amount_egp,e.entry_rate),0);
-  const mPayroll=mStaff.reduce((s,x)=>s+toUSD(x.salary_usd,x.salary_egp)*prorateStaff(x,finYear,m),0);
-  const mRevUSD=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===finYear&&d.getMonth()===m&&e.entry_type==="work"&&projects.find(p=>String(p.id)===String(e.project_id)&&p.billable!==false);}).reduce((s,e)=>s+e.hours*(e.rate||0),0);
-  const mExpUSD=mMonthExpNS.reduce((s,e)=>s+toUSDexp(e),0);
-  return{m,rev:mRevUSD,cost:mPayroll+mSalaryCat+mExpUSD,net:mRevUSD-(mPayroll+mSalaryCat+mExpUSD)};
-});
-const ytdRev=ytdData.reduce((s,m)=>s+m.rev,0);
-const ytdCost=ytdData.reduce((s,m)=>s+m.cost,0);
-const ytdNet=ytdRev-ytdCost;
-
-const projProfit=projects.map(p=>{
-  const projEntries=entries.filter(e=>String(e.project_id)===String(p.id)&&e.entry_type==="work");
-  const rev=projEntries.reduce((s,e)=>s+e.hours*e.rate,0);
-  const cost=projEntries.reduce((s,e)=>{
-    const eng=engineers.find(en=>en.id===e.engineer_id);
-    return s+(eng?toUSD(eng.salary_usd,eng.salary_egp)*(e.hours/160):0);
-  },0);
-  return{...p,rev,cost,net:rev-cost};
-}).filter(p=>p.rev>0||p.cost>0);
-
-    return {activeStaff,totalPayrollUSD,totalPayrollEGP,toUSD,companyStart,wasEmployed,
-      staffThisMonth,monthExp,monthExpNonSalary,totalExpUSD,totalExpEGP,salaryCatUSD,
-      monthRevUSD,totalPayrollUSDeff,totalCostUSD,netPL,netColor,deptList,
-      ytdData,ytdRev,ytdCost,ytdNet,projProfit,prorateStaff
-    };
-  },[staff,entries,expenses,projects,engineers,egpRate,finMonth,finYear]);
-
-  const {activeStaff,totalPayrollUSD,totalPayrollEGP,toUSD,
-    staffThisMonth,monthExp,monthExpNonSalary,totalExpUSD,totalExpEGP,salaryCatUSD,
-    monthRevUSD,totalPayrollUSDeff,totalCostUSD,netPL,netColor,deptList,
-    ytdData,ytdRev,ytdCost,ytdNet,projProfit,wasEmployed,prorateStaff
-  } = derived;
-
-  // ── P&L data — useMemo at component top level (Rules of Hooks: never inside IIFEs) ──
-  const plData = useMemo(()=>{
-    const jRevenue  = journalEntries.filter(e=>e.main_account==="Revenue").reduce((s,e)=>s+(+e.credit||0),0);
-    const jExpenses = journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet"&&+e.debit>0);
-    const jTotalExp = jExpenses.reduce((s,e)=>s+(+e.debit),0);
-    const jNetPL    = jRevenue - jTotalExp;
-    const jRevUSD   = journalEntries.find(e=>e.main_account==="Revenue"&&+e.usd_amount>0)?.usd_amount||0;
-    const jRevRate  = journalEntries.find(e=>e.main_account==="Revenue"&&+e.exchange_rate>0)?.exchange_rate||egpRate;
-    const allMonths = [...new Set(journalEntries.map(e=>e.month))].sort((a,b)=>+a-+b);
-    const monthPL   = allMonths.map(mo=>({
-      mo,
-      rev: journalEntries.filter(e=>e.main_account==="Revenue"&&+e.month===mo).reduce((s,e)=>s+(+e.credit),0),
-      exp: journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet"&&+e.debit>0&&+e.month===mo).reduce((s,e)=>s+(+e.debit),0),
-    })).map(m=>({...m,net:m.rev-m.exp}));
-    const expByCategory = {};
-    jExpenses.forEach(e=>{
-      if(!expByCategory[e.main_account]) expByCategory[e.main_account]={cat:e.main_account,total:0,items:{}};
-      if(!expByCategory[e.main_account].items[e.account_name]) expByCategory[e.main_account].items[e.account_name]={name:e.account_name,total:0};
-      expByCategory[e.main_account].items[e.account_name].total += +e.debit;
-      expByCategory[e.main_account].total += +e.debit;
-    });
-    const billableEntries = entries.filter(e=>e.entry_type==="work"&&projects.find(p=>String(p.id)===String(e.project_id)&&p.billable!==false));
-    const totalBillableHrs = billableEntries.reduce((s,e)=>s+e.hours,0);
-    const totalBillableUSD = billableEntries.reduce((s,e)=>s+e.hours*(e.rate||0),0);
-    const engHours = {};
-    engineers.forEach(eng=>{
-      const hrs=billableEntries.filter(e=>String(e.engineer_id)===String(eng.id)).reduce((s,e)=>s+e.hours,0);
-      if(hrs>0) engHours[eng.id]={name:eng.name,hrs,
-        usd:billableEntries.filter(e=>String(e.engineer_id)===String(eng.id)).reduce((s,e)=>s+e.hours*(e.rate||0),0)};
-    });
-    return {jRevenue,jExpenses,jTotalExp,jNetPL,jRevUSD,jRevRate,allMonths,monthPL,
-            expByCategory,billableEntries,totalBillableHrs,totalBillableUSD,engHours};
-  },[journalEntries,entries,engineers,projects,egpRate]);
-
-  const {jRevenue,jExpenses,jTotalExp,jNetPL,jRevUSD,jRevRate,allMonths,monthPL,
-         expByCategory,billableEntries,totalBillableHrs,totalBillableUSD,engHours} = plData;
-
-  const MONTHS_ = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-  return(
-<div style={{display:"grid",gap:20,padding:"4px 0"}}>
-
-  {/* ── Page header ── */}
-  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
-    <div>
-      <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>FINANCE & ACCOUNTING</div>
-      <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Finance Panel</h1>
-      <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
-        {isAdmin?"Full accounting access · journal, payroll, P&L":isAcct?"Full accounting access · post entries, manage payroll, view reports":"Read-only · all figures from posted journal entries"}
-      </p>
-    </div>
-    {/* EGP rate + month/year controls — always visible */}
-    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-      <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:6}}>
-        <span style={{fontSize:12,color:"var(--text4)",whiteSpace:"nowrap"}}>EGP / $</span>
-        <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value||1))}
-          title="Used for EGP salary → USD conversion only"
-          style={{width:64,background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"right",outline:"none"}}/>
-      </div>
-      <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:6}}>
-        <select value={finMonth} onChange={e=>setFinMonth(+e.target.value)}
-          style={{background:"transparent",border:"none",color:"var(--text0)",fontSize:14,fontWeight:600,outline:"none",cursor:"pointer"}}>
-          {MONTHS_.map((m,i)=><option key={i} value={i}>{m}</option>)}
-        </select>
-        <select value={finYear} onChange={e=>setFinYear(+e.target.value)}
-          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
-          {Array.from({length:6},(_,i)=>new Date().getFullYear()-2+i).map(y=><option key={y}>{y}</option>)}
-        </select>
-      </div>
-      {(finSubTab==="pl"||finSubTab==="salaries")&&(
-        <button className="bp" style={{padding:"8px 16px",fontSize:14}} onClick={()=>{
-          buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
-          logAction("EXPORT","Finance",`Exported Finance PDF — ${MONTHS_[finMonth]} ${finYear}`,{month:finMonth,year:finYear,tab:finSubTab});
-        }}>⬇ Export PDF</button>
-      )}
-    </div>
-  </div>
-
-  {/* ── Sub-tab navigation ── */}
-  <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",flexWrap:"wrap"}}>
-    {[
-      {id:"journal",  label:"Journal",     group:"Ledger"},
-      {id:"balance",  label:"Balance Sheet",group:"Ledger"},
-      {id:"expenses", label:"Expenses",     group:"Ledger"},
-      {id:"custody",  label:"Cash Custody", group:"Ledger"},
-      {id:"pl",       label:"P&L",          group:"Analysis"},
-      {id:"salaries", label:"Payroll",       group:"Analysis"},
-      {id:"assets",   label:"Fixed Assets",  group:"Analysis"},
-      {id:"tax",      label:"Tax & Social",  group:"Analysis"},
-      {id:"reports",  label:"Reports",       group:"Output"},
-      {id:"workflow", label:"Guide",         group:"Output"},
-    ].map(t=>{
-      const active=finSubTab===t.id;
-      return(
-        <button key={t.id} onClick={()=>setFinSubTab(t.id)}
-          style={{padding:"8px 14px",borderRadius:7,border:"none",cursor:"pointer",fontSize:14,fontWeight:active?700:500,
-            fontFamily:"'IBM Plex Sans',sans-serif",transition:"all .15s",
-            background:active?"linear-gradient(135deg,#0ea5e9,#0369a1)":"transparent",
-            color:active?"#fff":"var(--text2)"}}>
-          {t.label}
-        </button>
-      );
-    })}
-  </div>
-
-  {/* ── JOURNAL TAB ── */}
-  {finSubTab==="journal"&&(
-    <JournalLedger
-      journalEntries={journalEntries}
-      accounts={accounts||[]}
-      isAcct={isAcct} isAdmin={isAdmin}
-      loading={journalLoading}
-      showToast={showToast}
-      onAdd={async(lines)=>{
-        if(!isAcct&&!isAdmin) return;
-        // lines is array of safe whitelisted objects (no bs_pl / usd_amount / exchange_rate)
-        const safeLines=lines.map(l=>({
-          entry_no:       l.entry_no,
-          entry_date:     l.entry_date,
-          month:          l.month||null,
-          entry_type:     l.entry_type||"Custody",
-          account_name:   l.account_name,
-          main_account:   l.main_account||"",
-          statement_type: l.statement_type||"Profit & Loss Sheet",
-          debit:          Number(l.debit)||0,
-          credit:         Number(l.credit)||0,
-          balance:        (Number(l.debit)||0)-(Number(l.credit)||0),
-          description:    l.description||"",
-          posted_by:      l.posted_by||"accountant",
-        }));
-        const {data,error}=await supabase.from("journal_entries").insert(safeLines).select();
-        if(error){showToast("Journal post failed: "+error.message,false);return;}
-        if(data){
-          setJournalEntries(prev=>[...prev,...data]);
-          showToast(`✓ Entry #${safeLines[0]?.entry_no} posted — ${safeLines.length} line${safeLines.length!==1?"s":""}`);
-          logAction("CREATE","Journal",`Posted entry #${safeLines[0]?.entry_no} — ${safeLines.length} lines · ${safeLines[0]?.entry_type}`,
-            {entry_no:safeLines[0]?.entry_no,entry_type:safeLines[0]?.entry_type,lines:safeLines.length,
-             total_debit:safeLines.reduce((s,l)=>s+l.debit,0)});
-        }
-      }}
-      onDelete={async(id)=>{
-        if(!isAcct&&!isAdmin) return;
-        const entry=journalEntries.find(e=>e.id===id);
-        showConfirm(`Delete journal entry #${entry?.entry_no||id} — ${entry?.account_name||""}?`,()=>{
-          applyUndo(
-            showToast,`Entry #${entry?.entry_no||id} deleted`,
-            ()=>setJournalEntries(prev=>prev.filter(e=>e.id!==id)),
-            ()=>setJournalEntries(prev=>[...prev,entry].sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date)))),
-            async()=>{ const{error}=await supabase.from("journal_entries").delete().eq("id",id); return error||null; },
-            ()=>logAction("DELETE","Journal",`Deleted journal entry id:${id}`,{id})
-          );
-        },{title:"Delete Journal Entry",confirmLabel:"Delete Entry"});
-      }}
-      onEdit={async(entry)=>{
-        if(!isAcct&&!isAdmin) return;
-        var id = entry.id;
-        if(!id){ showToast("Error: no entry ID",false); return; }
-        function toNum(v){ return (v===''||v===null||v===undefined) ? null : (Number(v)||null); }
-        var payload = {
-          entry_no:       entry.entry_no       || null,
-          entry_date:     entry.entry_date      || null,
-          month:          toNum(entry.month),
-          entry_type:     entry.entry_type      || null,
-          account_name:   entry.account_name    || null,
-          main_account:   entry.main_account    || null,
-          statement_type: entry.statement_type  || null,
-          description:    entry.description     || null,
-          debit:          Number(entry.debit)   || 0,
-          credit:         Number(entry.credit)  || 0,
-        };
-        try {
-          var res = await supabase.from("journal_entries").update(payload).eq("id",id);
-          if(res.error){ showToast("Save failed: "+res.error.message,false); return; }
-          setJournalEntries(function(prev){ return prev.map(function(e){ return e.id===id ? Object.assign({},e,payload,{id:id}) : e; }); });
-          logAction("UPDATE","Journal","Updated entry #"+entry.entry_no,{id:id});
-          showToast("Journal entry saved ✓");
-        } catch(err) {
-          showToast("Error: "+err.message,false);
-          console.error("[Journal]",err);
-        }
-      }}
-    />
-  )}
-
-  {/* ── BALANCE SHEET TAB ── */}
-  {finSubTab==="balance"&&(
-    <div>
-      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
-        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Balance Sheet</div>
-        <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
-          // Build Balance Sheet PDF from journal entries
-          const bsE=journalEntries.filter(e=>e.statement_type==="Balance Sheet");
-          const byAcct={};
-          bsE.forEach(e=>{
-            if(!byAcct[e.main_account])byAcct[e.main_account]={cat:e.main_account,items:{},dr:0,cr:0};
-            if(!byAcct[e.main_account].items[e.account_name])byAcct[e.main_account].items[e.account_name]={name:e.account_name,dr:0,cr:0};
-            byAcct[e.main_account].items[e.account_name].dr+=(+e.debit||0);
-            byAcct[e.main_account].items[e.account_name].cr+=(+e.credit||0);
-            byAcct[e.main_account].dr+=(+e.debit||0);
-            byAcct[e.main_account].cr+=(+e.credit||0);
-          });
-          const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-          const rows=Object.values(byAcct).sort((a,b)=>a.cat.localeCompare(b.cat)).map(cat=>{
-            const itemRows=Object.values(cat.items).map((item,i)=>`<tr style="${i%2?"background:#f8fafc":""}"><td style="padding:6px 16px 6px 28px;color:#334155">${item.name}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399">${item.dr>0?fmtEGP(item.dr):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${item.cr>0?fmtEGP(item.cr):""}</td></tr>`).join("");
-            return `<tr style="background:#f0f7ff"><td colspan="3" style="padding:7px 16px;font-weight:700;color:#0f2a50">${cat.cat}</td></tr>${itemRows}<tr style="background:#e8f4fd"><td style="padding:6px 16px;font-style:italic;color:#64748b">Subtotal — ${cat.cat}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#34d399">${cat.dr>0?fmtEGP(cat.dr):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171">${cat.cr>0?fmtEGP(cat.cr):""}</td></tr>`;
-          }).join("");
-          generatePDF("Balance Sheet",
-            [`<div class="section"><div class="st">Balance Sheet — As of ${now}</div><table><thead><tr><th>Account</th><th style="text-align:right">Debit (EGP)</th><th style="text-align:right">Credit (EGP)</th></tr></thead><tbody>${rows||"<tr><td colspan='3' style='text-align:center;color:#94a3b8;padding:20px'>No balance sheet entries in journal</td></tr>"}</tbody></table></div>`],
-            `Balance Sheet · Enevo Egypt LLC · ${now}`);
-          logAction("EXPORT","Finance",`Exported Balance Sheet PDF`,{tab:"balance"});
-        }}>⬇ Export PDF</button>
-      </div>
-      <BalanceSheetView journalEntries={journalEntries} finYear={finYear}/>
-    </div>
-  )}
-
-  {/* ── EXPENSES TAB ── */}
-  {finSubTab==="expenses"&&(
-    <div>
-      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
-        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Expenses</div>
-        <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
-          const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-          const plE=journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet"&&+e.debit>0);
-          const catMap={};
-          plE.forEach(e=>{
-            if(!catMap[e.main_account])catMap[e.main_account]={cat:e.main_account,items:{},total:0};
-            if(!catMap[e.main_account].items[e.account_name])catMap[e.main_account].items[e.account_name]={name:e.account_name,total:0};
-            catMap[e.main_account].items[e.account_name].total+=(+e.debit||0);
-            catMap[e.main_account].total+=(+e.debit||0);
-          });
-          const grandTotal=plE.reduce((s,e)=>s+(+e.debit||0),0);
-          const rows=Object.values(catMap).sort((a,b)=>b.total-a.total).map(cat=>{
-            const items=Object.values(cat.items).sort((a,b)=>b.total-a.total).map((item,i)=>`<tr style="${i%2?"background:#f8fafc":""}"><td style="padding:6px 16px 6px 28px;color:#334155">${item.name}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#fb923c">${fmtEGP(item.total)}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8">${grandTotal?(item.total/grandTotal*100).toFixed(1)+"%":""}</td></tr>`).join("");
-            return`<tr style="background:#fff7ed"><td colspan="3" style="padding:7px 16px;font-weight:700;color:#9a3412">${cat.cat} — ${fmtEGP(cat.total)}</td></tr>${items}`;
-          }).join("");
-          generatePDF("Expenses Report",
-            [`<div class="section"><div class="st">Expense Breakdown (P&L Entries) — ${now}</div><table><thead><tr><th>Account</th><th style="text-align:right">Amount (EGP)</th><th style="text-align:right">% of Total</th></tr></thead><tbody>${rows||"<tr><td colspan='3' style='text-align:center;color:#94a3b8;padding:20px'>No expense entries in journal</td></tr>"}<tr style="background:#0f2a50"><td style="padding:8px 16px;font-weight:700;color:#fff">TOTAL EXPENSES</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171;padding:8px 16px">${fmtEGP(grandTotal)}</td><td></td></tr></tbody></table></div>`],
-            `Expense Report · Enevo Egypt LLC · ${now}`);
-          logAction("EXPORT","Finance",`Exported Expenses PDF`,{tab:"expenses"});
-        }}>⬇ Export PDF</button>
-      </div>
-      <ExpensesView journalEntries={journalEntries} oldExpenses={expenses} egpRate={egpRate} finYear={finYear}/>
-    </div>
-  )}
-
-  {/* ── CASH CUSTODY TAB ── */}
-  {finSubTab==="custody"&&(
-    <div>
-      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
-        <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Cash Custody</div>
-        <button className="bp" style={{padding:"6px 14px",fontSize:13}} onClick={()=>{
-          const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-          const custMap={};
-          journalEntries.filter(e=>e.main_account==="Cash Custody").forEach(e=>{
-            const n=e.account_name.trim();
-            if(!custMap[n])custMap[n]={name:n,lines:[],totalOut:0,totalBack:0};
-            custMap[n].lines.push(e);
-            custMap[n].totalOut+=(+e.credit||0);
-            custMap[n].totalBack+=(+e.debit||0);
-          });
-          const sections=Object.values(custMap).map(p=>{
-            let runBal=0;
-            const rows=p.lines.sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date))).map((e,i)=>{
-              runBal+=(+e.credit||0)-(+e.debit||0);
-              return`<tr style="${i%2?"background:#f8fafc":""}"><td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${String(e.entry_date||"").slice(0,10)}</td><td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#94a3b8">${e.entry_no||""}</td><td>${e.description||""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${+e.credit>0.01?fmtEGP(+e.credit):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399">${+e.debit>0.01?fmtEGP(+e.debit):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${runBal>0?"#34d399":"#64748b"}">${fmtEGP(runBal)}</td></tr>`;
-            }).join("");
-            return`<div class="section"><div class="st">${p.name} — Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div><table><thead><tr><th>Date</th><th>Entry#</th><th>Description</th><th style="text-align:right">Cash Out</th><th style="text-align:right">Back/Spent</th><th style="text-align:right">Balance</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-          });
-          if(!sections.length)sections.push(`<div class="section"><p style="text-align:center;color:#94a3b8;padding:20px">No custody entries found</p></div>`);
-          generatePDF("Cash Custody Ledger",sections,`Cash Custody · Enevo Egypt LLC · ${now}`);
-          logAction("EXPORT","Finance",`Exported Custody Ledger PDF`,{tab:"custody"});
-        }}>⬇ Export PDF</button>
-      </div>
-      <CashCustodyView journalEntries={journalEntries}/>
-    </div>
-  )}
-
-  {/* ── FIXED ASSETS TAB ── */}
-  {finSubTab==="assets"&&(
-    <FixedAssetsView fixedAssets={fixedAssets} loading={assetsLoading}/>
-  )}
-
-  {/* ── TAX & SOCIAL TAB ── */}
-  {finSubTab==="tax"&&(
-    <TaxSocialView journalEntries={journalEntries}/>
-  )}
-
-  {/* ── REPORTS TAB ── */}
-  {finSubTab==="reports"&&(
-    <FinanceReports journalEntries={journalEntries} fixedAssets={fixedAssets}
-      staff={staff} expenses={expenses} egpRate={egpRate}/>
-  )}
-
-  {/* ── WORKFLOW GUIDE TAB ── */}
-  {finSubTab==="workflow"&&(
-    <AccountantGuide journalEntries={journalEntries} staff={staff} egpRate={egpRate}/>
-  )}
-
-
-  {/* ── P&L OPERATIONS TAB — reconciled journal + engineering view ── */}
-  {finSubTab==="pl"&&(()=>{
-    // ── P&L vars computed at FinanceTab top level (Rules of Hooks — no useMemo in IIFE) ──
-    const netColor = jNetPL>=0?"#34d399":"#f87171";
-    const opCosts = expByCategory["Operating Costs"]?.total||0;
-    const adminCosts = expByCategory["Administrative expenses"]?.total||0;
-
-    return(
-    <div style={{display:"grid",gap:16}}>
-
-      {/* ── Info banner ── */}
-      <div style={{background:"var(--bg1)",border:"1px solid #38bdf830",borderRadius:10,padding:"10px 16px",fontSize:13,color:"var(--text3)",display:"flex",alignItems:"center",gap:10}}>
-        <span><strong style={{color:"var(--text1)"}}>Journal-based P&L</strong> — All figures sourced directly from posted journal entries (EGP). This is the official accounting view for {MONTHS_[finMonth]} {finYear}.</span>
-      </div>
-
-      {/* ── Hero metrics ── */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
-        {[
-          {l:"Revenue",          v:fmtEGP(jRevenue),   c:"#34d399",  sub:"From journal credits"},
-          {l:"Operating Costs",  v:fmtEGP(opCosts),    c:"#fb923c",  sub:"Operations & direct"},
-          {l:"Admin Expenses",   v:fmtEGP(adminCosts), c:"#f59e0b",  sub:"Administrative"},
-          {l:"Total Expenses",   v:fmtEGP(jTotalExp),  c:"#f87171",  sub:"All debit entries"},
-          {l:"Net P&L",          v:fmtEGP(jNetPL),     c:netColor,   sub:jNetPL>=0?"Profitable":"Loss"},
-        ].map((k,i)=>(
-          <div key={i} style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,padding:"18px 16px",borderTop:`3px solid ${k.c}`}}>
-            <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:10}}>{k.l}</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:800,color:k.c,lineHeight:1.1,marginBottom:6,wordBreak:"break-all"}}>{k.v}</div>
-            <div style={{fontSize:12,color:"var(--text4)"}}>{k.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* USD equivalent strip */}
-      {jRevUSD>0&&(
-        <div style={{background:"#38bdf810",border:"1px solid #38bdf840",borderRadius:8,padding:"10px 16px",display:"flex",gap:20,flexWrap:"wrap",alignItems:"center"}}>
-          <span style={{fontSize:13,color:"var(--text3)"}}>Invoice equivalent:</span>
-          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,color:"#38bdf8"}}>${(+jRevUSD).toLocaleString("en-US",{minimumFractionDigits:2})} USD</span>
-          <span style={{fontSize:13,color:"var(--text4)"}}>@ EGP {jRevRate}/$ on invoice date</span>
-          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#34d399"}}>= {fmtEGP(+jRevUSD * +jRevRate)}</span>
-          <span style={{fontSize:13,color:"var(--text4)",marginLeft:"auto"}}>EGP rate override: <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value||1))} style={{width:60,background:"transparent",border:"1px solid var(--border3)",borderRadius:4,padding:"2px 6px",color:"var(--text0)",fontSize:13,textAlign:"right"}}/> /$ (salaries only)</span>
-        </div>
-      )}
-
-      {/* ── Expense breakdown ── */}
-      <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Expense Breakdown</div>
-          <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{fmtEGP(jTotalExp)} total</div>
-        </div>
-        <table>
-          <thead><tr style={{background:"var(--bg2)"}}>
-            <th style={{padding:"7px 14px",textAlign:"left",color:"var(--text3)",fontSize:13}}>Category</th>
-            <th style={{padding:"7px 14px",textAlign:"left",color:"var(--text3)",fontSize:13}}>Account</th>
-            <th style={{padding:"7px 14px",textAlign:"right",color:"var(--text3)",fontSize:13}}>Amount (EGP)</th>
-            <th style={{padding:"7px 14px",textAlign:"right",color:"var(--text3)",fontSize:13}}>% of Total</th>
-          </tr></thead>
-          <tbody>
-            {Object.values(expByCategory).sort((a,b)=>b.total-a.total).map(cat=>
-              Object.values(cat.items).sort((a,b)=>b.total-a.total).map((item,i)=>(
-                <tr key={cat.cat+item.name} style={{borderBottom:"1px solid var(--border3)"}}>
-                  <td style={{padding:"6px 14px",color:"var(--text4)",fontSize:13,fontStyle:"italic"}}>{i===0?cat.cat:""}</td>
-                  <td style={{padding:"6px 14px",color:"var(--text1)",fontWeight:500}}>{item.name}</td>
-                  <td style={{padding:"6px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{fmtEGP(item.total)}</td>
-                  <td style={{padding:"6px 14px",textAlign:"right"}}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6}}>
-                      <div style={{width:60,height:6,background:"var(--bg2)",borderRadius:3,overflow:"hidden"}}>
-                        <div style={{height:"100%",width:`${Math.min(100,(item.total/jTotalExp*100)).toFixed(0)}%`,background:"#fb923c",borderRadius:3}}/>
-                      </div>
-                      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text4)",minWidth:35}}>{jTotalExp?(item.total/jTotalExp*100).toFixed(1):0}%</span>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-            <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)"}}>
-              <td colSpan={2} style={{padding:"8px 14px",fontWeight:700,color:"var(--text0)"}}>TOTAL EXPENSES</td>
-              <td style={{padding:"8px 14px",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#f87171",textAlign:"right"}}>{fmtEGP(jTotalExp)}</td>
-              <td style={{padding:"8px 14px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text4)"}}>100%</td>
-            </tr>
-            <tr style={{background:jNetPL>=0?"#34d39910":"#f8711810"}}>
-              <td colSpan={2} style={{padding:"9px 14px",fontWeight:700,color:netColor}}>NET {jNetPL>=0?"PROFIT":"LOSS"}</td>
-              <td style={{padding:"9px 14px",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,fontSize:15,color:netColor,textAlign:"right"}}>{fmtEGP(jNetPL)}</td>
-              <td/>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* Month-by-month YTD from journal */}
-      <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Month-by-Month YTD</div>
-          <div style={{fontSize:13,color:"var(--text3)"}}>Revenue posted when invoice issued · costs accrue monthly</div>
-        </div>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead><tr style={{background:"var(--bg2)"}}>
-            {["Month","Revenue (EGP)","Expenses (EGP)","Net (EGP)","Status"].map(h=>(
-              <th key={h} style={{padding:"7px 14px",textAlign:h==="Month"||h==="Status"?"left":"right",color:"var(--text3)",fontSize:13}}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {monthPL.map((m,i)=>(
-              <tr key={m.mo} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                <td style={{padding:"7px 14px",fontWeight:600,color:"var(--text0)"}}>{MONTHS_[+m.mo-1]||""}</td>
-                <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399"}}>{m.rev>0?fmtEGP(m.rev):"—"}</td>
-                <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{m.exp>0?fmtEGP(m.exp):"—"}</td>
-                <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:m.net>=0?"#34d399":"#f87171",fontWeight:600}}>{fmtEGP(m.net)}</td>
-                <td style={{padding:"7px 14px",fontSize:12,color:"var(--text4)"}}>{m.rev>0&&m.exp>0?"Revenue+Costs":m.rev>0?"Revenue only":m.exp>0?"Costs only":"—"}</td>
-              </tr>
-            ))}
-            <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)",fontWeight:700}}>
-              <td style={{padding:"8px 14px",color:"var(--text0)"}}>YTD TOTAL</td>
-              <td style={{padding:"8px 14px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#34d399"}}>{fmtEGP(jRevenue)}</td>
-              <td style={{padding:"8px 14px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#f87171"}}>{fmtEGP(jTotalExp)}</td>
-              <td style={{padding:"8px 14px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:netColor,fontSize:14}}>{fmtEGP(jNetPL)}</td>
-              <td/>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* ── Engineering ops section ── */}
-      {(totalBillableHrs>0||totalBillableUSD>0)&&(
-        <div className="card" style={{padding:0,overflow:"hidden"}}>
-          <div style={{background:"#38bdf815",borderBottom:"2px solid #38bdf8",padding:"10px 16px",fontSize:13,fontWeight:700,color:"#38bdf8"}}>
-            ENGINEERING OPS — Billable Hours (time entries, USD)
-            <span style={{fontSize:12,color:"var(--text4)",fontWeight:400,marginLeft:12}}>Management view — not accounting</span>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:0,borderBottom:"1px solid var(--border3)"}}>
-            {[
-              {l:"Total Billable Hours",v:`${totalBillableHrs.toFixed(1)} hrs`,c:"#38bdf8"},
-              {l:"Billed Value (USD)",  v:fmtCurrency(totalBillableUSD),       c:"#34d399"},
-              {l:"Avg Rate",            v:totalBillableHrs?fmtCurrency(totalBillableUSD/totalBillableHrs)+"/hr":"—",c:"var(--text2)"},
-            ].map((k,i)=>(
-              <div key={i} style={{textAlign:"center",padding:"14px 8px",borderRight:i<2?"1px solid var(--border3)":"none"}}>
-                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:k.c}}>{k.v}</div>
-                <div style={{fontSize:12,color:"var(--text4)",marginTop:3}}>{k.l}</div>
-              </div>
-            ))}
-          </div>
-          {Object.values(engHours).length>0&&(
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:"var(--bg2)"}}>
-                {["Engineer","Billable Hours","Billed USD"].map(h=>(
-                  <th key={h} style={{padding:"7px 14px",textAlign:h==="Engineer"?"left":"right",color:"var(--text3)",fontSize:13}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {Object.values(engHours).sort((a,b)=>b.usd-a.usd).map((e,i)=>(
-                  <tr key={i} style={{borderBottom:"1px solid var(--border3)"}}>
-                    <td style={{padding:"6px 14px",color:"var(--text1)",fontWeight:500}}>{e.name}</td>
-                    <td style={{padding:"6px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"var(--text2)"}}>{e.hrs.toFixed(1)} hrs</td>
-                    <td style={{padding:"6px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399",fontWeight:600}}>{fmtCurrency(e.usd)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
-
-      {/* ── Project P&L ── */}
-      {projProfit.length>0&&(
-        <div className="card" style={{padding:0,overflow:"hidden"}}>
-          <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Project P&L</div><div style={{fontSize:13,color:"var(--text3)"}}>Time entries × hourly rate</div></div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-            <thead><tr style={{background:"var(--bg2)"}}>
-              {["Project","Revenue","Cost","Profit","Margin"].map(h=>(
-                <th key={h} style={{padding:"7px 14px",textAlign:h==="Project"?"left":"right",color:"var(--text3)",fontSize:13}}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {projProfit.map((p,i)=>(
-                <tr key={i} style={{borderBottom:"1px solid var(--border3)"}}>
-                  <td style={{padding:"7px 14px",fontWeight:500,color:"var(--text1)"}}>{p.name}</td>
-                  <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399"}}>{fmtCurrency(p.rev)}</td>
-                  <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{fmtCurrency(p.cost)}</td>
-                  <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:p.net>=0?"#34d399":"#f87171",fontWeight:600}}>{fmtCurrency(p.net)}</td>
-                  <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"var(--text3)"}}>{p.rev?Math.round(p.net/p.rev*100):0}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-    </div>
-    );
-  })()}
-
-  {/* ── SALARIES TAB — journal accruals + staff table reconciled ── */}
-  {finSubTab==="salaries"&&(()=>{
-    // Salary accruals from journal, grouped by month
-    const salaryAccruals = journalEntries.filter(e=>e.entry_type==="Accrued Salaries");
-    const accrualMonths = [...new Set(salaryAccruals.map(e=>e.month))].sort((a,b)=>+a-+b);
-
-    // Per-month: gross cost, gross admin, net payable, tax, SI
-    const accrualByMonth = accrualMonths.map(mo=>{
-      const lines = salaryAccruals.filter(e=>e.month===mo);
-      return {
-        mo,
-        grossCost:  lines.filter(e=>e.account_name==="Salaries-Cost"       ).reduce((s,e)=>s+(+e.debit),0),
-        grossAdmin: lines.filter(e=>e.account_name==="Salaries-Administrative").reduce((s,e)=>s+(+e.debit),0),
-        siCost:     lines.filter(e=>e.account_name==="Social Insurance-Cost"  ).reduce((s,e)=>s+(+e.debit),0),
-        siAdmin:    lines.filter(e=>e.account_name==="Social Insurance-Administrative").reduce((s,e)=>s+(+e.debit),0),
-        tax:        lines.filter(e=>e.account_name==="Payroll Tax"             ).reduce((s,e)=>s+(+e.credit),0),
-        si:         lines.filter(e=>e.account_name==="Social Insurance Authority").reduce((s,e)=>s+(+e.credit),0),
-        mff:        lines.filter(e=>e.account_name==="Martyrs Families Fund"   ).reduce((s,e)=>s+(+e.credit),0),
-        net:        lines.filter(e=>e.account_name==="Accrued Salaries"         ).reduce((s,e)=>s+(+e.credit),0),
-      };
-    });
-
-    // Staff table totals
-    const activeSt = staff.filter(s=>s.active!==false);
-    const filteredSt = staffSearch
-      ? activeSt.filter(s=>(s.name||"").toLowerCase().includes(staffSearch.toLowerCase())
-          ||(s.department||"").toLowerCase().includes(staffSearch.toLowerCase())
-          ||(s.role||"").toLowerCase().includes(staffSearch.toLowerCase()))
-      : activeSt;
-    const totalEGP = activeSt.reduce((s,x)=>s+(+x.salary_egp||0),0);
-    const totalUSD = activeSt.reduce((s,x)=>s+(+x.salary_usd||0),0);
-
-    // Last posted month vs staff table — reconciliation
-    const lastAccrual = accrualByMonth[accrualByMonth.length-1];
-    const lastGross = lastAccrual ? lastAccrual.grossCost + lastAccrual.grossAdmin : 0;
-    const reconcileDiff = lastGross - totalEGP;
-    const reconcileOK = Math.abs(reconcileDiff) < 100;
-
-    return(
-    <div style={{display:"grid",gap:16}}>
-
-      {/* ── Hero metrics ── */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
-        {[
-          {l:"Active Staff",      v:activeSt.length,                                                               c:"var(--info)",   sub:"Current headcount"},
-          {l:"Total EGP Payroll", v:fmtEGP(totalEGP),                                                             c:"#fb923c",       sub:"Monthly gross"},
-          {l:"Total USD Payroll", v:totalUSD>0?`$${totalUSD.toLocaleString("en-US",{minimumFractionDigits:2})}`:"—",c:"#38bdf8",    sub:"Monthly USD"},
-          {l:"Journal vs Staff",  v:reconcileOK?"✓ Match":`Δ ${fmtEGP(Math.abs(reconcileDiff))}`,                c:reconcileOK?"#34d399":"#f87171",sub:reconcileOK?"Last accrual matches":"Check journal"},
-        ].map((k,i)=>(
-          <div key={i} style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,padding:"18px 16px",borderTop:`3px solid ${k.c}`}}>
-            <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:10}}>{k.l}</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:800,color:k.c,lineHeight:1.1,marginBottom:6,wordBreak:"break-all"}}>{k.v}</div>
-            <div style={{fontSize:12,color:"var(--text4)"}}>{k.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {!reconcileOK&&(
-        <div style={{background:"#f8711815",border:"1px solid #f8711840",borderRadius:8,padding:"10px 16px",fontSize:13,color:"#f87171"}}>
-          ⚠ Last journal accrual gross ({fmtEGP(lastGross)}) differs from staff table total ({fmtEGP(totalEGP)}) by {fmtEGP(Math.abs(reconcileDiff))}. 
-          Check if staff salaries were updated without a matching journal correction.
-        </div>
-      )}
-
-      {/* Monthly accrual history */}
-      {accrualByMonth.length>0&&(
-        <div className="card" style={{padding:0,overflow:"hidden"}}>
-          <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Monthly Payroll Accruals</div>
-            <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>From journal · {accrualByMonth.length} month{accrualByMonth.length!==1?"s":""}</div>
-          </div>
-          <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:"var(--bg2)"}}>
-                {["Month","Gross Cost","Gross Admin","SI Total","Payroll Tax","MFF","Net Payable"].map(h=>(
-                  <th key={h} style={{padding:"7px 12px",textAlign:h==="Month"?"left":"right",color:"var(--text3)",fontSize:13,whiteSpace:"nowrap"}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {accrualByMonth.map((m,i)=>(
-                  <tr key={m.mo} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                    <td style={{padding:"7px 12px",fontWeight:600,color:"var(--text0)"}}>{MONTHS_[+m.mo-1]||""}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{m.grossCost>0?fmtEGP(m.grossCost):"—"}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{m.grossAdmin>0?fmtEGP(m.grossAdmin):"—"}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{fmtEGP(m.siCost+m.siAdmin)}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{fmtEGP(m.tax)}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#a78bfa"}}>{fmtEGP(m.mff)}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399",fontWeight:600}}>{fmtEGP(m.net)}</td>
-                  </tr>
-                ))}
-                <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)",fontWeight:700}}>
-                  <td style={{padding:"8px 12px",color:"var(--text0)"}}>TOTAL</td>
-                  {[
-                    accrualByMonth.reduce((s,m)=>s+m.grossCost,0),
-                    accrualByMonth.reduce((s,m)=>s+m.grossAdmin,0),
-                    accrualByMonth.reduce((s,m)=>s+m.siCost+m.siAdmin,0),
-                    accrualByMonth.reduce((s,m)=>s+m.tax,0),
-                    accrualByMonth.reduce((s,m)=>s+m.mff,0),
-                    accrualByMonth.reduce((s,m)=>s+m.net,0),
-                  ].map((v,i)=>(
-                    <td key={i} style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:i===5?"#34d399":"var(--text1)",fontSize:i===5?14:13}}>{fmtEGP(v)}</td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Staff salary table */}
-      <div className="card" style={{padding:0,overflow:"hidden"}}>
-        <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
-          <div>
-            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Staff Table — Current Salaries</div>
-            <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{activeSt.length} active staff members</div>
-          </div>
-          <input value={staffSearch} onChange={e=>setStaffSearch(e.target.value)}
-            placeholder="🔍 Search name, dept, role…"
-            style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:7,padding:"7px 12px",color:"var(--text0)",fontSize:14,width:230,outline:"none"}}/>
-        </div>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead><tr style={{background:"var(--bg2)"}}>
-            {["Name","Department","Role","EGP Salary","USD Salary","Join Date",""].map(h=>(
-              <th key={h} style={{padding:"7px 12px",textAlign:["EGP Salary","USD Salary"].includes(h)?"right":"left",color:"var(--text3)",fontSize:13}}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {filteredSt.sort((a,b)=>(b.salary_egp||0)-(a.salary_egp||0)).map((s,i)=>(
-              <tr key={i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
-                <td style={{padding:"6px 12px",fontWeight:600,color:"var(--text1)"}}>{s.name}</td>
-                <td style={{padding:"6px 12px",color:"var(--text3)"}}>{s.department}</td>
-                <td style={{padding:"6px 12px"}}><span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)"}}>{s.role}</span></td>
-                <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c",fontWeight:600}}>{s.salary_egp?fmtEGP(+s.salary_egp):"\u2014"}</td>
-                <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#38bdf8"}}>{s.salary_usd?`$${(+s.salary_usd).toLocaleString("en-US",{minimumFractionDigits:2})}`:"\u2014"}</td>
-                <td style={{padding:"6px 12px",fontSize:13,color:"var(--text4)"}}>{s.join_date||"—"}</td>
-                <td style={{padding:"6px 8px"}}>
-                  {(isAdmin||isAcct)&&(
-                    <button onClick={()=>{setEditStaff({...s});setShowStaffModal(true);}}
-                      style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,padding:"3px 9px",color:"var(--text2)",cursor:"pointer",fontSize:13}}>✏</button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)",fontWeight:700}}>
-              <td colSpan={3} style={{padding:"8px 12px",color:"var(--text0)"}}>
-                {staffSearch?`${filteredSt.length} of ${activeSt.length} staff`:`TOTAL (${activeSt.length} staff)`}
-              </td>
-              <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#fb923c",fontSize:14}}>{fmtEGP(totalEGP)}</td>
-              <td style={{padding:"8px 12px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#38bdf8"}}>{totalUSD>0?`$${totalUSD.toLocaleString("en-US",{minimumFractionDigits:2})}`:""}</td>
-              <td colSpan={2}/>
-            </tr>
-          </tbody>
-        </table>
-        {(isAdmin||isAcct)&&(
-          <div style={{padding:"10px 14px",borderTop:"1px solid var(--border3)",display:"flex",gap:8,alignItems:"center"}}>
-            {isAdmin&&<button className="bp" onClick={()=>{setEditStaff(null);setShowStaffModal(true);}}>+ Add Staff Member</button>}
-            {isAcct&&!isAdmin&&<span style={{fontSize:13,color:"var(--text4)"}}>✏ Click the edit button on any row to update salary</span>}
-          </div>
-        )}
-      </div>
-
-      {/* ══════════════════════════════════════════════════════
-          PAY SLIPS — Generate individual PDF pay slips
-         ══════════════════════════════════════════════════════ */}
-      {(()=>{
-        const psStaff = activeSt.filter(s=>wasEmployed(s,finYear,finMonth));
-        // Compute per-person deductions from journal accruals (proportional allocation)
-        const lastMo = accrualByMonth.find(m=>+m.mo===finMonth+1) || accrualByMonth[accrualByMonth.length-1];
-        const totalGross = lastMo ? lastMo.grossCost + lastMo.grossAdmin : 0;
-
-        const personSlip = (s) => {
-          const adj  = psAdj[s.id]||{};
-          const isUSD = (s.salary_usd||0)>0 && !(s.salary_egp||0);
-          const prorate = prorateStaff(s,finYear,finMonth);
-          const basic   = isUSD ? (s.salary_usd||0)*prorate : (s.salary_egp||0)*prorate;
-          const basicEGP= isUSD ? basic*(egpRate||1) : basic;
-          // Deductions: allocate from journal proportionally, or 0 if no journal
-          const share   = totalGross>0 ? basicEGP/totalGross : 0;
-          const siEmp   = lastMo ? Math.round((lastMo.siCost+lastMo.siAdmin)*share*0.37) : 0; // emp ~37% of total SI
-          const tax     = lastMo ? Math.round(lastMo.tax*share) : 0;
-          const mff     = lastMo ? Math.round(lastMo.mff*share) : 0;
-          const transport = +(adj.transport||0);
-          const housing   = +(adj.housing||0);
-          const bonus     = +(adj.bonus||0);
-          const health    = +(adj.health||0);
-          const advance   = +(adj.advance||0);
-          const absence   = +(adj.absence||0);
-          const grossEarnings = basicEGP + (isUSD?0:transport) + (isUSD?0:housing) + (isUSD?0:bonus);
-          const grossUSD      = isUSD ? basic + transport + housing + bonus : 0;
-          const totalDed      = siEmp + tax + mff + health + advance + absence;
-          const netEGP  = isUSD ? 0 : grossEarnings - totalDed;
-          const netUSD  = isUSD ? (grossUSD - (totalDed/(egpRate||1))) : 0;
-          return {isUSD,basic,basicEGP,prorate,siEmp,tax,mff,transport,housing,bonus,health,advance,absence,
-                  grossEarnings:isUSD?grossUSD:grossEarnings,totalDed,netEGP,netUSD,share};
-        };
-
-        const generateSlip = (s) => {
-          const slip = personSlip(s);
-          const adj  = psAdj[s.id]||{};
-          const MONTHS_LONG=["January","February","March","April","May","June",
-            "July","August","September","October","November","December"];
-          const periodStr = MONTHS_LONG[finMonth]+' '+finYear;
-          const slipNo = 'EGY-'+finYear+'-'+String(finMonth+1).padStart(2,'0')+'-'+String(psStaff.indexOf(s)+1).padStart(3,'0');
-          const now = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-          const fmt  = v=>v>0?fmtEGP(v):'—';
-          const fmtU = v=>v>0?'$'+v.toLocaleString('en-US',{minimumFractionDigits:2}):'—';
-          const isCur = slip.isUSD;
-          const cur   = isCur?'USD':'EGP';
-
-          const earningsRows = [
-            ['Basic Salary',               isCur?fmtU(slip.basic):fmt(slip.basicEGP), 'earnings'],
-            slip.prorate<0.99?['Days Worked',''+Math.round(slip.prorate*new Date(finYear,finMonth+1,0).getDate())+' / '+new Date(finYear,finMonth+1,0).getDate(),'note']:null,
-            (adj.transport||0)>0?['Transportation Allowance', isCur?fmtU(+adj.transport):fmt(+adj.transport),'allow']:null,
-            (adj.housing||0)>0 ?['Housing Allowance',         isCur?fmtU(+adj.housing) :fmt(+adj.housing), 'allow']:null,
-            (adj.bonus||0)>0   ?['Performance Bonus',         isCur?fmtU(+adj.bonus)   :fmt(+adj.bonus),   'allow']:null,
-          ].filter(Boolean);
-
-          const dedRows = [
-            slip.siEmp >0?['Social Insurance',      fmt(isCur?Math.round(slip.siEmp/(egpRate||1)):slip.siEmp),'ded']:null,
-            slip.tax   >0?['Income Tax',             fmt(isCur?Math.round(slip.tax/(egpRate||1))  :slip.tax),  'ded']:null,
-            slip.mff   >0?['Martyrs Families Fund',  fmt(isCur?Math.round(slip.mff/(egpRate||1))  :slip.mff),  'ded']:null,
-            (adj.health||0)>0?  ['Health Insurance',    fmt(+adj.health),   'ded']:null,
-            (adj.advance||0)>0? ['Loan / Advance',       fmt(+adj.advance),  'ded']:null,
-            (adj.absence||0)>0? ['Absence Deduction',    fmt(+adj.absence),  'ded']:null,
-          ].filter(Boolean);
-
-          const netVal  = isCur ? fmtU(slip.netUSD)  : fmtEGP(slip.netEGP);
-          const grossVal= isCur ? fmtU(slip.grossEarnings) : fmtEGP(slip.grossEarnings);
-          const dedVal  = isCur ? fmtU(slip.totalDed/(egpRate||1)) : fmtEGP(slip.totalDed);
-
-          const rowHtml = (label, val, type) => {
-            const c = type==='earnings'?'#1e3a5f':type==='allow'?'#14532d':type==='ded'?'#7f1d1d':'#1e3a5f';
-            const bg= type==='earnings'?'#eff6ff':type==='allow'?'#f0fdf4':type==='ded'?'#fff5f5':'#f8fafc';
-            return `<tr><td style="padding:5px 10px;color:${c};background:${bg}">${label}</td>
-              <td style="text-align:right;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-weight:600;color:${c};background:${bg}">${val}</td></tr>`;
-          };
-
-          const html = `
-<!DOCTYPE html><html><head><meta charset="utf-8">
-<style>
-  body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:0;background:#f0f4f8}
-  .slip{width:680px;margin:20px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);border:1px solid #e2e8f0}
-  .hdr{background:linear-gradient(135deg,#0f2a50 0%,#1e4d8c 100%);padding:22px 28px;display:flex;justify-content:space-between;align-items:center}
-  .hdr-left{display:flex;align-items:center;gap:14px}
-  .hdr-logo{width:52px;height:52px;border-radius:10px;object-fit:contain;background:#fff;padding:4px}
-  .hdr-name{color:#fff;font-size:22px;font-weight:800;letter-spacing:.04em}
-  .hdr-sub{color:#93c5fd;font-size:11px;letter-spacing:.12em;margin-top:2px}
-  .hdr-right{text-align:right}
-  .hdr-slip{color:#fff;font-size:18px;font-weight:700}
-  .hdr-period{color:#93c5fd;font-size:13px;margin-top:4px}
-  .hdr-no{color:#60a5fa;font-size:11px;font-family:monospace;margin-top:2px}
-  .emp{background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 28px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .emp-row{display:flex;flex-direction:column}
-  .emp-lbl{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em}
-  .emp-val{font-size:14px;font-weight:600;color:#1e293b;margin-top:2px}
-  .body{padding:20px 28px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
-  .col-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:7px 10px;border-radius:5px}
-  .earn-title{background:#dbeafe;color:#1d4ed8}
-  .ded-title{background:#fee2e2;color:#b91c1c}
-  table{width:100%;border-collapse:collapse;margin-top:6px;border-radius:6px;overflow:hidden}
-  .subtotal-row td{padding:7px 10px;font-weight:700;font-size:13px;background:#f1f5f9;border-top:2px solid #cbd5e1}
-  .net-bar{background:linear-gradient(90deg,#0f2a50,#1e4d8c);margin:0 28px 24px;border-radius:8px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
-  .net-lbl{color:#93c5fd;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
-  .net-val{color:#fff;font-size:26px;font-weight:800;font-family:'IBM Plex Mono',monospace}
-  .net-cur{color:#60a5fa;font-size:13px;margin-left:6px;font-weight:600}
-  .recon{margin:0 28px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:10px 14px;font-size:12px;color:#166534}
-  .ftr{background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 28px;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8}
-  @media print{body{background:#fff}.slip{box-shadow:none;border:none;border-radius:0}@page{margin:0;size:A4}}
-</style></head><body>
-<div class="slip">
-  <div class="hdr">
-    <div class="hdr-left">
-      <img src="${LOGO_SRC}" class="hdr-logo" alt="ENEVO"/>
-      <div><div class="hdr-name">ENEVO EGY</div><div class="hdr-sub">INDUSTRIAL &amp; ENGINEERING SOLUTIONS</div></div>
-    </div>
-    <div class="hdr-right">
-      <div class="hdr-slip">Pay Slip</div>
-      <div class="hdr-period">${periodStr}</div>
-      <div class="hdr-no">${slipNo}</div>
-    </div>
-  </div>
-  <div class="emp">
-    <div class="emp-row"><span class="emp-lbl">Employee Name</span><span class="emp-val">${s.name}</span></div>
-    <div class="emp-row"><span class="emp-lbl">Department</span><span class="emp-val">${s.department||'—'}</span></div>
-    <div class="emp-row"><span class="emp-lbl">Job Title</span><span class="emp-val">${s.role||'—'}</span></div>
-    <div class="emp-row"><span class="emp-lbl">Employment Type</span><span class="emp-val">${(s.type||'full_time').replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}</span></div>
-    <div class="emp-row"><span class="emp-lbl">Join Date</span><span class="emp-val">${s.join_date||'—'}</span></div>
-    <div class="emp-row"><span class="emp-lbl">Currency</span><span class="emp-val">${cur}</span></div>
-  </div>
-  <div class="body">
-    <div>
-      <div class="col-title earn-title">Earnings</div>
-      <table>
-        ${earningsRows.map(([l,v])=>rowHtml(l,v,'earnings')).join('')}
-        <tr class="subtotal-row"><td>Gross Earnings</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace">${grossVal}</td></tr>
-      </table>
-    </div>
-    <div>
-      <div class="col-title ded-title">Deductions</div>
-      <table>
-        ${dedRows.length>0?dedRows.map(([l,v])=>rowHtml(l,v,'ded')).join(''):'<tr><td colspan="2" style="padding:10px;color:#94a3b8;text-align:center;font-size:12px">No deductions</td></tr>'}
-        <tr class="subtotal-row"><td>Total Deductions</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace">${dedVal}</td></tr>
-      </table>
-    </div>
-  </div>
-  <div class="net-bar">
-    <div><div class="net-lbl">Net Pay</div><div style="color:#93c5fd;font-size:11px;margin-top:3px">${periodStr}</div></div>
-    <div><span class="net-val">${netVal}</span><span class="net-cur">${cur}</span></div>
-  </div>
-  ${lastMo&&slip.share>0?`<div class="recon">✅ Computed from journal entry — Period: ${periodStr} · Accrued Salaries ref: Entry #${journalEntries.find(e=>e.entry_type==='Accrued Salaries'&&+e.month===finMonth+1)?.entry_no||'—'}</div>`:''}
-  <div class="ftr">
-    <span>Generated: ${now}</span>
-    <span>ENEVO Group · Egypt</span>
-    <span>${slipNo}</span>
-  </div>
-</div>
-<script>window.print();</script>
-</body></html>`;
-          const win=window.open('','payslip_'+s.id+'_'+Date.now(),'width=760,height=900,scrollbars=yes');
-          win.document.write(html);
-          win.document.close();
-        };
-
-        const generateAll = () => {
-          const toGen = psSelectAll ? psStaff : psStaff.filter(s=>psSelected.has(s.id));
-          toGen.forEach((s,i)=>setTimeout(()=>generateSlip(s),i*400));
-        };
-
-        const AdjRow = ({s}) => {
-          const adj=psAdj[s.id]||{};
-          const sl=personSlip(s);
-          const isUSD=sl.isUSD;
-          const CUR=isUSD?'USD':'EGP';
-          const fmt=v=>v>0?(isUSD?'$'+v:'EGP '+v):null;
-          return(
-            <tr style={{borderBottom:'1px solid var(--border3)'}}>
-              <td style={{padding:'6px 10px',fontWeight:600,color:'var(--text1)',whiteSpace:'nowrap'}}>
-                <input type="checkbox" checked={psSelectAll||psSelected.has(s.id)}
-                  onChange={e=>{if(!psSelectAll){const ns=new Set(psSelected);e.target.checked?ns.add(s.id):ns.delete(s.id);setPsSelected(ns);}}}
-                  style={{marginRight:8}}/>
-                {s.name}
-              </td>
-              <td style={{padding:'6px 10px',color:'var(--text3)',fontSize:13}}>{s.department}</td>
-              <td style={{padding:'6px 8px',fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:'right',
-                color:isUSD?'#38bdf8':'#fb923c',fontWeight:600}}>
-                {isUSD?('$'+(sl.basic).toLocaleString('en-US',{minimumFractionDigits:2})):fmtEGP(sl.basicEGP)}
-              </td>
-              {['transport','housing','bonus','health','advance','absence'].map(field=>(
-                <td key={field} style={{padding:'4px 6px'}}>
-                  <input type="number" min="0" value={adj[field]||''} placeholder="0"
-                    onChange={e=>setPsAdj(prev=>({...prev,[s.id]:{...(prev[s.id]||{}),[field]:e.target.value}}))}
-                    style={{width:76,background:'var(--bg2)',border:'1px solid var(--border3)',borderRadius:4,
-                      padding:'3px 6px',color:'var(--text0)',fontSize:12,textAlign:'right',fontFamily:"'IBM Plex Mono',monospace"}}/>
-                </td>
-              ))}
-              <td style={{padding:'6px 6px',fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,
-                textAlign:'right',color:sl.isUSD?'#38bdf8':'#34d399'}}>
-                {sl.isUSD?('$'+(sl.netUSD).toLocaleString('en-US',{minimumFractionDigits:2})):fmtEGP(sl.netEGP)}
-              </td>
-              <td style={{padding:'6px 6px',textAlign:'center'}}>
-                <button onClick={()=>generateSlip(s)}
-                  style={{background:'var(--info)',border:'none',borderRadius:5,padding:'4px 10px',
-                    color:'#fff',cursor:'pointer',fontSize:12,fontWeight:600}}>PDF</button>
-              </td>
-            </tr>
-          );
-        };
-
-        return(
-          <div style={{marginTop:20}}>
-            <div className="card" style={{padding:0,overflow:'hidden'}}>
-              <div style={{background:'var(--bg0)',borderBottom:'1px solid var(--border)',padding:'14px 20px',
-                display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
-                <div>
-                  <div style={{fontSize:15,fontWeight:700,color:'var(--text0)'}}>Pay Slips — {MONTHS_[finMonth]} {finYear}</div>
-                  <div style={{fontSize:13,color:'var(--text3)',marginTop:2}}>{psStaff.length} employees · enter adjustments then generate PDF per person or all at once</div>
-                </div>
-                <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                  <label style={{display:'flex',alignItems:'center',gap:5,fontSize:13,color:'var(--text2)',cursor:'pointer'}}>
-                    <input type="checkbox" checked={psSelectAll} onChange={e=>{setPsSelectAll(e.target.checked);if(e.target.checked)setPsSelected(new Set());}}/>
-                    All staff
-                  </label>
-                  <button className="bp" style={{padding:'7px 18px',fontSize:14}} onClick={generateAll}>
-                    ⬇ Generate All PDFs ({psSelectAll?psStaff.length:psSelected.size})
-                  </button>
-                </div>
-              </div>
-              <div style={{overflowX:'auto'}}>
-                <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-                  <thead>
-                    <tr style={{background:'var(--bg2)'}}>
-                      {['Employee','Department','Basic','Transport','Housing','Bonus','Health Ins.','Loan/Adv.','Absence','Net Pay',''].map((h,i)=>(
-                        <th key={i} style={{padding:'7px '+(i>1?'6px':'10px'),textAlign:i>1?'right':'left',
-                          color:'var(--text3)',fontWeight:600,fontSize:12,whiteSpace:'nowrap',
-                          borderBottom:'1px solid var(--border3)'}}>
-                          {h}
-                          {h==='Transport'&&<div style={{fontSize:10,color:'var(--text4)',fontWeight:400}}>Allowance</div>}
-                          {h==='Housing'&&<div style={{fontSize:10,color:'var(--text4)',fontWeight:400}}>Allowance</div>}
-                          {h==='Bonus'&&<div style={{fontSize:10,color:'var(--text4)',fontWeight:400}}>Variable</div>}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {psStaff.map(s=><AdjRow key={s.id} s={s}/>)}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{background:'var(--bg2)',borderTop:'2px solid var(--border)',fontWeight:700}}>
-                      <td colSpan={2} style={{padding:'8px 10px',color:'var(--text0)'}}>TOTALS ({psStaff.length} staff)</td>
-                      <td style={{padding:'8px 6px',textAlign:'right',fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:'#fb923c'}}>
-                        {fmtEGP(psStaff.reduce((sum,s)=>sum+personSlip(s).basicEGP,0))}
-                      </td>
-                      <td colSpan={6}/>
-                      <td style={{padding:'8px 6px',textAlign:'right',fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:'#34d399',fontWeight:800}}>
-                        {fmtEGP(psStaff.reduce((sum,s)=>{const sl=personSlip(s);return sum+(sl.isUSD?sl.netUSD*(egpRate||1):sl.netEGP);},0))}
-                      </td>
-                      <td/>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-              {lastMo&&(
-                <div style={{padding:'10px 16px',borderTop:'1px solid var(--border3)',background:'#f0fdf420',
-                  display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--text3)'}}>
-                  <span>Journal reconciliation: Accrued Salaries (journal) = <strong style={{color:'#34d399'}}>{fmtEGP(lastMo.net)}</strong></span>
-                  <span>Total net from staff table = <strong style={{color:'#34d399'}}>{fmtEGP(psStaff.reduce((sum,s)=>{const sl=personSlip(s);return sum+(sl.isUSD?sl.netUSD*(egpRate||1):sl.netEGP);},0))}</strong></span>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
-    </div>
-    );
-  })()}
-
-</div>
-  );
-}
-
-
-
-/* ════════════════════════════════════════════════════════
-   FUNCTIONS TAB — standalone component
-   ════════════════════════════════════════════════════════ */
+/* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+   PROJECT TRACKER â€” standalone component
+/* â”€â”€ Shared helpers (module-level, no hooks) â”€â”€ */
 function FunctionsTab({entries, engineers, funcYear, setFuncYear, funcEngId, setFuncEngId, deleteEntry, isAdmin, isLead, isAcct, year, setShowFuncModal, isMonthFrozen}){
 
   const {funcEntries, yearFuncs, totalFuncHrs, catTotals, maxCat, engFuncMap} = useMemo(()=>{
@@ -7916,12 +2463,12 @@ engineers.forEach(eng=>{
   return(
 <div style={{display:"grid",gap:20}}>
 
-  {/* ── Page header ── */}
+  {/* â”€â”€ Page header â”€â”€ */}
   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
     <div>
       <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>FUNCTION HOURS</div>
       <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Functions</h1>
-      <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{yearFuncs.length} entries · {totalFuncHrs}h total · {funcYear}</p>
+      <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{yearFuncs.length} entries آ· {totalFuncHrs}h total آ· {funcYear}</p>
     </div>
     <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
       <select value={funcYear} onChange={e=>setFuncYear(+e.target.value)}
@@ -7941,7 +2488,7 @@ engineers.forEach(eng=>{
   <div className="card" style={{padding:0,overflow:"hidden"}}>
     <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Hours by Category</div>
-      <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{funcYear}{funcEngId!=="all"?" · "+engineers.find(e=>String(e.id)===String(funcEngId))?.name:""}</div>
+      <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{funcYear}{funcEngId!=="all"?" آ· "+engineers.find(e=>String(e.id)===String(funcEngId))?.name:""}</div>
     </div>
     <div style={{padding:"16px 20px",display:"grid",gap:10}}>
       {FUNCTION_CATS.map(cat=>{
@@ -7953,7 +2500,7 @@ engineers.forEach(eng=>{
           <div style={{background:"var(--bg3)",borderRadius:4,height:8,overflow:"hidden"}}>
             <div style={{height:"100%",width:`${pct}%`,background:FUNC_COLORS[cat]||"var(--info)",borderRadius:4,transition:"width .4s",minWidth:hrs>0?4:0}}/>
           </div>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,color:hrs>0?(FUNC_COLORS[cat]||"var(--info)"):"var(--text4)",fontWeight:700,textAlign:"right"}}>{hrs>0?hrs+"h":"—"}</div>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,color:hrs>0?(FUNC_COLORS[cat]||"var(--info)"):"var(--text4)",fontWeight:700,textAlign:"right"}}>{hrs>0?hrs+"h":"â€”"}</div>
         </div>);
       })}
     </div>
@@ -7970,15 +2517,15 @@ engineers.forEach(eng=>{
       <thead><tr>
         <th>Engineer</th>
         <th style={{textAlign:"right"}}>Total</th>
-        {FUNCTION_CATS.map(c=><th key={c} style={{textAlign:"right",maxWidth:70,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:FUNC_COLORS[c]}} title={c}>{c.split("—")[0].split("&")[0].trim().slice(0,11)}</th>)}
+        {FUNCTION_CATS.map(c=><th key={c} style={{textAlign:"right",maxWidth:70,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:FUNC_COLORS[c]}} title={c}>{c.split("â€”")[0].split("&")[0].trim().slice(0,11)}</th>)}
       </tr></thead>
       <tbody>{engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.is_active!==null&&(!e.termination_date||String(e.termination_date).slice(0,10)>new Date().toISOString().slice(0,10))).map(eng=>{
         const em=engFuncMap[eng.id]||{total:0,cats:{}};
         return(<tr key={eng.id}>
           <td><div style={{fontWeight:600}}>{eng.name}</div><div style={{fontSize:12,color:"var(--text4)"}}>{eng.role}</div></td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{em.total||"—"}</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{em.total||"â€”"}</td>
           {FUNCTION_CATS.map(c=>(
-            <td key={c} style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:em.cats[c]>0?(FUNC_COLORS[c]||"var(--info)"):"var(--text4)"}}>{em.cats[c]||"—"}</td>
+            <td key={c} style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:em.cats[c]>0?(FUNC_COLORS[c]||"var(--info)"):"var(--text4)"}}>{em.cats[c]||"â€”"}</td>
           ))}
         </tr>);
       })}</tbody>
@@ -7990,7 +2537,7 @@ engineers.forEach(eng=>{
   <div className="card" style={{padding:0,overflow:"hidden"}}>
     <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>All Function Entries</div>
-      <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{yearFuncs.length} entries · {funcYear}</div>
+      <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{yearFuncs.length} entries آ· {funcYear}</div>
     </div>
     <table>
       <thead><tr><th>Date</th><th>Engineer</th><th>Category</th><th style={{textAlign:"right"}}>Hours</th><th>Description</th>{isAdmin&&<th style={{width:60}}></th>}</tr></thead>
@@ -8002,8 +2549,8 @@ engineers.forEach(eng=>{
           <td style={{fontWeight:600}}>{eng?.name||"?"}</td>
           <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:(FUNC_COLORS[cat]||"#6b7280")+"20",color:FUNC_COLORS[cat]||"#6b7280",fontWeight:700}}>{cat}</span></td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{e.hours}h</td>
-          <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
-          {isAdmin&&<td>{isMonthFrozen(e.date)?<span title="Month frozen" style={{fontSize:13,color:"#93c5fd",padding:"0 6px"}}>❄</span>:<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}</td>}
+          <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"â€”"}</td>
+          {isAdmin&&<td>{isMonthFrozen(e.date)?<span title="Month frozen" style={{fontSize:13,color:"#93c5fd",padding:"0 6px"}}>â‌„</span>:<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>âœ•</button>}</td>}
         </tr>);
       })}</tbody>
     </table>
@@ -8012,10 +2559,10 @@ engineers.forEach(eng=>{
   );
 }
 
-/* ════════════════════════════════════════════════════════
-   KPIs TAB — standalone component
-   ════════════════════════════════════════════════════════ */
-/* ── KPI rating helpers — module-level so JSX render can access them ── */
+/* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+   KPIs TAB â€” standalone component
+   â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
+/* â”€â”€ KPI rating helpers â€” module-level so JSX render can access them â”€â”€ */
 const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Performer":"High Performer";
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
@@ -8109,34 +2656,34 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId));
       if(_notif&&setNotifHistory) setNotifHistory(prev=>[{..._notif,read:true},...prev].slice(0,200));
     }
-    // 4. Send vacation_approved notification — direct insert, no helper, no prop chain
+    // 4. Send vacation_approved notification â€” direct insert, no helper, no prop chain
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
       const _payload={
         type:"vacation_approved",engineer_id:entry.engineer_id,read:false,
-        message:`✓ Your Annual Leave on ${entry.date} has been approved`,
+        message:`âœ“ Your Annual Leave on ${entry.date} has been approved`,
         created_at:new Date().toISOString(),
         meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:entryId})
       };
       const{error:ne}=await supabase.from("notifications").insert(_payload);
       if(ne){
-        console.warn("[EC-ERP] vacation_approved insert failed:",ne.message,"— trying fallback without engineer_id column");
+        console.warn("[EC-ERP] vacation_approved insert failed:",ne.message,"â€” trying fallback without engineer_id column");
         const{engineer_id:_eid,..._rest}=_payload;
         const _meta={...JSON.parse(_rest.meta||"{}"),_eng_id:String(_eid)};
         const{error:ne2}=await supabase.from("notifications").insert({..._rest,meta:JSON.stringify(_meta)});
         if(ne2){
           console.error("[EC-ERP] vacation_approved BOTH inserts failed:",ne2.message);
-          showToast("⚠ Approval sent but notification failed: "+ne2.message,false);
+          showToast("âڑ  Approval sent but notification failed: "+ne2.message,false);
         } else {
         }
       } else {
       }
       logAction("UPDATE","TimeEntry",`Approved vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     } else {
-      console.error("[EC-ERP] approveVacation — entry not found in state! entryId:",entryId,"entries count:",entries.length);
-      showToast("⚠ Approval saved but entry not found — refresh and check",false);
+      console.error("[EC-ERP] approveVacation â€” entry not found in state! entryId:",entryId,"entries count:",entries.length);
+      showToast("âڑ  Approval saved but entry not found â€” refresh and check",false);
     }
-    showToast("Vacation approved ✓");
+    showToast("Vacation approved âœ“");
   };
   const rejectVacation=async(entryId,notifId)=>{
     if(!supabase){showToast("No DB connection",false);return;}
@@ -8154,7 +2701,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
       const _payload={
         type:"vacation_rejected",engineer_id:entry.engineer_id,read:false,
-        message:`✕ Your Annual Leave request on ${entry.date} was not approved`,
+        message:`âœ• Your Annual Leave request on ${entry.date} was not approved`,
         created_at:new Date().toISOString(),
         meta:JSON.stringify({engineer_id:String(entry.engineer_id),date:entry.date,entry_id:entryId})
       };
@@ -8166,14 +2713,14 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         const{error:ne2}=await supabase.from("notifications").insert({..._rest,meta:JSON.stringify(_meta)});
         if(ne2){
           console.error("[EC-ERP] vacation_rejected BOTH inserts failed:",ne2.message);
-          showToast("⚠ Rejection saved but notification failed: "+ne2.message,false);
+          showToast("âڑ  Rejection saved but notification failed: "+ne2.message,false);
         } else {
         }
       } else {
       }
       logAction("DELETE","TimeEntry",`Rejected vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     } else {
-      console.error("[EC-ERP] rejectVacation — entry not found! entryId:",entryId);
+      console.error("[EC-ERP] rejectVacation â€” entry not found! entryId:",entryId);
     }
     showToast("Vacation request rejected",false)
   };
@@ -8203,24 +2750,24 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   // Improvement tips per metric
   const TIPS={
     A:[
-      {icon:"📋",tip:"Log hours on billable projects every day — even 1h entries count."},
-      {icon:"🎓",tip:"Keep knowledge sessions to ~10% of total time (Training & R&D function entries)."},
-      {icon:"🤝",tip:"Log BD activities: tender reviews, proposals, and client meetings as Function → BD/Sales."},
+      {icon:"ًں“‹",tip:"Log hours on billable projects every day â€” even 1h entries count."},
+      {icon:"ًںژ“",tip:"Keep knowledge sessions to ~10% of total time (Training & R&D function entries)."},
+      {icon:"ًں¤‌",tip:"Log BD activities: tender reviews, proposals, and client meetings as Function â†’ BD/Sales."},
     ],
     B:[
-      {icon:"✍️",tip:"Add a meaningful activity note (>5 chars) to every single work entry — aim for 100%."},
-      {icon:"📁",tip:"Work across multiple active projects; each distinct project boosts your score."},
-      {icon:"📝",tip:"Log lesson-learned and progress-report writing as Function → Documentation."},
+      {icon:"âœچï¸ڈ",tip:"Add a meaningful activity note (>5 chars) to every single work entry â€” aim for 100%."},
+      {icon:"ًں“پ",tip:"Work across multiple active projects; each distinct project boosts your score."},
+      {icon:"ًں“‌",tip:"Log lesson-learned and progress-report writing as Function â†’ Documentation."},
     ],
     C:[
-      {icon:"📚",tip:"Attend internal or external training sessions and log them as Function → Training Received."},
-      {icon:"👨‍🏫",tip:"Run at least one knowledge-sharing session per quarter → Function → Training Given."},
-      {icon:"🔬",tip:"Contribute to R&D or tool-building → Function → R&D & Innovation."},
+      {icon:"ًں“ڑ",tip:"Attend internal or external training sessions and log them as Function â†’ Training Received."},
+      {icon:"ًں‘¨â€چًںڈ«",tip:"Run at least one knowledge-sharing session per quarter â†’ Function â†’ Training Given."},
+      {icon:"ًں”¬",tip:"Contribute to R&D or tool-building â†’ Function â†’ R&D & Innovation."},
     ],
     D:[
-      {icon:"📅",tip:"Submit at least one entry every working week — gaps penalise your compliance score heavily."},
-      {icon:"⏰",tip:"Post timesheets by Friday; your alert day is currently set to remind you."},
-      {icon:"✅",tip:"If you have no project work in a week, log a function entry or leave entry to stay compliant."},
+      {icon:"ًں“…",tip:"Submit at least one entry every working week â€” gaps penalise your compliance score heavily."},
+      {icon:"âڈ°",tip:"Post timesheets by Friday; your alert day is currently set to remind you."},
+      {icon:"âœ…",tip:"If you have no project work in a week, log a function entry or leave entry to stay compliant."},
     ],
   };
 
@@ -8242,7 +2789,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
               <div style={{height:"100%",width:`${Math.min(100,score)}%`,background:color,borderRadius:3,transition:"width .8s ease"}}/>
             </div>
           </div>
-          <span style={{fontSize:14,color:"var(--text4)",transition:"transform .2s",transform:open?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
+          <span style={{fontSize:14,color:"var(--text4)",transition:"transform .2s",transform:open?"rotate(90deg)":"rotate(0deg)"}}>â–¶</span>
         </div>
         {open&&(
           <div style={{padding:"0 16px 14px",borderTop:`1px solid ${color}20`}}>
@@ -8280,12 +2827,12 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   return(
   <div style={{display:"grid",gap:16}}>
 
-    {/* ── Header ── */}
+    {/* â”€â”€ Header â”€â”€ */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
       <div>
         <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>PERFORMANCE</div>
         <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>KPI Dashboard</h1>
-        <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{kpiYear} · Scorecard · Max 120 pts</p>
+        <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{kpiYear} آ· Scorecard آ· Max 120 pts</p>
       </div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
         <select value={kpiYear} onChange={e=>setKpiYear(+e.target.value)}
@@ -8301,7 +2848,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         )}
         {isAdmin&&(
           <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:10,padding:"14px 18px"}}>
-            <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:12}}>⏰ Timesheet Posting Alert</div>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--text4)",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:12}}>âڈ° Timesheet Posting Alert</div>
             <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
               <div style={{display:"flex",flexDirection:"column",gap:4}}>
                 <span style={{fontSize:11,color:"var(--text4)"}}>Day</span>
@@ -8324,7 +2871,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       </div>
     </div>
 
-    {/* ── Pending vacation approvals (admin/lead) ── */}
+    {/* â”€â”€ Pending vacation approvals (admin/lead) â”€â”€ */}
     {isAdmin&&pendingVacations.length>0&&(
       <div className="card" style={{borderColor:"#f59e0b50",padding:0,overflow:"hidden"}}>
         <div style={{background:"var(--bg0)",borderBottom:"1px solid #f59e0b40",padding:"14px 20px",display:"flex",alignItems:"center",gap:10}}>
@@ -8343,14 +2890,14 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
                 <div style={{flex:1}}>
                   <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>{eng?.name||"Unknown"}</div>
                   <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
-                    Annual Leave · <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{e.date}</span>
+                    Annual Leave آ· <span style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)"}}>{e.date}</span>
                     <span style={{marginLeft:6,fontSize:12,padding:"1px 6px",borderRadius:4,background:ROLE_COLORS[engRole]+"20",color:ROLE_COLORS[engRole]||"var(--text4)",fontWeight:600}}>{ROLE_LABELS[engRole]||engRole}</span>
                   </div>
                 </div>
                 <button onClick={()=>approveVacation(e.id,notif?.id)}
-                  style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:7,padding:"6px 16px",color:"#34d399",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✓ Approve</button>
+                  style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:7,padding:"6px 16px",color:"#34d399",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>âœ“ Approve</button>
                 <button onClick={()=>rejectVacation(e.id,notif?.id)}
-                  style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:7,padding:"6px 16px",color:"#f87171",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✕ Reject</button>
+                  style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:7,padding:"6px 16px",color:"#f87171",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>âœ• Reject</button>
               </div>
             );
           })}
@@ -8358,15 +2905,15 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       </div>
     )}
 
-    {/* ── Timesheet + overdue alerts ── */}
+    {/* â”€â”€ Timesheet + overdue alerts â”€â”€ */}
     {alertNotifs.length>0&&(
       <div className="card" style={{borderColor:"#f8717130",padding:"10px 16px"}}>
-        <div style={{fontSize:13,fontWeight:700,color:"#f87171",marginBottom:8}}>⏰ {alertNotifs.length} TIMESHEET DELAY ALERT{alertNotifs.length>1?"S":""}</div>
+        <div style={{fontSize:13,fontWeight:700,color:"#f87171",marginBottom:8}}>âڈ° {alertNotifs.length} TIMESHEET DELAY ALERT{alertNotifs.length>1?"S":""}</div>
         <div style={{display:"grid",gap:4}}>
           {alertNotifs.map(n=>(
             <div key={n.id} style={{display:"flex",alignItems:"center",gap:8,background:"#7f1d1d20",borderRadius:5,padding:"6px 10px"}}>
               <span style={{fontSize:13,color:"#f87171",flex:1}}>{n.message}</span>
-              <button className="bg" style={{fontSize:12,padding:"2px 6px"}} onClick={()=>onDismissNotif&&onDismissNotif(n.id)}>✕</button>
+              <button className="bg" style={{fontSize:12,padding:"2px 6px"}} onClick={()=>onDismissNotif&&onDismissNotif(n.id)}>âœ•</button>
             </div>
           ))}
         </div>
@@ -8374,22 +2921,22 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
     )}
     {overdueNotif&&(
       <div style={{display:"flex",alignItems:"center",gap:10,background:"#78350f20",border:"1px solid #f59e0b40",borderRadius:8,padding:"10px 14px"}}>
-        <span style={{fontSize:13,color:"#fb923c",flex:1}}>⚠ {(()=>{try{return JSON.parse(overdueNotif.meta||"{}").count;}catch{return "?";}})()  } Tracker activities past their deadline</span>
+        <span style={{fontSize:13,color:"#fb923c",flex:1}}>âڑ  {(()=>{try{return JSON.parse(overdueNotif.meta||"{}").count;}catch{return "?";}})()  } Tracker activities past their deadline</span>
         <button className="bg" style={{fontSize:12}} onClick={()=>onDismissNotif&&onDismissNotif(overdueNotif.id)}>Dismiss</button>
       </div>
     )}
 
-    {/* ── Rating legend ── */}
+    {/* â”€â”€ Rating legend â”€â”€ */}
     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-      {[["0–40","Under Performer","#f87171"],["41–75","Competent","#fb923c"],["76–95","Performer","var(--info)"],["96–120","High Performer","#34d399"]].map(([r,l,c])=>(
+      {[["0â€“40","Under Performer","#f87171"],["41â€“75","Competent","#fb923c"],["76â€“95","Performer","var(--info)"],["96â€“120","High Performer","#34d399"]].map(([r,l,c])=>(
         <div key={r} style={{display:"flex",alignItems:"center",gap:5,background:c+"15",border:`1px solid ${c}30`,borderRadius:6,padding:"4px 10px"}}>
           <div style={{width:7,height:7,borderRadius:2,background:c}}/><span style={{fontSize:12,color:c,fontWeight:700}}>{r}</span><span style={{fontSize:12,color:"var(--text3)"}}>{l}</span>
         </div>
       ))}
-      <span style={{fontSize:12,color:"var(--text4)",alignSelf:"center",marginLeft:4}}>Weights: A×30% · B×30% · C×20% · D×20%</span>
+      <span style={{fontSize:12,color:"var(--text4)",alignSelf:"center",marginLeft:4}}>Weights: Aأ—30% آ· Bأ—30% آ· Cأ—20% آ· Dأ—20%</span>
     </div>
 
-    {/* ── Individual detail view ── */}
+    {/* â”€â”€ Individual detail view â”€â”€ */}
     {selKPI&&(()=>{
       const k=selKPI; const {eng}=k;
       const engNotes=kpiNotes[eng.id]||{general:"",A:"",B:"",C:"",D:""};
@@ -8403,7 +2950,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
           <ScoreGauge score={k.totalScore} size={130}/>
           <div style={{flex:1,minWidth:200}}>
             <div style={{fontSize:22,fontWeight:800,color:"var(--text0)",marginBottom:2}}>{eng.name}</div>
-            <div style={{fontSize:13,color:"var(--info)",marginBottom:12}}>{eng.role} · {eng.level} · KPI {kpiYear}</div>
+            <div style={{fontSize:13,color:"var(--info)",marginBottom:12}}>{eng.role} آ· {eng.level} آ· KPI {kpiYear}</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
               {[
                 {l:"Total Work",v:`${k.totalWork}h`,c:"var(--text0)"},
@@ -8434,47 +2981,47 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         </div>
 
         {/* 4 metric cards */}
-        <MetricCard id="A" label="A · Utilization / Efficiency" weight="30%" score={k.utilScore} color="var(--info)">
+        <MetricCard id="A" label="A آ· Utilization / Efficiency" weight="30%" score={k.utilScore} color="var(--info)">
           <StatRow label="Billable utilization" value={`${k.billPct}%`} sub={`${k.billWork}h / ${k.totalHrs}h total`} color={k.billPct>=70?"#34d399":"#fb923c"}/>
-          <StatRow label="Knowledge capture" value={`${k.knowledgePct}%`} sub="Target: 8–12%" color={k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c"}/>
+          <StatRow label="Knowledge capture" value={`${k.knowledgePct}%`} sub="Target: 8â€“12%" color={k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c"}/>
           <StatRow label="BD / Sales support" value={`${k.salesBD}h`} sub="Tenders + proposals + BD meetings"/>
         </MetricCard>
 
-        <MetricCard id="B" label="B · Project Performance" weight="30%" score={k.projScore} color="#a78bfa">
+        <MetricCard id="B" label="B آ· Project Performance" weight="30%" score={k.projScore} color="#a78bfa">
           <StatRow label="Entry description rate" value={`${k.descRate}%`} sub={`${Math.round(k.descRate/100*k.workE.length)} of ${k.workE.length} entries have notes`} color={k.descRate>=80?"#34d399":"#fb923c"}/>
           <StatRow label="Active projects" value={k.projsWorked} sub="Distinct billable projects this year" color="#a78bfa"/>
           <StatRow label="Documentation hours" value={`${k.docHrs}h`} sub="Reports, lesson-learned, closure docs"/>
         </MetricCard>
 
-        <MetricCard id="C" label="C · Development Goal" weight="20%" score={k.devScore} color="#34d399">
-          <StatRow label="Training received" value={`${k.trainingReceived}h`} sub="Target ≥8h/yr" color={k.trainingReceived>=8?"#34d399":"#fb923c"}/>
-          <StatRow label="Training given" value={`${k.trainingGiven}h`} sub="Knowledge sharing sessions — target ≥4h"/>
+        <MetricCard id="C" label="C آ· Development Goal" weight="20%" score={k.devScore} color="#34d399">
+          <StatRow label="Training received" value={`${k.trainingReceived}h`} sub="Target â‰¥8h/yr" color={k.trainingReceived>=8?"#34d399":"#fb923c"}/>
+          <StatRow label="Training given" value={`${k.trainingGiven}h`} sub="Knowledge sharing sessions â€” target â‰¥4h"/>
           <StatRow label="Mentoring & coaching" value={`${k.mentoring}h`} sub="People development"/>
           <StatRow label="R&D & innovation" value={`${k.rnd}h`} sub="Tools, models, work instructions"/>
         </MetricCard>
 
-        <MetricCard id="D" label="D · Compliance Goal" weight="20%" score={k.complianceScore} color="#fb923c">
+        <MetricCard id="D" label="D آ· Compliance Goal" weight="20%" score={k.complianceScore} color="#fb923c">
           <StatRow label="Weekly submission rate" value={`${k.submissionRate}%`} sub={`${k.weeks} weeks posted out of ${k.weeksElapsed} elapsed`} color={k.submissionRate>=80?"#34d399":k.submissionRate>=60?"#fb923c":"#f87171"}/>
           <StatRow label="Total work hours" value={`${k.totalWork}h`} sub="All work entries this year"/>
           <StatRow label="Leave days" value={`${k.totalLeave}d`} sub="Annual leave + sick + other"/>
         </MetricCard>
 
-        {/* Notes — admin eyes only */}
+        {/* Notes â€” admin eyes only */}
         {isAdmin&&(
         <div className="card">
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>Manager Notes <span style={{fontSize:12,fontWeight:400,color:"var(--text4)"}}>— admin only</span></div>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>Manager Notes <span style={{fontSize:12,fontWeight:400,color:"var(--text4)"}}>â€” admin only</span></div>
             <button className="bp" style={{fontSize:13,padding:"5px 16px"}} onClick={()=>{
               try{localStorage.setItem("ec_kpi_notes",JSON.stringify(kpiNotes));}catch(err){}
-              showToast("Notes saved ✓");
-            }}>💾 Save Notes</button>
+              showToast("Notes saved âœ“");
+            }}>ًں’¾ Save Notes</button>
           </div>
           <div style={{display:"grid",gap:8}}>
             {[["general","General"],["A","Utilization"],["B","Project Perf."],["C","Development"],["D","Compliance"]].map(([f,l])=>(
               <div key={f}>
                 <div style={{fontSize:12,color:"var(--text4)",marginBottom:3}}>{l}</div>
                 <textarea rows={2} value={engNotes[f]||""} onChange={e=>setNote(f,e.target.value)}
-                  placeholder={`Notes on ${l}…`}
+                  placeholder={`Notes on ${l}â€¦`}
                   style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 10px",color:"var(--text0)",fontSize:13,resize:"vertical",fontFamily:"'IBM Plex Sans',sans-serif"}}/>
               </div>
             ))}
@@ -8482,16 +3029,16 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         </div>
         )}
 
-        {canManageKPI&&<button className="bg" style={{fontSize:13}} onClick={()=>{ isEngineer?null:setKpiEngId(null); }}>← Back to team overview</button>}
+        {canManageKPI&&<button className="bg" style={{fontSize:13}} onClick={()=>{ isEngineer?null:setKpiEngId(null); }}>â†گ Back to team overview</button>}
       </div>);
     })()}
 
-    {/* ── Team Overview (admin/lead, no engineer selected) ── */}
+    {/* â”€â”€ Team Overview (admin/lead, no engineer selected) â”€â”€ */}
     {!selKPI&&canManageKPI&&(
       <div className="card" style={{padding:0,overflow:"hidden"}}>
         <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border3)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>TEAM KPI SCORECARD — {kpiYear}</span>
-          <span style={{fontSize:13,color:"var(--text4)"}}>{engKPIs.length} engineers · Avg: <span style={{color:kpiRatingColor(Math.round(engKPIs.reduce((s,k)=>s+k.totalScore,0)/Math.max(1,engKPIs.length))),fontWeight:700}}>{Math.round(engKPIs.reduce((s,k)=>s+k.totalScore,0)/Math.max(1,engKPIs.length))}</span></span>
+          <span style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>TEAM KPI SCORECARD â€” {kpiYear}</span>
+          <span style={{fontSize:13,color:"var(--text4)"}}>{engKPIs.length} engineers آ· Avg: <span style={{color:kpiRatingColor(Math.round(engKPIs.reduce((s,k)=>s+k.totalScore,0)/Math.max(1,engKPIs.length))),fontWeight:700}}>{Math.round(engKPIs.reduce((s,k)=>s+k.totalScore,0)/Math.max(1,engKPIs.length))}</span></span>
         </div>
         <div style={{overflowX:"auto"}}>
         <table style={{minWidth:700}}>
@@ -8543,7 +3090,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       </div>
     )}
 
-    {/* ── Engineer: no profile linked ── */}
+    {/* â”€â”€ Engineer: no profile linked â”€â”€ */}
     {isEngineer&&!selKPI&&(
       <div style={{textAlign:"center",padding:"40px 20px",background:"var(--bg2)",borderRadius:12,border:"1px dashed var(--border3)"}}>
         
@@ -8558,7 +3105,7 @@ export default function App(){
   const [session,setSession]         = useState(null);
   const [authLoading,setAuthLoading] = useState(true);
 
-  // ── Theme ──
+  // â”€â”€ Theme â”€â”€
   const [isDark,setIsDark] = useState(()=>localStorage.getItem("erp_theme")!=="light");
   const [menuOpen,setMenuOpen] = useState(false); // mobile sidebar toggle
   useEffect(()=>{
@@ -8577,7 +3124,7 @@ export default function App(){
   const [entries,setEntries]         = useState([]);
   const [loadedYears,setLoadedYears] = useState(new Set()); // tracks which years are in entries state
   const [notifications,setNotifications] = useState([]);
-  // Panel ALWAYS starts closed — user opens manually by clicking the bell header
+  // Panel ALWAYS starts closed â€” user opens manually by clicking the bell header
   // sessionStorage remembers if user left it open (not closed)
   const [notifPanelOpen,setNotifPanelOpen] = useState(false);
   const [bellOpen,setBellOpen]             = useState(false);
@@ -8585,32 +3132,32 @@ export default function App(){
   const [bellTab,setBellTab]               = useState("active"); // "active" | "history"
   const [frozenMonths,setFrozenMonths]     = useState([]); // [{id,year,month,frozen_at,frozen_by}]
 
-  // ── insertNotif — App scope: accessible by bell buttons, KPIsTab, poll ──
+  // â”€â”€ insertNotif â€” App scope: accessible by bell buttons, KPIsTab, poll â”€â”€
   const insertNotif=async(payload)=>{
     const{error}=await supabase.from("notifications").insert(payload);
     if(error){
       if(error.message&&(error.message.includes("engineer_id")||error.message.includes("column")||error.message.includes("does not exist"))){
-        console.warn("[EC-ERP] engineer_id column not found — retrying without it.");
+        console.warn("[EC-ERP] engineer_id column not found â€” retrying without it.");
         const{engineer_id,...rest}=payload;
         const metaObj=engineer_id!=null?{...JSON.parse(rest.meta||"{}"),_eng_id:String(engineer_id)}:JSON.parse(rest.meta||"{}");
         const{error:err2}=await supabase.from("notifications").insert({...rest,meta:JSON.stringify(metaObj)});
-        if(err2){console.error("[EC-ERP] Notification insert failed (both attempts):",err2.message);showToast("⚠ Notification not sent — run SQL migration in Admin → Info",false);}
+        if(err2){console.error("[EC-ERP] Notification insert failed (both attempts):",err2.message);showToast("âڑ  Notification not sent â€” run SQL migration in Admin â†’ Info",false);}
         return err2||null;
       }
       console.error("[EC-ERP] Notification insert failed:",payload.type,error.message);
-      showToast("⚠ Notification error: "+error.message,false);
+      showToast("âڑ  Notification error: "+error.message,false);
     }
     return error||null;
   };
 
-  // ── isMonthFrozen: check if a date string falls in a frozen month ──
+  // â”€â”€ isMonthFrozen: check if a date string falls in a frozen month â”€â”€
   const isMonthFrozen=React.useCallback((dateStr)=>{
     if(!dateStr||!frozenMonths.length) return false;
     const d=new Date(dateStr+'T12:00:00');
     return frozenMonths.some(fm=>Number(fm.year)===d.getFullYear()&&Number(fm.month)===d.getMonth());
   },[frozenMonths]);
 
-  // ── toggleFreezeMonth: admin only ──
+  // â”€â”€ toggleFreezeMonth: admin only â”€â”€
   const toggleFreezeMonth=async(yr,mo)=>{
     const existing=frozenMonths.find(fm=>Number(fm.year)===yr&&Number(fm.month)===mo);
     const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -8619,34 +3166,34 @@ export default function App(){
         const{error}=await supabase.from("frozen_months").delete().eq("id",existing.id);
         if(error){showToast("Unfreeze failed: "+error.message,false);return;}
         setFrozenMonths(prev=>prev.filter(fm=>fm.id!==existing.id));
-        showToast(`${MONTHS_[mo]} ${yr} unfrozen ✓`);
+        showToast(`${MONTHS_[mo]} ${yr} unfrozen âœ“`);
         logAction("UPDATE","TimesheetFreeze",`Unfroze ${MONTHS_[mo]} ${yr}`,{year:yr,month:mo});
         // Notify all active engineers + leads
         const _now=new Date().toISOString();
-        const _msg=`🔓 ${MONTHS_[mo]} ${yr} has been unfrozen — you can now edit time entries for this month`;
+        const _msg=`ًں”“ ${MONTHS_[mo]} ${yr} has been unfrozen â€” you can now edit time entries for this month`;
         engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.role_type!=="admin"&&String(e.id)!==String(myProfile?.id)).forEach(e=>{
           insertNotif({type:"project_status",engineer_id:e.id,read:false,message:_msg,created_at:_now,meta:JSON.stringify({action:"month_unfrozen",year:yr,month:mo})});
         });
-      },{title:`Unfreeze ${MONTHS_[mo]} ${yr}`,confirmLabel:"Unfreeze",danger:false,icon:"🔓"});
+      },{title:`Unfreeze ${MONTHS_[mo]} ${yr}`,confirmLabel:"Unfreeze",danger:false,icon:"ًں”“"});
     } else {
       showConfirm(`Freeze ${MONTHS_[mo]} ${yr}? All engineers will be unable to add, edit or delete time entries for this month. Function hours are still allowed.`,async()=>{
         const payload={year:yr,month:mo,frozen_by:myProfile?.name||"Admin",frozen_at:new Date().toISOString()};
         const{data,error}=await supabase.from("frozen_months").insert(payload).select().single();
         if(error){showToast("Freeze failed: "+error.message,false);return;}
         setFrozenMonths(prev=>[...prev,data]);
-        showToast(`${MONTHS_[mo]} ${yr} frozen ❄`);
+        showToast(`${MONTHS_[mo]} ${yr} frozen â‌„`);
         logAction("UPDATE","TimesheetFreeze",`Froze ${MONTHS_[mo]} ${yr}`,{year:yr,month:mo});
         // Notify all active engineers + leads
         const _now=new Date().toISOString();
-        const _msg=`❄ ${MONTHS_[mo]} ${yr} has been frozen — you cannot add, edit or delete time entries for this month`;
+        const _msg=`â‌„ ${MONTHS_[mo]} ${yr} has been frozen â€” you cannot add, edit or delete time entries for this month`;
         engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.role_type!=="admin"&&String(e.id)!==String(myProfile?.id)).forEach(e=>{
           insertNotif({type:"project_status",engineer_id:e.id,read:false,message:_msg,created_at:_now,meta:JSON.stringify({action:"month_frozen",year:yr,month:mo})});
         });
-      },{title:`Freeze ${MONTHS_[mo]} ${yr}`,confirmLabel:"Freeze Month",danger:true,icon:"❄"});
+      },{title:`Freeze ${MONTHS_[mo]} ${yr}`,confirmLabel:"Freeze Month",danger:true,icon:"â‌„"});
     }
   };
 
-  // ── reloadNotifications — App scope: accessible by poll useEffect + bell ──
+  // â”€â”€ reloadNotifications â€” App scope: accessible by poll useEffect + bell â”€â”€
   const reloadNotifications=async()=>{
     if(!supabase||!myProfile?.id) return;
     const _profId=myProfile.id;
@@ -8670,11 +3217,11 @@ export default function App(){
     setNotifPanelOpen(prev=>!prev);
   },[]);
   const [myProfile,setMyProfile]     = useState(null);
-  const myProfileRef = React.useRef(null); // always current — used inside stale closures (realtime handler)
+  const myProfileRef = React.useRef(null); // always current â€” used inside stale closures (realtime handler)
   const [loading,setLoading]         = useState(false);
 
   const [view,setView]               = useState("dashboard");
-  const [teamViewMode,setTeamViewMode] = useState("grid"); // "org" | "grid" — default grid for instant load
+  const [teamViewMode,setTeamViewMode] = useState("grid"); // "org" | "grid" â€” default grid for instant load
   const [orgNodes,setOrgNodes]         = useState([]); // [{id,engineer_id,name,title,parent_id,is_external,sort_order}]
   const [orgLoaded,setOrgLoaded]       = useState(false);
   const [orgEditing,setOrgEditing]     = useState(false);
@@ -8710,8 +3257,8 @@ export default function App(){
   const [xlsxReady,setXlsxReady]           = useState(!!window.XLSX);
   const [showProjModal,setShowProjModal]   = useState(false);
   const [editProjModal,setEditProjModal]   = useState(null);
-  const [subProjModal,setSubProjModal]     = useState(null);  // {projectId, sub?} — add/edit sub-project
-  const [expandedProj,setExpandedProj]     = useState({});    // {projId: bool} — show sub-projects in table
+  const [subProjModal,setSubProjModal]     = useState(null);  // {projectId, sub?} â€” add/edit sub-project
+  const [expandedProj,setExpandedProj]     = useState({});    // {projId: bool} â€” show sub-projects in table
   const [showEngModal,setShowEngModal]     = useState(false);
   const [engSearch,setEngSearch]           = useState("");
   const [editEngModal,setEditEngModal]     = useState(null);
@@ -8723,11 +3270,11 @@ export default function App(){
   const [funcEngId,setFuncEngId]           = useState("all");
   const [kpiEngId,setKpiEngId]            = useState(null);
   const [kpiNotes,setKpiNotes]             = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_kpi_notes')||'{}');}catch{return{};}}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
-  // Per-engineer vacation entitlement: { year: { engId: days } }  — admin enters each person's allowance
+  // Per-engineer vacation entitlement: { year: { engId: days } }  â€” admin enters each person's allowance
   const [vacationBalances,setVacationBalances] = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_vacation_balances')||'{}');}catch{return {};}});
   useEffect(()=>{ localStorage.setItem('ec_vacation_balances',JSON.stringify(vacationBalances)); },[vacationBalances]);
   const setVacBalance=(yr,engId,days)=>setVacationBalances(prev=>({...prev,[yr]:{...(prev[yr]||{}),[engId]:Math.max(0,days)}}));
-  // Tracker persistent state — lifted here so it survives browser minimize/tab-switch/remount
+  // Tracker persistent state â€” lifted here so it survives browser minimize/tab-switch/remount
   const [trackerProj,  setTrackerProj]   = useState(null);
   const [trackerSub,   setTrackerSub]    = useState(null);
   const [trackerSearch,setTrackerSearch] = useState("");
@@ -8740,7 +3287,7 @@ export default function App(){
   const [showFuncModal,setShowFuncModal]   = useState(false);
   const [newFunc,setNewFunc]               = useState({engineer_id:"",date:new Date().toISOString().slice(0,10),function_category:FUNCTION_CATS[0],hours:2,activity:""});
 
-  // ── Finance Module State ──
+  // â”€â”€ Finance Module State â”€â”€
   const [staff,setStaff]                   = useState([]);
   const [journalEntries,setJournalEntries]   = useState([]);
   const [fixedAssets,setFixedAssets]         = useState([]);
@@ -8766,9 +3313,9 @@ export default function App(){
   const [showPwdModal,setShowPwdModal]     = useState(false);
   const [confirmDlg,  setConfirmDlg]       = useState(null);
 
-  // Styled in-app confirm — replaces window.confirm everywhere
+  // Styled in-app confirm â€” replaces window.confirm everywhere
   const showConfirm = useCallback((message, onConfirm, {title, confirmLabel="Delete", danger=true, icon}={})=>{
-    setConfirmDlg({message, title, confirmLabel, danger, icon:icon||(danger?"🗑":"⚠"),
+    setConfirmDlg({message, title, confirmLabel, danger, icon:icon||(danger?"ًں—‘":"âڑ "),
       onConfirm:()=>{ setConfirmDlg(null); onConfirm(); },
       onCancel: ()=>setConfirmDlg(null),
     });
@@ -8791,7 +3338,7 @@ export default function App(){
   };
   const dismissToast=()=>{ if(_toastTimer.current) clearTimeout(_toastTimer.current); setToast(null); };
 
-  // Global Escape key — closes topmost open modal (placed here so all state vars are in scope)
+  // Global Escape key â€” closes topmost open modal (placed here so all state vars are in scope)
   useEffect(()=>{
     const handler=e=>{
       if(e.key!=="Escape") return;
@@ -8813,7 +3360,7 @@ export default function App(){
   },[confirmDlg,showPwdModal,subProjModal,editProjModal,showProjModal,
      editEngModal,showEngModal,showStaffModal,showExpModal,showFuncModal,editEntry,modalDate]);;
 
-  // On-demand year fetch — loads a year's entries only when user navigates to it
+  // On-demand year fetch â€” loads a year's entries only when user navigates to it
   const [entriesLoading,setEntriesLoading] = useState(false);
   useEffect(()=>{
     if(!session||!year||loadedYears.has(year)) return;
@@ -8834,7 +3381,7 @@ export default function App(){
       });
   },[year,session]); // eslint-disable-line
 
-  // ── Activity logger — fire-and-forget, never blocks UI ──
+  // â”€â”€ Activity logger â€” fire-and-forget, never blocks UI â”€â”€
   const logAction=useCallback((action,module,detail,meta={})=>{
     if(!session?.user) return;
     const entry={
@@ -8843,7 +3390,7 @@ export default function App(){
       user_role:myProfile?.role_type||"unknown",
       action,module,detail,
       meta:JSON.stringify(meta),
-      created_at:new Date().toISOString(),  // explicit — don't rely on DB default
+      created_at:new Date().toISOString(),  // explicit â€” don't rely on DB default
     };
     supabase.from("activity_log").insert(entry).select()
       .then(({data,error})=>{
@@ -8868,11 +3415,11 @@ export default function App(){
   const role      = myProfile?.role_type||"engineer";
   const isAdmin   = role==="admin";
   // isEngActive: checks termination_date (from engineers row OR synced from staff).
-  // Does NOT rely on is_active column — works with no DB migration.
+  // Does NOT rely on is_active column â€” works with no DB migration.
   const TODAY_STR = new Date().toISOString().slice(0,10);
   const isEngActive = (e) => {
     if(!e) return false;
-    // termination_date strictly in the past (before today) → inactive; last day counts as active
+    // termination_date strictly in the past (before today) â†’ inactive; last day counts as active
     if(e.termination_date && String(e.termination_date).slice(0,10) < TODAY_STR) return false;
     // explicit is_active false
     if(e.is_active===false) return false;
@@ -8889,8 +3436,8 @@ export default function App(){
   const canEdit   = true;   // everyone can edit/delete their own entries
   const canReport = canViewFinance || isLead; // senior + accountant + lead see Reports
   const canPostHours = !isSenior || isAdmin; // senior_management view-only; accountant CAN post their own vacation
-  const canInvoice= isAcct; // ONLY admin + accountant see invoices — NOT senior
-  // Redirect away from old mysettings page (merged into Admin › Info)
+  const canInvoice= isAcct; // ONLY admin + accountant see invoices â€” NOT senior
+  // Redirect away from old mysettings page (merged into Admin â€؛ Info)
   useEffect(()=>{
     if(view==="mysettings") setView("dashboard");
   },[view]);
@@ -8917,7 +3464,7 @@ export default function App(){
     // Find lead's node in org chart
     const myNode = orgNodes.find(n=>String(n.engineer_id)===String(myProfile.id));
     const result  = new Set([String(myProfile.id)]);
-    if(!myNode) return result; // not in org chart → only self
+    if(!myNode) return result; // not in org chart â†’ only self
     // BFS down from lead's node
     const q    = [myNode.id];
     const seen = new Set([myNode.id]);
@@ -8935,7 +3482,7 @@ export default function App(){
     return result;
   },[isAdmin,isAcct,isSenior,isLead,myProfile,orgNodes]);
 
-  // Hash routing — sync URL hash ↔ view state so refresh restores position
+  // Hash routing â€” sync URL hash â†” view state so refresh restores position
   useEffect(()=>{
     const hash = window.location.hash.slice(1);
     const valid = ["dashboard","timesheet","projects","team","reports","admin","import"];
@@ -8945,7 +3492,7 @@ export default function App(){
     if(session) window.location.hash = view;
   },[view,session]);
 
-  /* ── AUTH ── */
+  /* â”€â”€ AUTH â”€â”€ */
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setAuthLoading(false);});
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_,s)=>setSession(s));
@@ -8953,14 +3500,14 @@ export default function App(){
   },[]);
   useEffect(()=>{if(session)loadAll();},[session]);
 
-  // ── Poll notifications every 30s — works even if Supabase Realtime is disabled ──
+  // â”€â”€ Poll notifications every 30s â€” works even if Supabase Realtime is disabled â”€â”€
   useEffect(()=>{
     if(!session||!myProfile?.id) return;
     const _t=setInterval(()=>reloadNotifications(),15000);
     return()=>clearInterval(_t);
   },[session,myProfile?.id]);
 
-  // Real-time sync — keep data current when teammates make changes
+  // Real-time sync â€” keep data current when teammates make changes
   useEffect(()=>{
     if(!session) return;
     const cutoff=(()=>{const d=new Date();d.setMonth(d.getMonth()-18);return d.toISOString().slice(0,10);})();
@@ -8997,7 +3544,7 @@ export default function App(){
       .on("postgres_changes",{event:"DELETE",schema:"public",table:"projects"},({old:row})=>{
         setProjects(prev=>prev.filter(p=>p.id!==row.id));
       })
-      // notifications — live bell updates without refresh
+      // notifications â€” live bell updates without refresh
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications"},({new:row})=>{
         if(row.read) return;
         const _meId=String(myProfileRef.current?.id||"");
@@ -9064,7 +3611,7 @@ export default function App(){
         setLoadedYears(new Set([today.getFullYear(), today.getFullYear()-1]));
       }
       if(profR.data){ setMyProfile(profR.data); myProfileRef.current=profR.data; setBrowseEngId(profR.data.id); }
-      // ── Notification loading — server-side scoped ──
+      // â”€â”€ Notification loading â€” server-side scoped â”€â”€
       // The notifications table has a top-level engineer_id column (the recipient).
       // Personal: fetch only rows addressed to this user.
       // Broadcast (admin/lead): also fetch rows with engineer_id=null (alerts, signups).
@@ -9075,12 +3622,12 @@ export default function App(){
         const dismissedKeys=new Set(JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"));
 
         // 1. Personal active (unread) notifications
-        // Try server-side filter (requires engineer_id column — run SQL migration if failing)
+        // Try server-side filter (requires engineer_id column â€” run SQL migration if failing)
         const _ninetyAgo=new Date(Date.now()-90*24*60*60*1000).toISOString();
         const _thirtyAgo=new Date(Date.now()-30*24*60*60*1000).toISOString(); // kept for backward compat
         let personalNotifs=[], historyNotifs=[];
 
-        // ── Always use full-table meta-scan — works before AND after migration ──
+        // â”€â”€ Always use full-table meta-scan â€” works before AND after migration â”€â”€
         // engineer_id column may exist but be null on older rows, so we can't rely on
         // server-side filter alone. Fetch all and match by engineer_id OR meta fields.
         const _matchId=n=>{
@@ -9092,18 +3639,18 @@ export default function App(){
         };
         const _isBroadcast=n=>n.type==="new_signup"||n.type==="overdue_alert"||(n.type==="timesheet_alert"&&!n.engineer_id);
 
-        // Active (unread) — fetch all unread, filter client-side
+        // Active (unread) â€” fetch all unread, filter client-side
         const{data:allN}=await supabase.from("notifications")
           .select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
         personalNotifs=(allN||[]).filter(n=>_matchId(n)||(_isLeadOrAdmin&&_isBroadcast(n)));
 
-        // History (read, last 90 days) — persistent 3-month window
+        // History (read, last 90 days) â€” persistent 3-month window
         const{data:allH}=await supabase.from("notifications")
           .select("*").eq("read",true).gte("created_at",_ninetyAgo)
           .order("created_at",{ascending:false}).limit(500);
-        // Include broadcasts (null engineer_id) in history for lead/admin — same logic as active
+        // Include broadcasts (null engineer_id) in history for lead/admin â€” same logic as active
         historyNotifs=(allH||[]).filter(n=>_matchId(n)||(_isLeadOrAdmin&&_isBroadcast(n)));
-        // ── Auto-purge: admin/lead only — delete ALL notifications older than 90 days ──
+        // â”€â”€ Auto-purge: admin/lead only â€” delete ALL notifications older than 90 days â”€â”€
         // Fire-and-forget, non-blocking. Engineers cannot purge admin notifications.
         if(_isLeadOrAdmin){
           supabase.from("notifications").delete()
@@ -9120,7 +3667,7 @@ export default function App(){
           if(n.type==="timesheet_alert"){
             let alertKey=null; try{alertKey=JSON.parse(n.meta||"{}").alert_key;}catch{}
             if(alertKey){
-              // Composite key: alert_key + engineer_id — each recipient keeps their own copy
+              // Composite key: alert_key + engineer_id â€” each recipient keeps their own copy
               const compositeKey=alertKey+"__"+(n.engineer_id||"broadcast");
               if(dismissedKeys.has(alertKey)){toDelete.push(n.id);return;}
               if(seenKeys.has(compositeKey)){
@@ -9138,7 +3685,7 @@ export default function App(){
       if(staffR.data){
         const sData=staffR.data;
         setStaff(sData);
-        // Sync termination_date from staff → engineers by name match
+        // Sync termination_date from staff â†’ engineers by name match
         if(engsR.data){
           setEngineers(prev=>prev.map(eng=>{
             const match=sData.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
@@ -9151,7 +3698,7 @@ export default function App(){
       if(journalR.data) setJournalEntries(journalR.data);
       if(assetsR.data) setFixedAssets(assetsR.data);
       if(accountsR?.data) setAccounts(accountsR.data);
-      // Load activity log for admin — use profR.data directly (myProfile state is stale here)
+      // Load activity log for admin â€” use profR.data directly (myProfile state is stale here)
       if(profR.data?.role_type==="admin"){
         setLogLoading(true);
         (async()=>{
@@ -9169,7 +3716,7 @@ export default function App(){
       }
       // Timesheet alerts: checked via checkTimesheetAlerts called from useEffect below
       // Frozen months
-      try{const{data:_fm}=await supabase.from("frozen_months").select("*");if(_fm)setFrozenMonths(_fm);}catch(_){/* table may not exist yet — run migration */}
+      try{const{data:_fm}=await supabase.from("frozen_months").select("*");if(_fm)setFrozenMonths(_fm);}catch(_){/* table may not exist yet â€” run migration */}
     }catch(e){showToast("Error loading data",false);}
     setLoading(false);
   },[session]);
@@ -9179,14 +3726,14 @@ export default function App(){
     if(activitiesLoaded) return;
     try{
       // Fetch subprojects and activities in parallel
-      // Attempt 1: with sort_order (preferred — allows manual reordering)
+      // Attempt 1: with sort_order (preferred â€” allows manual reordering)
       const [spRes,actRes]=await Promise.all([
         supabase.from("project_subprojects").select("*").order("name"),
         supabase.from("project_activities").select("*").order("sort_order"),
       ]);
       if(spRes.data)  setSubprojects(spRes.data);
       if(actRes.error&&actRes.error.message&&actRes.error.message.includes("sort_order")){
-        // Fallback: sort_order column may not exist yet in DB — fetch without ordering
+        // Fallback: sort_order column may not exist yet in DB â€” fetch without ordering
         const{data:actData}=await supabase.from("project_activities").select("*");
         if(actData) setActivities(actData);
       } else if(actRes.data){
@@ -9194,7 +3741,7 @@ export default function App(){
       }
       setActivitiesLoaded(true);
     }catch(e){
-      // Network / table doesn't exist — try simple fetch without order
+      // Network / table doesn't exist â€” try simple fetch without order
       try{
         const{data:actData}=await supabase.from("project_activities").select("*");
         const{data:spData}=await supabase.from("project_subprojects").select("*");
@@ -9237,7 +3784,7 @@ export default function App(){
     if(session&&!activitiesLoaded){ loadTrackerData(); }
   },[session,activitiesLoaded,loadTrackerData]);
 
-  // ─── Org Chart loader ───
+  // â”€â”€â”€ Org Chart loader â”€â”€â”€
   const loadOrgChart = useCallback(async()=>{
     if(!session) return;
     const{data}=await supabase.from("org_chart").select("*").order("sort_order");
@@ -9255,7 +3802,7 @@ export default function App(){
       if(n.type==="vacation_request") return isLead; // leads see it in count; admin uses pendingVacCount
       return true;
     }).length;
-    // Pending vacation approvals — admin uses entries (always accurate even before bell loads)
+    // Pending vacation approvals â€” admin uses entries (always accurate even before bell loads)
     const pendingVacCount=isAdmin
       ? entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL").length
       : 0;
@@ -9276,13 +3823,13 @@ export default function App(){
         }
       }catch(e){}
     }
-    // Mark as read (moves to history) — NEVER hard-delete so history survives redeploy
+    // Mark as read (moves to history) â€” NEVER hard-delete so history survives redeploy
     await supabase.from("notifications").update({read:true}).eq("id",id);
     setNotifications(prev=>prev.filter(x=>x.id!==id));
     setNotifHistory(prev=>[{...n,read:true},...prev.filter(x=>x.id!==id)].slice(0,200));
   },[notifications,setNotifHistory]);
 
-  // ── Activity comment handler — lifted to App scope so ALL surfaces share one notification path ──
+  // â”€â”€ Activity comment handler â€” lifted to App scope so ALL surfaces share one notification path â”€â”€
   const appHandleActivityComment=useCallback(async(actId, comments, notifyCtx)=>{
     const{error}=await supabase.from("project_activities").update({comments}).eq("id",actId);
     if(!error){
@@ -9293,7 +3840,7 @@ export default function App(){
         const proj=projects.find(p=>p.id===notifyCtx.projectId);
         const projName=proj?.name||notifyCtx.projectId||"";
         const excerpt=(newComment?.text||"").slice(0,80);
-        const msgText=`${notifyCtx.commenterName} commented on "${notifyCtx.activityName}" · ${projName}: "${excerpt}${excerpt.length>=80?"…":""}"`;
+        const msgText=`${notifyCtx.commenterName} commented on "${notifyCtx.activityName}" آ· ${projName}: "${excerpt}${excerpt.length>=80?"â€¦":""}"`;
         const isCommenter=e=>notifyCtx.commenterName&&e.name&&e.name.trim()===notifyCtx.commenterName.trim();
 
         // Build recipient list: assigned engineer + project leader + all admins
@@ -9334,7 +3881,7 @@ export default function App(){
           };
           const{data:nd,error:ne}=await supabase.from("notifications").insert(notif).select().single();
           if(ne&&ne.message&&(ne.message.includes("engineer_id")||ne.message.includes("column")||ne.message.includes("does not exist"))){
-            // Fallback: engineer_id column may not exist — store in meta
+            // Fallback: engineer_id column may not exist â€” store in meta
             const{engineer_id:_eid,..._rC}=notif;
             const{data:nd2}=await supabase.from("notifications").insert({..._rC,meta:JSON.stringify({...JSON.parse(_rC.meta||"{}"),_eng_id:String(_eid)})}).select().single();
             if(nd2&&String(recipId)===String(myProfile?.id)) setNotifications(prev=>[nd2,...prev]);
@@ -9346,7 +3893,7 @@ export default function App(){
         }
       }
     } else {
-      showToast("Comment error — the 'comments' column may not exist yet. Run the SQL migration in Admin → Info.",false);
+      showToast("Comment error â€” the 'comments' column may not exist yet. Run the SQL migration in Admin â†’ Info.",false);
     }
     return error||null;
   },[supabase,setActivities,setNotifications,showToast,engineers,projects,myProfile]);
@@ -9363,14 +3910,14 @@ export default function App(){
       }catch(e){}
     }
     const ids=toRemove.map(n=>n.id);
-    // Mark as read (moves to history) — NEVER hard-delete
+    // Mark as read (moves to history) â€” NEVER hard-delete
     await supabase.from("notifications").update({read:true}).in("id",ids);
     setNotifications(prev=>prev.filter(n=>n.type!==type));
     setNotifHistory(prev=>[...toRemove.map(n=>({...n,read:true})),...prev].slice(0,200));
   },[notifications,setNotifHistory]);
 
   const markAllRead=async()=>{
-    // Mark all unread as read → moves them to history
+    // Mark all unread as read â†’ moves them to history
     const unread=notifications.filter(n=>!n.read);
     if(!unread.length) return;
     const ids=unread.map(n=>n.id);
@@ -9379,29 +3926,29 @@ export default function App(){
     setNotifications([]);
   };
 
-  /* ── WEEKEND SAVE ── */
+  /* â”€â”€ WEEKEND SAVE â”€â”€ */
   // saveWeekendFor: saves weekend for any engineer by id (admin can set for others)
   const saveWeekendFor=async(engId,days)=>{
     await supabase.from("engineers").update({weekend_days:JSON.stringify(days)}).eq("id",engId);
     setEngineers(prev=>prev.map(e=>e.id===engId?{...e,weekend_days:JSON.stringify(days)}:e));
     if(engId===myProfile?.id) setMyProfile(p=>({...p,weekend_days:JSON.stringify(days)}));
-    showToast("Weekend preference saved ✓");
+    showToast("Weekend preference saved âœ“");
   };
   // saveMyWeekend: shortcut for current user
   const saveMyWeekend=async days=>saveWeekendFor(myProfile.id,days);
 
-  /* ── ADD ENTRY ── */
-  /* ── Project eligibility: which projects can a given engineer post work hours to? ──
+  /* â”€â”€ ADD ENTRY â”€â”€ */
+  /* â”€â”€ Project eligibility: which projects can a given engineer post work hours to? â”€â”€
      Rules:
      1. Project must be Active (not Completed, On Hold, or any other status)
-     2. If project has assigned_engineers list with at least 1 entry →
+     2. If project has assigned_engineers list with at least 1 entry â†’
         engineer MUST be in that list
-     3. If project has empty assigned_engineers → visible to ALL engineers
+     3. If project has empty assigned_engineers â†’ visible to ALL engineers
      4. Admins/Leads/Accountants/Senior posting ON BEHALF of an engineer
-        → use the TARGET engineer's assignment, not the poster's role
+        â†’ use the TARGET engineer's assignment, not the poster's role
   */
   const getPostableProjects = useCallback((forEngineerId) => {
-    // Rule — no exceptions, no role bypasses:
+    // Rule â€” no exceptions, no role bypasses:
     // 1. Project must be Active
     // 2. forEngineerId must be in assigned_engineers
     //    Empty assigned_engineers [] = nobody assigned = project not available to anyone
@@ -9414,11 +3961,11 @@ export default function App(){
 
   const addEntry=async date=>{
     if(!isDateAllowed(date)){showToast("Cannot post hours outside the allowed date range",false);return;}
-    // Freeze check — functions are always allowed, only work/leave are blocked
+    // Freeze check â€” functions are always allowed, only work/leave are blocked
     if(newEntry.type!=="function"&&isMonthFrozen(date)){
       const _d=new Date(date+"T12:00:00");
       const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
-      showToast(`❄ ${_mn} ${_d.getFullYear()} is frozen — contact admin to unlock`,false);
+      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen â€” contact admin to unlock`,false);
       return;
     }
     const proj=projects.find(p=>p.id===newEntry.projectId);
@@ -9439,9 +3986,9 @@ export default function App(){
     // Validate: project must still be Active
     if(!isLeave&&!isFunc){
       const targetProj=projects.find(p=>p.id===newEntry.projectId);
-      if(!targetProj){showToast("Project not found — it may have been deleted. Please refresh.",false);return;}
-      if((targetProj.status||"").trim()!=="Active"){showToast(`Cannot post hours — project is ${targetProj.status||"inactive"}`,false);return;}
-      // Assignment check — no role exemptions:
+      if(!targetProj){showToast("Project not found â€” it may have been deleted. Please refresh.",false);return;}
+      if((targetProj.status||"").trim()!=="Active"){showToast(`Cannot post hours â€” project is ${targetProj.status||"inactive"}`,false);return;}
+      // Assignment check â€” no role exemptions:
       const ae=(targetProj.assigned_engineers||[]).map(String);
       if(!ae.includes(String(engId))){
         const targetEngName=engineers.find(e=>String(e.id)===String(engId))?.name||"Engineer";
@@ -9489,7 +4036,7 @@ export default function App(){
       // so each admin's server-side scoped load query picks it up
       const _adminVacPayloads=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({...notif,engineer_id:adminEng.id}));
       if(_adminVacPayloads.length) supabase.from("notifications").insert(_adminVacPayloads).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
-      // Notify the engineer's direct lead (if any) — uses reverse BFS of mySubEngIds logic
+      // Notify the engineer's direct lead (if any) â€” uses reverse BFS of mySubEngIds logic
       (async()=>{
         // Fetch org chart fresh if not loaded yet (avoids lazy-load race condition)
         let _nodes=orgNodes||[];
@@ -9502,7 +4049,7 @@ export default function App(){
         const _leadEng=engineers.filter(e=>e.role_type==="lead").find(le=>{
           const _leadNode=_nodes.find(n=>String(n.engineer_id)===String(le.id));
           if(!_leadNode) return false;
-          // BFS down from lead node — check if engId appears anywhere in subtree
+          // BFS down from lead node â€” check if engId appears anywhere in subtree
           const _q=[_leadNode.id];const _seen=new Set([_leadNode.id]);
           while(_q.length){
             const _nid=_q.shift();
@@ -9530,15 +4077,15 @@ export default function App(){
           setNotifications(prev=>[ndL,...prev]);
         }
       })();
-      showToast("Vacation request submitted — pending admin approval ✓");
+      showToast("Vacation request submitted â€” pending admin approval âœ“");
     } else {
       const hasNote = !!(newEntry.activity && newEntry.activity.trim().length > 2);
       const isWorkEntry = !isLeave && !isFunc;
       if(isWorkEntry && !hasNote){
-        // Post succeeded but no description — show amber warning
-        showToast("Hours posted — no description added. Add a note to improve your KPI score.",false);
+        // Post succeeded but no description â€” show amber warning
+        showToast("Hours posted â€” no description added. Add a note to improve your KPI score.",false);
       } else {
-        showToast("Hours posted ✓");
+        showToast("Hours posted âœ“");
       }
     }
     // Notify engineer if lead/admin posted on their behalf
@@ -9557,7 +4104,7 @@ export default function App(){
   };
 
 
-  /* ── Copy a day's entries to clipboard ── */
+  /* â”€â”€ Copy a day's entries to clipboard â”€â”€ */
   const copyDay = date => {
     const dayEntries = entries.filter(e=>
       e.date===date &&
@@ -9566,18 +4113,18 @@ export default function App(){
     );
     if(!dayEntries.length){showToast("No entries to copy",false);return;}
     setClipboard({date, entries:dayEntries});
-    showToast(`Copied ${dayEntries.length} entr${dayEntries.length===1?"y":"ies"} from ${date} ✓`);
+    showToast(`Copied ${dayEntries.length} entr${dayEntries.length===1?"y":"ies"} from ${date} âœ“`);
   };
 
-  /* ── Paste clipboard entries to target date ── */
+  /* â”€â”€ Paste clipboard entries to target date â”€â”€ */
   const pasteDay = async targetDate => {
     if(!clipboard||!clipboard.entries.length){showToast("Nothing in clipboard",false);return;}
     if(!isDateAllowed(targetDate)){showToast("Cannot post to locked date",false);return;}
-    // Freeze check — block paste into frozen months (function entries are never in clipboard)
+    // Freeze check â€” block paste into frozen months (function entries are never in clipboard)
     if(isMonthFrozen(targetDate)){
       const _d=new Date(targetDate+"T12:00:00");
       const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
-      showToast(`❄ ${_mn} ${_d.getFullYear()} is frozen — cannot paste into a frozen month`,false);
+      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen â€” cannot paste into a frozen month`,false);
       return;
     }
     const engId = canEditAny?viewEngId:myProfile.id;
@@ -9586,13 +4133,13 @@ export default function App(){
       if(e.entry_type==="work"&&e.project_id){
         const proj=projects.find(p=>p.id===e.project_id);
         if(!proj||(proj.status||"").trim()!=="Active"){
-          showToast(`Cannot paste — project ${proj?.name||e.project_id} (${e.project_id}) is no longer active`,false);return;
+          showToast(`Cannot paste â€” project ${proj?.name||e.project_id} (${e.project_id}) is no longer active`,false);return;
         }
         const ae=(proj.assigned_engineers||[]).map(String);
         if(!ae.includes(String(engId))){
           const nm=engineers.find(x=>String(x.id)===String(engId))?.name||"Engineer";
           const projName=proj?.name||e.project_id;
-          showToast(`Cannot paste — ${nm} is not assigned to ${projName} (${e.project_id})`,false);return;
+          showToast(`Cannot paste â€” ${nm} is not assigned to ${projName} (${e.project_id})`,false);return;
         }
       }
     }
@@ -9624,14 +4171,14 @@ export default function App(){
       const _onBehalf2 = String(engId)!==String(myProfile?.id) ? ` on behalf of ${_engName2}` : "";
       // Add entries to UI immediately
       setEntries(prev=>[...data,...prev]);
-      // Show toast with undo — clicking Undo removes from UI and deletes from DB
+      // Show toast with undo â€” clicking Undo removes from UI and deletes from DB
       showToast(
         `Pasted ${data.length} entr${data.length===1?"y":"ies"} to ${targetDate}`,
         true,
         async()=>{
           setEntries(prev=>prev.filter(e=>!pastedIds.includes(e.id)));
           await supabase.from("time_entries").delete().in("id",pastedIds);
-          showToast("Paste undone ✓");
+          showToast("Paste undone âœ“");
         }
       );
       logAction("CREATE","TimeEntry",`Pasted ${data.length} entries to ${targetDate}${_onBehalf2}`,{engineer_id:engId,engineer_name:_engName2,date:targetDate,count:data.length});
@@ -9643,7 +4190,7 @@ export default function App(){
     if(isMonthFrozen(editEntry.date)){
       const _d=new Date(editEntry.date+"T12:00:00");
       const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
-      showToast(`❄ ${_mn} ${_d.getFullYear()} is frozen — contact admin to unlock`,false);
+      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen â€” contact admin to unlock`,false);
       return;
     }
     if(!canEditAny && String(editEntry.engineer_id)!==String(myProfile?.id)) { showToast("You can only edit your own entries",false); return; }
@@ -9668,35 +4215,35 @@ export default function App(){
     const upd=Array.isArray(updArr)?updArr[0]:updArr;
     if(upd) setEntries(prev=>prev.map(e=>e.id===upd.id?upd:e));
     else setEntries(prev=>prev.map(e=>e.id===editEntry.id?{...e,...payload}:e));
-    setEditEntry(null); showToast("Entry updated ✓");
+    setEditEntry(null); showToast("Entry updated âœ“");
     const _editEngName = engineers.find(e=>String(e.id)===String(editEntry?.engineer_id))?.name||"";
     const _editOnBehalf = editEntry?.engineer_id && String(editEntry.engineer_id)!==String(myProfile?.id) ? ` on behalf of ${_editEngName}` : "";
     const _prevEntry = entries.find(e=>e.id===editEntry?.id)||{};
     const _entryChanges=[];
-    if(_prevEntry.hours!==payload.hours) _entryChanges.push(`hours: ${_prevEntry.hours}→${payload.hours}`);
-    if(_prevEntry.project_id!==payload.project_id) _entryChanges.push(`project: ${_prevEntry.project_id||"—"}→${payload.project_id||"—"}`);
+    if(_prevEntry.hours!==payload.hours) _entryChanges.push(`hours: ${_prevEntry.hours}â†’${payload.hours}`);
+    if(_prevEntry.project_id!==payload.project_id) _entryChanges.push(`project: ${_prevEntry.project_id||"â€”"}â†’${payload.project_id||"â€”"}`);
     if(payload.activity&&_prevEntry.activity!==payload.activity) _entryChanges.push(`note: "${payload.activity}"`);
-    logAction("UPDATE","TimeEntry",`Updated entry on ${editEntry?.date}${_editOnBehalf}${_entryChanges.length?" — "+_entryChanges.join(", "):""}`,{id:editEntry?.id,engineer_id:editEntry?.engineer_id,engineer_name:_editEngName,date:editEntry?.date,changes:_entryChanges});
+    logAction("UPDATE","TimeEntry",`Updated entry on ${editEntry?.date}${_editOnBehalf}${_entryChanges.length?" â€” "+_entryChanges.join(", "):""}`,{id:editEntry?.id,engineer_id:editEntry?.engineer_id,engineer_name:_editEngName,date:editEntry?.date,changes:_entryChanges});
   };
 
   const deleteEntry=async(id, engineerId)=>{
     if(!canEditAny && String(engineerId)!==String(myProfile?.id)){ showToast("You can only delete your own entries",false); return; }
     const entry=entries.find(e=>e.id===id);
     if(!entry) return;
-    // ── FREEZE CHECK ──
+    // â”€â”€ FREEZE CHECK â”€â”€
     if(isMonthFrozen(entry.date)){
       const _d=new Date(entry.date+"T12:00:00");
       const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
-      showToast(`❄ ${_mn} ${_d.getFullYear()} is frozen — contact admin to unlock`,false);
+      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen â€” contact admin to unlock`,false);
       return;
     }
-    // ── APPROVED LEAVE LOCK ──
+    // â”€â”€ APPROVED LEAVE LOCK â”€â”€
     // Once annual leave is approved (no longer PENDING_APPROVAL), only admin can delete it.
-    // Engineers must contact their admin to cancel approved leave — this preserves the approval audit trail.
+    // Engineers must contact their admin to cancel approved leave â€” this preserves the approval audit trail.
     const isApprovedLeave = entry.entry_type==="leave"
       && entry.leave_type==="Annual Leave"
       && entry.activity!=="PENDING_APPROVAL";
-    // Only admin can cancel approved leave — lead and engineer must request through admin
+    // Only admin can cancel approved leave â€” lead and engineer must request through admin
     if(isApprovedLeave && !isAdmin){
       showToast("Approved annual leave cannot be deleted. Contact admin to cancel.",false);
       return;
@@ -9709,14 +4256,14 @@ export default function App(){
     // Detect pending vacation (submitted but not yet approved)
     const isPendingLeave=entry.entry_type==="leave"&&entry.leave_type==="Annual Leave"&&entry.activity==="PENDING_APPROVAL";
     showConfirm(_confirmMsg,()=>{
-      // 1. INSTANT UI remove — synchronous, user sees it gone at once
+      // 1. INSTANT UI remove â€” synchronous, user sees it gone at once
       setEntries(prev=>prev.filter(e=>e.id!==id));
-      // 2. Show undo toast IMMEDIATELY (synchronous — no await delay)
+      // 2. Show undo toast IMMEDIATELY (synchronous â€” no await delay)
       let _undone=false;
-      showToast("Entry deleted — Undo?",false,()=>{
+      showToast("Entry deleted â€” Undo?",false,()=>{
         _undone=true;
         setEntries(prev=>{const _ids=new Set(prev.map(e=>e.id));return _ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));});
-        showToast("Undo successful ✓");
+        showToast("Undo successful âœ“");
       });
       // 3. DB delete after 5s undo window (applies to ALL entry types including vacation)
       setTimeout(async()=>{
@@ -9724,7 +4271,7 @@ export default function App(){
         const{error:_delErr}=await supabase.from("time_entries").delete().eq("id",id);
         if(_delErr){
           setEntries(prev=>{const _ids=new Set(prev.map(e=>e.id));return _ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));});
-          showToast("Delete failed — restored: "+_delErr.message,false);
+          showToast("Delete failed â€” restored: "+_delErr.message,false);
           return;
         }
         // 4. Send notification after DB delete confirms
@@ -9749,11 +4296,11 @@ export default function App(){
     },{title:isApprovedLeave?"Cancel Approved Leave":isPendingLeave?"Remove Vacation Request":"Delete Time Entry",confirmLabel:"Delete"});
   };
 
-  /* ── FUNCTION ENTRIES & KPI ALERTS ── */
+  /* â”€â”€ FUNCTION ENTRIES & KPI ALERTS â”€â”€ */
   const addFunctionEntry=useCallback(async()=>{
     if(!newFunc.engineer_id){showToast("Select an engineer",false);return;}
     if(!newFunc.hours||newFunc.hours<=0){showToast("Enter hours > 0",false);return;}
-    // function_category column requires SQL migration — try with it, fallback without
+    // function_category column requires SQL migration â€” try with it, fallback without
     const basePayload={
       engineer_id:newFunc.engineer_id,
       project_id:null,
@@ -9776,15 +4323,15 @@ export default function App(){
     }
     if(error){showToast("Error: "+error.message,false);return;}
     if(data) setEntries(prev=>[data,...prev]);
-    showToast("Function hours posted ✓");
+    showToast("Function hours posted âœ“");
     const _funcEngName=engineers.find(e=>String(e.id)===String(newFunc.engineer_id))?.name||newFunc.engineer_id;
     const _funcOnBehalf=String(newFunc.engineer_id)!==String(myProfile?.id)?` on behalf of ${_funcEngName}`:"";
-    logAction("CREATE","TimeEntry",`Posted function ${newFunc.hours}h — ${newFunc.function_category} for ${newFunc.date}${_funcOnBehalf}`,{engineer_id:newFunc.engineer_id,engineer_name:_funcEngName,category:newFunc.function_category,hours:newFunc.hours,date:newFunc.date});
+    logAction("CREATE","TimeEntry",`Posted function ${newFunc.hours}h â€” ${newFunc.function_category} for ${newFunc.date}${_funcOnBehalf}`,{engineer_id:newFunc.engineer_id,engineer_name:_funcEngName,category:newFunc.function_category,hours:newFunc.hours,date:newFunc.date});
     setShowFuncModal(false);
     setNewFunc({engineer_id:"",date:new Date().toISOString().slice(0,10),function_category:FUNCTION_CATS[0],hours:2,activity:""});
   },[newFunc,showToast]);
 
-  // Check for engineers who haven't posted hours by Friday — only alerts on Fri/Sat/Sun
+  // Check for engineers who haven't posted hours by Friday â€” only alerts on Fri/Sat/Sun
   const checkTimesheetAlerts=useCallback(async(engs,allE,staffList=[],currentNotifs=[],_orgNodes=[])=>{
     if(!isAdmin&&!isLead) return;
     const today=new Date();
@@ -9821,11 +4368,11 @@ export default function App(){
         if(staffMatch.active===false) return;
         if(staffMatch.termination_date&&String(staffMatch.termination_date).slice(0,10)<todayStr) return;
       }
-      // ── KEY FIX: skip engineers not in org chart ──
+      // â”€â”€ KEY FIX: skip engineers not in org chart â”€â”€
       if(_nodes.length&&!_orgEngIds.has(String(eng.id))) return;
       const hasWeekHours=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||e.task_category==="Function"));
       const onApprovedLeave=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&e.entry_type==="leave"&&e.activity!=="PENDING_APPROVAL");
-      if(!hasWeekHours&&!onApprovedLeave) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
+      if(!hasWeekHours&&!onApprovedLeave) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} â†’ Fri ${fridayStr})`});
     });
     if(laggards.length===0) return;
 
@@ -9835,7 +4382,7 @@ export default function App(){
       ...JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"),
     ]);
 
-    // ── KEY FIX: send per-recipient (admin + scoped lead) not as broadcast ──
+    // â”€â”€ KEY FIX: send per-recipient (admin + scoped lead) not as broadcast â”€â”€
     // Build reverse BFS helper: given engineer id, find which lead manages them
     const _findLead=(engId)=>{
       if(!_nodes.length) return null;
@@ -9859,7 +4406,7 @@ export default function App(){
     for(const{eng,type,label}of laggards){
       const key=`timesheet_alert_${eng.id}_${type}_${weekStartStr}`;
       if(knownKeys.has(key)) continue;
-      const _msg=`⏰ ${eng.name}: ${label}`;
+      const _msg=`âڈ° ${eng.name}: ${label}`;
       const _meta=JSON.stringify({engineer_id:eng.id,alert_key:key,alert_type:type});
       // Find the lead who manages this engineer
       const _leadEng=_findLead(eng.id);
@@ -9937,7 +4484,7 @@ export default function App(){
     },2500);
   },[session,engineers.length,entries.length,activities.length]); // eslint-disable-line
 
-  /* ── FINANCE CRUD ── */
+  /* â”€â”€ FINANCE CRUD â”€â”€ */
   const STAFF_DEPTS=["Engineering","Management","Finance","Operations","IT","Administration","Other"];
   const STAFF_TYPES=["full_time","part_time","contractor","intern"];
   const EXP_CATS=["Office Rent & Utilities","Salaries","Software & Subscriptions","Travel & Transportation","Equipment & Supplies","Other"];
@@ -9945,7 +4492,7 @@ export default function App(){
   const saveStaff=useCallback(async()=>{
     const raw=editStaff?{...editStaff}:{...newStaff};
     if(!raw.name.trim()){showToast("Name required",false);return;}
-    // ONLY columns that exist in the staff table — strip engineer-only fields
+    // ONLY columns that exist in the staff table â€” strip engineer-only fields
     const staffPayload={
       name:            raw.name.trim(),
       department:      raw.department||"Engineering",
@@ -9959,7 +4506,7 @@ export default function App(){
       notes:           raw.notes||"",
     };
     if(editStaff){
-      // ── EDIT staff ──
+      // â”€â”€ EDIT staff â”€â”€
       const{data,error}=await supabase.from("staff").update(staffPayload).eq("id",editStaff.id).select().single();
       if(error){showToast("Error: "+error.message,false);return;}
       setStaff(prev=>prev.map(s=>s.id===data.id?data:s));
@@ -9970,26 +4517,26 @@ export default function App(){
         await supabase.from("engineers").update(engSync).eq("id",matchEng.id);
         setEngineers(prev=>prev.map(e=>e.id===matchEng.id?{...e,...engSync}:e));
       }
-      showToast("Staff updated ✓");setEditStaff(null);setShowStaffModal(false);
+      showToast("Staff updated âœ“");setEditStaff(null);setShowStaffModal(false);
       const _sprev=staff.find(s=>s.id===editStaff.id)||{};
       const _schanges=[];
-      if(_sprev.role!==data.role) _schanges.push(`role: "${_sprev.role||"—"}"→"${data.role||"—"}"`);
-      if(_sprev.department!==data.department) _schanges.push(`dept: ${_sprev.department}→${data.department}`);
-      if(String(_sprev.active)!==String(data.active)) _schanges.push(`active: ${_sprev.active}→${data.active}`);
-      if(_sprev.termination_date!==data.termination_date) _schanges.push(`termination: ${_sprev.termination_date||"none"}→${data.termination_date||"none"}`);
-      if(_sprev.salary_egp!==data.salary_egp) _schanges.push(`salary EGP: ${_sprev.salary_egp||0}→${data.salary_egp||0}`);
-      logAction("UPDATE","Staff",`Updated staff: ${data.name}${_schanges.length?" — "+_schanges.join(", "):""}`,{id:data.id,name:data.name,department:data.department,role:data.role,changes:_schanges});
+      if(_sprev.role!==data.role) _schanges.push(`role: "${_sprev.role||"â€”"}"â†’"${data.role||"â€”"}"`);
+      if(_sprev.department!==data.department) _schanges.push(`dept: ${_sprev.department}â†’${data.department}`);
+      if(String(_sprev.active)!==String(data.active)) _schanges.push(`active: ${_sprev.active}â†’${data.active}`);
+      if(_sprev.termination_date!==data.termination_date) _schanges.push(`termination: ${_sprev.termination_date||"none"}â†’${data.termination_date||"none"}`);
+      if(_sprev.salary_egp!==data.salary_egp) _schanges.push(`salary EGP: ${_sprev.salary_egp||0}â†’${data.salary_egp||0}`);
+      logAction("UPDATE","Staff",`Updated staff: ${data.name}${_schanges.length?" â€” "+_schanges.join(", "):""}`,{id:data.id,name:data.name,department:data.department,role:data.role,changes:_schanges});
     } else {
-      // ── ADD staff ──
+      // â”€â”€ ADD staff â”€â”€
       const{data,error}=await supabase.from("staff").insert(staffPayload).select().single();
       if(error){showToast("Error: "+error.message,false);return;}
       setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));
-      // Auto-create engineer record — check by name OR email to prevent duplication
+      // Auto-create engineer record â€” check by name OR email to prevent duplication
       const existsEngByName=engineers.find(e=>e.name?.trim().toLowerCase()===data.name?.trim().toLowerCase());
       const existsEngByEmail=raw.email?.trim()?engineers.find(e=>e.email?.trim().toLowerCase()===raw.email.trim().toLowerCase()):null;
       const existsEng=existsEngByName||existsEngByEmail;
       // Also check: if staff record already existed before this insert (was added via Add Member previously)
-      // In that case the engineer record already exists — just show the linked message
+      // In that case the engineer record already exists â€” just show the linked message
       if(!existsEng&&raw.email?.trim()){
         const engAttempts=[
           {name:data.name,email:raw.email.trim().toLowerCase(),role:data.role||ROLES_LIST[0],
@@ -10009,17 +4556,17 @@ export default function App(){
         }
         if(ed){
           setEngineers(prev=>[...prev,ed].sort((a,b)=>a.name.localeCompare(b.name)));
-          showToast("Member added ✓ — appears in Team + Finance");
+          showToast("Member added âœ“ â€” appears in Team + Finance");
           logAction("CREATE","Staff",`Added staff+engineer: ${data.name}`,{id:data.id,name:data.name,role:data.role,department:data.department});
         } else {
-          showToast("Staff added ✓ — set salary in Finance › Staff");
+          showToast("Staff added âœ“ â€” set salary in Finance â€؛ Staff");
           logAction("CREATE","Staff",`Added staff (no engineer link): ${data.name}`,{id:data.id,name:data.name});
         }
       } else if(existsEng){
-        showToast("Staff added ✓ — linked to existing engineer profile");
+        showToast("Staff added âœ“ â€” linked to existing engineer profile");
         logAction("CREATE","Staff",`Added staff (linked to existing engineer): ${data.name}`,{id:data.id,name:data.name});
       } else {
-        showToast("Staff added ✓ — provide email to grant system access");
+        showToast("Staff added âœ“ â€” provide email to grant system access");
         logAction("CREATE","Staff",`Added staff (no email/access): ${data.name}`,{id:data.id,name:data.name});
       }
       setShowStaffModal(false);
@@ -10049,17 +4596,17 @@ export default function App(){
       if(!error&&data){
         const _prev=expenses.find(e=>e.id===data.id)||{};
         const _expChanges=[];
-        if(_prev.description!==data.description) _expChanges.push(`desc: "${_prev.description}"→"${data.description}"`);
-        if(_prev.category!==data.category) _expChanges.push(`category: ${_prev.category}→${data.category}`);
-        if(_prev.amount_egp!==data.amount_egp) _expChanges.push(`EGP: ${_prev.amount_egp||0}→${data.amount_egp||0}`);
-        if(_prev.amount_usd!==data.amount_usd) _expChanges.push(`USD: ${_prev.amount_usd||0}→${data.amount_usd||0}`);
+        if(_prev.description!==data.description) _expChanges.push(`desc: "${_prev.description}"â†’"${data.description}"`);
+        if(_prev.category!==data.category) _expChanges.push(`category: ${_prev.category}â†’${data.category}`);
+        if(_prev.amount_egp!==data.amount_egp) _expChanges.push(`EGP: ${_prev.amount_egp||0}â†’${data.amount_egp||0}`);
+        if(_prev.amount_usd!==data.amount_usd) _expChanges.push(`USD: ${_prev.amount_usd||0}â†’${data.amount_usd||0}`);
         setExpenses(prev=>prev.map(e=>e.id===data.id?data:e));showToast("Expense updated");setEditExp(null);setShowExpModal(false);
-        logAction("UPDATE","Expense",`Updated expense: ${data.description}${_expChanges.length?" — "+_expChanges.join(", "):""}`,{id:data.id,category:data.category,amount_usd:data.amount_usd,amount_egp:data.amount_egp,changes:_expChanges});
+        logAction("UPDATE","Expense",`Updated expense: ${data.description}${_expChanges.length?" â€” "+_expChanges.join(", "):""}`,{id:data.id,category:data.category,amount_usd:data.amount_usd,amount_egp:data.amount_egp,changes:_expChanges});
       }
       else showToast(error?.message||"Error",false);
     } else {
       const{data,error}=await supabase.from("expenses").insert(payload).select().single();
-      if(!error&&data){setExpenses(prev=>[data,...prev]);showToast("Expense added");setShowExpModal(false);setNewExp({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:egpRate,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});logAction("CREATE","Expense",`Added expense: "${payload.description}" — ${payload.category} · EGP ${payload.amount_egp||0} / USD ${payload.amount_usd||0}`,{category:payload.category,amount_usd:payload.amount_usd,amount_egp:payload.amount_egp,month:payload.month,year:payload.year});}
+      if(!error&&data){setExpenses(prev=>[data,...prev]);showToast("Expense added");setShowExpModal(false);setNewExp({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:egpRate,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});logAction("CREATE","Expense",`Added expense: "${payload.description}" â€” ${payload.category} آ· EGP ${payload.amount_egp||0} / USD ${payload.amount_usd||0}`,{category:payload.category,amount_usd:payload.amount_usd,amount_egp:payload.amount_egp,month:payload.month,year:payload.year});}
       else showToast(error?.message||"Error",false);
     }
   },[editExp,newExp,showToast]);
@@ -10077,7 +4624,7 @@ export default function App(){
     },{title:"Delete Expense",confirmLabel:"Delete"});
   },[expenses,logAction,showConfirm,showToast]);
 
-  /* ── EXCEL IMPORT ── */
+  /* â”€â”€ EXCEL IMPORT â”€â”€ */
   const importTimesheets=async files=>{
     setImporting(true);
     setImportLog([]);
@@ -10088,7 +4635,7 @@ export default function App(){
     let localProjects=[...projects];
     let localEngineers=[...engineers];
 
-    // Cache of name→project to avoid duplicate inserts across rows
+    // Cache of nameâ†’project to avoid duplicate inserts across rows
     const projCache={};
     const findOrCreateProject=async(rawName)=>{
       const clean=rawName.trim().replace(/\s+/g," ");
@@ -10103,16 +4650,16 @@ export default function App(){
         cleanLower.includes(p.name.toLowerCase().replace(/\s+/g," "))
       );
       if(proj){ projCache[cleanLower]=proj; return proj; }
-      // Auto-create — use "Industrial" type (matches DB constraint)
+      // Auto-create â€” use "Industrial" type (matches DB constraint)
       // Make a safe ID: alphanumeric + hyphens only, max 30 chars
       const projId=clean.replace(/[^a-zA-Z0-9]/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").substring(0,30);
-      addLog("info",`    📁 Creating project: ${clean}`);
+      addLog("info",`    ًں“پ Creating project: ${clean}`);
       const {data:newPArr,error:pErr}=await supabase.from("projects").insert({
         id:projId, name:clean, client:"(imported)", type:"Industrial",
         status:"Active", phase:"Design", billable:true, rate_per_hour:0,
       }).select();
       if(pErr){
-        addLog("warn",`    ⚠ Project failed: ${pErr.message}`);
+        addLog("warn",`    âڑ  Project failed: ${pErr.message}`);
         projCache[cleanLower]=null; // cache failure to avoid retrying every row
         return null;
       }
@@ -10120,37 +4667,37 @@ export default function App(){
       if(!newP){ projCache[cleanLower]=null; return null; }
       localProjects=[...localProjects,newP];
       setProjects(prev=>[...prev,newP].sort((a,b)=>a.id.localeCompare(b.id)));
-      addLog("ok",`    ✓ Project created: ${clean} (${projId})`);
+      addLog("ok",`    âœ“ Project created: ${clean} (${projId})`);
       projCache[cleanLower]=newP;
       return newP;
     };
 
     for(const file of files){
-      addLog("info",`📂 Processing: ${file.name}`);
+      addLog("info",`ًں“‚ Processing: ${file.name}`);
       try{
         const buf=await file.arrayBuffer();
         const XLSX=window.XLSX;
-        if(!XLSX){addLog("error","SheetJS not loaded — go back and wait for ✓ XLSX READY, then try again");break;}
+        if(!XLSX){addLog("error","SheetJS not loaded â€” go back and wait for âœ“ XLSX READY, then try again");break;}
         const wb=XLSX.read(new Uint8Array(buf),{type:"array",cellDates:true});
         const ws=wb.Sheets[wb.SheetNames[0]];
         const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
 
 
-        // ── FIX: Detect column layout — standard (col 0) vs shifted (col 4, Shehab-style) ──
+        // â”€â”€ FIX: Detect column layout â€” standard (col 0) vs shifted (col 4, Shehab-style) â”€â”€
         // Standard: row[0]=Date/Name, row[1]=email value, row[2]=task...
         // Shifted:  row[4]=Name label, row[5]=Name value, row[6]=task...
         let colOffset=0;
         const r0=String(rows[0]?.[0]||"").trim().toLowerCase();
         const r0c4=String(rows[0]?.[4]||"").trim().toLowerCase();
-        if(!r0&&r0c4==="name"){ colOffset=4; addLog("info","  ℹ Shifted column layout detected (offset +4)"); }
+        if(!r0&&r0c4==="name"){ colOffset=4; addLog("info","  â„¹ Shifted column layout detected (offset +4)"); }
 
         // Parse header (row 0=Name, row 1=Email, row 2=Month)
         const engName=String(rows[0]?.[colOffset+1]||"").trim();
         const engEmail=String(rows[1]?.[colOffset+1]||"").trim().toLowerCase();
         const engRole=String(rows[0]?.[colOffset+4]||"").trim();
 
-        if(!engName||!engEmail){addLog("error","  ✕ Missing name/email in header rows");continue;}
-        addLog("info",`  👤 ${engName} <${engEmail}>`);
+        if(!engName||!engEmail){addLog("error","  âœ• Missing name/email in header rows");continue;}
+        addLog("info",`  ًں‘¤ ${engName} <${engEmail}>`);
 
         // Find or create engineer
         let eng=localEngineers.find(e=>(e.email||"").toLowerCase()===engEmail);
@@ -10161,22 +4708,22 @@ export default function App(){
             level:"Mid",role_type:"engineer",
             weekend_days:JSON.stringify([5,6])
           }).select();
-          if(eErr){addLog("error",`  ✕ Engineer failed: ${eErr.message}`);continue;}
+          if(eErr){addLog("error",`  âœ• Engineer failed: ${eErr.message}`);continue;}
           eng=Array.isArray(eArr)?eArr[0]:eArr;
-          if(!eng){addLog("error","  ✕ Engineer insert returned no data");continue;}
+          if(!eng){addLog("error","  âœ• Engineer insert returned no data");continue;}
           localEngineers=[...localEngineers,eng];
           setEngineers(prev=>[...prev,eng].sort((a,b)=>a.name.localeCompare(b.name)));
-          addLog("ok",`  ✓ Created engineer: ${engName}`);
+          addLog("ok",`  âœ“ Created engineer: ${engName}`);
         } else {
-          addLog("info",`  → Existing engineer: ${eng.name}`);
+          addLog("info",`  â†’ Existing engineer: ${eng.name}`);
         }
 
-        // ── LOCAL DATE HELPER: always use local year/month/day, never toISOString() ──
-        // SheetJS cellDates:true returns Date at local midnight — toISOString() shifts in UTC+ zones
+        // â”€â”€ LOCAL DATE HELPER: always use local year/month/day, never toISOString() â”€â”€
+        // SheetJS cellDates:true returns Date at local midnight â€” toISOString() shifts in UTC+ zones
         const localDateStr=(d)=>{
-          // Add 12 hours then use UTC methods — handles SheetJS storing local midnight as UTC
+          // Add 12 hours then use UTC methods â€” handles SheetJS storing local midnight as UTC
           // e.g. Egypt UTC+2: "2026-02-01 local" stored as "2026-01-31T22:00Z"
-          // +12h → "2026-02-01T10:00Z" → getUTCFullYear/Month/Date = 2026/1/1 = Feb 1 ✓
+          // +12h â†’ "2026-02-01T10:00Z" â†’ getUTCFullYear/Month/Date = 2026/1/1 = Feb 1 âœ“
           const shifted=new Date(d.getTime()+12*3600*1000);
           const yy=shifted.getUTCFullYear();
           const mm=String(shifted.getUTCMonth()+1).padStart(2,"0");
@@ -10201,7 +4748,7 @@ export default function App(){
           return "";
         };
 
-        // ── DETECT IMPORT MONTH ──
+        // â”€â”€ DETECT IMPORT MONTH â”€â”€
         // SheetJS with cellDates:true + raw:true returns date cells as Date objects OR serial numbers
         // depending on browser/version. Handle all cases explicitly.
         // Strategy: try every possible representation of the Month cell and all early data rows.
@@ -10211,7 +4758,7 @@ export default function App(){
           if(!raw) return null;
           // SheetJS stores date cells as UTC midnight of the LOCAL date
           // e.g. Egypt UTC+2: Feb 1 00:00 local = Jan 31 22:00 UTC
-          // getMonth() on this UTC date returns January — WRONG
+          // getMonth() on this UTC date returns January â€” WRONG
           // Fix: add 12 hours before reading so we safely land in the correct UTC day
           if(typeof raw==="object"&&raw!==null&&typeof raw.getFullYear==="function"){
             const shifted=new Date(raw.getTime()+12*3600*1000);
@@ -10247,25 +4794,25 @@ export default function App(){
         const monthStart=`${yrStr}-${moStr}-01`;
         const lastDay=new Date(importYear,importMonth+1,0).getDate();
         const monthEnd=`${yrStr}-${moStr}-${String(lastDay).padStart(2,"0")}`;
-        addLog("info",`  📅 Month: ${moStr}/${yrStr} (${monthStart} → ${monthEnd})`);
+        addLog("info",`  ًں“… Month: ${moStr}/${yrStr} (${monthStart} â†’ ${monthEnd})`);
 
         // Delete existing entries for this engineer+month
         const {data:existingRows,error:fetchErr}=await supabase
           .from("time_entries").select("id")
           .eq("engineer_id",eng.id).gte("date",monthStart).lte("date",monthEnd);
         if(fetchErr){
-          addLog("warn",`  ⚠ Fetch error: ${fetchErr.message}`);
+          addLog("warn",`  âڑ  Fetch error: ${fetchErr.message}`);
         } else {
-          addLog("info",`  🔍 Found ${existingRows?.length||0} existing entries`);
+          addLog("info",`  ًں”چ Found ${existingRows?.length||0} existing entries`);
           if(existingRows&&existingRows.length>0){
             const ids=existingRows.map(r=>r.id);
             const {error:delErr}=await supabase.from("time_entries").delete().in("id",ids);
-            if(delErr) addLog("warn",`  ⚠ Delete failed: ${delErr.message}`);
-            else{ setEntries(prev=>prev.filter(e=>!ids.includes(e.id))); addLog("ok",`  ✓ Cleared ${ids.length} old entries`); }
-          } else { addLog("ok","  ✓ No existing entries — fresh import"); }
+            if(delErr) addLog("warn",`  âڑ  Delete failed: ${delErr.message}`);
+            else{ setEntries(prev=>prev.filter(e=>!ids.includes(e.id))); addLog("ok",`  âœ“ Cleared ${ids.length} old entries`); }
+          } else { addLog("ok","  âœ“ No existing entries â€” fresh import"); }
         }
 
-        // ── PARSE DATA ROWS ──
+        // â”€â”€ PARSE DATA ROWS â”€â”€
         let inserted=0, skipped=0, leaveCnt=0;
         let firstDaySeen=false; // track when engineer's first working day appears
 
@@ -10283,10 +4830,10 @@ export default function App(){
           const dateStr=parseCellDate(rawD);
           if(!dateStr||dateStr==="NaN-NaN-NaN") continue;
 
-          // ── STOP: skip rows outside the import month (e.g. Mar rows in a Feb sheet) ──
+          // â”€â”€ STOP: skip rows outside the import month (e.g. Mar rows in a Feb sheet) â”€â”€
           if(dateStr<monthStart||dateStr>monthEnd){ skipped++; continue; }
 
-          // Read task/hours/project/details — use colOffset for shifted layouts
+          // Read task/hours/project/details â€” use colOffset for shifted layouts
           const task       =String(row[colOffset+2]||"").trim();
           const hoursRaw   =row[colOffset+3];
           const projName   =String(row[colOffset+4]||"").trim();
@@ -10297,8 +4844,8 @@ export default function App(){
           const detailsLower=taskDetails.toLowerCase();
           const hours=typeof hoursRaw==="number"?hoursRaw:(hoursRaw?parseFloat(String(hoursRaw)):0);
 
-          // ── WEEKEND: day-of-week check (local noon to avoid UTC shift) ──
-          const dow=new Date(dateStr+"T12:00:00").getDay(); // 0=Sun…5=Fri,6=Sat
+          // â”€â”€ WEEKEND: day-of-week check (local noon to avoid UTC shift) â”€â”€
+          const dow=new Date(dateStr+"T12:00:00").getDay(); // 0=Sunâ€¦5=Fri,6=Sat
           let engWeekend=[5,6];
           try{ engWeekend=eng.weekend_days?JSON.parse(eng.weekend_days):[5,6]; }catch(_){}
 
@@ -10313,35 +4860,35 @@ export default function App(){
           // Skip empty weekend rows
           if(allEmpty&&engWeekend.includes(dow)) continue;
 
-          // ── VACATION: explicit vacation keyword in task, regardless of project column ──
-          // (some engineers put "Vacation" in both task AND project — detect by task only)
+          // â”€â”€ VACATION: explicit vacation keyword in task, regardless of project column â”€â”€
+          // (some engineers put "Vacation" in both task AND project â€” detect by task only)
           const isVacationTask=taskLower==="vacation"||taskLower==="annual leave"
             ||taskLower==="sick leave"||taskLower==="unpaid leave";
           const isVacationDetail=detailsLower.includes("vacation");
 
-          // ── PUBLIC HOLIDAY / NATIONAL DAY ──
+          // â”€â”€ PUBLIC HOLIDAY / NATIONAL DAY â”€â”€
           const isHoliday=(taskLower.includes("holiday")||taskLower.includes("national day")
             ||detailsLower.includes("holiday"))&&!projName;
 
-          // ── TRAINING with no project → Training External leave ──
+          // â”€â”€ TRAINING with no project â†’ Training External leave â”€â”€
           const isTrainingNoProj=(taskLower==="training"||taskLower.includes("training"))
             &&!projName&&hours>0;
 
-          // ── FIRST DAY marker → skip it as a plain note (no leave, no work) ──
+          // â”€â”€ FIRST DAY marker â†’ skip it as a plain note (no leave, no work) â”€â”€
           const isFirstDayMarker=taskLower.includes("first day")||taskLower.includes("(first day)");
 
-          // ── IMPLICIT ABSENCE: empty workday row ──
+          // â”€â”€ IMPLICIT ABSENCE: empty workday row â”€â”€
           // Only count as absence if we've seen at least one working day (avoids pre-employment period)
           const isImplicitAbsence=allEmpty&&!engWeekend.includes(dow)&&firstDaySeen;
 
-          // ── CLASSIFY ──
+          // â”€â”€ CLASSIFY â”€â”€
           if(isHoliday){
             const {error:lErr}=await supabase.from("time_entries").upsert({
               engineer_id:eng.id,date:dateStr,hours:8,
               entry_type:"leave",leave_type:"Public Holiday",billable:false
             },{onConflict:"engineer_id,date,entry_type,leave_type",ignoreDuplicates:false});
             if(!lErr){inserted++;leaveCnt++; firstDaySeen=true;}
-            else addLog("warn",`  ⚠ Holiday ${dateStr}: ${lErr.message}`);
+            else addLog("warn",`  âڑ  Holiday ${dateStr}: ${lErr.message}`);
             continue;
           }
 
@@ -10353,7 +4900,7 @@ export default function App(){
               entry_type:"leave",leave_type:lvType,billable:false
             },{onConflict:"engineer_id,date,entry_type,leave_type",ignoreDuplicates:false});
             if(!lErr){inserted++;leaveCnt++; firstDaySeen=true;}
-            else addLog("warn",`  ⚠ Leave(${lvType}) ${dateStr}: ${lErr.message}`);
+            else addLog("warn",`  âڑ  Leave(${lvType}) ${dateStr}: ${lErr.message}`);
             continue;
           }
 
@@ -10363,12 +4910,12 @@ export default function App(){
               entry_type:"leave",leave_type:"Training External",billable:false
             },{onConflict:"engineer_id,date,entry_type,leave_type",ignoreDuplicates:false});
             if(!lErr){inserted++;leaveCnt++; firstDaySeen=true;}
-            else addLog("warn",`  ⚠ Training ${dateStr}: ${lErr.message}`);
+            else addLog("warn",`  âڑ  Training ${dateStr}: ${lErr.message}`);
             continue;
           }
 
           if(isFirstDayMarker){
-            // First day orientation — log as Training External, mark employment start
+            // First day orientation â€” log as Training External, mark employment start
             const leaveHours=(hours>0&&hours<=24)?hours:8;
             const {error:lErr}=await supabase.from("time_entries").upsert({
               engineer_id:eng.id,date:dateStr,hours:leaveHours,
@@ -10385,17 +4932,17 @@ export default function App(){
               entry_type:"leave",leave_type:"Annual Leave",billable:false
             },{onConflict:"engineer_id,date,entry_type,leave_type",ignoreDuplicates:false});
             if(!lErr){inserted++;leaveCnt++;}
-            else addLog("warn",`  ⚠ Absence ${dateStr}: ${lErr.message}`);
+            else addLog("warn",`  âڑ  Absence ${dateStr}: ${lErr.message}`);
             continue;
           }
 
-          // ── WORK ENTRY: must have task + hours + project ──
+          // â”€â”€ WORK ENTRY: must have task + hours + project â”€â”€
           if(!task||isNaN(hours)||hours<=0||!projName) continue;
           firstDaySeen=true;
 
           const proj=await findOrCreateProject(projName);
 
-          // Map task → category/type
+          // Map task â†’ category/type
           let cat="Software", typ="SCADA Development";
           const tl=task.toLowerCase();
           if(tl.includes("hmi"))                         {cat="Software";typ="HMI Development";}
@@ -10414,7 +4961,7 @@ export default function App(){
           else if(tl.includes("site")||tl.includes("support")){cat="Commissioning";typ="Site Support";}
           else if(tl.includes("bess")||tl.includes("a8000")||tl.includes("a 8000")){cat="Software";typ="PLC Programming";}
 
-          const activity=taskDetails||(task+(projName?` — ${projName}`:""));
+          const activity=taskDetails||(task+(projName?` â€” ${projName}`:""));
 
           const {error:eErr}=await supabase.from("time_entries").upsert({
             engineer_id:eng.id,
@@ -10425,14 +4972,14 @@ export default function App(){
             billable:proj?.billable||false,
           },{onConflict:"engineer_id,date,project_id,task_type",ignoreDuplicates:false});
           if(!eErr) inserted++;
-          else{addLog("warn",`  ⚠ Entry ${dateStr} failed: ${eErr.message}`);skipped++;}
+          else{addLog("warn",`  âڑ  Entry ${dateStr} failed: ${eErr.message}`);skipped++;}
         }
-        addLog("ok",`  ✓ Done: ${inserted} entries (${leaveCnt} leave, ${skipped} skipped)`);
+        addLog("ok",`  âœ“ Done: ${inserted} entries (${leaveCnt} leave, ${skipped} skipped)`);
       }catch(err){
-        addLog("error",`  ✕ Parse error: ${err.message}`);
+        addLog("error",`  âœ• Parse error: ${err.message}`);
       }
     }
-    addLog("info","✅ All files processed — refreshing...");
+    addLog("info","âœ… All files processed â€” refreshing...");
     await loadAll();
     setImporting(false);
     logAction("IMPORT","Import",`Imported ${files.length} timesheet file(s)`,{files:files.map(f=>f.name)});
@@ -10444,7 +4991,7 @@ export default function App(){
     // Filter out frozen entries from bulk delete
     const frozenIds=allIds.filter(id=>{const e=entries.find(x=>x.id===id);return e&&isMonthFrozen(e.date);});
     const ids=allIds.filter(id=>!frozenIds.includes(id));
-    if(frozenIds.length>0) showToast(`❄ ${frozenIds.length} frozen entr${frozenIds.length===1?"y":"ies"} skipped`,false);
+    if(frozenIds.length>0) showToast(`â‌„ ${frozenIds.length} frozen entr${frozenIds.length===1?"y":"ies"} skipped`,false);
     if(ids.length===0) return;
     const saved=entries.filter(e=>ids.includes(e.id));
     showConfirm(`Delete ${ids.length} selected time entr${ids.length===1?"y":"ies"}?`,()=>{
@@ -10452,17 +4999,17 @@ export default function App(){
       setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id)));
       setSelectedEntries(new Set());
       let _undone=false;
-      showToast(`${ids.length} entr${ids.length===1?"y":"ies"} deleted — Undo?`,false,()=>{
+      showToast(`${ids.length} entr${ids.length===1?"y":"ies"} deleted â€” Undo?`,false,()=>{
         _undone=true;
         setEntries(prev=>[...saved,...prev].sort((a,b)=>b.date.localeCompare(a.date)));
-        showToast("Undo successful ✓");
+        showToast("Undo successful âœ“");
       });
       setTimeout(async()=>{
         if(_undone) return;
         const{error}=await supabase.from("time_entries").delete().in("id",ids);
         if(error){
           setEntries(prev=>[...saved,...prev].sort((a,b)=>b.date.localeCompare(a.date)));
-          showToast("Bulk delete failed — restored: "+error.message,false);
+          showToast("Bulk delete failed â€” restored: "+error.message,false);
           return;
         }
         logAction("DELETE","TimeEntry",`Bulk deleted ${ids.length} time entries`,{count:ids.length});
@@ -10470,7 +5017,7 @@ export default function App(){
     },{title:"Bulk Delete Entries",confirmLabel:`Delete ${ids.length}`});
   };
 
-  /* ── PROJECT CRUD ── */
+  /* â”€â”€ PROJECT CRUD â”€â”€ */
   const addProject=async()=>{
     if(!newProj.id||!newProj.name){showToast("Number and name required",false);return;}
     const projToInsert={...newProj,assigned_engineers:newProj.assigned_engineers||[]};
@@ -10479,9 +5026,9 @@ export default function App(){
     setProjects(prev=>[...prev,data].sort((a,b)=>a.id.localeCompare(b.id)));
     setShowProjModal(false);
     setNewProj({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
-    showToast("Project created ✓");
-    logAction("CREATE","Project",`Created project ${newProj.id} — ${newProj.name}`,{project_id:newProj.id,name:newProj.name});
-    // ── Notify project leader + assigned engineers on creation ──
+    showToast("Project created âœ“");
+    logAction("CREATE","Project",`Created project ${newProj.id} â€” ${newProj.name}`,{project_id:newProj.id,name:newProj.name});
+    // â”€â”€ Notify project leader + assigned engineers on creation â”€â”€
     const _now=new Date().toISOString();
     const _projName=newProj.name||newProj.id;
     const _notified=new Set([String(myProfile?.id)]);
@@ -10491,7 +5038,7 @@ export default function App(){
       if(_leaderEng&&!_notified.has(String(_leaderEng.id))){
         _notified.add(String(_leaderEng.id));
         insertNotif({type:"project_leader",engineer_id:_leaderEng.id,read:false,
-          message:`⭐ You have been set as Project Leader for "${_projName}"`,
+          message:`â­گ You have been set as Project Leader for "${_projName}"`,
           created_at:_now,
           meta:JSON.stringify({project_id:newProj.id,project_name:_projName,changed_by:myProfile?.name})});
       }
@@ -10502,11 +5049,11 @@ export default function App(){
       _notified.add(String(engId));
       const _aEng=engineers.find(e=>String(e.id)===String(engId));
       if(_aEng) insertNotif({type:"project_assigned",engineer_id:_aEng.id,read:false,
-        message:`✓ You have been added to project "${_projName}"`,
+        message:`âœ“ You have been added to project "${_projName}"`,
         created_at:_now,
         meta:JSON.stringify({project_id:newProj.id,project_name:_projName,changed_by:myProfile?.name})});
     });
-    // If LEAD creates project, notify all admins (admin creating → they already know)
+    // If LEAD creates project, notify all admins (admin creating â†’ they already know)
     if(!isAdmin){
       const _adminProjMsg=`${myProfile?.name||"Lead"} created project "${_projName}"`;
       engineers.filter(e=>e.role_type==="admin"&&!_notified.has(String(e.id))).forEach(adm=>{
@@ -10539,8 +5086,8 @@ export default function App(){
       setEntries(prev=>prev.map(e=>e.project_id===origId?{...e,project_id:newId}:e));
       setActivities(prev=>prev.map(a=>a.project_id===origId?{...a,project_id:newId}:a));
       setSubprojects(prev=>prev.map(s=>s.project_id===origId?{...s,project_id:newId}:s));
-      setEditProjModal(null); showToast("Project ID renamed & entries re-linked ✓");
-      logAction("UPDATE","Project",`Renamed project ${origId} → ${newId}`,{old_id:origId,new_id:newId});
+      setEditProjModal(null); showToast("Project ID renamed & entries re-linked âœ“");
+      logAction("UPDATE","Project",`Renamed project ${origId} â†’ ${newId}`,{old_id:origId,new_id:newId});
     } else {
       const{id,...fields}=rest;
       let {data,error}=await supabase.from("projects").update(fields).eq("id",id).select().single();
@@ -10548,20 +5095,20 @@ export default function App(){
         const{assigned_engineers:_ae,...fieldsNoAE}=fields;
         const res=await supabase.from("projects").update(fieldsNoAE).eq("id",id).select().single();
         data=res.data; error=res.error;
-        if(!error) showToast("⚠ Saved — but run the 'Assigned Engineers' migration in Admin › Info to enable assignment tracking",false);
+        if(!error) showToast("âڑ  Saved â€” but run the 'Assigned Engineers' migration in Admin â€؛ Info to enable assignment tracking",false);
       }
       if(error){showToast("Error: "+error.message,false);return;}
       if(data){
         setProjects(prev=>prev.map(p=>p.id===data.id?{...data,assigned_engineers:fields.assigned_engineers||[]}:p));
       }
-      setEditProjModal(null); showToast("Project updated ✓");
+      setEditProjModal(null); showToast("Project updated âœ“");
       const _pprev=projects.find(p=>p.id===editProjModal?.id)||{};
       const _pchanges=[];
-      if(_pprev.name!==rest.name) _pchanges.push(`name: "${_pprev.name}"→"${rest.name}"`);
-      if(_pprev.client!==rest.client) _pchanges.push(`client: "${_pprev.client||"—"}"→"${rest.client||"—"}"`);
-      if(_pprev.billable!==rest.billable) _pchanges.push(`billable: ${_pprev.billable}→${rest.billable}`);
-      if(_pprev.status!==rest.status) _pchanges.push(`status: ${_pprev.status||"—"}→${rest.status||"—"}`);
-      // ── Helper: notify leader + all assigned (excluding self and already-notified) ──
+      if(_pprev.name!==rest.name) _pchanges.push(`name: "${_pprev.name}"â†’"${rest.name}"`);
+      if(_pprev.client!==rest.client) _pchanges.push(`client: "${_pprev.client||"â€”"}"â†’"${rest.client||"â€”"}"`);
+      if(_pprev.billable!==rest.billable) _pchanges.push(`billable: ${_pprev.billable}â†’${rest.billable}`);
+      if(_pprev.status!==rest.status) _pchanges.push(`status: ${_pprev.status||"â€”"}â†’${rest.status||"â€”"}`);
+      // â”€â”€ Helper: notify leader + all assigned (excluding self and already-notified) â”€â”€
       const _notifyTeam=(type,message,meta,skipIds=[])=>{
         const _skip=new Set([String(myProfile?.id),...skipIds.map(String)]);
         if(rest.project_leader){
@@ -10578,28 +5125,28 @@ export default function App(){
         });
       };
 
-      // 1. STATUS CHANGE → notify leader + team
+      // 1. STATUS CHANGE â†’ notify leader + team
       if(_pprev.status!==rest.status){
-        const _emoji=rest.status==="On Hold"?"⏸":rest.status==="Completed"?"✅":rest.status==="Active"?"▶":"🔄";
+        const _emoji=rest.status==="On Hold"?"âڈ¸":rest.status==="Completed"?"âœ…":rest.status==="Active"?"â–¶":"ًں”„";
         _notifyTeam("project_status",
-          `${_emoji} Project "${rest.name||rest.id}" status: ${_pprev.status||"—"} → ${rest.status}`,
+          `${_emoji} Project "${rest.name||rest.id}" status: ${_pprev.status||"â€”"} â†’ ${rest.status}`,
           {project_id:rest.id,project_name:rest.name,old_status:_pprev.status,new_status:rest.status,changed_by:myProfile?.name});
       }
 
-      // 2. PHASE CHANGE → notify leader + team
+      // 2. PHASE CHANGE â†’ notify leader + team
       if(_pprev.phase!==rest.phase&&rest.phase){
         _notifyTeam("project_phase",
-          `📋 Project "${rest.name||rest.id}" phase: ${_pprev.phase||"—"} → ${rest.phase}`,
+          `ًں“‹ Project "${rest.name||rest.id}" phase: ${_pprev.phase||"â€”"} â†’ ${rest.phase}`,
           {project_id:rest.id,project_name:rest.name,old_phase:_pprev.phase,new_phase:rest.phase,changed_by:myProfile?.name});
       }
 
-      // 3. PROJECT LEADER CHANGE → notify new leader + old leader
+      // 3. PROJECT LEADER CHANGE â†’ notify new leader + old leader
       if(_pprev.project_leader!==rest.project_leader){
         if(rest.project_leader){
           const _newLeaderEng=engineers.find(e=>e.name===rest.project_leader);
           if(_newLeaderEng&&String(_newLeaderEng.id)!==String(myProfile?.id)){
             insertNotif({type:"project_leader",engineer_id:_newLeaderEng.id,read:false,
-              message:`⭐ You are now Project Leader for "${rest.name||rest.id}"`,
+              message:`â­گ You are now Project Leader for "${rest.name||rest.id}"`,
               created_at:new Date().toISOString(),
               meta:JSON.stringify({project_id:rest.id,project_name:rest.name,changed_by:myProfile?.name})});
           }
@@ -10608,14 +5155,14 @@ export default function App(){
           const _oldLeaderEng=engineers.find(e=>e.name===_pprev.project_leader);
           if(_oldLeaderEng&&String(_oldLeaderEng.id)!==String(myProfile?.id)){
             insertNotif({type:"project_leader",engineer_id:_oldLeaderEng.id,read:false,
-              message:`ℹ You are no longer Project Leader for "${rest.name||rest.id}"`,
+              message:`â„¹ You are no longer Project Leader for "${rest.name||rest.id}"`,
               created_at:new Date().toISOString(),
               meta:JSON.stringify({project_id:rest.id,project_name:rest.name,changed_by:myProfile?.name})});
           }
         }
       }
 
-      // 4. TEAM ASSIGNMENT CHANGE → notify added engineers, notify removed engineers
+      // 4. TEAM ASSIGNMENT CHANGE â†’ notify added engineers, notify removed engineers
       if(JSON.stringify((_pprev.assigned_engineers||[]).slice().sort())!==JSON.stringify((rest.assigned_engineers||[]).slice().sort())){
         const _prevIds=new Set((_pprev.assigned_engineers||[]).map(String));
         const _newIds=new Set((rest.assigned_engineers||[]).map(String));
@@ -10625,7 +5172,7 @@ export default function App(){
           if(String(engId)===String(myProfile?.id)) return; // self
           const _aEng=engineers.find(e=>String(e.id)===engId);
           if(_aEng) insertNotif({type:"project_assigned",engineer_id:_aEng.id,read:false,
-            message:`✓ You have been added to project "${rest.name||rest.id}"`,
+            message:`âœ“ You have been added to project "${rest.name||rest.id}"`,
             created_at:new Date().toISOString(),
             meta:JSON.stringify({project_id:rest.id,project_name:rest.name,changed_by:myProfile?.name})});
         });
@@ -10635,13 +5182,13 @@ export default function App(){
           if(String(engId)===String(myProfile?.id)) return; // self
           const _rEng=engineers.find(e=>String(e.id)===engId);
           if(_rEng) insertNotif({type:"project_assigned",engineer_id:_rEng.id,read:false,
-            message:`ℹ You have been removed from project "${rest.name||rest.id}"`,
+            message:`â„¹ You have been removed from project "${rest.name||rest.id}"`,
             created_at:new Date().toISOString(),
             meta:JSON.stringify({project_id:rest.id,project_name:rest.name,changed_by:myProfile?.name})});
         });
       }
 
-      logAction("UPDATE","Project",`Updated project ${editProjModal?.id}${_pchanges.length?" — "+_pchanges.join(", "):""}`,{project_id:editProjModal?.id,changes:_pchanges});
+      logAction("UPDATE","Project",`Updated project ${editProjModal?.id}${_pchanges.length?" â€” "+_pchanges.join(", "):""}`,{project_id:editProjModal?.id,changes:_pchanges});
     }
   };
   const deleteProject=async id=>{
@@ -10682,10 +5229,10 @@ export default function App(){
           });
         }
       );
-    },{title:"Delete Project",confirmLabel:"Delete Project",icon:"🗑"});
+    },{title:"Delete Project",confirmLabel:"Delete Project",icon:"ًں—‘"});
   };
 
-  /* ── SUB-PROJECT CRUD ── */
+  /* â”€â”€ SUB-PROJECT CRUD â”€â”€ */
   const addSubProject=async(draft)=>{
     const pid=draft.project_id||draft.projectId;
     const{name,pm_name,pm_comments,pendings,assigned_engineers}=draft;
@@ -10696,7 +5243,7 @@ export default function App(){
       .select().single();
     if(error){showToast("Error: "+error.message,false);return;}
     setSubprojects(prev=>[...prev,data]);
-    setSubProjModal(null); showToast("Sub-project added ✓");
+    setSubProjModal(null); showToast("Sub-project added âœ“");
     logAction("CREATE","Project",`Added sub-project: ${data.name} (${pid})`,{subproject_id:data.id,name:data.name,project_id:pid});
   };
   const saveSubProject=async(sub)=>{
@@ -10705,7 +5252,7 @@ export default function App(){
       .update(fields).eq("id",id).select().single();
     if(error){showToast("Error: "+error.message,false);return;}
     setSubprojects(prev=>prev.map(s=>s.id===data.id?data:s));
-    setSubProjModal(null); showToast("Sub-project saved ✓");
+    setSubProjModal(null); showToast("Sub-project saved âœ“");
     logAction("UPDATE","Project",`Updated sub-project: ${data.name}`,{subproject_id:data.id,name:data.name});
   };
   const deleteSubProject=async(id)=>{
@@ -10726,13 +5273,13 @@ export default function App(){
     },{title:"Delete Sub-Site",confirmLabel:"Delete Sub-Site"});
   };
 
-  /* ── ENGINEER CRUD ── */
+  /* â”€â”€ ENGINEER CRUD â”€â”€ */
   const addEngineer=async()=>{
     if(!newEng.name.trim()){showToast("Name required",false);return;}
     if(!newEng.email.trim()){showToast("Email required",false);return;}
 
     // Try inserting with progressively fewer columns until one works
-    // This handles ANY schema state — missing columns, wrong types, constraints
+    // This handles ANY schema state â€” missing columns, wrong types, constraints
     const attempts=[
       // Attempt 1: full payload with all optional columns
       {name:newEng.name.trim(),email:newEng.email.trim().toLowerCase(),
@@ -10749,7 +5296,7 @@ export default function App(){
       {name:newEng.name.trim(),email:newEng.email.trim().toLowerCase(),
        role:newEng.role||ROLES_LIST[0],level:newEng.level||"Mid",
        role_type:newEng.role_type||"engineer"},
-      // Attempt 4: absolute minimum — just name, role, level, role_type
+      // Attempt 4: absolute minimum â€” just name, role, level, role_type
       {name:newEng.name.trim(),
        role:newEng.role||ROLES_LIST[0],level:newEng.level||"Mid",
        role_type:newEng.role_type||"engineer"},
@@ -10790,7 +5337,7 @@ export default function App(){
 
     setShowEngModal(false);
     setNewEng({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
-    showToast("Member added ✓ — set salary in Finance › Staff");
+    showToast("Member added âœ“ â€” set salary in Finance â€؛ Staff");
     logAction("CREATE","Engineer",`Added engineer: ${data.name}`,{id:data.id,name:data.name,role_type:data.role_type,role:data.role});
   };
   const saveEditEngineer=async()=>{
@@ -10824,16 +5371,16 @@ export default function App(){
     }
     setEngineers(prev=>prev.map(e=>e.id===id?merged:e));
     if(id===myProfile?.id) setMyProfile(merged);
-    setEditEngModal(null); showToast("Updated ✓");
+    setEditEngModal(null); showToast("Updated âœ“");
     const _prev=engineers.find(e=>e.id===id)||{};
     const _changes=[];
-    if(_prev.name!==merged.name) _changes.push(`name: "${_prev.name}"→"${merged.name}"`);
-    if(_prev.role!==merged.role) _changes.push(`job role: "${_prev.role||"—"}"→"${merged.role||"—"}"`);
-    if(_prev.role_type!==merged.role_type) _changes.push(`access: ${_prev.role_type}→${merged.role_type}`);
-    if(_prev.level!==merged.level) _changes.push(`level: "${_prev.level||"—"}"→"${merged.level||"—"}"`);
-    if(String(_prev.is_active)!==String(merged.is_active)) _changes.push(`active: ${_prev.is_active}→${merged.is_active}`);
-    if(_prev.termination_date!==merged.termination_date) _changes.push(`termination: ${_prev.termination_date||"none"}→${merged.termination_date||"none"}`);
-    logAction("UPDATE","Engineer",`Updated engineer: ${merged.name}${_changes.length?" — "+_changes.join(", "):""}`,{id,name:merged.name,role_type:merged.role_type,is_active:merged.is_active,termination_date:merged.termination_date||null,changes:_changes});
+    if(_prev.name!==merged.name) _changes.push(`name: "${_prev.name}"â†’"${merged.name}"`);
+    if(_prev.role!==merged.role) _changes.push(`job role: "${_prev.role||"â€”"}"â†’"${merged.role||"â€”"}"`);
+    if(_prev.role_type!==merged.role_type) _changes.push(`access: ${_prev.role_type}â†’${merged.role_type}`);
+    if(_prev.level!==merged.level) _changes.push(`level: "${_prev.level||"â€”"}"â†’"${merged.level||"â€”"}"`);
+    if(String(_prev.is_active)!==String(merged.is_active)) _changes.push(`active: ${_prev.is_active}â†’${merged.is_active}`);
+    if(_prev.termination_date!==merged.termination_date) _changes.push(`termination: ${_prev.termination_date||"none"}â†’${merged.termination_date||"none"}`);
+    logAction("UPDATE","Engineer",`Updated engineer: ${merged.name}${_changes.length?" â€” "+_changes.join(", "):""}`,{id,name:merged.name,role_type:merged.role_type,is_active:merged.is_active,termination_date:merged.termination_date||null,changes:_changes});
   };
   const deleteEngineer=async id=>{
     const eng=engineers.find(e=>e.id===id);
@@ -10854,7 +5401,7 @@ export default function App(){
           await supabase.from("time_entries").delete().eq("engineer_id",id);
           // Clean notifications: direct engineer_id field (vacation) + activity_comment via meta pattern
           await supabase.from("notifications").delete().eq("engineer_id",id);
-          // Note: activity_comment notifications store recipient in meta — orphaned rows cleaned by RLS or periodic admin archive
+          // Note: activity_comment notifications store recipient in meta â€” orphaned rows cleaned by RLS or periodic admin archive
           const{error}=await supabase.from("engineers").delete().eq("id",id);
           return error||null;
         },
@@ -10863,7 +5410,7 @@ export default function App(){
     },{title:"Delete Engineer",confirmLabel:"Delete Engineer"});
   };
 
-  /* ── DERIVED STATS ── */
+  /* â”€â”€ DERIVED STATS â”€â”€ */
   const monthEntries=useMemo(()=>entries.filter(e=>{
     // Parse as local noon to avoid UTC midnight shifting month/year in UTC+ timezones
     const d=new Date(e.date+"T12:00:00");
@@ -10978,10 +5525,10 @@ export default function App(){
       &&d.getMonth()===entryFilter.month&&d.getFullYear()===entryFilter.year;
   }),[entries,entryFilter,mySubEngIds]);
 
-  /* ── PDF builds ── */
+  /* â”€â”€ PDF builds â”€â”€ */
   const buildUtilizationPDF=()=>{
     const pdfStats=visibleEngStats; // scoped for lead, full for admin/acct
-    generatePDF(`Team Utilization — ${MONTHS[month]} ${year}`,[
+    generatePDF(`Team Utilization â€” ${MONTHS[month]} ${year}`,[
       `<div class="section"><div class="st">KPIs</div><div class="kg">
         <div class="kp"><div class="kv">${fmtPct(overallUtil)}</div><div class="kl">Utilization</div></div>
         <div class="kp"><div class="kv">${fmtPct(billabilityPct)}</div><div class="kl">Billability</div></div>
@@ -11003,7 +5550,7 @@ export default function App(){
     const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
     const period=`${MONTHS[month]} ${year}`;
 
-    // ── DERIVED METRICS ──
+    // â”€â”€ DERIVED METRICS â”€â”€
     const nonBillableHrs=totalWorkHrs-totalBillable;
     const nonBillablePct=totalWorkHrs?Math.round(nonBillableHrs/totalWorkHrs*100):0;
     const avgRate=totalBillable>0?totalRevenue/totalBillable:0;
@@ -11012,7 +5559,7 @@ export default function App(){
     const uniqueEngineers=[...new Set(workEntries.map(e=>e.engineer_id))].length;
     const avgHrsPerEntry=workEntries.length?(totalWorkHrs/workEntries.length).toFixed(1):0;
 
-    // ── PREVIOUS MONTH COMPARISON ──
+    // â”€â”€ PREVIOUS MONTH COMPARISON â”€â”€
     const prevMonth=month===0?11:month-1;
     const prevYear=month===0?year-1:year;
     const prevWE=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===prevYear&&d.getMonth()===prevMonth&&e.entry_type==="work";});
@@ -11020,19 +5567,19 @@ export default function App(){
     const prevCatMap={};
     prevWE.forEach(e=>{const g=e.task_category||CAT_TO_GROUP[e.task_type]||"General";prevCatMap[g]=(prevCatMap[g]||0)+e.hours;});
 
-    // ── TOP ACTIVITIES ──
+    // â”€â”€ TOP ACTIVITIES â”€â”€
     const actMap={};
     workEntries.forEach(e=>{
       if(!e.activity)return;
       const k=`${e.task_type||""}|||${e.activity}`;
-      if(!actMap[k])actMap[k]={task:e.task_type||"—",activity:e.activity,hrs:0,count:0,billable:0};
+      if(!actMap[k])actMap[k]={task:e.task_type||"â€”",activity:e.activity,hrs:0,count:0,billable:0};
       actMap[k].hrs+=e.hours; actMap[k].count++;
       const p=projects.find(x=>x.id===e.project_id);
       if(p&&p.billable)actMap[k].billable+=e.hours;
     });
     const topActivities=Object.values(actMap).sort((a,b)=>b.hrs-a.hrs).slice(0,12);
 
-    // ── ENGINEER × CATEGORY MATRIX ──
+    // â”€â”€ ENGINEER أ— CATEGORY MATRIX â”€â”€
     const activeEngs=visibleEngStats.filter(e=>e.workHrs>0); // scoped for lead
     const allCats=taskStats.map(t=>t.category);
     const engCatMatrix=activeEngs.map(eng=>{
@@ -11045,20 +5592,20 @@ export default function App(){
       return{...eng,catHrs,topCat};
     });
 
-    // ── COLORS ──
+    // â”€â”€ COLORS â”€â”€
     const CLRS=["#0ea5e9","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#4ade80","#f472b6","#60a5fa","#2dd4bf","#f97316"];
     const ccm={};taskStats.forEach((t,i)=>{ccm[t.category]=CLRS[i%CLRS.length];});
 
-    // ── SECTION 1: EXECUTIVE KPIs ──
+    // â”€â”€ SECTION 1: EXECUTIVE KPIs â”€â”€
     const hrsVsPrev=prevTotalHrs>0?totalWorkHrs-prevTotalHrs:null;
-    const s1=`<div class="section"><div class="st">Executive Summary — ${period}</div>
+    const s1=`<div class="section"><div class="st">Executive Summary â€” ${period}</div>
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px">
         ${[
-          {l:"Total Hours",    v:totalWorkHrs+"h",          c:"#0ea5e9", sub:uniqueEngineers+" engineers · "+workEntries.length+" entries"},
+          {l:"Total Hours",    v:totalWorkHrs+"h",          c:"#0ea5e9", sub:uniqueEngineers+" engineers آ· "+workEntries.length+" entries"},
           {l:"Billable Hours", v:totalBillable+"h",         c:"#34d399", sub:fmtPct(billabilityPct)+" of total"},
           {l:"Non-Billable",   v:nonBillableHrs+"h",        c:"#fb923c", sub:fmtPct(nonBillablePct)+" of total"},
-          {l:"Utilization",    v:fmtPct(overallUtil),       c:overallUtil>=70?"#34d399":"#f87171", sub:"Benchmark ≥ 70%"},
-          {l:"Revenue",        v:fmtCurrency(totalRevenue), c:"#38bdf8", sub:avgRate>0?"$"+Math.round(avgRate)+"/h avg rate":"—"},
+          {l:"Utilization",    v:fmtPct(overallUtil),       c:overallUtil>=70?"#34d399":"#f87171", sub:"Benchmark â‰¥ 70%"},
+          {l:"Revenue",        v:fmtCurrency(totalRevenue), c:"#38bdf8", sub:avgRate>0?"$"+Math.round(avgRate)+"/h avg rate":"â€”"},
         ].map(k=>`<div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;text-align:center">
           <div style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
           <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-top:4px;font-weight:600">${k.l}</div>
@@ -11066,23 +5613,23 @@ export default function App(){
         </div>`).join("")}
       </div>
       <div style="background:#f8fafc;border-radius:6px;padding:8px 14px;display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#64748b;align-items:center">
-        <span>📋 Avg ${avgHrsPerEntry}h per entry</span>
-        <span>·</span><span>🗂 ${uniqueTaskTypes} task types across ${taskStats.length} categories</span>
-        ${hrsVsPrev!==null?`<span style="margin-left:auto;font-weight:700;color:${hrsVsPrev>=0?"#16a34a":"#dc2626"}">${hrsVsPrev>=0?"▲ +":"▼ "}${hrsVsPrev}h vs ${MONTHS[prevMonth]} ${prevYear}</span>`:""}
+        <span>ًں“‹ Avg ${avgHrsPerEntry}h per entry</span>
+        <span>آ·</span><span>ًں—‚ ${uniqueTaskTypes} task types across ${taskStats.length} categories</span>
+        ${hrsVsPrev!==null?`<span style="margin-left:auto;font-weight:700;color:${hrsVsPrev>=0?"#16a34a":"#dc2626"}">${hrsVsPrev>=0?"â–² +":"â–¼ "}${hrsVsPrev}h vs ${MONTHS[prevMonth]} ${prevYear}</span>`:""}
       </div>
     </div>`;
 
-    // ── SECTION 2: CATEGORY VISUAL DISTRIBUTION ──
+    // â”€â”€ SECTION 2: CATEGORY VISUAL DISTRIBUTION â”€â”€
     const s2=`<div class="section"><div class="st">Task Category Distribution</div>
       <div style="font-size:11px;color:#64748b;margin-bottom:10px;padding:6px 10px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:0 4px 4px 0">
-        ⚡ Industry benchmarks for engineering firms: Billable ≥ 70% · Internal overhead ≤ 20% · Training / R&D ≤ 10%
+        âڑ، Industry benchmarks for engineering firms: Billable â‰¥ 70% آ· Internal overhead â‰¤ 20% آ· Training / R&D â‰¤ 10%
       </div>
       ${taskStats.map((cat,i)=>{
         const pct=totalWorkHrs?Math.round(cat.hours/totalWorkHrs*100):0;
         const billPct=cat.hours?Math.round(cat.billable/cat.hours*100):0;
         const col=ccm[cat.category]||"#0ea5e9";
         const delta=prevCatMap[cat.category]!=null?cat.hours-(prevCatMap[cat.category]||0):null;
-        const topTasks=Object.entries(cat.tasks).sort((a,b)=>b[1].hrs-a[1].hrs).slice(0,3).map(([k,v])=>`${k} (${v.hrs}h)`).join("  ·  ");
+        const topTasks=Object.entries(cat.tasks).sort((a,b)=>b[1].hrs-a[1].hrs).slice(0,3).map(([k,v])=>`${k} (${v.hrs}h)`).join("  آ·  ");
         return`<div style="margin-bottom:10px;padding:10px 12px;background:${i%2===0?"#f8fafc":"#ffffff"};border-radius:6px;border-left:3px solid ${col}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px">
             <div>
@@ -11092,7 +5639,7 @@ export default function App(){
             <div style="display:flex;gap:10px;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap">
               <span style="color:${col};font-weight:700">${cat.hours}h</span>
               <span style="background:${col}22;color:${col};padding:1px 6px;border-radius:3px;font-weight:700">${pct}%</span>
-              ${delta!==null?`<span style="font-size:10px;color:${delta>=0?"#16a34a":"#dc2626"}">${delta>=0?"▲+":"▼"}${delta}h</span>`:""}
+              ${delta!==null?`<span style="font-size:10px;color:${delta>=0?"#16a34a":"#dc2626"}">${delta>=0?"â–²+":"â–¼"}${delta}h</span>`:""}
             </div>
           </div>
           <div style="background:#e2e8f0;height:9px;border-radius:5px;overflow:hidden;display:flex">
@@ -11102,15 +5649,15 @@ export default function App(){
             </div>
           </div>
           <div style="display:flex;gap:16px;margin-top:4px;font-size:10px;color:#94a3b8">
-            <span style="color:#16a34a;font-weight:600">✓ Billable ${cat.billable}h (${billPct}%)</span>
-            <span>◻ Non-bill ${cat.hours-cat.billable}h (${100-billPct}%)</span>
+            <span style="color:#16a34a;font-weight:600">âœ“ Billable ${cat.billable}h (${billPct}%)</span>
+            <span>â—» Non-bill ${cat.hours-cat.billable}h (${100-billPct}%)</span>
             <span style="margin-left:auto">${Object.keys(cat.tasks).length} task type${Object.keys(cat.tasks).length!==1?"s":""}</span>
           </div>
         </div>`;
       }).join("")}
     </div>`;
 
-    // ── SECTION 3: BILLABILITY & EFFICIENCY ──
+    // â”€â”€ SECTION 3: BILLABILITY & EFFICIENCY â”€â”€
     const s3=`<div class="section"><div class="st">Billability &amp; Efficiency Analysis</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
         <div>
@@ -11123,7 +5670,7 @@ export default function App(){
             return`<div style="margin-bottom:10px">
               <div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px">
                 <span style="font-weight:600;color:#334155">${r.l}</span>
-                <span style="font-family:'IBM Plex Mono',monospace;color:${r.c};font-weight:700">${r.h}h — ${w}%</span>
+                <span style="font-family:'IBM Plex Mono',monospace;color:${r.c};font-weight:700">${r.h}h â€” ${w}%</span>
               </div>
               <div style="background:#e2e8f0;height:7px;border-radius:4px;overflow:hidden">
                 <div style="height:100%;width:${w}%;background:${r.c};border-radius:4px"></div>
@@ -11131,15 +5678,15 @@ export default function App(){
             </div>`;
           }).join("")}
           ${avgRate>0&&costOfNonBillable>0?`<div style="margin-top:12px;padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;font-size:11px;color:#9a3412">
-            <div style="font-weight:700;margin-bottom:3px">💰 Non-Billable Opportunity Cost</div>
+            <div style="font-weight:700;margin-bottom:3px">ًں’° Non-Billable Opportunity Cost</div>
             <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#c2410c;font-weight:700">${fmtCurrency(costOfNonBillable)}</div>
-            <div style="color:#b45309;margin-top:2px">${nonBillableHrs}h × $${Math.round(avgRate)}/h blended rate</div>
+            <div style="color:#b45309;margin-top:2px">${nonBillableHrs}h أ— $${Math.round(avgRate)}/h blended rate</div>
           </div>`:""}
           <div style="margin-top:12px;padding:10px 12px;background:${billabilityPct>=70?"#f0fdf4":"#fff7ed"};border:1px solid ${billabilityPct>=70?"#bbf7d0":"#fed7aa"};border-radius:6px;font-size:11px">
             <span style="font-weight:700;color:${billabilityPct>=70?"#166534":"#92400e"}">
-              ${billabilityPct>=70?"✅ Billability target met":"⚠ Below 70% billability target"}
+              ${billabilityPct>=70?"âœ… Billability target met":"âڑ  Below 70% billability target"}
             </span>
-            <div style="color:#64748b;margin-top:2px">Current: ${fmtPct(billabilityPct)} · Target: ≥ 70% · Gap: ${billabilityPct>=70?"None":"+"+(70-billabilityPct)+"% needed"}</div>
+            <div style="color:#64748b;margin-top:2px">Current: ${fmtPct(billabilityPct)} آ· Target: â‰¥ 70% آ· Gap: ${billabilityPct>=70?"None":"+"+(70-billabilityPct)+"% needed"}</div>
           </div>
         </div>
         <div>
@@ -11153,7 +5700,7 @@ export default function App(){
             </tr></thead>
             <tbody>${taskStats.map((cat,i)=>{
               const bp=cat.hours?Math.round(cat.billable/cat.hours*100):0;
-              const rating=bp>=70?"✅ Good":bp>=40?"⚡ Fair":"⚠ Low";
+              const rating=bp>=70?"âœ… Good":bp>=40?"âڑ، Fair":"âڑ  Low";
               const rc=bp>=70?"#166534":bp>=40?"#92400e":"#991b1b";
               return`<tr style="background:${i%2===0?"#f8fafc":"#fff"}">
                 <td style="padding:5px 8px;font-weight:600">${cat.category}</td>
@@ -11167,8 +5714,8 @@ export default function App(){
       </div>
     </div>`;
 
-    // ── SECTION 4: TASK TYPE DEEP DIVE ──
-    const s4=`<div class="section"><div class="st">Task Type Detail — Within Each Category</div>
+    // â”€â”€ SECTION 4: TASK TYPE DEEP DIVE â”€â”€
+    const s4=`<div class="section"><div class="st">Task Type Detail â€” Within Each Category</div>
       ${taskStats.map(cat=>{
         const col=ccm[cat.category]||"#0ea5e9";
         const subs=Object.entries(cat.tasks).sort((a,b)=>b[1].hrs-a[1].hrs);
@@ -11176,7 +5723,7 @@ export default function App(){
         return`<div style="margin-bottom:14px">
           <div style="font-size:12px;font-weight:700;color:#0f172a;padding:6px 10px;background:#f1f5f9;border-left:4px solid ${col};border-radius:0 5px 5px 0;margin-bottom:6px;display:flex;justify-content:space-between">
             <span>${cat.category}</span>
-            <span style="font-family:'IBM Plex Mono',monospace;color:${col}">${cat.hours}h total · ${subs.length} type${subs.length!==1?"s":""}</span>
+            <span style="font-family:'IBM Plex Mono',monospace;color:${col}">${cat.hours}h total آ· ${subs.length} type${subs.length!==1?"s":""}</span>
           </div>
           <div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:6px;padding-left:6px">
             ${subs.map(([taskType,data])=>{
@@ -11185,7 +5732,7 @@ export default function App(){
               return`<div style="background:#f8fafc;border:1px solid #e2e8f0;border-top:2px solid ${col};border-radius:0 0 5px 5px;padding:7px 9px">
                 <div style="font-weight:600;color:#334155;font-size:11px;margin-bottom:2px">${taskType}</div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:${col}">${data.hrs}h <span style="font-size:10px;color:#94a3b8;font-weight:400">${tpct}%</span></div>
-                ${topAct?`<div style="font-size:9px;color:#94a3b8;font-style:italic;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">↳ ${topAct[0]}</div>`:""}
+                ${topAct?`<div style="font-size:9px;color:#94a3b8;font-style:italic;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">â†³ ${topAct[0]}</div>`:""}
               </div>`;
             }).join("")}
           </div>
@@ -11193,15 +5740,15 @@ export default function App(){
       }).join("")}
     </div>`;
 
-    // ── SECTION 5: ENGINEER × CATEGORY MATRIX ──
-    const s5=engCatMatrix.length>0?`<div class="section"><div class="st">Engineer × Task Category Matrix</div>
+    // â”€â”€ SECTION 5: ENGINEER أ— CATEGORY MATRIX â”€â”€
+    const s5=engCatMatrix.length>0?`<div class="section"><div class="st">Engineer أ— Task Category Matrix</div>
       <div style="overflow-x:auto">
       <table style="font-size:11px;width:100%">
         <thead><tr>
           <th style="text-align:left;white-space:nowrap;padding:5px 8px">Engineer</th>
           <th style="text-align:right;padding:5px 6px">Total</th>
           <th style="text-align:right;padding:5px 6px">Bill%</th>
-          ${allCats.map(c=>`<th style="text-align:right;padding:5px 5px;font-size:10px;max-width:55px;overflow:hidden;white-space:nowrap" title="${c}">${c.length>9?c.slice(0,9)+"…":c}</th>`).join("")}
+          ${allCats.map(c=>`<th style="text-align:right;padding:5px 5px;font-size:10px;max-width:55px;overflow:hidden;white-space:nowrap" title="${c}">${c.length>9?c.slice(0,9)+"â€¦":c}</th>`).join("")}
           <th style="text-align:left;padding:5px 8px;font-size:10px">Top Focus</th>
         </tr></thead>
         <tbody>${engCatMatrix.map((eng,ri)=>`<tr style="background:${ri%2===0?"#f8fafc":"#fff"}">
@@ -11209,16 +5756,16 @@ export default function App(){
           <td style="text-align:right;padding:5px 6px;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700">${eng.workHrs}h</td>
           <td style="text-align:right;padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${eng.billability>=70?"#16a34a":eng.billability>=40?"#d97706":"#dc2626"}">${eng.billability}%</td>
           ${allCats.map(c=>{const h=eng.catHrs[c]||0;const col=ccm[c]||"#0ea5e9";
-            return`<td style="text-align:right;padding:5px 5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:${h>0?col:"#cbd5e1"}">${h>0?h+"h":"—"}</td>`;
+            return`<td style="text-align:right;padding:5px 5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:${h>0?col:"#cbd5e1"}">${h>0?h+"h":"â€”"}</td>`;
           }).join("")}
-          <td style="padding:5px 8px;font-size:10px;color:#64748b">${eng.topCat?eng.topCat[0]+" ("+eng.topCat[1]+"h)":"—"}</td>
+          <td style="padding:5px 8px;font-size:10px;color:#64748b">${eng.topCat?eng.topCat[0]+" ("+eng.topCat[1]+"h)":"â€”"}</td>
         </tr>`).join("")}</tbody>
       </table>
       </div>
     </div>`:"";
 
-    // ── SECTION 6: TOP ACTIVITIES ──
-    const s6=topActivities.length>0?`<div class="section"><div class="st">Top Activities by Hours — What the Team Is Actually Working On</div>
+    // â”€â”€ SECTION 6: TOP ACTIVITIES â”€â”€
+    const s6=topActivities.length>0?`<div class="section"><div class="st">Top Activities by Hours â€” What the Team Is Actually Working On</div>
       <table>
         <thead><tr>
           <th style="text-align:left">Task Type</th><th style="text-align:left">Activity Description</th>
@@ -11232,8 +5779,8 @@ export default function App(){
             <td style="font-size:10px;color:#64748b;white-space:nowrap">${a.task}</td>
             <td style="font-weight:600;color:#0f172a">${a.activity}</td>
             <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700">${a.hrs}h</td>
-            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8">${a.count}×</td>
-            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${bp>=70?"#16a34a":bp>=40?"#d97706":"#94a3b8"}">${a.hrs>0?bp+"%":"—"}</td>
+            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8">${a.count}أ—</td>
+            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${bp>=70?"#16a34a":bp>=40?"#d97706":"#94a3b8"}">${a.hrs>0?bp+"%":"â€”"}</td>
             <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8">${pct}%</td>
           </tr>`;
         }).join("")}</tbody>
@@ -11241,14 +5788,14 @@ export default function App(){
     </div>`:"";
 
     generatePDF(
-      `Task Analysis Report — ${period}`,
+      `Task Analysis Report â€” ${period}`,
       [s1,s2,s3,s4,s5,s6],
-      `Task &amp; Productivity Analysis · ${period} · Confidential`
+      `Task &amp; Productivity Analysis آ· ${period} آ· Confidential`
     );
   };
   const buildMonthlyPDF=()=>{
     const pdfStats=visibleEngStats; // scoped for lead, full for admin/acct
-    generatePDF(`Monthly Management Report — ${MONTHS[month]} ${year}`,[
+    generatePDF(`Monthly Management Report â€” ${MONTHS[month]} ${year}`,[
       `<div class="section"><div class="st">Summary</div><div class="kg">
         <div class="kp"><div class="kv">${fmtPct(overallUtil)}</div><div class="kl">Team Utilization</div></div>
         <div class="kp"><div class="kv">${fmtPct(billabilityPct)}</div><div class="kl">Billability</div></div>
@@ -11261,20 +5808,20 @@ export default function App(){
         <td style="color:#0ea5e9">${fmtCurrency(e.revenue)}</td><td>${e.leaveDays}d</td></tr>`).join("")}</tbody></table></div>`,
       `<div class="section"><div class="st">Projects</div><table><thead><tr><th>No.</th><th>Project</th><th>PM</th><th>Phase</th><th>Hours</th><th>Revenue</th></tr></thead>
       <tbody>${projStats.filter(p=>p.hours>0).map(p=>`<tr>
-        <td style="color:#0ea5e9;font-size:11px">${p.id}</td><td>${p.name}</td><td style="color:#a78bfa;font-size:11px">${p.pm||"—"}</td><td>${p.phase||""}</td>
-        <td>${p.hours}h</td><td>${p.billable?fmtCurrency(p.revenue):"—"}</td></tr>`).join("")}</tbody></table></div>`],
+        <td style="color:#0ea5e9;font-size:11px">${p.id}</td><td>${p.name}</td><td style="color:#a78bfa;font-size:11px">${p.pm||"â€”"}</td><td>${p.phase||""}</td>
+        <td>${p.hours}h</td><td>${p.billable?fmtCurrency(p.revenue):"â€”"}</td></tr>`).join("")}</tbody></table></div>`],
       "Prepared for Senior Management");
   };
 
-  /* ── LOADING ── */
+  /* â”€â”€ LOADING â”€â”€ */
   if(authLoading) return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"var(--bg0)",gap:16}}>
       <img src={LOGO_SRC} alt="ENEVO Group" style={{width:110,height:110,borderRadius:18,opacity:0.9}}/>
-      <div style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontSize:15,letterSpacing:".1em"}}>Loading ENEVO GROUP…</div>
+      <div style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontSize:15,letterSpacing:".1em"}}>Loading ENEVO GROUPâ€¦</div>
     </div>
   );
 
-  /* ── AUTH SCREEN ── */
+  /* â”€â”€ AUTH SCREEN â”€â”€ */
   if(!session) return(
     <div style={{minHeight:"100vh",background:"var(--bg0)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Sans',sans-serif"}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');*{box-sizing:border-box;margin:0;padding:0}input,select{background:var(--input-bg);border:1px solid var(--border3);color:var(--text1);padding:10px 14px;border-radius:7px;font-family:'IBM Plex Sans',sans-serif;font-size:15px;outline:none;width:100%;transition:border-color .2s}input:focus,select:focus{border-color:var(--info)}select option{background:var(--input-bg)}.bp{background:linear-gradient(135deg,#0ea5e9,#0369a1);border:none;color:#fff;padding:11px;border-radius:7px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center}.bp:hover{opacity:.85}`}</style>
@@ -11300,10 +5847,10 @@ export default function App(){
     </div>
   );
 
-  /* ════════════════════════
+  /* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
      MAIN LAYOUT
-  ════════════════════════ */
-  // ── Minimal SVG nav icons — consistent stroke weight, engineering-grade ──
+  â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
+  // â”€â”€ Minimal SVG nav icons â€” consistent stroke weight, engineering-grade â”€â”€
   const NavIcon=({id,active})=>{
     const c=active?"var(--info)":"var(--text3)";
     const s={width:17,height:17,display:"block",flexShrink:0};
@@ -11358,7 +5905,7 @@ export default function App(){
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        /* ── DARK THEME (default) ── */
+        /* â”€â”€ DARK THEME (default) â”€â”€ */
         :root{
           --bg0:#07101e;--bg1:#0c1829;--bg2:#060e1c;--bg3:#0d1e33;
           --bg1g:linear-gradient(135deg,#0c1829,#0d1e34);
@@ -11374,7 +5921,7 @@ export default function App(){
           --modal-bg:#0c1829;--card-hover:#0d1e34;
           --th-bg:#060e1c;--tr-hover:#0d1e33;
         }
-        /* ── LIGHT THEME ── */
+        /* â”€â”€ LIGHT THEME â”€â”€ */
         body.light{
           --bg0:#eef2f7;--bg1:#ffffff;--bg2:#f5f8fc;--bg3:#e8eef6;
           --bg1g:linear-gradient(135deg,#ffffff,#f0f5fb);
@@ -11430,7 +5977,7 @@ export default function App(){
         .metric{background:var(--bg1g);border:1px solid var(--border);border-radius:10px;padding:18px;line-height:1.4}/* light mode sidebar text override */
         body.light .nb{color:#94a3b8}
         body.light .nb:hover,body.light .nb.a{color:#38bdf8;background:#2d3f55}
-        /* ── Light mode component overrides ── */
+        /* â”€â”€ Light mode component overrides â”€â”€ */
         body.light{color-scheme:light}
         body.light .bd{border-color:#fca5a5;color:#dc2626}
         body.light .bd:hover{background:#fee2e240}
@@ -11446,7 +5993,7 @@ export default function App(){
         body.light input:focus,body.light select:focus,body.light textarea:focus{box-shadow:0 0 0 3px #0ea5e920}
         body.light .rpt-card{box-shadow:0 1px 4px #0000000a}
         body.light .wc{box-shadow:inset 0 1px 3px #0000000a}
-        /* ── RESPONSIVE / MOBILE ── */
+        /* â”€â”€ RESPONSIVE / MOBILE â”€â”€ */
         .hamburger{display:none;position:fixed;top:14px;left:14px;z-index:300;
           background:var(--info);border:none;border-radius:8px;width:40px;height:40px;
           cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;box-shadow:0 2px 12px #0005}
@@ -11470,17 +6017,17 @@ export default function App(){
         }
       `}</style>
 
-      {/* ── Hamburger (mobile only) ── */}
+      {/* â”€â”€ Hamburger (mobile only) â”€â”€ */}
       <button className="hamburger" onClick={()=>setMenuOpen(o=>!o)} aria-label="Menu">
         <span style={{transform:menuOpen?"rotate(45deg) translate(5px,5px)":"none"}}/>
         <span style={{opacity:menuOpen?0:1}}/>
         <span style={{transform:menuOpen?"rotate(-45deg) translate(5px,-5px)":"none"}}/>
       </button>
-      {/* ── Sidebar overlay (mobile tap-to-close) ── */}
+      {/* â”€â”€ Sidebar overlay (mobile tap-to-close) â”€â”€ */}
       {menuOpen&&<div className="sidebar-overlay" onClick={()=>setMenuOpen(false)}/>}
 
       <div style={{display:"flex"}}>
-        {/* ── Sidebar ── */}
+        {/* â”€â”€ Sidebar â”€â”€ */}
         <div className={`app-sidebar${menuOpen?" sidebar-open":""}`} style={{width:215,background:"var(--sidebar)",borderRight:`1px solid var(--sidebar-border)`,minHeight:"100vh",padding:"20px 10px",position:"fixed",top:0,left:0,bottom:0,overflowY:"auto",zIndex:menuOpen?200:50,transition:"background .3s, transform .25s"}}>
           <div style={{marginBottom:16,paddingLeft:6,paddingRight:6}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -11489,10 +6036,10 @@ export default function App(){
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",letterSpacing:".15em",fontWeight:600}}>ENEVO-ERP</div>
                 <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",lineHeight:1.1}}>ENEVO GROUP</div>
               </div>
-              {/* ── Bell notification button — lives in sidebar header, no overlap ── */}
+              {/* â”€â”€ Bell notification button â€” lives in sidebar header, no overlap â”€â”€ */}
               {session&&!loading&&(()=>{
                 const bellCount=unreadCount;
-                const typeIcon=t=>t==="activity_comment"?"💬":t==="vacation_approved"?"✓":t==="vacation_rejected"?"✕":t==="vacation_request"?"⏳":t==="project_status"?"🔄":t==="project_phase"?"📋":t==="project_leader"?"⭐":t==="project_assigned"?"👤":t==="timesheet_alert"?"⏰":t==="overdue_alert"?"⚠":t==="activity_assigned"?"📋":t==="activity_status_changed"?"↺":t==="activity_progress_changed"?"◉":t==="activity_deadline_changed"?"📅":t==="vacation_cancelled"?"✕":t==="new_signup"?"👤":"•";
+                const typeIcon=t=>t==="activity_comment"?"ًں’¬":t==="vacation_approved"?"âœ“":t==="vacation_rejected"?"âœ•":t==="vacation_request"?"âڈ³":t==="project_status"?"ًں”„":t==="project_phase"?"ًں“‹":t==="project_leader"?"â­گ":t==="project_assigned"?"ًں‘¤":t==="timesheet_alert"?"âڈ°":t==="overdue_alert"?"âڑ ":t==="activity_assigned"?"ًں“‹":t==="activity_status_changed"?"â†؛":t==="activity_progress_changed"?"â—‰":t==="activity_deadline_changed"?"ًں“…":t==="vacation_cancelled"?"âœ•":t==="new_signup"?"ًں‘¤":"â€¢";
                 const typeColor=t=>t==="activity_comment"?"#a78bfa":t==="vacation_approved"?"#34d399":t==="vacation_rejected"?"#f87171":t==="vacation_request"?"#f59e0b":t==="timesheet_alert"?"#f87171":t==="overdue_alert"?"#fb923c":t==="activity_assigned"?"#0ea5e9":t==="activity_status_changed"?"#22d3ee":t==="activity_progress_changed"?"#34d399":t==="activity_deadline_changed"?"#fb923c":t==="vacation_cancelled"?"#f87171":t==="new_signup"?"#fb923c":t==="project_status"?"#a78bfa":t==="project_phase"?"#fb923c":t==="project_leader"?"#f59e0b":t==="project_assigned"?"#34d399":"var(--text3)";
                 const typeLabel=t=>t==="activity_comment"?"Comment":t==="vacation_approved"?"Approved":t==="vacation_rejected"?"Rejected":t==="vacation_request"?"Leave Request":t==="timesheet_alert"?"Timesheet":t==="overdue_alert"?"Overdue":t==="activity_assigned"?"Assigned":t==="activity_status_changed"?"Status":t==="activity_progress_changed"?"Progress":t==="activity_deadline_changed"?"Deadline":t==="vacation_cancelled"?"Cancelled":t==="new_signup"?"New Signup":t==="project_status"?"Project":t==="project_phase"?"Phase":t==="project_leader"?"Leader":t==="project_assigned"?"Team":"";
                 const fmtAgo=ts=>{if(!ts)return"";const diff=Date.now()-new Date(ts).getTime();const m=Math.floor(diff/60000);if(m<1)return"just now";if(m<60)return m+"m ago";const h=Math.floor(m/60);if(h<24)return h+"h ago";return Math.floor(h/24)+"d ago";};
@@ -11510,7 +6057,7 @@ export default function App(){
                         {bellCount>99?"99+":bellCount}
                       </span>}
                     </button>
-                    {/* Dropdown — opens to the right of sidebar */}
+                    {/* Dropdown â€” opens to the right of sidebar */}
                     {bellOpen&&(
                       <div style={{position:"fixed",top:72,left:220,width:370,maxHeight:520,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:14,boxShadow:"0 8px 32px #00000060",overflow:"hidden",display:"flex",flexDirection:"column",zIndex:601}}>
                         {/* Header + Tabs */}
@@ -11520,7 +6067,7 @@ export default function App(){
                             <div style={{display:"flex",gap:6,alignItems:"center"}}>
                               <button onClick={()=>reloadNotifications()}
                                 title="Refresh notifications"
-                                style={{background:"transparent",border:"none",cursor:"pointer",color:"var(--text3)",fontSize:16,padding:"2px 4px",lineHeight:1}}>↻</button>
+                                style={{background:"transparent",border:"none",cursor:"pointer",color:"var(--text3)",fontSize:16,padding:"2px 4px",lineHeight:1}}>â†»</button>
                               {bellTab==="active"&&notifications.length>0&&(
                                 <button onClick={async()=>{
                                   // Mark all active as read (history) instead of deleting
@@ -11571,15 +6118,15 @@ export default function App(){
                         <div style={{overflowY:"auto",flex:1}}>
                           {bellTab==="active"&&sorted.length===0&&!isAdmin&&(
                             <div style={{padding:"28px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
-                              <div style={{fontSize:24,marginBottom:6}}>🔔</div>All caught up
+                              <div style={{fontSize:24,marginBottom:6}}>ًں””</div>All caught up
                             </div>
                           )}
-                          {/* Vacation approval queue — admin only */}
+                          {/* Vacation approval queue â€” admin only */}
                           {isAdmin&&bellTab==="active"&&(()=>{
                             const pendingVacs=entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL");
                             if(!pendingVacs.length&&sorted.length===0) return(
                               <div style={{padding:"28px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
-                                <div style={{fontSize:24,marginBottom:6}}>🔔</div>All caught up
+                                <div style={{fontSize:24,marginBottom:6}}>ًں””</div>All caught up
                               </div>
                             );
                             return pendingVacs.map(e=>{
@@ -11587,42 +6134,42 @@ export default function App(){
                               const matchedNotif=notifications.find(n=>{try{return n.type==="vacation_request"&&JSON.parse(n.meta||"{}").entry_id===e.id;}catch{return false;}});
                               return(
                                 <div key={e.id} style={{padding:"11px 16px",borderBottom:"1px solid var(--border3)",display:"flex",gap:10,alignItems:"flex-start",background:"#78350f08"}}>
-                                  <div style={{width:28,height:28,borderRadius:"50%",background:"#f59e0b20",color:"#f59e0b",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700}}>⏳</div>
+                                  <div style={{width:28,height:28,borderRadius:"50%",background:"#f59e0b20",color:"#f59e0b",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700}}>âڈ³</div>
                                   <div style={{flex:1,minWidth:0}}>
-                                    <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:2}}><span style={{color:"#f59e0b"}}>{eng?.name||"Engineer"}</span> — Annual Leave</div>
+                                    <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:2}}><span style={{color:"#f59e0b"}}>{eng?.name||"Engineer"}</span> â€” Annual Leave</div>
                                     <div style={{fontSize:11,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace",marginBottom:7}}>{e.date}</div>
                                     <div style={{display:"flex",gap:5}}>
                                       <button onClick={async()=>{
                                         setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
                                         await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
                                         if(matchedNotif){
-                                          // Mark as read → moves to admin's history
+                                          // Mark as read â†’ moves to admin's history
                                           await supabase.from("notifications").update({read:true}).eq("id",matchedNotif.id);
                                           setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));
                                           setNotifHistory(prev=>[{...matchedNotif,read:true},...prev].slice(0,200));
                                         }
                                         insertNotif({type:"vacation_approved",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} has been approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
-                                        showToast(`${eng?.name||"Vacation"} approved ✓`);
-                                      }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:5,padding:"3px 10px",color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✓ Approve</button>
+                                        showToast(`${eng?.name||"Vacation"} approved âœ“`);
+                                      }} style={{background:"#05603a",border:"1px solid #34d39950",borderRadius:5,padding:"3px 10px",color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>âœ“ Approve</button>
                                       <button onClick={async()=>{
                                         setEntries(prev=>prev.filter(x=>x.id!==e.id));
                                         await supabase.from("time_entries").delete().eq("id",e.id);
                                         if(matchedNotif){
-                                          // Mark as read → moves to admin's history
+                                          // Mark as read â†’ moves to admin's history
                                           await supabase.from("notifications").update({read:true}).eq("id",matchedNotif.id);
                                           setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));
                                           setNotifHistory(prev=>[{...matchedNotif,read:true},...prev].slice(0,200));
                                         }
                                         insertNotif({type:"vacation_rejected",engineer_id:e.engineer_id,read:false,message:`Your Annual Leave on ${e.date} was not approved`,created_at:new Date().toISOString(),meta:JSON.stringify({engineer_id:e.engineer_id,date:e.date,entry_id:e.id})});
                                         showToast(`${eng?.name||"Vacation"} rejected`,false);
-                                      }} style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:5,padding:"3px 10px",color:"#f87171",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>✕ Reject</button>
+                                      }} style={{background:"var(--err-bg)",border:"1px solid #f8717150",borderRadius:5,padding:"3px 10px",color:"#f87171",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}}>âœ• Reject</button>
                                     </div>
                                   </div>
                                 </div>
                               );
                             });
                           })()}
-                          {/* All other notifications — active tab */}
+                          {/* All other notifications â€” active tab */}
                           {bellTab==="active"&&sorted.map(n=>{
                             const ic=typeIcon(n.type);const cl=typeColor(n.type);const lbl=typeLabel(n.type);
                             return(
@@ -11653,19 +6200,19 @@ export default function App(){
                                 }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:13,padding:"2px 3px",flexShrink:0,lineHeight:1}}
                                   title="Mark as read"
                                   onMouseEnter={e=>e.currentTarget.style.color="var(--info)"}
-                                  onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>✓</button>
+                                  onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>âœ“</button>
                               </div>
                             );
                           })}
-                          {/* History tab — past read notifications */}
+                          {/* History tab â€” past read notifications */}
                           {bellTab==="history"&&(
                             <div>
                               <div style={{fontSize:11,color:"var(--text4)",textAlign:"center",padding:"5px 0 4px",borderBottom:"1px solid var(--border3)",background:"var(--bg0)",letterSpacing:".04em"}}>
-                                📅 Last 3 months · {notifHistory.length} notifications
+                                ًں“… Last 3 months آ· {notifHistory.length} notifications
                               </div>
                               {notifHistory.length===0
                               ? <div style={{padding:"28px 16px",textAlign:"center",color:"var(--text4)",fontSize:13}}>
-                                  <div style={{fontSize:24,marginBottom:6}}>📭</div>No notification history yet
+                                  <div style={{fontSize:24,marginBottom:6}}>ًں“­</div>No notification history yet
                                 </div>
                               : notifHistory.map(n=>{
                                 const ic=typeIcon(n.type);const cl=typeColor(n.type);const lbl=typeLabel(n.type);
@@ -11680,12 +6227,12 @@ export default function App(){
                                       <div style={{fontSize:12,color:"var(--text3)",lineHeight:1.45}}>{n.message}</div>
                                     </div>
                                     <button onClick={()=>{
-                                      // Remove from UI only — DB row stays as read history (90-day window)
+                                      // Remove from UI only â€” DB row stays as read history (90-day window)
                                       setNotifHistory(prev=>prev.filter(x=>x.id!==n.id));
                                     }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:12,padding:"2px 3px",flexShrink:0}}
                                       title="Delete from history"
                                       onMouseEnter={e=>e.currentTarget.style.color="#f87171"}
-                                      onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>✕</button>
+                                      onMouseLeave={e=>e.currentTarget.style.color="var(--text4)"}>âœ•</button>
                                   </div>
                                 );
                               })
@@ -11705,7 +6252,7 @@ export default function App(){
             <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>{setView(n.id);setMenuOpen(false);setBellOpen(false);}}>
               <NavIcon id={n.id} active={view===n.id}/>
               {n.label}
-              {/* notification badges moved to bell icon — top right */}
+              {/* notification badges moved to bell icon â€” top right */}
             </button>
           ))}
           <div style={{marginTop:14,borderTop:`1px solid var(--border)`,paddingTop:12,paddingLeft:6,paddingRight:6}}>
@@ -11720,7 +6267,7 @@ export default function App(){
                 <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"5px 10px",color:"var(--text0)",fontSize:13,fontWeight:600,outline:"none",cursor:"pointer",minWidth:80}}>
                   {[year-2,year-1,year,year+1].map(y=><option key={y}>{y}</option>)}
                 </select>
-                {entriesLoading&&<span style={{fontSize:12,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>⟳ {year}</span>}
+                {entriesLoading&&<span style={{fontSize:12,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>âں³ {year}</span>}
               </div>
             </div>
           </div>
@@ -11737,12 +6284,12 @@ export default function App(){
                 <button onClick={()=>{setShowPwdModal(true);setPwdForm({newPwd:"",confirmPwd:""});setPwdMsg(null);}} style={{flex:1,background:"transparent",border:`1px solid var(--border)`,color:"var(--text2)",padding:"5px",borderRadius:5,cursor:"pointer",fontSize:13,fontFamily:"'IBM Plex Sans',sans-serif"}}
                   onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--info)";e.currentTarget.style.color="var(--info)"}}
                   onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text2)"}}>
-                  🔑 Password
+                  ًں”‘ Password
                 </button>
                 <button onClick={toggleTheme} title={isDark?"Switch to Light Mode":"Switch to Dark Mode"} style={{flex:1,background:"transparent",border:`1px solid var(--border)`,color:"var(--text2)",padding:"5px",borderRadius:5,cursor:"pointer",fontSize:15,fontFamily:"'IBM Plex Sans',sans-serif",transition:"all .2s"}}
                   onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--info)";e.currentTarget.style.color="var(--info)"}}
                   onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--text2)"}}>
-                  {isDark?"☀️":"🌙"}
+                  {isDark?"âک€ï¸ڈ":"ًںŒ™"}
                 </button>
               </div>
               <button onClick={handleLogout} style={{width:"100%",background:"transparent",border:`1px solid var(--border)`,color:"var(--text2)",padding:"5px",borderRadius:5,cursor:"pointer",fontSize:13,fontFamily:"'IBM Plex Sans',sans-serif"}}>Sign Out</button>
@@ -11751,16 +6298,16 @@ export default function App(){
         </div>
 
 
-        {/* ── Main Content ── */}
+        {/* â”€â”€ Main Content â”€â”€ */}
         <div className="app-content" style={{marginLeft:215,flex:1,padding:"24px 28px",maxWidth:"calc(100vw - 215px)",background:"var(--bg2)",color:"var(--text1)",minHeight:"100vh",transition:"background .3s"}}>
-          {loading&&<div style={{textAlign:"center",padding:60,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>Loading…</div>}
+          {loading&&<div style={{textAlign:"center",padding:60,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>Loadingâ€¦</div>}
           {!loading&&<>
 
-          {/* ════ DASHBOARD ════ */}
+          {/* â•گâ•گâ•گâ•گ DASHBOARD â•گâ•گâ•گâ•گ */}
           {view==="dashboard"&&(
             <div style={{display:"grid",gap:20}}>
 
-              {/* ── Page header + controls ── */}
+              {/* â”€â”€ Page header + controls â”€â”€ */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>
@@ -11770,21 +6317,21 @@ export default function App(){
                     {MONTHS[month]} {year}
                   </h1>
                   <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
-                    {isAdmin||isAcct||isLead?"Live team overview · auto-synced":"Your personal stats"}
-                    {entriesLoading&&<span style={{color:"var(--info)",marginLeft:8}}>⟳ Loading {year}…</span>}
+                    {isAdmin||isAcct||isLead?"Live team overview آ· auto-synced":"Your personal stats"}
+                    {entriesLoading&&<span style={{color:"var(--info)",marginLeft:8}}>âں³ Loading {year}â€¦</span>}
                   </p>
                 </div>
                 {/* Controls */}
                 <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
                   <div style={{display:"flex",alignItems:"center",gap:4,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px"}}>
-                    <button style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:16,padding:"0 4px",lineHeight:1}} onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}}>‹</button>
+                    <button style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:16,padding:"0 4px",lineHeight:1}} onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}}>â€¹</button>
                     <select value={month} onChange={e=>setMonth(+e.target.value)} style={{background:"transparent",border:"none",color:"var(--text0)",fontSize:14,fontWeight:600,fontFamily:"'IBM Plex Sans',sans-serif",cursor:"pointer",outline:"none",padding:"0 4px",minWidth:90}}>
                       {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
                     </select>
                     <select value={year} onChange={e=>setYear(+e.target.value)} style={{background:"transparent",border:"none",color:"var(--text0)",fontSize:14,fontWeight:700,fontFamily:"'IBM Plex Mono',monospace",cursor:"pointer",outline:"none",padding:"0 4px",minWidth:58}}>
                       {Array.from({length:6},(_,i)=>new Date().getFullYear()-2+i).map(y=><option key={y}>{y}</option>)}
                     </select>
-                    <button style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:16,padding:"0 4px",lineHeight:1}} onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}>›</button>
+                    <button style={{background:"none",border:"none",color:"var(--text2)",cursor:"pointer",fontSize:16,padding:"0 4px",lineHeight:1}} onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}>â€؛</button>
                   </div>
                   {(isAdmin||isAcct||isLead)&&(
                     <select value={dashProjFilter} onChange={e=>setDashProjFilter(e.target.value)}
@@ -11793,11 +6340,11 @@ export default function App(){
                       {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   )}
-                  {dashProjFilter!=="ALL"&&<button className="bg" style={{fontSize:13}} onClick={()=>setDashProjFilter("ALL")}>✕ Clear filter</button>}
+                  {dashProjFilter!=="ALL"&&<button className="bg" style={{fontSize:13}} onClick={()=>setDashProjFilter("ALL")}>âœ• Clear filter</button>}
                 </div>
               </div>
 
-              {/* ── ENGINEER personal view ── */}
+              {/* â”€â”€ ENGINEER personal view â”€â”€ */}
               {!isAdmin&&!isAcct&&!isLead&&(()=>{
                 const myE=monthEntries.filter(e=>String(e.engineer_id)===String(myProfile?.id));
                 const myWork=myE.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
@@ -11823,7 +6370,7 @@ export default function App(){
                   </div>
                   <div className="card" style={{padding:0,overflow:"hidden"}}>
                     <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
-                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>My Work Log — {MONTHS[month]} {year}</div>
+                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>My Work Log â€” {MONTHS[month]} {year}</div>
                     </div>
                     <table>
                       <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th></tr></thead>
@@ -11831,19 +6378,19 @@ export default function App(){
                         const p=projects.find(x=>x.id===e.project_id);
                         return<tr key={e.id}>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.date}</td>
-                          <td style={{color:"var(--info)",fontWeight:600}}>{p?.id||"—"}</td>
-                          <td style={{color:"var(--text2)"}}>{e.task_type||"—"}</td>
-                          <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                          <td style={{color:"var(--info)",fontWeight:600}}>{p?.id||"â€”"}</td>
+                          <td style={{color:"var(--text2)"}}>{e.task_type||"â€”"}</td>
+                          <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"â€”"}</td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{e.hours}h</td>
                         </tr>;
-                      })}{myE.length===0&&<tr><td colSpan={5} style={{textAlign:"center",color:"var(--text4)",padding:24}}>No entries for {MONTHS[month]} {year} — go to Post Hours to log time.</td></tr>}
+                      })}{myE.length===0&&<tr><td colSpan={5} style={{textAlign:"center",color:"var(--text4)",padding:24}}>No entries for {MONTHS[month]} {year} â€” go to Post Hours to log time.</td></tr>}
                       </tbody>
                     </table>
                   </div>
                 </>;
               })()}
 
-              {/* ── ADMIN / LEAD / ACCOUNTANT full dashboard ── */}
+              {/* â”€â”€ ADMIN / LEAD / ACCOUNTANT full dashboard â”€â”€ */}
               {(isAdmin||isAcct||isLead)&&(()=>{
                 const dEntries=dashProjFilter==="ALL"?monthEntries:monthEntries.filter(e=>e.project_id===dashProjFilter);
                 const dWork=dEntries.filter(e=>e.entry_type==="work");
@@ -11856,18 +6403,18 @@ export default function App(){
                 const billColor=dBillPct>=80?"#34d399":dBillPct>=60?"#fb923c":"#f87171";
 
                 return<>
-                {/* ── Non-billable warning ── */}
+                {/* â”€â”€ Non-billable warning â”€â”€ */}
                 {(isAdmin||isAcct)&&dWorkHrs>0&&dBillHrs===0&&(
                   <div style={{background:"var(--warn-bg)",border:"1px solid #fb923c40",borderRadius:10,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-                    <span style={{fontSize:14,color:"#fb923c"}}>⚠ All hours are showing as non-billable — projects may need the billable flag set.</span>
-                    <button className="bg" style={{fontSize:13,borderColor:"#fb923c",color:"#fb923c",whiteSpace:"nowrap",flexShrink:0}} onClick={()=>setView("reports")}>Fix in Reports →</button>
+                    <span style={{fontSize:14,color:"#fb923c"}}>âڑ  All hours are showing as non-billable â€” projects may need the billable flag set.</span>
+                    <button className="bg" style={{fontSize:13,borderColor:"#fb923c",color:"#fb923c",whiteSpace:"nowrap",flexShrink:0}} onClick={()=>setView("reports")}>Fix in Reports â†’</button>
                   </div>
                 )}
 
-                {/* ── Hero metrics ── */}
+                {/* â”€â”€ Hero metrics â”€â”€ */}
                 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
                   {[
-                    {l:"Total Work Hours",  v:dWorkHrs+"h",  c:"var(--text0)",  sub:`${dEntries.filter(e=>e.entry_type==="work").length} entries · ${[...new Set(dWork.map(e=>e.engineer_id))].length} engineers`,show:true},
+                    {l:"Total Work Hours",  v:dWorkHrs+"h",  c:"var(--text0)",  sub:`${dEntries.filter(e=>e.entry_type==="work").length} entries آ· ${[...new Set(dWork.map(e=>e.engineer_id))].length} engineers`,show:true},
                     {l:"Billable Hours",    v:dBillHrs+"h",  c:"#34d399",       sub:`${dBillPct}% of total work`,show:isAdmin||isAcct||isLead},
                     {l:"Billability Rate",  v:fmtPct(dBillPct),c:billColor,     sub:dBillPct>=80?"On target":dBillPct>=60?"Needs attention":"Below target",show:isAdmin||isAcct},
                     {l:"Non-Billable",      v:dNonHrs+"h",   c:"#fb923c",       sub:"Internal / overhead",show:isAdmin||isAcct},
@@ -11882,7 +6429,7 @@ export default function App(){
                   ))}
                 </div>
 
-                {/* ── Team Utilization + Task Distribution ── */}
+                {/* â”€â”€ Team Utilization + Task Distribution â”€â”€ */}
                 <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:14}}>
 
                   {/* Team Utilization */}
@@ -11914,7 +6461,7 @@ export default function App(){
                           </div>
                         </div>
                       ))}
-                      {(isAdmin||isAcct)&&visibleEngStats.length>0&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,textAlign:"right"}}>Hours · Utilization% · <span style={{color:"#a78bfa"}}>Billability%</span></div>}
+                      {(isAdmin||isAcct)&&visibleEngStats.length>0&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,textAlign:"right"}}>Hours آ· Utilization% آ· <span style={{color:"#a78bfa"}}>Billability%</span></div>}
                     </div>
                   </div>
 
@@ -11934,7 +6481,7 @@ export default function App(){
                         <div key={cat.category}>
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                             <span style={{fontSize:13,fontWeight:500,color:"var(--text1)"}}>{cat.category}</span>
-                            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:c}}>{cat.hours}h · {pct}%</span>
+                            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:c}}>{cat.hours}h آ· {pct}%</span>
                           </div>
                           <div style={{background:"var(--bg3)",height:8,borderRadius:4,overflow:"hidden"}}>
                             <div style={{height:"100%",width:`${pct}%`,borderRadius:4,background:c,transition:"width .6s ease"}}/>
@@ -11945,12 +6492,12 @@ export default function App(){
                   </div>
                 </div>
 
-                {/* ── Active Projects ── */}
+                {/* â”€â”€ Active Projects â”€â”€ */}
                 <div className="card" style={{padding:0,overflow:"hidden"}}>
                   <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>
                       Active Projects
-                      {dashProjFilter!=="ALL"&&<span style={{fontSize:13,fontWeight:400,color:"var(--text3)",marginLeft:8}}>· Filtered</span>}
+                      {dashProjFilter!=="ALL"&&<span style={{fontSize:13,fontWeight:400,color:"var(--text3)",marginLeft:8}}>آ· Filtered</span>}
                     </div>
                     <div style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year}</div>
                   </div>
@@ -11964,11 +6511,11 @@ export default function App(){
                         <tr key={p.id}>
                           <td style={{fontWeight:600,color:"var(--text0)"}}>{p.name||p.id}</td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{p.id}</td>
-                          <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{p.phase||"—"}</span></td>
+                          <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{p.phase||"â€”"}</span></td>
                           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--text0)"}}>{p.hours}h</td>
                           {(isAdmin||isAcct)&&<>
                             <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"#05603a30":"#fb923c20",color:p.billable?"#34d399":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
-                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:600}}>{p.billable?fmtCurrency(p.revenue):"—"}</td>
+                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:600}}>{p.billable?fmtCurrency(p.revenue):"â€”"}</td>
                           </>}
                         </tr>
                       ))}
@@ -11979,14 +6526,14 @@ export default function App(){
                   </table>
                 </div>
 
-                {/* ── Deadlines + Workload ── */}
+                {/* â”€â”€ Deadlines + Workload â”€â”€ */}
                 {(isAdmin||isLead)&&activitiesLoaded&&(()=>{
                   // Dashboard uses local date (not UTC toISOString) to avoid timezone shift
                   const _dn=new Date();
                   const todayStr=`${_dn.getFullYear()}-${String(_dn.getMonth()+1).padStart(2,"0")}-${String(_dn.getDate()).padStart(2,"0")}`;
                   const _addD=(n)=>{const d=new Date(_dn);d.setDate(_dn.getDate()+n);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
                   const in30Str=_addD(30); // Extended to 30 days (was 14)
-                  // Build set of On Hold / Completed project IDs — exclude from all deadline views
+                  // Build set of On Hold / Completed project IDs â€” exclude from all deadline views
                   const _inactiveDashProjIds=new Set(projects.filter(p=>p.status==="On Hold"||p.status==="Completed").map(p=>p.id));
                   const upcoming=activities.filter(a=>
                     a.end_date&&a.end_date>=todayStr&&a.end_date<=in30Str&&
@@ -12010,16 +6557,16 @@ export default function App(){
                         <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Upcoming Deadlines
                           <span style={{fontSize:13,fontWeight:400,color:"var(--text3)",marginLeft:8}}>Next 30 days</span>
                         </div>
-                        {overdue.length>0&&<span style={{fontSize:12,padding:"3px 10px",borderRadius:10,background:"#f8711820",border:"1px solid #f8711840",color:"#f87171",fontWeight:700}}>⚠ {overdue.length} overdue</span>}
+                        {overdue.length>0&&<span style={{fontSize:12,padding:"3px 10px",borderRadius:10,background:"#f8711820",border:"1px solid #f8711840",color:"#f87171",fontWeight:700}}>âڑ  {overdue.length} overdue</span>}
                       </div>
                       <div style={{maxHeight:300,overflowY:"auto"}}>
-                        {overdue.length===0&&upcoming.length===0&&<div style={{padding:"28px 20px",textAlign:"center",color:"var(--text4)",fontSize:14}}>No deadlines in the next 30 days ✓</div>}
+                        {overdue.length===0&&upcoming.length===0&&<div style={{padding:"28px 20px",textAlign:"center",color:"var(--text4)",fontSize:14}}>No deadlines in the next 30 days âœ“</div>}
                         {overdue.slice(0,5).map(a=>{const proj=projects.find(p=>p.id===a.project_id);return(
                           <div key={a.id} style={{padding:"11px 20px",borderBottom:"1px solid var(--border)",background:"#f8711808",display:"flex",gap:12,alignItems:"center"}}>
                             <div style={{width:4,alignSelf:"stretch",background:"#f87171",borderRadius:2,flexShrink:0}}/>
                             <div style={{flex:1,minWidth:0}}>
                               <div style={{fontSize:14,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</div>
-                              <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}><span style={{color:"var(--info)"}}>{proj?.name||a.project_id}</span>{a.assigned_to&&<span style={{color:"var(--text4)"}}> · {a.assigned_to}</span>}</div>
+                              <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}><span style={{color:"var(--info)"}}>{proj?.name||a.project_id}</span>{a.assigned_to&&<span style={{color:"var(--text4)"}}> آ· {a.assigned_to}</span>}</div>
                             </div>
                             <div style={{textAlign:"right",flexShrink:0}}>
                               <div style={{fontSize:13,fontWeight:700,color:"#f87171"}}>OVERDUE</div>
@@ -12033,7 +6580,7 @@ export default function App(){
                               <div style={{fontSize:14,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</div>
                               <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
                                 <span style={{color:"var(--info)"}}>{proj?.name||a.project_id}</span>
-                                {a.assigned_to&&<span style={{color:"var(--text4)"}}> · {a.assigned_to}</span>}
+                                {a.assigned_to&&<span style={{color:"var(--text4)"}}> آ· {a.assigned_to}</span>}
                                 <span style={{marginLeft:8,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:pct>=75?"#34d399":pct>=40?"var(--info)":"var(--text3)"}}>{pct}%</span>
                               </div>
                             </div>
@@ -12070,7 +6617,7 @@ export default function App(){
                                 <div style={{height:"100%",width:`${Math.min(100,100-eng.availPct)}%`,background:`linear-gradient(90deg,var(--info),${c})`,borderRadius:4}}/>
                               </div>
                               <div style={{fontSize:13,fontFamily:"'IBM Plex Mono',monospace",color:"var(--text2)",whiteSpace:"nowrap",minWidth:100,textAlign:"right"}}>
-                                {eng.logged}h · <span style={{color:c,fontWeight:700}}>{eng.remaining}h free</span>
+                                {eng.logged}h آ· <span style={{color:c,fontWeight:700}}>{eng.remaining}h free</span>
                               </div>
                             </div>
                           </div>);
@@ -12085,7 +6632,7 @@ export default function App(){
             </div>
           )}
 
-          {/* ════ TIMESHEET ════ */}
+          {/* â•گâ•گâ•گâ•گ TIMESHEET â•گâ•گâ•گâ•گ */}
           {view==="timesheet"&&(
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:14}}>
@@ -12093,7 +6640,7 @@ export default function App(){
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>{isAcct?"REVIEW":"POST HOURS"}</div>
                   <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>{isAcct?"Hours Review":"Post Hours"}</h1>
                   <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
-                    Allowed: {minPostDate()} → {maxPostDate()}
+                    Allowed: {minPostDate()} â†’ {maxPostDate()}
                     
                   </p>
                 </div>
@@ -12110,10 +6657,10 @@ export default function App(){
                   )}
                   <div><Lbl>Week</Lbl>
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      <button className="bg" style={{padding:"7px 10px"}} onClick={()=>{const d=new Date(weekOf);d.setDate(d.getDate()-7);setWeekOf(fmt(d));}}>←</button>
+                      <button className="bg" style={{padding:"7px 10px"}} onClick={()=>{const d=new Date(weekOf);d.setDate(d.getDate()-7);setWeekOf(fmt(d));}}>â†گ</button>
                       <input type="date" style={{width:140}} value={weekOf} onChange={e=>setWeekOf(e.target.value)}
                         min={minPostDate()} max={maxPostDate()}/>
-                      <button className="bg" style={{padding:"7px 10px"}} onClick={()=>{const d=new Date(weekOf);d.setDate(d.getDate()+7);setWeekOf(fmt(d));}}>→</button>
+                      <button className="bg" style={{padding:"7px 10px"}} onClick={()=>{const d=new Date(weekOf);d.setDate(d.getDate()+7);setWeekOf(fmt(d));}}>â†’</button>
                       <button className="bg" style={{fontSize:13}} onClick={()=>setWeekOf(fmt(today))}>Today</button>
                       {canPostHours&&(()=>{
                         // Count entries in previous week
@@ -12152,7 +6699,7 @@ export default function App(){
                               }
                               if(allInserted.length>0){
                                 const copiedIds=allInserted.map(e=>e.id);
-                                const skipMsg=skipped>0?` (${skipped} days skipped — already filled or locked)`:"";
+                                const skipMsg=skipped>0?` (${skipped} days skipped â€” already filled or locked)`:"";
                                 // Add to UI first, then offer undo via toast
                                 setEntries(prev=>[...allInserted,...prev]);
                                 showToast(
@@ -12161,14 +6708,14 @@ export default function App(){
                                   async()=>{
                                     setEntries(prev=>prev.filter(e=>!copiedIds.includes(e.id)));
                                     await supabase.from("time_entries").delete().in("id",copiedIds);
-                                    showToast("Copy undone ✓");
+                                    showToast("Copy undone âœ“");
                                   }
                                 );
                               } else {
-                                showToast("No entries copied — all days already filled or locked",false);
+                                showToast("No entries copied â€” all days already filled or locked",false);
                               }
                             }}>
-                            ⎘ Copy Last Week <span style={{fontSize:11,opacity:.7}}>({prevEntries.length})</span>
+                            âژک Copy Last Week <span style={{fontSize:11,opacity:.7}}>({prevEntries.length})</span>
                           </button>
                         );
                       })()}
@@ -12181,7 +6728,7 @@ export default function App(){
                 <div className="av" style={{width:42,height:42,fontSize:15}}>{viewEng.name?.slice(0,2).toUpperCase()}</div>
                 <div>
                   <div style={{fontSize:16,fontWeight:600}}>{viewEng.name}</div>
-                  <div style={{fontSize:13,color:"var(--text4)"}}>{viewEng.role} · {viewEng.level}</div>
+                  <div style={{fontSize:13,color:"var(--text4)"}}>{viewEng.role} آ· {viewEng.level}</div>
                 </div>
                 <div style={{marginLeft:"auto",display:"flex",gap:20,flexWrap:"wrap",alignItems:"center"}}>
                   {[
@@ -12192,7 +6739,7 @@ export default function App(){
                     <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c}}>{s.v}</div>
                     <div style={{fontSize:13,color:"var(--text4)"}}>{s.l}</div>
                   </div>)}
-                  {/* ── Vacation balance — visible to every role for the viewed engineer ── */}
+                  {/* â”€â”€ Vacation balance â€” visible to every role for the viewed engineer â”€â”€ */}
                   {(()=>{
                     const entitlement=(vacationBalances[year]||{})[viewEngId]??21;
                     const used=entries.filter(e=>
@@ -12215,14 +6762,14 @@ export default function App(){
                       <div style={{textAlign:"center",borderLeft:"1px solid var(--border)",paddingLeft:20}}>
                         <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:c}}>{remaining}d</div>
                         <div style={{fontSize:13,color:"var(--text4)"}}>Annual Leave Left</div>
-                        <div style={{fontSize:11,color:"var(--text4)",marginTop:1}}>{used} used · {entitlement} total{pending>0?` · ${pending} pending`:""}</div>
+                        <div style={{fontSize:11,color:"var(--text4)",marginTop:1}}>{used} used آ· {entitlement} total{pending>0?` آ· ${pending} pending`:""}</div>
                       </div>
                     );
                   })()}
                 </div>
               </div>}
 
-              {/* ── Weekend Picker — visible to all roles, edits viewed engineer's weekend ── */}
+              {/* â”€â”€ Weekend Picker â€” visible to all roles, edits viewed engineer's weekend â”€â”€ */}
               {viewEng&&(()=>{
                 const pickerEngId = viewEngId||myProfile?.id;
                 const pickerEng = engineers.find(e=>e.id===pickerEngId)||viewEng;
@@ -12234,16 +6781,16 @@ export default function App(){
                   <div style={{marginBottom:10}}>
                     <div style={{display:"flex",alignItems:"center",gap:10,background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:8,padding:"8px 14px",cursor:"pointer"}}
                       onClick={()=>setShowWeekendPicker(p=>!p)}>
-                      <span style={{fontSize:14,fontWeight:600,color:"var(--text1)"}}>🗓 {label}</span>
+                      <span style={{fontSize:14,fontWeight:600,color:"var(--text1)"}}>ًں—“ {label}</span>
                       <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#fb923c",background:"#fb923c15",padding:"2px 8px",borderRadius:4}}>{wdStr}</span>
                       <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text4)",marginLeft:"auto"}}>
-                        {getWorkDaysInMonth(year,month,pickerWd).length} working days · {getTargetHrs(year,month,pickerWd)}h target
+                        {getWorkDaysInMonth(year,month,pickerWd).length} working days آ· {getTargetHrs(year,month,pickerWd)}h target
                       </span>
-                      <span style={{color:"var(--text3)",fontSize:13}}>{showWeekendPicker?"▲":"▼"}</span>
+                      <span style={{color:"var(--text3)",fontSize:13}}>{showWeekendPicker?"â–²":"â–¼"}</span>
                     </div>
                     {showWeekendPicker&&(
                       <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:8,padding:"14px 16px",marginTop:4}}>
-                        {!isOwnProfile&&<div style={{fontSize:13,color:"#fb923c",marginBottom:10}}>⚠ Editing weekend for <strong>{pickerEng.name}</strong> — this affects their utilization target</div>}
+                        {!isOwnProfile&&<div style={{fontSize:13,color:"#fb923c",marginBottom:10}}>âڑ  Editing weekend for <strong>{pickerEng.name}</strong> â€” this affects their utilization target</div>}
                         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:12}}>
                           {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((name,i)=>{
                             const isOff=pickerWd.includes(i);
@@ -12259,9 +6806,9 @@ export default function App(){
                         </div>
                         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                           {[
-                            {label:"🇪🇬 Egypt",days:[5,6],desc:"Fri+Sat"},
-                            {label:"🇷🇴 Europe",days:[0,6],desc:"Sat+Sun"},
-                            {label:"🌍 No Weekend",days:[],desc:"All 7 days"},
+                            {label:"ًں‡ھًں‡¬ Egypt",days:[5,6],desc:"Fri+Sat"},
+                            {label:"ًں‡·ًں‡´ Europe",days:[0,6],desc:"Sat+Sun"},
+                            {label:"ًںŒچ No Weekend",days:[],desc:"All 7 days"},
                           ].map(p=>(
                             <button key={p.label} onClick={()=>saveWeekendFor(pickerEngId,p.days)}
                               style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,
@@ -12278,11 +6825,11 @@ export default function App(){
                 );
               })()}
 
-              {/* ── Month Freeze Calendar ── */}
+              {/* â”€â”€ Month Freeze Calendar â”€â”€ */}
               {(()=>{
                 const _MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
                 const _curYear=new Date(weekOf+"T12:00:00").getFullYear()||year;
-                // Check if current week's month is frozen — show banner
+                // Check if current week's month is frozen â€” show banner
                 const _weekMonth=new Date(weekOf+"T12:00:00").getMonth();
                 const _weekYear=new Date(weekOf+"T12:00:00").getFullYear();
                 const _weekFrozen=frozenMonths.some(fm=>Number(fm.year)===_weekYear&&Number(fm.month)===_weekMonth);
@@ -12291,23 +6838,23 @@ export default function App(){
                     {/* Frozen banner for current week */}
                     {_weekFrozen&&(
                       <div style={{display:"flex",alignItems:"center",gap:10,background:"#1e3a5f",border:"1px solid #3b82f640",borderRadius:8,padding:"8px 14px",marginBottom:8}}>
-                        <span style={{fontSize:16}}>❄</span>
+                        <span style={{fontSize:16}}>â‌„</span>
                         <span style={{fontSize:13,color:"#93c5fd",fontWeight:700}}>
-                          {_MONTHS[_weekMonth]} {_weekYear} is frozen — time entries cannot be added, edited or deleted.
+                          {_MONTHS[_weekMonth]} {_weekYear} is frozen â€” time entries cannot be added, edited or deleted.
                         </span>
                         {isAdmin&&<button onClick={()=>toggleFreezeMonth(_weekYear,_weekMonth)}
                           style={{marginLeft:"auto",padding:"3px 12px",borderRadius:5,border:"1px solid #93c5fd60",background:"transparent",color:"#93c5fd",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",flexShrink:0}}>
-                          🔓 Unfreeze
+                          ًں”“ Unfreeze
                         </button>}
                       </div>
                     )}
-                    {/* Month grid — admin can click, others see status */}
+                    {/* Month grid â€” admin can click, others see status */}
                     <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:8,padding:"10px 14px"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
                         <span style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em"}}>
-                          ❄ {isAdmin?"Freeze Control":"Month Status"} — {year}
+                          â‌„ {isAdmin?"Freeze Control":"Month Status"} â€” {year}
                         </span>
-                        {!isAdmin&&<span style={{fontSize:11,color:"var(--text4)"}}>🔒 locked months cannot be edited</span>}
+                        {!isAdmin&&<span style={{fontSize:11,color:"var(--text4)"}}>ًں”’ locked months cannot be edited</span>}
                       </div>
                       <div style={{display:"grid",gridTemplateColumns:"repeat(12,1fr)",gap:4}}>
                         {_MONTHS.map((mn,mi)=>{
@@ -12316,7 +6863,7 @@ export default function App(){
                           return(
                             <button key={mi}
                               onClick={isAdmin?()=>toggleFreezeMonth(year,mi):undefined}
-                              title={_frozen?`${mn} ${year} — Frozen${isAdmin?" · Click to unfreeze":""}`:isAdmin?`Click to freeze ${mn} ${year}`:mn+" "+year}
+                              title={_frozen?`${mn} ${year} â€” Frozen${isAdmin?" آ· Click to unfreeze":""}`:isAdmin?`Click to freeze ${mn} ${year}`:mn+" "+year}
                               style={{
                                 padding:"5px 2px",borderRadius:6,border:`1px solid ${_frozen?"#3b82f660":_isCurrent?"var(--info)40":"var(--border3)"}`,
                                 background:_frozen?"#1e3a5f":_isCurrent?"var(--info)10":"transparent",
@@ -12328,7 +6875,7 @@ export default function App(){
                                 transition:"all .15s",
                               }}>
                               <span>{mn}</span>
-                              <span style={{fontSize:10}}>{_frozen?"🔒":""}</span>
+                              <span style={{fontSize:10}}>{_frozen?"ًں”’":""}</span>
                             </button>
                           );
                         })}
@@ -12344,27 +6891,27 @@ export default function App(){
                   background:"#a78bfa18",border:"1px solid #a78bfa60",borderRadius:8,
                   padding:"8px 14px",marginBottom:10,fontSize:13}}>
                   <span style={{color:"#a78bfa",fontWeight:700}}>
-                    ⎘ Clipboard: {clipboard.entries.length} entr{clipboard.entries.length===1?"y":"ies"} from {clipboard.date}
+                    âژک Clipboard: {clipboard.entries.length} entr{clipboard.entries.length===1?"y":"ies"} from {clipboard.date}
                     <span style={{color:"var(--text2)",fontWeight:400,marginLeft:6}}>
-                      — click ⎙ Paste on any allowed day to copy
+                      â€” click âژ™ Paste on any allowed day to copy
                     </span>
                   </span>
                   <button onClick={()=>setClipboard(null)}
-                    style={{background:"none",border:"none",color:"var(--text3)",cursor:"pointer",fontSize:15}}>✕</button>
+                    style={{background:"none",border:"none",color:"var(--text3)",cursor:"pointer",fontSize:15}}>âœ•</button>
                 </div>
               )}
 
-              {/* Pending vacation banner — shown to engineer/lead/accountant */}
+              {/* Pending vacation banner â€” shown to engineer/lead/accountant */}
               {(()=>{
                 const myPending=entries.filter(e=>String(e.engineer_id)===String(viewEngId)&&e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL");
                 if(myPending.length===0) return null;
                 return(
                   <div style={{display:"flex",alignItems:"center",gap:12,background:"#78350f18",border:"1px solid #f59e0b50",borderRadius:10,padding:"12px 16px",marginBottom:10}}>
-                    <span style={{fontSize:20}}>⏳</span>
+                    <span style={{fontSize:20}}>âڈ³</span>
                     <div style={{flex:1}}>
                       <div style={{fontSize:14,fontWeight:700,color:"#f59e0b"}}>{myPending.length} Annual Leave request{myPending.length!==1?"s":""} pending admin approval</div>
                       <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
-                        {myPending.map(e=>e.date).join(", ")} · The admin will approve or reject shortly
+                        {myPending.map(e=>e.date).join(", ")} آ· The admin will approve or reject shortly
                       </div>
                     </div>
                     <span style={{fontSize:12,padding:"3px 10px",borderRadius:8,background:"#f59e0b20",border:"1px solid #f59e0b40",color:"#f59e0b",fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"}}>
@@ -12374,7 +6921,7 @@ export default function App(){
                 );
               })()}
 
-              {/* Vacation outcomes — shown in bell notification (top right) */}
+              {/* Vacation outcomes â€” shown in bell notification (top right) */}
 
               {/* 7-day week grid */}
               <div className="week-grid-7" style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:7}}>
@@ -12411,13 +6958,13 @@ export default function App(){
                           {allowed&&canPostHours&&!isMonthFrozen(day)&&<button className="bp" style={{padding:"2px 5px",fontSize:13,
                             background:isWE?"linear-gradient(135deg,#b45309,#92400e)":isFuture?"linear-gradient(135deg,#7c3aed,#6d28d9)":undefined
                           }} onClick={()=>setModalDate(day)}>+</button>}
-          {isMonthFrozen(day)&&<span title="Month frozen" style={{fontSize:11,color:"#93c5fd",opacity:.7,lineHeight:1}}>❄</span>}
+          {isMonthFrozen(day)&&<span title="Month frozen" style={{fontSize:11,color:"#93c5fd",opacity:.7,lineHeight:1}}>â‌„</span>}
                           {de.length>0&&allowed&&canPostHours&&(
                             <button title="Copy this day" onClick={()=>copyDay(day)}
                               style={{padding:"2px 5px",fontSize:12,borderRadius:4,border:"1px solid var(--border3)",
                                 background:clipboard?.date===day?"#38bdf818":"var(--bg2)",
                                 color:clipboard?.date===day?"var(--info)":"var(--text3)",cursor:"pointer",lineHeight:1}}>
-                              {clipboard?.date===day?"✓ Copied":"⎘ Copy"}
+                              {clipboard?.date===day?"âœ“ Copied":"âژک Copy"}
                             </button>
                           )}
                           {clipboard&&allowed&&canPostHours&&clipboard.date!==day&&(
@@ -12425,7 +6972,7 @@ export default function App(){
                               onClick={()=>pasteDay(day)}
                               style={{padding:"2px 5px",fontSize:12,borderRadius:4,border:"1px solid #a78bfa60",
                                 background:"#a78bfa18",color:"#a78bfa",cursor:"pointer",lineHeight:1}}>
-                              ⎙ Paste
+                              âژ™ Paste
                             </button>
                           )}
                           {!allowed&&<span style={{fontSize:11,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>LOCKED</span>}
@@ -12446,14 +6993,14 @@ export default function App(){
                               <div style={{flex:1,minWidth:0}}>
                                 {e.entry_type==="leave"
                                   ?<>
-                                    <span style={{color:"#fb923c",fontWeight:600}}>✈ {e.leave_type||"Annual Leave"}</span>
+                                    <span style={{color:"#fb923c",fontWeight:600}}>âœˆ {e.leave_type||"Annual Leave"}</span>
                                     {isPending&&<div style={{marginTop:2,display:"inline-flex",alignItems:"center",gap:3,background:"#f59e0b20",border:"1px solid #f59e0b50",borderRadius:3,padding:"1px 5px",marginLeft:4}}>
-                                      <span style={{fontSize:10,color:"#f59e0b",fontWeight:700}}>⏳ PENDING APPROVAL</span>
+                                      <span style={{fontSize:10,color:"#f59e0b",fontWeight:700}}>âڈ³ PENDING APPROVAL</span>
                                     </div>}
                                   </>
                                   :<><span style={{color:"#0ea5e9",fontSize:11,fontWeight:600}}>{proj?.name||proj?.id||e.project_id}</span>
                                     <div style={{color:"var(--text2)",fontSize:11,marginTop:1}}>{e.task_type}</div>
-                                    {e.activity&&!isPending&&<div style={{color:"var(--text3)",fontSize:11,marginTop:1,fontStyle:"italic",lineHeight:1.3}}>{e.activity.substring(0,35)}{e.activity.length>35?"…":""}</div>}
+                                    {e.activity&&!isPending&&<div style={{color:"var(--text3)",fontSize:11,marginTop:1,fontStyle:"italic",lineHeight:1.3}}>{e.activity.substring(0,35)}{e.activity.length>35?"â€¦":""}</div>}
                                   </>}
                               </div>
                               {canEdit&&canPostHours&&!(()=>{
@@ -12461,8 +7008,8 @@ export default function App(){
                                 const isApprovedLeave=e.entry_type==="leave"&&e.leave_type==="Annual Leave"&&e.activity!=="PENDING_APPROVAL";
                                 return isApprovedLeave&&!isAdmin;
                               })()&&<div style={{display:"flex",flexDirection:"column",gap:2}}>
-                                <button className="be" style={{padding:"1px 4px",fontSize:12}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
-                                <button className="bd" style={{padding:"1px 4px",fontSize:12,display:isMonthFrozen(e.date)?"none":"inline-flex"}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>
+                                <button className="be" style={{padding:"1px 4px",fontSize:12}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>âœژ</button>
+                                <button className="bd" style={{padding:"1px 4px",fontSize:12,display:isMonthFrozen(e.date)?"none":"inline-flex"}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>âœ•</button>
                               </div>}
                             </div>
                             <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
@@ -12472,7 +7019,7 @@ export default function App(){
                           </div>
                         );
                       })}
-                      {de.length===0&&<div style={{color:"var(--border)",fontSize:12,textAlign:"center",marginTop:16}}>{allowed?"No entries":"—"}</div>}
+                      {de.length===0&&<div style={{color:"var(--border)",fontSize:12,textAlign:"center",marginTop:16}}>{allowed?"No entries":"â€”"}</div>}
                     </div>
                   );
                 })}
@@ -12490,14 +7037,14 @@ export default function App(){
                   };
                   return<>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                  <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Full Month — {MONTHS[month]} {year}</div>
+                  <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Full Month â€” {MONTHS[month]} {year}</div>
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                    {selectedEntries.size>0&&<button style={{background:"#ef4444",border:"none",borderRadius:6,padding:"5px 12px",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={bulkDeleteEntries}>🗑 Delete {selectedEntries.size} selected</button>}
+                    {selectedEntries.size>0&&<button style={{background:"#ef4444",border:"none",borderRadius:6,padding:"5px 12px",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={bulkDeleteEntries}>ًں—‘ Delete {selectedEntries.size} selected</button>}
                     <select style={{fontSize:13,padding:"5px 10px",width:"auto"}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
                       <option value="ALL">All Projects</option>
                       {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
                     </select>
-                    {filterProject!=="ALL"&&<button className="bg" style={{fontSize:13}} onClick={()=>setFilterProject("ALL")}>✕</button>}
+                    {filterProject!=="ALL"&&<button className="bg" style={{fontSize:13}} onClick={()=>setFilterProject("ALL")}>âœ•</button>}
                     <span style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace"}}>{visEntries.reduce((s,e)=>s+e.hours,0)}h</span>
                   </div>
                 </div>
@@ -12519,13 +7066,13 @@ export default function App(){
                             <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.date}</td>
                             <td>{proj
                               ?<><span style={{fontWeight:600,color:"var(--text0)"}}>{proj.name||proj.id}</span><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",marginLeft:4}}>({proj.id})</span></>
-                              :<span style={{color:"#fb923c",fontWeight:600}}>✈ {e.leave_type||"Leave"}</span>}
+                              :<span style={{color:"#fb923c",fontWeight:600}}>âœˆ {e.leave_type||"Leave"}</span>}
                             </td>
-                            <td style={{color:"var(--text2)"}}>{e.task_type||"—"}</td>
+                            <td style={{color:"var(--text2)"}}>{e.task_type||"â€”"}</td>
                             <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                               {isPending
-                                ?<span style={{color:"#f59e0b",fontWeight:700,fontStyle:"normal"}}>⏳ Pending Approval</span>
-                                :(e.activity||"—")}
+                                ?<span style={{color:"#f59e0b",fontWeight:700,fontStyle:"normal"}}>âڈ³ Pending Approval</span>
+                                :(e.activity||"â€”")}
                             </td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
                             <td>
@@ -12538,10 +7085,10 @@ export default function App(){
                                 const isApprovedLeave=e.entry_type==="leave"&&e.leave_type==="Annual Leave"&&e.activity!=="PENDING_APPROVAL";
                                 const locked=isApprovedLeave&&!isAdmin;
                                 return locked
-                                  ? <span style={{fontSize:11,color:"var(--text4)",fontStyle:"italic"}}>Approved — admin only</span>
-                                  : <>{canPostHours&&<button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>}
-                                     {canPostHours&&<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}
-                                     {!canPostHours&&<span style={{fontSize:12,color:"var(--text4)"}}>—</span>}</>;
+                                  ? <span style={{fontSize:11,color:"var(--text4)",fontStyle:"italic"}}>Approved â€” admin only</span>
+                                  : <>{canPostHours&&<button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>âœژ</button>}
+                                     {canPostHours&&<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>âœ•</button>}
+                                     {!canPostHours&&<span style={{fontSize:12,color:"var(--text4)"}}>â€”</span>}</>;
                               })()}
                             </div></td>
                           </tr>
@@ -12556,7 +7103,7 @@ export default function App(){
             </div>
           )}
 
-          {/* ════ PROJECTS ════ */}
+          {/* â•گâ•گâ•گâ•گ PROJECTS â•گâ•گâ•گâ•گ */}
           {view==="projects"&&(()=>{ return(
               <>
               <ProjectsView
@@ -12574,7 +7121,7 @@ export default function App(){
             </>);
           })()}
 
-          {/* ════ TEAM ════ */}
+          {/* â•گâ•گâ•گâ•گ TEAM â•گâ•گâ•گâ•گ */}
           {view==="team"&&(()=>{
             // Scope engStats to lead's org subtree; admins see all
             const scopedEngStats = mySubEngIds
@@ -12590,7 +7137,7 @@ export default function App(){
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>ENGINEERING TEAM</div>
                   <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Team</h1>
-                  <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{scopedEngStats.filter(e=>isEngActive(e)).length} active · {scopedEngStats.length} total · {MONTHS[month]} {year}</p>
+                  <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{scopedEngStats.filter(e=>isEngActive(e)).length} active آ· {scopedEngStats.length} total آ· {MONTHS[month]} {year}</p>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
                   <div><Lbl>Engineer</Lbl>
@@ -12606,11 +7153,11 @@ export default function App(){
                     </select>
                   </div>
                   {(filterEngineer!=="ALL"||filterProject!=="ALL")&&
-                    <button className="bg" style={{fontSize:13}} onClick={()=>{setFilterEngineer("ALL");setFilterProject("ALL");}}>✕ Clear</button>}
+                    <button className="bg" style={{fontSize:13}} onClick={()=>{setFilterEngineer("ALL");setFilterProject("ALL");}}>âœ• Clear</button>}
                 </div>
               </div>
 
-              {/* ── TOTAL HOURS SUMMARY BOX (shows when any filter active) ── */}
+              {/* â”€â”€ TOTAL HOURS SUMMARY BOX (shows when any filter active) â”€â”€ */}
               {(()=>{
                 // Entries matching both filters
                 const fEntries=monthEntries.filter(e=>
@@ -12623,13 +7170,13 @@ export default function App(){
                 const totalB=fWork.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?e.hours:0);},0);
                 const totalNB=totalW-totalB;
                 const totalL=fLeave.length;
-                // Target hours based on filtered engineers — respects join/termination dates
+                // Target hours based on filtered engineers â€” respects join/termination dates
                 const filtEngs=filterEngineer==="ALL"?scopedEngStats:scopedEngStats.filter(e=>e.id===+filterEngineer);
                 const targetW=filtEngs.reduce((s,eng)=>s+(eng.targetHrs||0),0);
                 const util=targetW?Math.round(totalW/targetW*100):0;
                 const selProjName=filterProject!=="ALL"?projects.find(p=>p.id===filterProject)?.name:"";
                 const selEngName=filterEngineer!=="ALL"?engineers.find(e=>e.id===+filterEngineer)?.name:"";
-                const label=[selEngName,selProjName].filter(Boolean).join(" · ")||"All";
+                const label=[selEngName,selProjName].filter(Boolean).join(" آ· ")||"All";
                 return(
                   <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,padding:"12px 16px",marginBottom:16,display:"flex",gap:0,alignItems:"center"}}>
                     <div style={{marginRight:20,minWidth:120}}>
@@ -12662,7 +7209,7 @@ export default function App(){
                     <div className="av" style={{width:50,height:50,fontSize:17}}>{selectedEng.name?.slice(0,2).toUpperCase()}</div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:17,fontWeight:700}}>{selectedEng.name}</div>
-                      <div style={{fontSize:14,color:"var(--text4)"}}>{selectedEng.role} · {selectedEng.level}</div>
+                      <div style={{fontSize:14,color:"var(--text4)"}}>{selectedEng.role} آ· {selectedEng.level}</div>
                       <span className="role-badge" style={{background:ROLE_COLORS[selectedEng.role_type]+"20",color:ROLE_COLORS[selectedEng.role_type]||"var(--text3)",marginTop:4,display:"inline-block"}}>{ROLE_LABELS[selectedEng.role_type]}</span>
                     </div>
                     <div style={{display:"flex",gap:20,textAlign:"center"}}>
@@ -12687,9 +7234,9 @@ export default function App(){
                         const p=projects.find(x=>x.id===e.project_id);
                         return<tr key={e.id}>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                          <td style={{fontSize:13,color:"var(--info)"}}>{p?.id||<span style={{color:"var(--text2)"}}>—</span>}</td>
-                          <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type||"—"}</td>
-                          <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                          <td style={{fontSize:13,color:"var(--info)"}}>{p?.id||<span style={{color:"var(--text2)"}}>â€”</span>}</td>
+                          <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type||"â€”"}</td>
+                          <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"â€”"}</td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{e.hours}h</td>
                         </tr>;
                       })}
@@ -12714,7 +7261,7 @@ export default function App(){
                 ))}
               </div>
 
-              {/* ── ORG CHART VIEW ── */}
+              {/* â”€â”€ ORG CHART VIEW â”€â”€ */}
               {teamViewMode==="org"&&(()=>{
 
                 const saveNode = async(node) => {
@@ -12729,7 +7276,7 @@ export default function App(){
                     setOrgNodes(prev=>[...prev,data]);
                   }
                   setOrgEditNode(null);
-                  showToast("Saved ✓");
+                  showToast("Saved âœ“");
                 };
 
                 const deleteNode = async(id) => {
@@ -12751,7 +7298,7 @@ export default function App(){
                   const updated = {...node, parent_id: newParentId||null};
                   await supabase.from("org_chart").update({parent_id:newParentId||null}).eq("id",nodeId);
                   setOrgNodes(prev=>prev.map(n=>n.id===nodeId?updated:n));
-                  showToast("Moved ✓");
+                  showToast("Moved âœ“");
                 };
 
                 const exportOrgPDF = () => {
@@ -12789,7 +7336,7 @@ export default function App(){
                   </head><body>
                   <div class="hdr"><img src="${LOGO_SRC}" style="width:44px;height:44px;border-radius:8px">
                     <div><h1 style="font-size:18px;font-weight:800;color:#0b1f38">Organization Chart</h1>
-                    <p style="font-size:11px;color:#4a6a8a;text-transform:uppercase;letter-spacing:.06em;font-weight:600">ENEVO Group · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div>
+                    <p style="font-size:11px;color:#4a6a8a;text-transform:uppercase;letter-spacing:.06em;font-weight:600">ENEVO Group آ· ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}</p></div></div>
                   <div style="display:flex;justify-content:center">${buildTable(rts,true)}</div>
                   <script>window.onload=()=>setTimeout(()=>window.print(),400)</script>
                   </body></html>`;
@@ -12798,7 +7345,7 @@ export default function App(){
                   else showToast("Allow popups to export PDF",false);
                 };
 
-                // OrgCard — plain render function (NOT a React component)
+                // OrgCard â€” plain render function (NOT a React component)
                 const renderOrgCard = (node) => {
                   const eng = node.engineer_id ? engineers.find(e=>String(e.id)===String(node.engineer_id)) : null;
                   const active = eng ? isEngActive(eng) : true;
@@ -12832,15 +7379,15 @@ export default function App(){
                         ? "0 4px 20px #00000080, 0 1px 3px #00000060"
                         : "0 2px 12px #0000001a, 0 1px 4px #00000010",
                     }}>
-                      {/* Edit/delete — edit mode only */}
+                      {/* Edit/delete â€” edit mode only */}
                       {orgEditing&&isAdmin&&(
                         <div style={{position:"absolute",top:6,right:6,display:"flex",gap:3,zIndex:20}}>
                           <button onClick={e=>{e.stopPropagation();setOrgEditNode({...node});}}
                             style={{background:"#0ea5e920",border:"1px solid #0ea5e960",color:"#38bdf8",
-                              width:22,height:22,borderRadius:5,fontSize:12,cursor:"pointer",padding:0,lineHeight:"20px"}}>✎</button>
+                              width:22,height:22,borderRadius:5,fontSize:12,cursor:"pointer",padding:0,lineHeight:"20px"}}>âœژ</button>
                           <button onClick={e=>{e.stopPropagation();deleteNode(node.id);}}
                             style={{background:"#f8717120",border:"1px solid #f8717160",color:"#f87171",
-                              width:22,height:22,borderRadius:5,fontSize:12,cursor:"pointer",padding:0,lineHeight:"20px"}}>✕</button>
+                              width:22,height:22,borderRadius:5,fontSize:12,cursor:"pointer",padding:0,lineHeight:"20px"}}>âœ•</button>
                         </div>
                       )}
                       {/* Avatar circle */}
@@ -12883,7 +7430,7 @@ export default function App(){
                 };
 
 
-                // ── Layout: iterative BFS — no recursion, guaranteed termination ──
+                // â”€â”€ Layout: iterative BFS â€” no recursion, guaranteed termination â”€â”€
                 const CARD_W  = 170;
                 const CARD_H  = 165;  // actual card content is ~165px tall
                 const H_GAP   = 40;   // horizontal gap between siblings
@@ -12904,7 +7451,7 @@ export default function App(){
                 Object.values(kidMap).forEach(arr => arr.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)));
                 rootNodes.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
 
-                // BFS to get ordered list of reachable nodes — visited set prevents ANY cycle hang
+                // BFS to get ordered list of reachable nodes â€” visited set prevents ANY cycle hang
                 const bfsOrder = []; // [{id, depth}]
                 const bfsSeen  = new Set();
                 const bfsQ     = rootNodes.map(n=>({id:n.id, depth:0}));
@@ -12976,14 +7523,14 @@ export default function App(){
                           <div style={{fontSize:20,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Organization Chart</div>
                           <div style={{fontSize:13,color:"var(--text3)",marginTop:3,fontFamily:"'IBM Plex Mono',monospace"}}>
                             {orgEditing
-                              ?<span style={{color:"#fb923c",fontWeight:700}}>⚠ Edit Mode — drag cards to rearrange</span>
-                              :`${orgNodes.filter(n=>!n.is_external).length} members · ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}`}
+                              ?<span style={{color:"#fb923c",fontWeight:700}}>âڑ  Edit Mode â€” drag cards to rearrange</span>
+                              :`${orgNodes.filter(n=>!n.is_external).length} members آ· ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}`}
                           </div>
                         </div>
                       </div>
                       <div style={{display:"flex",gap:8,alignItems:"center"}}>
                         {!orgEditing&&orgNodes.length>0&&(
-                          <button onClick={exportOrgPDF} className="be" style={{fontSize:14,padding:"7px 16px"}}>⬇ Export PDF</button>
+                          <button onClick={exportOrgPDF} className="be" style={{fontSize:14,padding:"7px 16px"}}>â¬‡ Export PDF</button>
                         )}
                         {isAdmin&&(
                           <>
@@ -12997,7 +7544,7 @@ export default function App(){
                               style={{padding:"7px 16px",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
                                 background:orgEditing?"#fb923c":"linear-gradient(135deg,#0ea5e9,#0369a1)",
                                 border:"none",color:"#fff",transition:"all .2s"}}>
-                              {orgEditing?"✓ Done editing":"✎ Edit Chart"}
+                              {orgEditing?"âœ“ Done editing":"âœژ Edit Chart"}
                             </button>
                           </>
                         )}
@@ -13010,7 +7557,7 @@ export default function App(){
                         
                         <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:6}}>No org chart configured</div>
                         <div style={{fontSize:13,color:"var(--text4)",marginBottom:20}}>Add your team hierarchy to visualize the organization</div>
-                        {isAdmin&&<button className="bp" onClick={()=>setOrgEditing(true)}>✎ Start building</button>}
+                        {isAdmin&&<button className="bp" onClick={()=>setOrgEditing(true)}>âœژ Start building</button>}
                       </div>
                     )}
 
@@ -13023,7 +7570,7 @@ export default function App(){
                             onDrop={e=>{e.preventDefault();if(orgDragId) moveNode(orgDragId,null);}}
                             style={{margin:"0 28px 8px",padding:"8px",textAlign:"center",fontSize:13,
                               color:"var(--text4)",border:"1px dashed var(--border)",borderRadius:8}}>
-                            ↑ Drop here to make root-level
+                            â†‘ Drop here to make root-level
                           </div>
                         )}
                         <div style={{position:"relative", width:canvasW, height:canvasH, minWidth:"100%"}}>
@@ -13041,7 +7588,7 @@ export default function App(){
                             ))}
                           </svg>
 
-                          {/* Card layer — absolutely positioned */}
+                          {/* Card layer â€” absolutely positioned */}
                           {orgNodes.map(node=>{
                             const pos = positions[node.id];
                             if(!pos) return null;
@@ -13096,15 +7643,15 @@ export default function App(){
                           <div>
                             <div style={{fontSize:13,fontWeight:700,color:"var(--text3)",marginBottom:4}}>TITLE / ROLE LABEL</div>
                             <input value={orgEditNode.title||""} onChange={e=>setOrgEditNode(p=>({...p,title:e.target.value}))}
-                              placeholder="e.g. CTO · Romain" style={{width:"100%",boxSizing:"border-box"}}/>
+                              placeholder="e.g. CTO آ· Romain" style={{width:"100%",boxSizing:"border-box"}}/>
                           </div>
 
                           <div>
                             <div style={{fontSize:13,fontWeight:700,color:"var(--text3)",marginBottom:4}}>LINK TO ENGINEER (optional)</div>
                             <select value={orgEditNode.engineer_id||""} onChange={e=>setOrgEditNode(p=>({...p,engineer_id:e.target.value?+e.target.value:null}))}
                               style={{width:"100%",boxSizing:"border-box"}}>
-                              <option value="">— External / No link —</option>
-                              {engineers.map(e=><option key={e.id} value={e.id}>{e.name} · {e.role}</option>)}
+                              <option value="">â€” External / No link â€”</option>
+                              {engineers.map(e=><option key={e.id} value={e.id}>{e.name} آ· {e.role}</option>)}
                             </select>
                           </div>
 
@@ -13112,7 +7659,7 @@ export default function App(){
                             <div style={{fontSize:13,fontWeight:700,color:"var(--text3)",marginBottom:4}}>REPORTS TO</div>
                             <select value={orgEditNode.parent_id||""} onChange={e=>setOrgEditNode(p=>({...p,parent_id:e.target.value?+e.target.value:null}))}
                               style={{width:"100%",boxSizing:"border-box"}}>
-                              <option value="">— Top level (root) —</option>
+                              <option value="">â€” Top level (root) â€”</option>
                               {orgNodes.filter(n=>n.id!==orgEditNode.id).map(n=>(
                                 <option key={n.id} value={n.id}>{n.name}</option>
                               ))}
@@ -13146,7 +7693,7 @@ export default function App(){
               })()}
 
 
-              {/* ── GRID VIEW ── */}
+              {/* â”€â”€ GRID VIEW â”€â”€ */}
               {teamViewMode==="grid"&&<div className="stats-5col" style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
                 {filteredTeam.map(eng=>(
                   <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",padding:"16px 12px",
@@ -13188,7 +7735,7 @@ export default function App(){
                       </div>
                       <div style={{background:"var(--bg2)",borderRadius:6,padding:"7px 4px"}}>
                         <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:"#a78bfa"}}>
-                          {(isAdmin||isAcct)?fmtPct(eng.billability):"—"}
+                          {(isAdmin||isAcct)?fmtPct(eng.billability):"â€”"}
                         </div>
                         <div style={{fontSize:11,color:"var(--text4)"}}>Billability</div>
                       </div>
@@ -13199,7 +7746,7 @@ export default function App(){
                       {(isAdmin||isAcct)&&<span style={{fontSize:12,fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",marginLeft:"auto"}}>{fmtCurrency(eng.revenue)}</span>}
                     </div>
                     {/* Level */}
-                    <div style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"var(--border)",color:"var(--text3)",display:"inline-block",marginBottom:eng.leaveDays>0||((isAdmin||isAcct)&&eng.revenue>0)?4:0}}>{eng.level||"—"}</div>
+                    <div style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"var(--border)",color:"var(--text3)",display:"inline-block",marginBottom:eng.leaveDays>0||((isAdmin||isAcct)&&eng.revenue>0)?4:0}}>{eng.level||"â€”"}</div>
                     {/* Assigned projects */}
                     {(()=>{
                       const myProjs=projects.filter(p=>p.status==="Active"&&(p.assigned_engineers||[]).map(String).includes(String(eng.id)));
@@ -13224,20 +7771,20 @@ export default function App(){
             </div>
           );})()}
 
-          {/* ════ REPORTS ════ */}
+          {/* â•گâ•گâ•گâ•گ REPORTS â•گâ•گâ•گâ•گ */}
           {view==="reports"&&canReport&&(
             <div style={{display:"grid",gap:20}}>
 
-              {/* ── Page header ── */}
+              {/* â”€â”€ Page header â”€â”€ */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>REPORTING</div>
                   <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Reports & PDF Export</h1>
-                  <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year} · Select a report to preview and export</p>
+                  <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>{MONTHS[month]} {year} آ· Select a report to preview and export</p>
                 </div>
               </div>
 
-              {/* ── Two-panel layout ── */}
+              {/* â”€â”€ Two-panel layout â”€â”€ */}
               <div className="rpt-two-panel" style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:16,alignItems:"start"}}>
 
                 {/* Left: report navigator */}
@@ -13285,28 +7832,28 @@ export default function App(){
                 {/* Right: content area */}
                 <div style={{minWidth:0}}>
 
-                  {/* ── Individual timesheet ── */}
+                  {/* â”€â”€ Individual timesheet â”€â”€ */}
                   {activeRpt==="individual"&&(
                     <div style={{display:"grid",gap:14}}>
                       <div className="card" style={{padding:0,overflow:"hidden"}}>
                         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                           <div>
                             <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Individual Timesheets</div>
-                            <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · Select engineer or export all</div>
+                            <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} آ· Select engineer or export all</div>
                           </div>
                           <button className="bp" onClick={()=>{
                             if(!rptEngId){
                               const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
                               const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-                              let body=`<h2 style="text-align:center;font-family:'IBM Plex Sans',sans-serif;color:#1e3a5f;margin-bottom:4px">ENEVO GROUP — All Timesheets</h2><p style="text-align:center;font-size:12px;color:#64748b;font-family:sans-serif;margin-bottom:24px">${MONTHS_[month]} ${year} · Generated ${now} · ${engineers.length} engineers</p>`;
+                              let body=`<h2 style="text-align:center;font-family:'IBM Plex Sans',sans-serif;color:#1e3a5f;margin-bottom:4px">ENEVO GROUP â€” All Timesheets</h2><p style="text-align:center;font-size:12px;color:#64748b;font-family:sans-serif;margin-bottom:24px">${MONTHS_[month]} ${year} آ· Generated ${now} آ· ${engineers.length} engineers</p>`;
                               engineers.forEach((eng,i)=>{
                                 const we=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date));
                                 const le=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave");
                                 const totalW=we.reduce((s,e)=>s+e.hours,0);
                                 const rows=we.map(e=>{const p=projects.find(x=>x.id===e.project_id);return`<tr><td style="font-family:monospace">${e.date}</td><td style="color:#0ea5e9">${e.project_id||""}</td><td>${p?.name||""}</td><td>${e.task_type||""}</td><td style="font-style:italic;color:#64748b">${e.activity||""}</td><td style="font-family:monospace;font-weight:700;color:#0ea5e9">${e.hours}h</td></tr>`;}).join("");
-                                body+=`<div style="page-break-before:${i===0?"avoid":"always"};margin-bottom:24px"><div style="background:#1e3a5f;color:#fff;padding:10px 16px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between"><div><div style="font-size:16px;font-weight:700">${eng.name}</div><div style="font-size:11px;color:#93c5fd">${eng.role||""} · ${MONTHS_[month]} ${year}</div></div><div style="font-size:22px;font-weight:800;color:#38bdf8">${totalW}h</div></div><table style="width:100%;border-collapse:collapse;font-size:12px;font-family:sans-serif;border:1px solid #e2e8f0;border-top:none"><thead><tr style="background:#f1f5f9"><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">DATE</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJ ID</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJECT</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">TASK</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">ACTIVITY</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">HRS</th></tr></thead><tbody>${rows||`<tr><td colspan="6" style="padding:12px;text-align:center;color:#94a3b8">No entries for ${MONTHS_[month]} ${year}</td></tr>`}</tbody><tfoot><tr style="background:#f8fafc"><td colspan="5" style="padding:6px 8px;font-weight:700;font-size:12px">Total · ${le.length} leave day${le.length!==1?"s":""}</td><td style="padding:6px 8px;font-family:monospace;font-weight:700;color:#0ea5e9">${totalW}h</td></tr></tfoot></table></div>`;
+                                body+=`<div style="page-break-before:${i===0?"avoid":"always"};margin-bottom:24px"><div style="background:#1e3a5f;color:#fff;padding:10px 16px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between"><div><div style="font-size:16px;font-weight:700">${eng.name}</div><div style="font-size:11px;color:#93c5fd">${eng.role||""} آ· ${MONTHS_[month]} ${year}</div></div><div style="font-size:22px;font-weight:800;color:#38bdf8">${totalW}h</div></div><table style="width:100%;border-collapse:collapse;font-size:12px;font-family:sans-serif;border:1px solid #e2e8f0;border-top:none"><thead><tr style="background:#f1f5f9"><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">DATE</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJ ID</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJECT</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">TASK</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">ACTIVITY</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">HRS</th></tr></thead><tbody>${rows||`<tr><td colspan="6" style="padding:12px;text-align:center;color:#94a3b8">No entries for ${MONTHS_[month]} ${year}</td></tr>`}</tbody><tfoot><tr style="background:#f8fafc"><td colspan="5" style="padding:6px 8px;font-weight:700;font-size:12px">Total آ· ${le.length} leave day${le.length!==1?"s":""}</td><td style="padding:6px 8px;font-family:monospace;font-weight:700;color:#0ea5e9">${totalW}h</td></tr></tfoot></table></div>`;
                               });
-                              const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>All Timesheets — ${MONTHS_[month]} ${year}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;color:#1e293b;padding:20px}@media print{body{padding:0}@page{margin:14mm}tr{page-break-inside:avoid}}</style></head><body>${body}<div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP · ${now}</div></body></html>`;
+                              const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>All Timesheets â€” ${MONTHS_[month]} ${year}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;color:#1e293b;padding:20px}@media print{body{padding:0}@page{margin:14mm}tr{page-break-inside:avoid}}</style></head><body>${body}<div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP آ· ${now}</div></body></html>`;
                               const w=window.open("","pdf_merged_"+Date.now());
                               if(w){w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),600);}
                               else showToast("Allow popups to export",false);
@@ -13314,13 +7861,13 @@ export default function App(){
                               const eng=engineers.find(e=>e.id===rptEngId);
                               if(eng) buildTimesheetPDF(eng,monthEntries,projects,month,year);
                             }
-                          }}>⬇ {!rptEngId?"All — Merged PDF":"Export PDF"}</button>
+                          }}>â¬‡ {!rptEngId?"All â€” Merged PDF":"Export PDF"}</button>
                         </div>
                         <div style={{padding:"16px 20px"}}>
                           <select value={rptEngId||"ALL"} onChange={e=>setRptEngId(e.target.value==="ALL"?null:+e.target.value)}
                             style={{marginBottom:14,width:"100%",maxWidth:340}}>
                             <option value="ALL">All Engineers (merged PDF)</option>
-                            {engineers.map(e=><option key={e.id} value={e.id}>{e.name} · {e.role}</option>)}
+                            {engineers.map(e=><option key={e.id} value={e.id}>{e.name} آ· {e.role}</option>)}
                           </select>
                           {!rptEngId&&(
                             <table>
@@ -13336,7 +7883,7 @@ export default function App(){
                                   <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{wh}h</td>
                                   <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace"}}>{prjs}</td>
                                   <td style={{textAlign:"right",color:ld>0?"#fb923c":"var(--text4)"}}>{ld}d</td>
-                                  <td><button className="be" onClick={()=>buildTimesheetPDF(eng,monthEntries,projects,month,year)}>⬇ PDF</button></td>
+                                  <td><button className="be" onClick={()=>buildTimesheetPDF(eng,monthEntries,projects,month,year)}>â¬‡ PDF</button></td>
                                 </tr>;
                               })}</tbody>
                             </table>
@@ -13353,7 +7900,7 @@ export default function App(){
                                   <div className="av" style={{width:44,height:44,fontSize:15}}>{eng?.name?.slice(0,2).toUpperCase()}</div>
                                   <div style={{flex:1}}>
                                     <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>{eng?.name}</div>
-                                    <div style={{fontSize:13,color:"var(--text3)"}}>{eng?.role} · {eng?.level}</div>
+                                    <div style={{fontSize:13,color:"var(--text3)"}}>{eng?.role} آ· {eng?.level}</div>
                                   </div>
                                   <div style={{display:"flex",gap:20}}>
                                     {[{l:"Work Hrs",v:wh+"h",c:"var(--info)"},{l:"Leave",v:ld+"d",c:"#fb923c"},{l:"Projects",v:projs.length,c:"#a78bfa"}].map((s,i)=>(
@@ -13372,7 +7919,7 @@ export default function App(){
                                       <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.date}</td>
                                       <td style={{color:"var(--info)",fontWeight:600}}>{proj?.name||proj?.id}</td>
                                       <td style={{color:"var(--text2)"}}>{e.task_type}</td>
-                                      <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                                      <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"â€”"}</td>
                                       <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
                                     </tr>;})}
                                   </tbody>
@@ -13385,15 +7932,15 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* ── Team Utilization ── */}
+                  {/* â”€â”€ Team Utilization â”€â”€ */}
                   {activeRpt==="utilization"&&(
                     <div className="card" style={{padding:0,overflow:"hidden"}}>
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <div>
                           <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Team Utilization</div>
-                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · {visibleEngStats.length} engineers</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} آ· {visibleEngStats.length} engineers</div>
                         </div>
-                        <button className="bp" onClick={buildUtilizationPDF}>⬇ Export PDF</button>
+                        <button className="bp" onClick={buildUtilizationPDF}>â¬‡ Export PDF</button>
                       </div>
                       <table>
                         <thead><tr><th>Engineer</th><th>Level</th><th style={{textAlign:"right"}}>Target</th><th style={{textAlign:"right"}}>Work</th><th style={{textAlign:"right"}}>Billable</th><th style={{textAlign:"right"}}>Leave</th><th>Utilization</th><th>Billability</th>{(isAdmin||isAcct)&&<th style={{textAlign:"right"}}>Revenue</th>}</tr></thead>
@@ -13428,7 +7975,7 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* ── Task Analysis ── */}
+                  {/* â”€â”€ Task Analysis â”€â”€ */}
                   {activeRpt==="task"&&(()=>{
                     const GC={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
                     return(
@@ -13436,9 +7983,9 @@ export default function App(){
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <div>
                           <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Task Analysis</div>
-                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · {totalWorkHrs}h work logged</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} آ· {totalWorkHrs}h work logged</div>
                         </div>
-                        <button className="bp" onClick={buildTaskPDF}>⬇ Export PDF</button>
+                        <button className="bp" onClick={buildTaskPDF}>â¬‡ Export PDF</button>
                       </div>
                       <div style={{padding:"20px"}}>
                         {taskStats.length===0&&<p style={{color:"var(--text4)",fontSize:14,textAlign:"center",padding:24}}>No work hours logged for this period.</p>}
@@ -13481,7 +8028,7 @@ export default function App(){
                                     <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
                                       {topActs.map(([act,hrs])=>(
                                         <span key={act} style={{background:"var(--bg0)",border:"1px solid var(--border)",borderRadius:5,padding:"3px 8px",fontSize:12,color:"var(--text3)"}}>
-                                          {act.length>30?act.slice(0,28)+"…":act}
+                                          {act.length>30?act.slice(0,28)+"â€¦":act}
                                           <span style={{color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace",marginLeft:5,fontWeight:700}}>{hrs}h</span>
                                         </span>
                                       ))}
@@ -13497,7 +8044,7 @@ export default function App(){
                     </div>);
                   })()}
 
-                  {/* ── Project Tasks Analysis ── */}
+                  {/* â”€â”€ Project Tasks Analysis â”€â”€ */}
                   {activeRpt==="projtasks"&&(
                     <div>
                       <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
@@ -13514,7 +8061,7 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* ── Tracker Progress ── */}
+                  {/* â”€â”€ Tracker Progress â”€â”€ */}
                   {activeRpt==="tracker"&&(
                     <div>
                       <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
@@ -13527,13 +8074,13 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* ── Assignment ── */}
+                  {/* â”€â”€ Assignment â”€â”€ */}
                   {activeRpt==="assignment"&&(
                     <div>
                       <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
                         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
                           <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Assignment Report</div>
-                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · Who is working on what</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} آ· Who is working on what</div>
                         </div>
                       </div>
                       <AssignmentReport
@@ -13544,7 +8091,7 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* ── Vacation ── */}
+                  {/* â”€â”€ Vacation â”€â”€ */}
                   {activeRpt==="vacation"&&<VacationReport
                     engineers={(mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers).filter(e=>e.is_active!==false&&e.is_active!==0&&e.is_active!==null&&(!e.termination_date||String(e.termination_date).slice(0,10)>new Date().toISOString().slice(0,10)))}
                     leaveEntries={leaveEntries} allEntries={entries}
@@ -13559,26 +8106,26 @@ export default function App(){
                     }}
                   />}
 
-                  {/* ── Monthly Management ── */}
+                  {/* â”€â”€ Monthly Management â”€â”€ */}
                   {activeRpt==="monthly"&&(
                     <div className="card" style={{padding:0,overflow:"hidden"}}>
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <div>
                           <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Monthly Management Report</div>
-                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Full executive summary — {MONTHS[month]} {year}</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Full executive summary â€” {MONTHS[month]} {year}</div>
                         </div>
-                        <button className="bp" onClick={buildMonthlyPDF}>⬇ Export PDF</button>
+                        <button className="bp" onClick={buildMonthlyPDF}>â¬‡ Export PDF</button>
                       </div>
                       <div style={{padding:"32px 20px",textAlign:"center"}}>
                         
                         <div style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:6}}>Ready to generate</div>
                         <div style={{fontSize:14,color:"var(--text3)",marginBottom:24,maxWidth:400,margin:"0 auto 24px"}}>Includes team utilization, billability, revenue, project breakdown, and engineer summary for {MONTHS[month]} {year}.</div>
-                        <button className="bp" style={{fontSize:15,padding:"10px 28px"}} onClick={buildMonthlyPDF}>⬇ Export PDF</button>
+                        <button className="bp" style={{fontSize:15,padding:"10px 28px"}} onClick={buildMonthlyPDF}>â¬‡ Export PDF</button>
                       </div>
                     </div>
                   )}
 
-                  {/* ── Invoice ── */}
+                  {/* â”€â”€ Invoice â”€â”€ */}
                   {activeRpt==="invoice"&&canInvoice&&(()=>{
                     const allWithHours=projStats.filter(p=>p.hours>0);
                     const filteredProjs=invoiceProjId==="ALL"?allWithHours:allWithHours.filter(p=>p.id===invoiceProjId);
@@ -13590,7 +8137,7 @@ export default function App(){
                         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                           <div>
                             <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Invoice Export</div>
-                            <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} · Billable projects only</div>
+                            <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{MONTHS[month]} {year} آ· Billable projects only</div>
                           </div>
                           <div style={{display:"flex",gap:8}}>
                             <select value={invoiceProjId} onChange={e=>setInvoiceProjId(e.target.value)} style={{width:200}}>
@@ -13601,7 +8148,7 @@ export default function App(){
                         </div>
                         {allWithHours.some(p=>!p.billable)&&(
                           <div style={{padding:"10px 20px",background:"var(--warn-bg)",borderBottom:"1px solid #fb923c30",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-                            <span style={{fontSize:13,color:"#fb923c"}}>⚠ Some projects have hours but are not marked billable</span>
+                            <span style={{fontSize:13,color:"#fb923c"}}>âڑ  Some projects have hours but are not marked billable</span>
                             <button className="bg" style={{fontSize:12,borderColor:"#fb923c50",color:"#fb923c",flexShrink:0,padding:"4px 10px"}}
                               onClick={async()=>{
                                 const toMark=allWithHours.filter(p=>!p.billable);
@@ -13609,7 +8156,7 @@ export default function App(){
                                   await supabase.from("projects").update({billable:true}).eq("id",p.id);
                                   setProjects(prev=>prev.map(pr=>pr.id===p.id?{...pr,billable:true}:pr));
                                 }
-                                showToast(`${toMark.length} projects marked billable ✓`);
+                                showToast(`${toMark.length} projects marked billable âœ“`);
                               }}>Mark all billable</button>
                           </div>
                         )}
@@ -13629,7 +8176,7 @@ export default function App(){
                           <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginBottom:12}}>
                             <button className="bp" style={{fontSize:13,padding:"7px 18px"}}
                               onClick={()=>buildInvoicePDF(projects,entries,engineers,month,year,invoiceProjId==="ALL"?null:invoiceProjId)}>
-                              ⬇ Export Invoice PDF {invoiceProjId!=="ALL"?"(filtered)":"(all)"}
+                              â¬‡ Export Invoice PDF {invoiceProjId!=="ALL"?"(filtered)":"(all)"}
                             </button>
                           </div>
                           <table>
@@ -13639,12 +8186,12 @@ export default function App(){
                                 <td style={{fontWeight:600}}>{p.name||p.id}</td>
                                 <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{p.id}</td>
                                 <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{p.hours}h</td>
-                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--text3)"}}>{p.billable?`$${p.rate_per_hour}/h`:"—"}</td>
-                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:700}}>{p.billable?fmtCurrency(p.revenue):"—"}</td>
+                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--text3)"}}>{p.billable?`$${p.rate_per_hour}/h`:"â€”"}</td>
+                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:700}}>{p.billable?fmtCurrency(p.revenue):"â€”"}</td>
                                 <td style={{textAlign:"right"}}><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:p.billable?"#05603a30":"#fb923c20",color:p.billable?"#34d399":"#fb923c",fontWeight:700}}>{p.billable?"BILL":"NON"}</span></td>
                                 <td><button className="be" style={{fontSize:12,whiteSpace:"nowrap"}}
                                   onClick={()=>buildInvoicePDF(projects,entries,engineers,month,year,p.id)}>
-                                  ⬇ PDF
+                                  â¬‡ PDF
                                 </button></td>
                               </tr>
                             ))}</tbody>
@@ -13667,11 +8214,11 @@ export default function App(){
               </div>{/* end two-panel grid */}
             </div>
           )}
-          {/* ════ ADMIN / LEAD PANEL ════ */}
+          {/* â•گâ•گâ•گâ•گ ADMIN / LEAD PANEL â•گâ•گâ•گâ•گ */}
           {view==="admin"&&(
             <div style={{display:"grid",gap:20}}>
 
-              {/* ── Page header ── */}
+              {/* â”€â”€ Page header â”€â”€ */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>
@@ -13681,10 +8228,10 @@ export default function App(){
                     {isAdmin?"Admin Panel":isSenior?"Overview Panel":isAcct?"Finance Panel":isLead?"Team Panel":"My Work"}
                   </h1>
                   <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
-                    {isAdmin?"Engineers · Projects · Finance · Tracker · KPIs · Settings":
-                     isSenior?"Full visibility · read-only across all data":
-                     isAcct?"Finance access · view all team data":
-                     isLead?"Tracker · Team Hours · Team KPIs · Projects":"Your activities, KPI score & info"}
+                    {isAdmin?"Engineers آ· Projects آ· Finance آ· Tracker آ· KPIs آ· Settings":
+                     isSenior?"Full visibility آ· read-only across all data":
+                     isAcct?"Finance access آ· view all team data":
+                     isLead?"Tracker آ· Team Hours آ· Team KPIs آ· Projects":"Your activities, KPI score & info"}
                   </p>
                 </div>
 
@@ -13692,41 +8239,41 @@ export default function App(){
 
               {/* Notifications panel moved to bell icon (top right) */}
 
-              {/* ── Senior Management: read-only overview banner ── */}
+              {/* â”€â”€ Senior Management: read-only overview banner â”€â”€ */}
               {isSenior&&!isAdmin&&(
                 <div style={{display:"flex",alignItems:"center",gap:14,background:"#0ea5e910",border:"1px solid #0ea5e930",borderRadius:10,padding:"14px 18px"}}>
-                  <span style={{fontSize:24}}>👁</span>
+                  <span style={{fontSize:24}}>ًں‘پ</span>
                   <div>
-                    <div style={{fontSize:15,fontWeight:700,color:"var(--info)"}}>Overview Panel — Read Only</div>
+                    <div style={{fontSize:15,fontWeight:700,color:"var(--info)"}}>Overview Panel â€” Read Only</div>
                     <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>You have visibility across all company data. Changes must be made through the Admin or Lead accounts.</div>
                   </div>
                 </div>
               )}
 
-              {/* ── Tab navigation ── */}
+              {/* â”€â”€ Tab navigation â”€â”€ */}
               <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",flexWrap:"wrap"}}>
                 {(()=>{
-                  // Tab definitions — order and labels are role-specific
+                  // Tab definitions â€” order and labels are role-specific
                   const allTabs=[
-                    // ── Engineer only ──
+                    // â”€â”€ Engineer only â”€â”€
                     {id:"tracker",  label:"My Activities", show:!isAdmin&&!isLead&&!isAcct&&!isSenior},
                     {id:"kpis",     label:"My KPIs",       show:!isAdmin&&!isLead&&!isAcct&&!isSenior},
                     {id:"settings", label:"Info",          show:!isAdmin&&!isLead&&!isAcct&&!isSenior},
-                    // ── Lead only ──
+                    // â”€â”€ Lead only â”€â”€
                     {id:"tracker",  label:"Project Tracker",   show:isLead&&!isAdmin},
                     {id:"entries",  label:"Team Hours",         show:isLead&&!isAdmin},
                     {id:"functions",label:"Function Hours",     show:isLead&&!isAdmin},
                     {id:"kpis",     label:"Team KPIs",          show:isLead&&!isAdmin},
                     {id:"projects", label:"Manage Projects",    show:isLead&&!isAdmin},
                     {id:"settings", label:"Info",               show:isLead&&!isAdmin},
-                    // ── Accountant ──
+                    // â”€â”€ Accountant â”€â”€
                     {id:"finance",  label:"Finance",        show:isAcct&&!isAdmin},
                     {id:"entries",  label:"All Entries",    show:isAcct&&!isAdmin},
                     {id:"engineers",label:"Engineers",      show:isAcct&&!isAdmin},
                     {id:"functions",label:"Functions",      show:isAcct&&!isAdmin},
                     {id:"kpis",     label:"KPIs",           show:isAcct&&!isAdmin},
                     {id:"settings", label:"Info",           show:isAcct&&!isAdmin},
-                    // ── Senior Management ──
+                    // â”€â”€ Senior Management â”€â”€
                     {id:"engineers",label:"Engineers",      show:isSenior&&!isAdmin},
                     {id:"projects", label:"Projects",       show:isSenior&&!isAdmin},
                     {id:"entries",  label:"All Entries",    show:isSenior&&!isAdmin},
@@ -13735,7 +8282,7 @@ export default function App(){
                     {id:"kpis",     label:"KPIs",           show:isSenior&&!isAdmin},
                     {id:"tracker",  label:"Tracker",        show:isSenior&&!isAdmin},
                     {id:"settings", label:"Info",           show:isSenior&&!isAdmin},
-                    // ── Admin ──
+                    // â”€â”€ Admin â”€â”€
                     {id:"engineers",label:"Engineers",      show:isAdmin},
                     {id:"projects", label:"Projects",       show:isAdmin},
                     {id:"entries",  label:"All Entries",    show:isAdmin},
@@ -13768,11 +8315,11 @@ export default function App(){
                   <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
                     <div>
                       <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Engineers & Access Control</div>
-                      <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{engineers.filter(e=>isEngActive(e)).length} active · {engineers.length} total members</div>
+                      <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{engineers.filter(e=>isEngActive(e)).length} active آ· {engineers.length} total members</div>
                     </div>
                     <div style={{display:"flex",gap:8,alignItems:"center"}}>
                       <input value={engSearch} onChange={e=>setEngSearch(e.target.value)}
-                        placeholder="🔍 Search engineers…"
+                        placeholder="ًں”چ Search engineersâ€¦"
                         style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:7,padding:"7px 12px",color:"var(--text0)",fontSize:14,width:210,outline:"none"}}/>
                       {isAdmin&&<button className="bp" onClick={()=>setShowEngModal(true)}>+ Add Member</button>}
                     </div>
@@ -13780,7 +8327,7 @@ export default function App(){
 
                   {/* Info bar */}
                   <div style={{background:"#0ea5e908",borderBottom:"1px solid #0ea5e920",padding:"8px 20px",fontSize:13,color:"var(--info)"}}>
-                    ℹ New registrations default to <strong>Engineer</strong> role — update their access role in the dropdown below after they sign up.
+                    â„¹ New registrations default to <strong>Engineer</strong> role â€” update their access role in the dropdown below after they sign up.
                   </div>
 
                   {/* Engineers table */}
@@ -13815,7 +8362,7 @@ export default function App(){
                             </td>
                             <td style={{color:"var(--text2)"}}>{eng.role}</td>
                             <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{eng.level}</span></td>
-                            <td style={{color:"var(--text3)",fontSize:13}}>{eng.email||"—"}</td>
+                            <td style={{color:"var(--text3)",fontSize:13}}>{eng.email||"â€”"}</td>
                             <td>
                               {isSenior&&!isAdmin
                                 ?<span style={{fontSize:13,padding:"2px 10px",borderRadius:6,background:"var(--bg3)",color:roleColor,fontWeight:600,border:`1px solid ${roleColor}30`}}>{ROLE_LABELS[eng.role_type||"engineer"]}</span>
@@ -13831,25 +8378,25 @@ export default function App(){
                                     const {data,error}=await supabase.from("engineers").update({role_type:newRole}).eq("id",eng.id).select().single();
                                     if(error){
                                       setEngineers(prev=>prev.map(e=>e.id===eng.id?{...e,role_type:newRole}:e));
-                                      showToast("Role set locally ✓ — To persist: run SQL migration in Admin › Info tab",false);
+                                      showToast("Role set locally âœ“ â€” To persist: run SQL migration in Admin â€؛ Info tab",false);
                                       return;
                                     }
                                     if(data) setEngineers(prev=>prev.map(x=>x.id===data.id?data:x));
                                     setPendingRoles(p=>{const n={...p};delete n[eng.id];return n;});
-                                    showToast(`${eng.name} → ${ROLE_LABELS[newRole]} ✓`);
-                                    logAction("UPDATE","Engineer",`Role changed: ${eng.name} → ${newRole}`,{engineer_id:eng.id,name:eng.name,new_role:newRole});
-                                  }}>Save ✓</button>
+                                    showToast(`${eng.name} â†’ ${ROLE_LABELS[newRole]} âœ“`);
+                                    logAction("UPDATE","Engineer",`Role changed: ${eng.name} â†’ ${newRole}`,{engineer_id:eng.id,name:eng.name,new_role:newRole});
+                                  }}>Save âœ“</button>
                                 )}
                               </div>}
                             </td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#f47218",fontWeight:600}}>{wdStr||"—"}</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#f47218",fontWeight:600}}>{wdStr||"â€”"}</td>
                             <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{es?.workHrs||0}h</td>
                             <td>
                               {isSenior&&!isAdmin
                                 ?<span style={{fontSize:12,color:"var(--text4)"}}>view only</span>
                                 :<div style={{display:"flex",gap:5}}>
-                                  <button className="be" onClick={()=>setEditEngModal({...eng})}>✎</button>
-                                  <button className="bd" onClick={()=>deleteEngineer(eng.id)}>✕</button>
+                                  <button className="be" onClick={()=>setEditEngModal({...eng})}>âœژ</button>
+                                  <button className="bd" onClick={()=>deleteEngineer(eng.id)}>âœ•</button>
                                 </div>}
                             </td>
                           </tr>
@@ -13957,7 +8504,7 @@ export default function App(){
                           <div style={{fontSize:14,fontWeight:700,color:"var(--text0)"}}>{adminBrowseEntries.length} Entries</div>
                           {canEditAny&&isAdmin&&selectedEntries.size>0&&(
                             <button className="bd" style={{fontSize:13,padding:"5px 14px"}} onClick={bulkDeleteEntries}>
-                              🗑 Delete {selectedEntries.size} selected
+                              ًں—‘ Delete {selectedEntries.size} selected
                             </button>
                           )}
                         </div>
@@ -13990,24 +8537,24 @@ export default function App(){
                                     <td>
                                       <div style={{display:"flex",alignItems:"center",gap:6}}>
                                         <div className="av" style={{width:24,height:24,fontSize:10,flexShrink:0}}>{eng?.name?.slice(0,2).toUpperCase()||"?"}</div>
-                                        <span style={{fontWeight:500}}>{eng?.name||"—"}</span>
+                                        <span style={{fontWeight:500}}>{eng?.name||"â€”"}</span>
                                       </div>
                                     </td>
                                     <td>{isLeave
                                       ? <span style={{color:"#fb923c",fontWeight:600}}>{e.leave_type||"Leave"}</span>
                                       : proj ? <span><span style={{color:"var(--info)",fontWeight:600}}>{proj.name}</span> <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text4)"}}>({proj.id})</span></span>
-                                      : <span style={{color:"var(--text4)"}}>—</span>}
+                                      : <span style={{color:"var(--text4)"}}>â€”</span>}
                                     </td>
-                                    <td style={{color:"var(--text2)"}}>{e.task_type||"—"}</td>
-                                    <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
+                                    <td style={{color:"var(--text2)"}}>{e.task_type||"â€”"}</td>
+                                    <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"â€”"}</td>
                                     <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
                                     <td><span style={{fontSize:12,padding:"2px 7px",borderRadius:4,fontWeight:700,
                                       background:isLeave?"#7c2d1230":"#022c2230",
                                       color:isLeave?"#fb923c":"#34d399"}}>{e.entry_type}</span>
                                     </td>
                                     {canEditAny&&<td><div style={{display:"flex",gap:4}}>
-                                      <button className="be" style={{fontSize:12}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>✎</button>
-                                      {isAdmin&&<button className="bd" style={{fontSize:12}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>✕</button>}
+                                      <button className="be" style={{fontSize:12}} onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>âœژ</button>
+                                      {isAdmin&&<button className="bd" style={{fontSize:12}} onClick={()=>deleteEntry(e.id,e.engineer_id)}>âœ•</button>}
                                     </div></td>}
                                   </tr>
                                 );
@@ -14023,7 +8570,7 @@ export default function App(){
               )}
 
 
-              {/* ══ FINANCE MODULE ══ */}
+              {/* â•گâ•گ FINANCE MODULE â•گâ•گ */}
               {adminTab==="finance"&&(isAdmin||isAcct||isSenior)&&(
                 <FinanceTab
                   staff={staff} entries={entries} expenses={expenses}
@@ -14044,7 +8591,7 @@ export default function App(){
                   showConfirm={showConfirm}/>
               )}
 
-              {/* ══ FUNCTIONS / ACTIVITIES ══ */}
+              {/* â•گâ•گ FUNCTIONS / ACTIVITIES â•گâ•گ */}
               {adminTab==="functions"&&(isAdmin||isLead||isAcct||isSenior)&&(
                 <FunctionsTab
                   entries={mySubEngIds ? entries.filter(e=>mySubEngIds.has(String(e.engineer_id))) : entries}
@@ -14057,7 +8604,7 @@ export default function App(){
                 />
               )}
 
-              {/* ══ KPI DASHBOARD ══ */}
+              {/* â•گâ•گ KPI DASHBOARD â•گâ•گ */}
               {adminTab==="kpis"&&(
                 <KPIsTab
                   entries={entries}
@@ -14078,7 +8625,7 @@ export default function App(){
               )}
 
 
-              {/* ══ PROJECT TRACKER ══ */}
+              {/* â•گâ•گ PROJECT TRACKER â•گâ•گ */}
               {adminTab==="tracker"&&(
                 <ProjectTracker
                   projects={projects}
@@ -14112,12 +8659,12 @@ export default function App(){
               {adminTab==="settings"&&(
                 <div style={{maxWidth:760,display:"grid",gap:16}}>
 
-                  {/* ── YOUR ROLE ── */}
+                  {/* â”€â”€ YOUR ROLE â”€â”€ */}
                   {(()=>{
                     const roleMap={
                       admin:      {label:"Admin",           color:"#34d399", desc:"Full system access. Manage engineers, projects, timesheets, Finance, and all settings. Only role that can approve/reject vacations, cancel approved leave, and access the Activity Log. Receives all broadcast alerts (new signups, overdue activities, timesheet alerts)."},
                       lead:       {label:"Lead Engineer",   color:"var(--info)", desc:"Manage your direct-report engineers (org-chart subtree). Post and edit hours for your team, manage tracker activities, view scoped reports, and comment on project activities. Receives timesheet alerts and overdue alerts for your team."},
-                      accountant: {label:"Accountant",      color:"#a78bfa", desc:"Full Finance module read and write access — post and edit journal entries, manage payroll, view P&L, balance sheet, fixed assets, and export invoices. View all engineer hours and generate all reports. Submit your own vacation leave and receive bell notifications when approved or rejected. Cannot post work timesheet entries for engineers."},
+                      accountant: {label:"Accountant",      color:"#a78bfa", desc:"Full Finance module read and write access â€” post and edit journal entries, manage payroll, view P&L, balance sheet, fixed assets, and export invoices. View all engineer hours and generate all reports. Submit your own vacation leave and receive bell notifications when approved or rejected. Cannot post work timesheet entries for engineers."},
                       senior_management:{label:"Senior Management",color:"#fb923c",desc:"Read-only access across all dashboards, reports, and the project tracker. Export PDFs. Cannot add, edit, or delete any data. No notification bell."},
                       engineer:   {label:"Engineer",        color:"var(--text3)", desc:"Post your own hours on assigned projects, view your vacation balance and KPI score, and comment on your assigned activities. You receive bell notifications for vacation approvals/rejections and activity comments addressed to you."},
                     };
@@ -14132,24 +8679,24 @@ export default function App(){
                     </div>);
                   })()}
 
-                  {/* ── HOW TO USE ── */}
+                  {/* â”€â”€ HOW TO USE â”€â”€ */}
                   <div className="card">
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>How to Use EC-ERP</div>
                     <div style={{display:"grid",gap:10}}>
                       {[
-                        {title:"Post Work Hours",           show:!isAcct&&!isSenior,             color:"var(--info)",  text:"Go to Post Hours → click any day cell → choose Work → select Project → Sub-site (optional) → Work Group & Category → Activity → enter Hours and Notes. Press ✓ Post Hours to save. A description is required for a good KPI score. You can only post on projects you are assigned to."},
-                        {title:"Submit Vacation / Leave",   show:!isSenior,                       color:"#34d399",      text:"Go to Post Hours → click the day → choose Leave → select Annual Leave (or other type) → Save. Annual Leave is submitted as PENDING APPROVAL and sent to your admin. You will receive a bell notification (🔔 top of sidebar) when your request is approved or rejected. Your remaining balance (21 days/year default) updates automatically in the stats bar once approved. Accountants follow the same process."},
-                        {title:"Notification Bell",         show:true,                            color:"#a78bfa",      text:"The 🔔 bell in the top of the sidebar shows your personal notifications. Active tab: unread notifications — click × to dismiss (moves to History). History tab: last 3 months of read notifications (up to 500). Broadcasts (timesheet alerts, new signups) are visible to admin and lead only. Notifications refresh every 15 seconds automatically."},
-                        {title:"Undo a Delete",             show:!isSenior,                       color:"#fb923c",      text:"After deleting any time entry you get a 3-second undo window. A toast appears at the bottom of the screen with an ↩ Undo button. Click it before the toast disappears to restore the entry. After 3 seconds the delete is committed to the database and cannot be undone. Vacation entries (approved or pending) follow the same 3-second window."},
-                        {title:"View & Comment on Activities", show:!isAcct&&!isSenior,          color:"#a78bfa",      text:"Engineers: My Work → My Activities — shows only your assigned projects. Click the 💬 button on any activity to open the comment thread. Type and press Enter. Lead & Admin: Tracker tab — click any activity card to edit or comment. Comments notify the assigned engineer, project leader, and all admins (excluding the commenter). Comments survive activity saves and appear in PDF exports."},
-                        {title:"Project Tracker",           show:isAdmin||isLead,                color:"#a78bfa",      text:"Admin/Lead Panel → Tracker. Each project shows activity cards grouped by category. Click any card to edit status, progress, deadline, and assignment. The COMMENTS section in the edit modal is the main communication channel — real-time, timestamped, and role-attributed. Export full project PDFs or per-sub-site PDFs from the Tracker Progress Report."},
-                        {title:"Approve / Reject Vacations",show:isAdmin||isLead,                color:"#34d399",      text:"Two paths: (1) KPIs tab → pending vacation section at top — shows all pending requests with Approve/Reject buttons. (2) Notification Bell → pending vacations appear at the top of the Active tab with inline ✓ Approve and ✕ Reject buttons. After actioning, the vacation_request notification moves to your History tab. The engineer receives a bell notification with the outcome."},
-                        {title:"Timesheet Posting Alert",   show:isAdmin||isLead,                color:"#fb923c",      text:"Admin/Lead Panel → KPIs tab → scroll to the ⏰ Timesheet Posting Alert box. Select the day of the week and the hour. On that day after that hour, if any active engineer hasn't posted hours this week, an alert fires into admin and lead bells. Engineers on approved leave are automatically skipped. Settings are saved per-browser via localStorage."},
-                        {title:"Reports & PDF Export",      show:canReport,                      color:"var(--info)",  text:"Reports & PDF in the sidebar. Includes: Team Utilization, Assignment Report, Timesheets, Task Analysis, Tracker Progress (with per-sub-site export), Vacation & Leave, Monthly Management, Invoice Export. Leads see only their team's data. Year selectors show current year ± 2 and update automatically each year."},
-                        {title:"Finance Module",            show:isAdmin||isAcct,                color:"#a78bfa",      text:"Admin/Finance Panel → Finance. Tabs: Journal (double-entry bookkeeping), Balance Sheet, Expenses, Cash Custody, P&L, Payroll, Fixed Assets, Tax & Social, and Reports. All figures are EGP. The Guide tab has step-by-step month-close instructions. Only admin and accountant can edit — senior management is view-only."},
-                        {title:"KPI Score",                 show:!isAcct&&!isSenior,             color:"#fb923c",      text:"My KPIs (or Admin → KPIs). Score is out of 120 — covering billable hours, coverage, note quality, function entries, project diversity, and timesheet compliance. Posting hours without a description reduces your note quality score. Aim for 96+ for High Performer. KPI notes are saved automatically and persist across sessions."},
-                        {title:"Org Chart & Lead Scoping",  show:isAdmin,                        color:"var(--info)",  text:"Team page → Org Chart tab → Edit Chart to arrange cards. The org chart controls lead scoping — a lead sees only engineers in their subtree across all tabs (Entries, Functions, Reports, KPIs). Engineers' direct lead is used for vacation request routing. Setting the org chart correctly is required before enabling leads."},
-                        {title:"Change Password",           show:true,                            color:"var(--text3)", text:"Your avatar / name button at the bottom of the sidebar → Change Password. Enter your new password twice and confirm. Takes effect immediately — you do not need to log out."},
+                        {title:"Post Work Hours",           show:!isAcct&&!isSenior,             color:"var(--info)",  text:"Go to Post Hours â†’ click any day cell â†’ choose Work â†’ select Project â†’ Sub-site (optional) â†’ Work Group & Category â†’ Activity â†’ enter Hours and Notes. Press âœ“ Post Hours to save. A description is required for a good KPI score. You can only post on projects you are assigned to."},
+                        {title:"Submit Vacation / Leave",   show:!isSenior,                       color:"#34d399",      text:"Go to Post Hours â†’ click the day â†’ choose Leave â†’ select Annual Leave (or other type) â†’ Save. Annual Leave is submitted as PENDING APPROVAL and sent to your admin. You will receive a bell notification (ًں”” top of sidebar) when your request is approved or rejected. Your remaining balance (21 days/year default) updates automatically in the stats bar once approved. Accountants follow the same process."},
+                        {title:"Notification Bell",         show:true,                            color:"#a78bfa",      text:"The ًں”” bell in the top of the sidebar shows your personal notifications. Active tab: unread notifications â€” click أ— to dismiss (moves to History). History tab: last 3 months of read notifications (up to 500). Broadcasts (timesheet alerts, new signups) are visible to admin and lead only. Notifications refresh every 15 seconds automatically."},
+                        {title:"Undo a Delete",             show:!isSenior,                       color:"#fb923c",      text:"After deleting any time entry you get a 3-second undo window. A toast appears at the bottom of the screen with an â†© Undo button. Click it before the toast disappears to restore the entry. After 3 seconds the delete is committed to the database and cannot be undone. Vacation entries (approved or pending) follow the same 3-second window."},
+                        {title:"View & Comment on Activities", show:!isAcct&&!isSenior,          color:"#a78bfa",      text:"Engineers: My Work â†’ My Activities â€” shows only your assigned projects. Click the ًں’¬ button on any activity to open the comment thread. Type and press Enter. Lead & Admin: Tracker tab â€” click any activity card to edit or comment. Comments notify the assigned engineer, project leader, and all admins (excluding the commenter). Comments survive activity saves and appear in PDF exports."},
+                        {title:"Project Tracker",           show:isAdmin||isLead,                color:"#a78bfa",      text:"Admin/Lead Panel â†’ Tracker. Each project shows activity cards grouped by category. Click any card to edit status, progress, deadline, and assignment. The COMMENTS section in the edit modal is the main communication channel â€” real-time, timestamped, and role-attributed. Export full project PDFs or per-sub-site PDFs from the Tracker Progress Report."},
+                        {title:"Approve / Reject Vacations",show:isAdmin||isLead,                color:"#34d399",      text:"Two paths: (1) KPIs tab â†’ pending vacation section at top â€” shows all pending requests with Approve/Reject buttons. (2) Notification Bell â†’ pending vacations appear at the top of the Active tab with inline âœ“ Approve and âœ• Reject buttons. After actioning, the vacation_request notification moves to your History tab. The engineer receives a bell notification with the outcome."},
+                        {title:"Timesheet Posting Alert",   show:isAdmin||isLead,                color:"#fb923c",      text:"Admin/Lead Panel â†’ KPIs tab â†’ scroll to the âڈ° Timesheet Posting Alert box. Select the day of the week and the hour. On that day after that hour, if any active engineer hasn't posted hours this week, an alert fires into admin and lead bells. Engineers on approved leave are automatically skipped. Settings are saved per-browser via localStorage."},
+                        {title:"Reports & PDF Export",      show:canReport,                      color:"var(--info)",  text:"Reports & PDF in the sidebar. Includes: Team Utilization, Assignment Report, Timesheets, Task Analysis, Tracker Progress (with per-sub-site export), Vacation & Leave, Monthly Management, Invoice Export. Leads see only their team's data. Year selectors show current year آ± 2 and update automatically each year."},
+                        {title:"Finance Module",            show:isAdmin||isAcct,                color:"#a78bfa",      text:"Admin/Finance Panel â†’ Finance. Tabs: Journal (double-entry bookkeeping), Balance Sheet, Expenses, Cash Custody, P&L, Payroll, Fixed Assets, Tax & Social, and Reports. All figures are EGP. The Guide tab has step-by-step month-close instructions. Only admin and accountant can edit â€” senior management is view-only."},
+                        {title:"KPI Score",                 show:!isAcct&&!isSenior,             color:"#fb923c",      text:"My KPIs (or Admin â†’ KPIs). Score is out of 120 â€” covering billable hours, coverage, note quality, function entries, project diversity, and timesheet compliance. Posting hours without a description reduces your note quality score. Aim for 96+ for High Performer. KPI notes are saved automatically and persist across sessions."},
+                        {title:"Org Chart & Lead Scoping",  show:isAdmin,                        color:"var(--info)",  text:"Team page â†’ Org Chart tab â†’ Edit Chart to arrange cards. The org chart controls lead scoping â€” a lead sees only engineers in their subtree across all tabs (Entries, Functions, Reports, KPIs). Engineers' direct lead is used for vacation request routing. Setting the org chart correctly is required before enabling leads."},
+                        {title:"Change Password",           show:true,                            color:"var(--text3)", text:"Your avatar / name button at the bottom of the sidebar â†’ Change Password. Enter your new password twice and confirm. Takes effect immediately â€” you do not need to log out."},
                       ].filter(i=>i.show!==false).map(item=>(
                         <div key={item.title} style={{background:"var(--bg2)",borderRadius:8,padding:"12px 14px",borderLeft:`3px solid ${item.color}`}}>
                           <div style={{fontSize:13,fontWeight:700,color:item.color,marginBottom:5}}>{item.title}</div>
@@ -14159,23 +8706,23 @@ export default function App(){
                     </div>
                   </div>
 
-                  {/* ── WHAT'S NEW ── */}
+                  {/* â”€â”€ WHAT'S NEW â”€â”€ */}
                   <div className="card">
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>What's New</div>
-                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>v6 — April 2026 feature release</div>
+                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>v6 â€” April 2026 feature release</div>
                     <div style={{display:"grid",gap:8}}>
                       {[
-                        {tag:"Bell",      color:"#a78bfa", text:"Single notification bell (🔔) in the sidebar header — single bell for all notifications. Active tab shows unread, History tab shows last 3 months of dismissed notifications. Bell refreshes every 15 seconds and on login."},
+                        {tag:"Bell",      color:"#a78bfa", text:"Single notification bell (ًں””) in the sidebar header â€” single bell for all notifications. Active tab shows unread, History tab shows last 3 months of dismissed notifications. Bell refreshes every 15 seconds and on login."},
                         {tag:"Vacation",  color:"#34d399", text:"Approve and reject vacations directly from the bell dropdown or the KPIs tab. After actioning, the request moves to admin History. Engineer receives vacation_approved or vacation_rejected bell notification instantly. Admin deleting a pending vacation now also notifies the requester."},
-                        {tag:"Vacation",  color:"#34d399", text:"Approved vacation lock — only admin can delete an approved annual leave. Non-admin roles see a clear message directing them to contact admin. Engineers and leads cannot bypass this lock."},
-                        {tag:"Notify",    color:"#34d399", text:"Activity notifications: comment posted → notifies assigned engineer, project leader, and all admins (commenter excluded). Status/progress/deadline changes by lead → admin notified. Activity assigned → engineer notified. All scoped to recipient — no user sees another person's notifications."},
+                        {tag:"Vacation",  color:"#34d399", text:"Approved vacation lock â€” only admin can delete an approved annual leave. Non-admin roles see a clear message directing them to contact admin. Engineers and leads cannot bypass this lock."},
+                        {tag:"Notify",    color:"#34d399", text:"Activity notifications: comment posted â†’ notifies assigned engineer, project leader, and all admins (commenter excluded). Status/progress/deadline changes by lead â†’ admin notified. Activity assigned â†’ engineer notified. All scoped to recipient â€” no user sees another person's notifications."},
                         {tag:"Notify",    color:"#34d399", text:"Timesheet posting alert: configurable day + hour. Admin and lead receive a bell notification listing engineers who haven't posted hours. Engineers on approved leave are automatically excluded. Settings saved in browser localStorage."},
-                        {tag:"Comments",  color:"#a78bfa", text:"Threaded comment system on every tracker activity — timestamped, role-attributed, survives activity saves, visible in PDFs. Engineers can comment on their assigned activities from My Work → My Activities."},
-                        {tag:"Undo",      color:"#fb923c", text:"3-second undo window on all time entry deletes (single and bulk). Entry disappears immediately, undo toast appears — click ↩ Undo within 3 seconds to restore. After 3 seconds the DB delete commits and notifications fire."},
-                        {tag:"UI",        color:"var(--info)", text:"All year selectors are now dynamic (current year ± 2) and consistent styling across all tabs. Timesheet alert box redesigned with labeled columns and full day names. Navigation uses SVG icons."},
-                        {tag:"Projects",  color:"#fb923c", text:"Project Leader field — set any lead or admin as the project's responsible leader. Auto-added to team, appears on all cards, reports, and PDFs. Receives comment notifications for all activities in their project."},
+                        {tag:"Comments",  color:"#a78bfa", text:"Threaded comment system on every tracker activity â€” timestamped, role-attributed, survives activity saves, visible in PDFs. Engineers can comment on their assigned activities from My Work â†’ My Activities."},
+                        {tag:"Undo",      color:"#fb923c", text:"3-second undo window on all time entry deletes (single and bulk). Entry disappears immediately, undo toast appears â€” click â†© Undo within 3 seconds to restore. After 3 seconds the DB delete commits and notifications fire."},
+                        {tag:"UI",        color:"var(--info)", text:"All year selectors are now dynamic (current year آ± 2) and consistent styling across all tabs. Timesheet alert box redesigned with labeled columns and full day names. Navigation uses SVG icons."},
+                        {tag:"Projects",  color:"#fb923c", text:"Project Leader field â€” set any lead or admin as the project's responsible leader. Auto-added to team, appears on all cards, reports, and PDFs. Receives comment notifications for all activities in their project."},
                         {tag:"Reports",   color:"var(--info)", text:"Tracker Progress Report: Active-only default with toggle for On Hold & Completed. Per-sub-site PDF export. Assignment Report: sourced from assigned_engineers list. All reports scoped to lead's org subtree."},
-                        {tag:"Scoping",   color:"var(--text3)", text:"Lead scoping via BFS org chart — all entries, functions, reports, KPIs, and PDFs filtered to lead's subtree. Set the org chart correctly to enable this."},
+                        {tag:"Scoping",   color:"var(--text3)", text:"Lead scoping via BFS org chart â€” all entries, functions, reports, KPIs, and PDFs filtered to lead's subtree. Set the org chart correctly to enable this."},
                       ].map((item,i)=>(
                         <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"8px 0",borderBottom:"1px solid var(--border3)"}}>
                           <span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:item.color+"18",color:item.color,fontWeight:700,flexShrink:0,marginTop:1}}>{item.tag}</span>
@@ -14185,16 +8732,16 @@ export default function App(){
                     </div>
                   </div>
 
-                  {/* ── ROLE ACCESS TABLE — admin only ── */}
+                  {/* â”€â”€ ROLE ACCESS TABLE â€” admin only â”€â”€ */}
                   {isAdmin&&(<div className="card">
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>Role Access Reference</div>
                     <div style={{display:"grid",gap:8}}>
                       {[
-                        {role:"Engineer",         color:"var(--text3)", perms:"Post own hours on assigned projects · Submit vacation (Annual Leave + other types) · View own vacation balance & KPI score · Comment on own assigned activities · Bell: vacation approved/rejected + activity comments"},
-                        {role:"Lead Engineer",    color:"var(--info)",  perms:"All engineer permissions · Post/edit hours for team (org subtree) · Full tracker (edit, comment, add activities) · Approve/reject vacations · Scoped reports & PDFs · Bell: all of above + timesheet alerts + overdue alerts for team"},
-                        {role:"Accountant",       color:"#a78bfa",      perms:"Finance module full access (journal, payroll, P&L, balance sheet, invoices) · View all hours & reports · Submit own vacation · Bell: vacation approved/rejected · Cannot post work timesheet entries"},
-                        {role:"Senior Management",color:"#fb923c",      perms:"Read-only: all dashboards, reports, tracker, finance · Export PDFs · No data entry · No notifications bell"},
-                        {role:"Admin",            color:"#34d399",      perms:"Full system access · Manage all engineers & projects · Approve/reject/cancel vacations · Finance & all reports · Activity Log · Timesheet posting alert · Bell: all notifications including broadcasts (new signup, alerts, overdue)"},
+                        {role:"Engineer",         color:"var(--text3)", perms:"Post own hours on assigned projects آ· Submit vacation (Annual Leave + other types) آ· View own vacation balance & KPI score آ· Comment on own assigned activities آ· Bell: vacation approved/rejected + activity comments"},
+                        {role:"Lead Engineer",    color:"var(--info)",  perms:"All engineer permissions آ· Post/edit hours for team (org subtree) آ· Full tracker (edit, comment, add activities) آ· Approve/reject vacations آ· Scoped reports & PDFs آ· Bell: all of above + timesheet alerts + overdue alerts for team"},
+                        {role:"Accountant",       color:"#a78bfa",      perms:"Finance module full access (journal, payroll, P&L, balance sheet, invoices) آ· View all hours & reports آ· Submit own vacation آ· Bell: vacation approved/rejected آ· Cannot post work timesheet entries"},
+                        {role:"Senior Management",color:"#fb923c",      perms:"Read-only: all dashboards, reports, tracker, finance آ· Export PDFs آ· No data entry آ· No notifications bell"},
+                        {role:"Admin",            color:"#34d399",      perms:"Full system access آ· Manage all engineers & projects آ· Approve/reject/cancel vacations آ· Finance & all reports آ· Activity Log آ· Timesheet posting alert آ· Bell: all notifications including broadcasts (new signup, alerts, overdue)"},
                       ].map(r=>(
                         <div key={r.role} style={{background:"var(--bg2)",border:`1px solid ${r.color}25`,borderRadius:7,padding:"9px 13px",display:"flex",gap:12,alignItems:"flex-start"}}>
                           <span className="role-badge" style={{background:r.color+"20",color:r.color,flexShrink:0,marginTop:1}}>{r.role}</span>
@@ -14205,18 +8752,18 @@ export default function App(){
                   </div>
                   )}
 
-                  {/* ── SQL MIGRATIONS (admin only) ── */}
+                  {/* â”€â”€ SQL MIGRATIONS (admin only) â”€â”€ */}
                   {isAdmin&&(
                   <div className="card" style={{borderColor:"#f59e0b40"}}>
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>Required SQL Migrations</div>
-                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>Run these once in your Supabase SQL editor — safe to re-run (IF NOT EXISTS)</div>
+                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>Run these once in your Supabase SQL editor â€” safe to re-run (IF NOT EXISTS)</div>
                     {[
                       {label:"Notifications engineer_id", sql:"ALTER TABLE notifications ADD COLUMN IF NOT EXISTS engineer_id BIGINT REFERENCES engineers(id); CREATE INDEX IF NOT EXISTS idx_notifications_eng ON notifications(engineer_id);", desc:"Required for the notification bell. Run this first."},
                       {label:"Backfill engineer_id",      sql:"UPDATE notifications SET engineer_id = CAST(meta->>'engineer_id' AS BIGINT) WHERE engineer_id IS NULL AND meta->>'engineer_id' IS NOT NULL; UPDATE notifications SET engineer_id = CAST(meta->>'recipient_engineer_id' AS BIGINT) WHERE engineer_id IS NULL AND meta->>'recipient_engineer_id' IS NOT NULL;", desc:"Run after adding the column to backfill existing notifications."},
                       {label:"Activity Comments column",  sql:"ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';", desc:"Enables threaded comments on activities."},
                       {label:"Assigned Engineers column", sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS assigned_engineers JSONB DEFAULT '[]';", desc:"Enables team assignment and auto-assign on activity creation."},
                       {label:"Project Leader column",     sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_leader TEXT;", desc:"Enables the Project Leader field and notification routing."},
-                      {label:"Frozen Months table", sql:"CREATE TABLE IF NOT EXISTS frozen_months (id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, year INTEGER NOT NULL, month INTEGER NOT NULL, frozen_at TIMESTAMPTZ DEFAULT NOW(), frozen_by TEXT, UNIQUE(year,month));", desc:"Required for the month freeze feature. After creating, enable RLS in Supabase Dashboard → Table Editor → frozen_months → RLS → Add policy: allow all authenticated users (USING true WITH CHECK true)."},
+                      {label:"Frozen Months table", sql:"CREATE TABLE IF NOT EXISTS frozen_months (id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, year INTEGER NOT NULL, month INTEGER NOT NULL, frozen_at TIMESTAMPTZ DEFAULT NOW(), frozen_by TEXT, UNIQUE(year,month));", desc:"Required for the month freeze feature. After creating, enable RLS in Supabase Dashboard â†’ Table Editor â†’ frozen_months â†’ RLS â†’ Add policy: allow all authenticated users (USING true WITH CHECK true)."},
                     ].map(m=>(
                       <div key={m.label} style={{background:"var(--bg2)",borderRadius:7,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border3)"}}>
                         <div style={{fontSize:13,fontWeight:700,color:"var(--text1)",marginBottom:3}}>{m.label}</div>
@@ -14279,7 +8826,7 @@ export default function App(){
                         from+=1000;
                       }
 
-                      // Pass 2: entries with NULL created_at — these are legacy rows (pre-timestamp fix)
+                      // Pass 2: entries with NULL created_at â€” these are legacy rows (pre-timestamp fix)
                       // NULL entries cannot be older or newer than anything, so archive them all
                       {
                         let nf=0;
@@ -14293,7 +8840,7 @@ export default function App(){
                         }
                       }
 
-                      // Pass 3: client-side fallback — check all rows in case timestamptz stored differently
+                      // Pass 3: client-side fallback â€” check all rows in case timestamptz stored differently
                       if(!toArchive.length){
                         let af=0;
                         const allRows=[];
@@ -14336,8 +8883,8 @@ export default function App(){
                         if(error){showToast("Archive delete error: "+error.message,false);return;}
                         deletedOk+=chunk.length;
                       }
-                      showToast(`Archived ${insertOk} events, removed ${deletedOk} from live log ✓`);
-                      logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:insertOk,deleted:deletedOk});
+                      showToast(`Archived ${insertOk} events, removed ${deletedOk} from live log âœ“`);
+                      logAction("EXPORT","Auth",`Archived activity log â€” retention ${retentionDays}d`,{archived:insertOk,deleted:deletedOk});
                       // Reload live log
                       setLogLoading(true);
                       const rows=[];let rfrom=0;
@@ -14351,7 +8898,7 @@ export default function App(){
                       }
                       setActivityLog(rows);setLogLoading(false);
                       setArchiveLog([]);setArchiveLoaded(false);
-                    },{title:"Archive Activity Log",confirmLabel:"Archive Now",danger:false,icon:"🗄"});
+                    },{title:"Archive Activity Log",confirmLabel:"Archive Now",danger:false,icon:"ًں—„"});
                   }}
                   onLoadArchive={()=>{
                     setArchiveLoading(true);
@@ -14376,8 +8923,8 @@ export default function App(){
                       const{error,count}=await supabase.from("activity_log_archive")
                         .delete().lt("created_at",cutoffISO);
                       if(error){showToast("Prune error: "+error.message,false);return;}
-                      showToast(`Pruned archive entries older than 1 year ✓`);
-                      logAction("DELETE","Auth","Pruned activity archive — entries older than 365d",{});
+                      showToast(`Pruned archive entries older than 1 year âœ“`);
+                      logAction("DELETE","Auth","Pruned activity archive â€” entries older than 365d",{});
                       setArchiveLog([]); setArchiveLoaded(false);
                     },{title:"Prune Archive",confirmLabel:"Prune Now"});
                   }}
@@ -14389,16 +8936,16 @@ export default function App(){
 
 
 
-          {/* ════ IMPORT EXCEL ════ */}
+          {/* â•گâ•گâ•گâ•گ IMPORT EXCEL â•گâ•گâ•گâ•گ */}
           {view==="import"&&isAdmin&&(
             <div>
               <div style={{marginBottom:20}}>
                 <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>IMPORT</div>
                 <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Import Excel Timesheets</h1>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
-                  <p style={{color:"var(--text4)",fontSize:14}}>Upload ENEVOEGY timesheet files · Engineers &amp; projects created automatically</p>
+                  <p style={{color:"var(--text4)",fontSize:14}}>Upload ENEVOEGY timesheet files آ· Engineers &amp; projects created automatically</p>
                   <span style={{fontSize:13,padding:"2px 8px",borderRadius:3,background:xlsxReady?"#05603a30":"var(--warn-bg)",color:xlsxReady?"#34d399":"#fb923c",fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"}}>
-                    {xlsxReady?"✓ XLSX READY":"⏳ LOADING XLSX..."}
+                    {xlsxReady?"âœ“ XLSX READY":"âڈ³ LOADING XLSX..."}
                   </span>
                 </div>
               </div>
@@ -14414,7 +8961,7 @@ export default function App(){
                       onClick={()=>document.getElementById("xlsxInput").click()}>
                       
                       <div style={{fontSize:15,fontWeight:600,color:"var(--text0)",marginBottom:4}}>Drop .xlsx files here or click to browse</div>
-                      <div style={{fontSize:13,color:"var(--text4)"}}>Supports ENEVOEGY timesheet format · Multiple files at once</div>
+                      <div style={{fontSize:13,color:"var(--text4)"}}>Supports ENEVOEGY timesheet format آ· Multiple files at once</div>
                       <input id="xlsxInput" type="file" accept=".xlsx,.xls" multiple style={{display:"none"}}
                         onChange={e=>setImportFiles(prev=>[...prev,...Array.from(e.target.files)])}/>
                     </div>
@@ -14427,13 +8974,13 @@ export default function App(){
                               <div style={{fontSize:14,fontWeight:600}}>{f.name}</div>
                               <div style={{fontSize:13,color:"var(--text4)"}}>{(f.size/1024).toFixed(1)} KB</div>
                             </div>
-                            <button className="bd" style={{fontSize:13}} onClick={()=>setImportFiles(prev=>prev.filter((_,j)=>j!==i))}>✕</button>
+                            <button className="bd" style={{fontSize:13}} onClick={()=>setImportFiles(prev=>prev.filter((_,j)=>j!==i))}>âœ•</button>
                           </div>
                         ))}
-                        {!xlsxReady&&<div style={{background:"var(--warn-bg)",border:"1px solid #fb923c30",borderRadius:6,padding:"8px 12px",fontSize:13,color:"#fb923c",marginBottom:8}}>⏳ XLSX library loading... wait a moment then try again.</div>}
+                        {!xlsxReady&&<div style={{background:"var(--warn-bg)",border:"1px solid #fb923c30",borderRadius:6,padding:"8px 12px",fontSize:13,color:"#fb923c",marginBottom:8}}>âڈ³ XLSX library loading... wait a moment then try again.</div>}
                         <div style={{display:"flex",gap:10,marginTop:12}}>
                           <button className="bp" style={{flex:1,justifyContent:"center"}} disabled={importing||!xlsxReady} onClick={()=>importTimesheets(importFiles)}>
-                            {importing?"⏳ Importing...":!xlsxReady?"⏳ Loading XLSX...":"⬆ Import All Files"}
+                            {importing?"âڈ³ Importing...":!xlsxReady?"âڈ³ Loading XLSX...":"â¬† Import All Files"}
                           </button>
                           <button className="bg" onClick={()=>{setImportFiles([]);setImportLog([]);}}>Clear</button>
                         </div>
@@ -14443,11 +8990,11 @@ export default function App(){
                   <div className="card">
                     <h3 style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:10}}>What Gets Imported</h3>
                     {[
-                      ["•","Engineer","Created automatically from Name + Email in the sheet header"],
-                      ["•","Work Hours","Daily task + hours + project mapped to entries"],
-                      ["•","Leave Days","Public holidays and leave days detected automatically"],
-                      ["•","Projects","Matched by project name — assign missing ones after import"],
-                      ["•","Task Types","Auto-detected from task description (SCADA, HMI, PLC, etc.)"],
+                      ["â€¢","Engineer","Created automatically from Name + Email in the sheet header"],
+                      ["â€¢","Work Hours","Daily task + hours + project mapped to entries"],
+                      ["â€¢","Leave Days","Public holidays and leave days detected automatically"],
+                      ["â€¢","Projects","Matched by project name â€” assign missing ones after import"],
+                      ["â€¢","Task Types","Auto-detected from task description (SCADA, HMI, PLC, etc.)"],
                     ].map(([icon,label,desc])=>(
                       <div key={label} style={{display:"flex",gap:10,marginBottom:10}}>
                         <div style={{fontSize:16,width:24,flexShrink:0}}>{icon}</div>
@@ -14455,7 +9002,7 @@ export default function App(){
                       </div>
                     ))}
                     <div style={{background:"var(--warn-bg)",border:"1px solid #fb923c30",borderRadius:6,padding:"9px 12px",fontSize:13,color:"#fb923c",marginTop:8}}>
-                      ⚠ After importing, go to Admin → All Entries to review and assign project numbers to any unmatched entries.
+                      âڑ  After importing, go to Admin â†’ All Entries to review and assign project numbers to any unmatched entries.
                     </div>
                   </div>
                 </div>
@@ -14469,7 +9016,7 @@ export default function App(){
                       <span style={{color:entry.type==="ok"?"#34d399":entry.type==="error"?"#f87171":entry.type==="warn"?"#fb923c":"var(--text2)",lineHeight:1.4}}>{entry.msg}</span>
                     </div>
                   ))}
-                  {importing&&<div style={{textAlign:"center",padding:10,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>Processing…</div>}
+                  {importing&&<div style={{textAlign:"center",padding:10,color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>Processingâ€¦</div>}
                 </div>
               </div>
             </div>
@@ -14479,7 +9026,7 @@ export default function App(){
         </div>
       </div>
 
-      {/* ════ MODALS ════ */}
+      {/* â•گâ•گâ•گâ•گ MODALS â•گâ•گâ•گâ•گ */}
 
       {/* Add Entry */}
       {modalDate&&(()=>{
@@ -14504,7 +9051,7 @@ export default function App(){
         const filteredActs = projActs.filter(a=>{
           const matchSub = !newEntry._actSub || String(a.subproject_id)===String(newEntry._actSub);
           const matchCat = !newEntry._actCat || a.category===newEntry._actCat || a.group_name===newEntry._actCat;
-          // Show all activities for this project — not just ones assigned to the engineer
+          // Show all activities for this project â€” not just ones assigned to the engineer
           return matchSub && matchCat;
         });
 
@@ -14542,7 +9089,7 @@ export default function App(){
               <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:2}}>Post Hours</h3>
               <p style={{fontSize:13,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace",margin:0}}>
                 {new Date(modalDate).toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}
-                {canEdit&&viewEng&&<span> · {viewEng.name}</span>}
+                {canEdit&&viewEng&&<span> آ· {viewEng.name}</span>}
               </p>
             </div>
 
@@ -14550,15 +9097,15 @@ export default function App(){
 
             <div style={{display:"grid",gap:12}}>
 
-              {/* ── STEP 1: Entry type ── */}
+              {/* â”€â”€ STEP 1: Entry type â”€â”€ */}
               {step===1&&(
                 <div>
                   <label style={LBL}>WHAT ARE YOU LOGGING?</label>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:4}}>
                     {[
-                      {v:"work",   icon:"◆", label:"Work"},
-                      {v:"function",icon:"◈",label:"Function"},
-                      {v:"leave",  icon:"◇", label:"Leave"},
+                      {v:"work",   icon:"â—†", label:"Work"},
+                      {v:"function",icon:"â—ˆ",label:"Function"},
+                      {v:"leave",  icon:"â—‡", label:"Leave"},
                     ].map(({v,icon,label})=>(
                       <button key={v} onClick={()=>setNewEntry(p=>({...p,type:v,_step:2}))}
                         style={{padding:"14px 8px",borderRadius:8,border:`2px solid ${newEntry.type===v?"var(--info)":"var(--border)"}`,
@@ -14573,7 +9120,7 @@ export default function App(){
                 </div>
               )}
 
-              {/* ── STEP 2 for LEAVE: type + hours ── */}
+              {/* â”€â”€ STEP 2 for LEAVE: type + hours â”€â”€ */}
               {step===2&&isLeave&&(
                 <div style={{display:"grid",gap:12}}>
                   <div>
@@ -14583,12 +9130,12 @@ export default function App(){
                     </select>
                   </div>
                   <div style={{padding:"10px 12px",background:"var(--bg0)",borderRadius:6,border:"1px solid var(--border3)",fontSize:13,color:"var(--text3)"}}>
-                    ℹ️ Leave entries are logged as a full 8-hour day automatically.
+                    â„¹ï¸ڈ Leave entries are logged as a full 8-hour day automatically.
                   </div>
                 </div>
               )}
 
-              {/* ── STEP 2 for FUNCTION: category ── */}
+              {/* â”€â”€ STEP 2 for FUNCTION: category â”€â”€ */}
               {step===2&&isFunc&&(
                 <div style={{display:"grid",gap:12}}>
                   <div>
@@ -14608,7 +9155,7 @@ export default function App(){
                 </div>
               )}
 
-              {/* ── STEP 3 for FUNCTION: hours + description ── */}
+              {/* â”€â”€ STEP 3 for FUNCTION: hours + description â”€â”€ */}
               {step===3&&isFunc&&(
                 <div style={{display:"grid",gap:12}}>
                   <div style={{padding:"8px 12px",background:"var(--info)"+"12",borderRadius:6,border:"1px solid #38bdf8"+"40",fontSize:13,color:"var(--info)",fontWeight:700}}>
@@ -14624,14 +9171,14 @@ export default function App(){
                       <label style={LBL}>DESCRIPTION <span style={{fontSize:11,color:"#fb923c",fontWeight:400}}>(recommended)</span></label>
                       <textarea rows={2} value={newEntry.activity}
                         onChange={e=>setNewEntry(p=>({...p,activity:e.target.value}))}
-                        placeholder="Describe the activity…"
+                        placeholder="Describe the activityâ€¦"
                         style={{...INP,resize:"vertical",borderColor:(!newEntry.activity||newEntry.activity.trim().length<=2)?"#fb923c50":"var(--input-border)"}}/>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* ── STEP 2 for WORK: project + sub-site ── */}
+              {/* â”€â”€ STEP 2 for WORK: project + sub-site â”€â”€ */}
               {step===2&&isWork&&(
                 <div style={{display:"grid",gap:12}}>
                   {(()=>{
@@ -14640,14 +9187,14 @@ export default function App(){
                       <label style={LBL}>PROJECT</label>
                       {_noProjects?(
                         <div style={{padding:"12px",background:"var(--err-bg)",border:"1px solid #f8717140",borderRadius:6,fontSize:13,color:"#f87171",textAlign:"center"}}>
-                          ⚠ {_targetEng?.name||"This engineer"} is not assigned to any active project.<br/>
+                          âڑ  {_targetEng?.name||"This engineer"} is not assigned to any active project.<br/>
                           <span style={{color:"var(--text3)",fontSize:13}}>Ask an admin to assign projects first.</span>
                         </div>
                       ):(
                         <select value={newEntry.projectId}
                           onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null,_actCat:null,_actSub:null}))}
                           style={{...INP,borderColor:!newEntry.projectId?"#f87171":"var(--border)"}}>
-                          <option value="">— Select Project —</option>
+                          <option value="">â€” Select Project â€”</option>
                           {_availProjs.map(p=>(
                             <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
                           ))}
@@ -14662,7 +9209,7 @@ export default function App(){
                       <select value={newEntry._actSub||""}
                         onChange={e=>setNewEntry(p=>({...p,_actSub:e.target.value||null,activityId:null}))}
                         style={INP}>
-                        <option value="">— All sub-sites —</option>
+                        <option value="">â€” All sub-sites â€”</option>
                         {projSubList.map(sid=>{
                           const sp=subprojects.find(s=>String(s.id)===String(sid));
                           return sp?<option key={sid} value={sid}>{sp.name}</option>:null;
@@ -14673,7 +9220,7 @@ export default function App(){
                 </div>
               )}
 
-              {/* ── STEP 3 for WORK: group + category + activity ── */}
+              {/* â”€â”€ STEP 3 for WORK: group + category + activity â”€â”€ */}
               {step===3&&isWork&&(
                 <div style={{display:"grid",gap:12}}>
 
@@ -14709,7 +9256,7 @@ export default function App(){
                     </select>
                   </div>
 
-                  {/* Activity — from tracker if available, else from taxonomy */}
+                  {/* Activity â€” from tracker if available, else from taxonomy */}
                   <div>
                     <label style={LBL}>ACTIVITY</label>
                     {filteredActs.length>0?(
@@ -14717,12 +9264,12 @@ export default function App(){
                         onChange={e=>setNewEntry(p=>({...p,activityId:e.target.value||null,
                           taskType:filteredActs.find(a=>String(a.id)===e.target.value)?.activity_name||p.taskType}))}
                         style={{...INP,borderColor:"var(--info)"+"60"}}>
-                        <option value="">— General (no specific activity) —</option>
+                        <option value="">â€” General (no specific activity) â€”</option>
                         {filteredActs
                           .filter(a=>!newEntry.taskCategory||(a.category===newEntry.taskCategory)||(a.group_name===newEntry.taskCategory)||(a.group_name===CAT_TO_GROUP[newEntry.taskCategory]))
                           .map(a=>(
                           <option key={a.id} value={a.id}>
-                            {a.activity_name} · {Math.round((a.progress||0)*100)}%
+                            {a.activity_name} آ· {Math.round((a.progress||0)*100)}%
                           </option>
                         ))}
                       </select>
@@ -14731,19 +9278,19 @@ export default function App(){
                         onChange={e=>setNewEntry(p=>({...p,taskType:e.target.value}))}
                         style={INP}>
                         {catActs.map(t=><option key={t}>{t}</option>)}
-                        <option value="Other">Other…</option>
+                        <option value="Other">Otherâ€¦</option>
                       </select>
                     )}
                     {filteredActs.length>0&&(
                       <div style={{fontSize:12,color:"var(--info)",marginTop:3,paddingLeft:2}}>
-                        ✓ Linked to project tracker activities
+                        âœ“ Linked to project tracker activities
                       </div>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* ── STEP 4 for WORK: hours + description ── */}
+              {/* â”€â”€ STEP 4 for WORK: hours + description â”€â”€ */}
               {step===4&&isWork&&(
                 <div style={{display:"grid",gap:12}}>
                   {/* Summary badge */}
@@ -14757,7 +9304,7 @@ export default function App(){
                     </span>
                     {newEntry.taskType&&(
                       <span style={{padding:"3px 8px",borderRadius:99,background:"var(--border)",color:"var(--text2)",fontSize:13}}>
-                        {newEntry.taskType.length>30?newEntry.taskType.slice(0,28)+"…":newEntry.taskType}
+                        {newEntry.taskType.length>30?newEntry.taskType.slice(0,28)+"â€¦":newEntry.taskType}
                       </span>
                     )}
                   </div>
@@ -14772,7 +9319,7 @@ export default function App(){
                       <label style={LBL}>NOTES <span style={{fontSize:11,color:"#fb923c",fontWeight:400}}>(recommended)</span></label>
                       <textarea rows={2} value={newEntry.activity}
                         onChange={e=>setNewEntry(p=>({...p,activity:e.target.value}))}
-                        placeholder="e.g. Completed BESS display animations…"
+                        placeholder="e.g. Completed BESS display animationsâ€¦"
                         style={{...INP,resize:"vertical",borderColor:(!newEntry.activity||newEntry.activity.trim().length<=2)?"#fb923c50":"var(--input-border)"}}/>
                     </div>
                   </div>
@@ -14784,7 +9331,7 @@ export default function App(){
             <div style={{display:"flex",justifyContent:"space-between",marginTop:18,gap:10}}>
               <div>
                 {step>1&&(
-                  <Btn onClick={()=>setNewEntry(p=>({...p,_step:p._step-1}))}>← Back</Btn>
+                  <Btn onClick={()=>setNewEntry(p=>({...p,_step:p._step-1}))}>â†گ Back</Btn>
                 )}
               </div>
               <div style={{display:"flex",gap:8}}>
@@ -14796,13 +9343,13 @@ export default function App(){
                       (step===2&&isFunc&&!newEntry.taskType)
                     }
                     onClick={()=>setNewEntry(p=>({...p,_step:p._step+1}))}>
-                    Next →
+                    Next â†’
                   </Btn>
                 ):(
                   <Btn primary
                     disabled={!newEntry.hours||(isWork&&!newEntry.projectId)}
                     onClick={()=>addEntry(modalDate)}>
-                    ✓ Post Hours
+                    âœ“ Post Hours
                   </Btn>
                 )}
               </div>
@@ -14823,7 +9370,7 @@ export default function App(){
               return(
                 <div style={{display:"flex",alignItems:"center",gap:10,background:"#1e3a5f",border:"1px solid #3b82f640",
                   borderRadius:8,padding:"10px 14px",marginBottom:14}}>
-                  <span style={{fontSize:18}}>❄</span>
+                  <span style={{fontSize:18}}>â‌„</span>
                   <div>
                     <div style={{fontSize:13,fontWeight:700,color:"#93c5fd"}}>{_mn} {_d.getFullYear()} is frozen</div>
                     <div style={{fontSize:12,color:"#64748b",marginTop:2}}>Changes cannot be saved.{isAdmin?" Unfreeze this month from Post Hours to edit.":""}</div>
@@ -14843,7 +9390,7 @@ export default function App(){
               {editEntry.type==="work"?<>
                 <div><Lbl>Project</Lbl>
                   <select value={editEntry.projectId||""} onChange={e=>setEditEntry(p=>({...p,projectId:e.target.value}))}>
-                    <option value="">— Select —</option>
+                    <option value="">â€” Select â€”</option>
                     {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
                   </select>
                 </div>
@@ -14876,7 +9423,7 @@ export default function App(){
               <button className="bp" onClick={saveEditEntry}
                 disabled={isMonthFrozen(editEntry.date)}
                 style={{opacity:isMonthFrozen(editEntry.date)?0.4:1,cursor:isMonthFrozen(editEntry.date)?"not-allowed":"pointer"}}>
-                {isMonthFrozen(editEntry.date)?"❄ Frozen":"Save Changes"}
+                {isMonthFrozen(editEntry.date)?"â‌„ Frozen":"Save Changes"}
               </button>
             </div>
           </div>
@@ -14909,7 +9456,7 @@ export default function App(){
                       return {...p,project_leader:name,assigned_engineers:newAe};
                     });
                   }}>
-                    <option value="">— None —</option>
+                    <option value="">â€” None â€”</option>
                     {engineers.filter(e=>isEngActive(e)&&(e.role_type==="lead"||e.role_type==="admin")).map(e=>(
                       <option key={e.id} value={e.name}>{e.name}</option>
                     ))}
@@ -14919,7 +9466,7 @@ export default function App(){
                 <div><Lbl>Origin (HQ / BU)</Lbl><input value={newProj.origin} onChange={e=>setNewProj(p=>({...p,origin:e.target.value}))}/></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Billable?</Lbl><select value={newProj.billable?"yes":"no"} onChange={e=>setNewProj(p=>({...p,billable:e.target.value==="yes"}))}><option value="yes">Yes</option><option value="no">No — Internal</option></select></div>
+                <div><Lbl>Billable?</Lbl><select value={newProj.billable?"yes":"no"} onChange={e=>setNewProj(p=>({...p,billable:e.target.value==="yes"}))}><option value="yes">Yes</option><option value="no">No â€” Internal</option></select></div>
                 <div><Lbl>Rate per Hour ($)</Lbl><input type="number" value={newProj.rate_per_hour} onChange={e=>setNewProj(p=>({...p,rate_per_hour:+e.target.value}))}/></div>
               </div>
               {/* Team assignment */}
@@ -14942,7 +9489,7 @@ export default function App(){
                         return {...p,assigned_engineers:sel?cur.filter(x=>x!==String(e.id)):[...cur,String(e.id)]};
                       })} style={{accentColor:"var(--info)"}}/>
                       <span style={{fontSize:13,color:sel?"var(--info)":"var(--text2)"}}>{e.name}</span>
-                      <span style={{fontSize:12,color:"var(--text4)",marginLeft:"auto"}}>{e.role} · {e.role_type==="lead"?"Lead":e.level||""}</span>
+                      <span style={{fontSize:12,color:"var(--text4)",marginLeft:"auto"}}>{e.role} آ· {e.role_type==="lead"?"Lead":e.level||""}</span>
                     </label>);
                   })}
                 </div>
@@ -14964,7 +9511,7 @@ export default function App(){
         return(
         <div className="modal-ov" onClick={()=>setEditProjModal(null)}>
           <div className="modal" style={{maxWidth:580,maxHeight:"85vh",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:12}}>Edit Project — {editProjModal._origId||editProjModal.id}</h3>
+            <h3 style={{fontSize:17,fontWeight:700,marginBottom:12}}>Edit Project â€” {editProjModal._origId||editProjModal.id}</h3>
             {/* Tab bar */}
             <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid var(--border3)"}}>
               {(isAdmin?[["details","Details"],["team","Team"],["activities","Activities"]]:[["details","Details"],["team","Team"],["activities","Activities"]]).map(([t,l])=>(
@@ -14976,7 +9523,7 @@ export default function App(){
               ))}
             </div>
             <div style={{overflowY:"auto",flex:1}}>
-            {/* ── DETAILS TAB ── */}
+            {/* â”€â”€ DETAILS TAB â”€â”€ */}
             {epTab==="details"&&<div style={{display:"grid",gap:11}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
                 <div><Lbl>Project No. <span style={{color:"#f87171",fontSize:12}}>(rename re-links all entries)</span></Lbl>
@@ -15001,9 +9548,9 @@ export default function App(){
                       return {...p,project_leader:name,assigned_engineers:newAe};
                     });
                   }} style={{width:"100%"}}>
-                    <option value="">— None —</option>
+                    <option value="">â€” None â€”</option>
                     {engineers.filter(e=>isEngActive(e)&&(e.role_type==="lead"||e.role_type==="admin")).map(e=>(
-                      <option key={e.id} value={e.name}>{e.name} — {ROLE_LABELS[e.role_type]||e.role_type}</option>
+                      <option key={e.id} value={e.name}>{e.name} â€” {ROLE_LABELS[e.role_type]||e.role_type}</option>
                     ))}
                   </select>
                 </div>
@@ -15015,7 +9562,7 @@ export default function App(){
                 <div><Lbl>Rate per Hour ($)</Lbl><input type="number" value={editProjModal.rate_per_hour} onChange={e=>setEditProjModal(p=>({...p,rate_per_hour:+e.target.value}))}/></div>
               </div>}
             </div>}
-            {/* ── TEAM TAB ── */}
+            {/* â”€â”€ TEAM TAB â”€â”€ */}
             {epTab==="team"&&<div>
               <div style={{fontSize:13,color:"var(--text3)",marginBottom:10}}>Select engineers assigned to this project. Only assigned engineers can post hours.</div>
               <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 8px",display:"grid",gridTemplateColumns:"1fr",gap:4,maxHeight:300,overflowY:"auto"}}>
@@ -15038,9 +9585,9 @@ export default function App(){
                     <div className="av" style={{width:30,height:30,fontSize:13,flexShrink:0}}>{(e.name||"").slice(0,2).toUpperCase()}</div>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:14,fontWeight:600,color:sel?"var(--info)":"var(--text0)",letterSpacing:.2}}>{displayName}</div>
-                      <div style={{fontSize:13,color:"var(--text3)",marginTop:1}}>{e.role} · <span style={{color:ROLE_COLORS[e.role_type]||"var(--text3)"}}>{ROLE_LABELS[e.role_type]||e.role_type}</span></div>
+                      <div style={{fontSize:13,color:"var(--text3)",marginTop:1}}>{e.role} آ· <span style={{color:ROLE_COLORS[e.role_type]||"var(--text3)"}}>{ROLE_LABELS[e.role_type]||e.role_type}</span></div>
                     </div>
-                    {sel&&<span style={{fontSize:12,color:"var(--info)",background:"#38bdf820",padding:"2px 6px",borderRadius:3,flexShrink:0}}>✓ Assigned</span>}
+                    {sel&&<span style={{fontSize:12,color:"var(--info)",background:"#38bdf820",padding:"2px 6px",borderRadius:3,flexShrink:0}}>âœ“ Assigned</span>}
                   </label>);
                 })}
               </div>
@@ -15051,7 +9598,7 @@ export default function App(){
                     onClick={()=>setEditProjModal(p=>({...p,assigned_engineers:[]}))}>Clear all</button>}
               </div>
             </div>}
-            {/* ── ACTIVITIES TAB ── */}
+            {/* â”€â”€ ACTIVITIES TAB â”€â”€ */}
             {epTab==="activities"&&<EditProjActivities
               projId={editProjModal._origId||editProjModal.id}
               activities={activities} setActivities={setActivities}
@@ -15108,7 +9655,7 @@ export default function App(){
                 <div style={{fontSize:13,color:"var(--text4)",marginTop:4}}>
                   {newEng.role_type==="engineer"&&"Can log hours & view own timesheets"}
                   {newEng.role_type==="lead"&&"Engineer + can view all team timesheets"}
-                  {newEng.role_type==="accountant"&&"Full access to Finance tab, invoices & reports — no timesheet editing"}
+                  {newEng.role_type==="accountant"&&"Full access to Finance tab, invoices & reports â€” no timesheet editing"}
                   {newEng.role_type==="admin"&&"Full access to everything including settings"}
                 </div>
               </div>
@@ -15136,7 +9683,7 @@ export default function App(){
       {editEngModal&&(
         <div className="modal-ov" onClick={()=>setEditEngModal(null)}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:18}}>Edit — {editEngModal.name}</h3>
+            <h3 style={{fontSize:17,fontWeight:700,marginBottom:18}}>Edit â€” {editEngModal.name}</h3>
             <div style={{display:"grid",gap:11}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Full Name</Lbl><input value={editEngModal.name||""} onChange={e=>setEditEngModal(p=>({...p,name:e.target.value}))}/></div>
@@ -15144,7 +9691,7 @@ export default function App(){
               </div>
               <div><Lbl>Job Title</Lbl>
                 <select value={editEngModal.role||""} onChange={e=>setEditEngModal(p=>({...p,role:e.target.value}))}>
-                  <option value="">— Select —</option>
+                  <option value="">â€” Select â€”</option>
                   {ROLES_LIST.map(r=><option key={r}>{r}</option>)}
                 </select>
               </div>
@@ -15175,7 +9722,7 @@ export default function App(){
       )}
 
 
-      {/* ── STAFF MODAL ── */}
+      {/* â”€â”€ STAFF MODAL â”€â”€ */}
       {showStaffModal&&(
         <div className="modal-ov" onClick={()=>{setShowStaffModal(false);setEditStaff(null);}}>
           <div className="modal" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
@@ -15200,12 +9747,12 @@ export default function App(){
                 </div>
                 <div><Lbl>Job Title</Lbl>
                   <select value={(editStaff||newStaff).role||""} onChange={e=>editStaff?setEditStaff(p=>({...p,role:e.target.value})):setNewStaff(p=>({...p,role:e.target.value}))}>
-                    <option value="">— Select —</option>
+                    <option value="">â€” Select â€”</option>
                     {ROLES_LIST.map(r=><option key={r}>{r}</option>)}
                   </select>
                 </div>
               </div>
-              {/* Row 3: Email (for engineer record) + Level — new staff only */}
+              {/* Row 3: Email (for engineer record) + Level â€” new staff only */}
               {!editStaff&&(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <div>
@@ -15219,7 +9766,7 @@ export default function App(){
                   </div>
                 </div>
               )}
-              {/* Row 4: Access Role — new staff only */}
+              {/* Row 4: Access Role â€” new staff only */}
               {!editStaff&&(
                 <div>
                   <Lbl>System Access Role</Lbl>
@@ -15267,7 +9814,7 @@ export default function App(){
         </div>
       )}
 
-      {/* ── EXPENSE MODAL ── */}
+      {/* â”€â”€ EXPENSE MODAL â”€â”€ */}
       {showExpModal&&(
         <div className="modal-ov" onClick={()=>{setShowExpModal(false);setEditExp(null);}}>
           <div className="modal" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
@@ -15278,7 +9825,7 @@ export default function App(){
                   {["Office Rent & Utilities","Salaries","Software & Subscriptions","Travel & Transportation","Equipment & Supplies","Other"].map(c=><option key={c}>{c}</option>)}
                 </select>
               </div>
-              <div><Lbl>Description</Lbl><input value={(editExp||newExp).description} onChange={e=>editExp?setEditExp(p=>({...p,description:e.target.value})):setNewExp(p=>({...p,description:e.target.value}))} placeholder="e.g. Office Rent — Cairo HQ"/></div>
+              <div><Lbl>Description</Lbl><input value={(editExp||newExp).description} onChange={e=>editExp?setEditExp(p=>({...p,description:e.target.value})):setNewExp(p=>({...p,description:e.target.value}))} placeholder="e.g. Office Rent â€” Cairo HQ"/></div>
               {/* Currency selector + single amount + optional rate */}
               <div>
                 <Lbl>CURRENCY</Lbl>
@@ -15325,7 +9872,7 @@ export default function App(){
                   </div>
                   {isEGP&&(exp.amount_egp>0)&&(
                     <div style={{padding:"5px 10px",background:"var(--bg2)",borderRadius:4,border:"1px solid var(--border2)",fontSize:13,color:"var(--text3)"}}>
-                      ≈ <span style={{color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>${(Math.round((exp.amount_egp||0)/(rate)*100)/100).toLocaleString()}</span>
+                      â‰ˆ <span style={{color:"var(--info)",fontFamily:"'IBM Plex Mono',monospace"}}>${(Math.round((exp.amount_egp||0)/(rate)*100)/100).toLocaleString()}</span>
                       <span style={{marginLeft:8}}>@ {rate} EGP/$</span>
                     </div>
                   )}
@@ -15354,18 +9901,18 @@ export default function App(){
       )}
 
 
-      {/* ── FUNCTION HOURS MODAL ── */}
+      {/* â”€â”€ FUNCTION HOURS MODAL â”€â”€ */}
       {showFuncModal&&(
         <div className="modal-ov" onClick={()=>setShowFuncModal(false)}>
           <div className="modal" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
             <h3 style={{fontSize:17,fontWeight:700,marginBottom:4}}>Log Function Hours</h3>
-            <p style={{fontSize:13,color:"var(--text4)",marginBottom:16}}>Post non-billable activity hours for an engineer — visible in KPI reports.</p>
+            <p style={{fontSize:13,color:"var(--text4)",marginBottom:16}}>Post non-billable activity hours for an engineer â€” visible in KPI reports.</p>
             <div style={{display:"grid",gap:11}}>
               <div><Lbl>Engineer</Lbl>
                 <select value={newFunc.engineer_id} onChange={e=>setNewFunc(p=>({...p,engineer_id:e.target.value}))}
                   style={{borderColor:!newFunc.engineer_id?"#f87171":""}}>
-                  <option value="">— Select Engineer —</option>
-                  {engineers.map(e=><option key={e.id} value={e.id}>{e.name} · {e.role}</option>)}
+                  <option value="">â€” Select Engineer â€”</option>
+                  {engineers.map(e=><option key={e.id} value={e.id}>{e.name} آ· {e.role}</option>)}
                 </select>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -15383,7 +9930,7 @@ export default function App(){
               </div>
               <div><Lbl>Description <span style={{color:"var(--info)"}}>(used in KPI reports)</span></Lbl>
                 <textarea rows={3} value={newFunc.activity} onChange={e=>setNewFunc(p=>({...p,activity:e.target.value}))}
-                  placeholder="e.g. Delivered PLC basics session to 3 junior engineers…" style={{resize:"vertical"}}/>
+                  placeholder="e.g. Delivered PLC basics session to 3 junior engineersâ€¦" style={{resize:"vertical"}}/>
               </div>
             </div>
             <div style={{display:"flex",gap:10,marginTop:18,justifyContent:"flex-end"}}>
@@ -15416,7 +9963,7 @@ export default function App(){
               </div>
               {pwdMsg&&(
                 <div style={{fontSize:13,padding:"8px 12px",borderRadius:7,background:pwdMsg.ok?"var(--success-bg)":"var(--err-bg)",color:pwdMsg.ok?"#34d399":"#f87171",border:`1px solid ${pwdMsg.ok?"#34d39940":"#f8717140"}`}}>
-                  {pwdMsg.ok?"✓":"✕"} {pwdMsg.text}
+                  {pwdMsg.ok?"âœ“":"âœ•"} {pwdMsg.text}
                 </div>
               )}
               <div style={{display:"flex",gap:10,marginTop:4}}>
@@ -15428,17 +9975,17 @@ export default function App(){
         </div>
       )}
 
-      {/* Confirm Dialog — replaces window.confirm */}
+      {/* Confirm Dialog â€” replaces window.confirm */}
       <ConfirmModal dlg={confirmDlg}/>
 
-      {/* Toast — supports optional Undo */}
+      {/* Toast â€” supports optional Undo */}
       {toast&&(
         <div className="toast" style={{background:toast.ok?"var(--bg3)":"var(--err-bg)",color:toast.ok?"#34d399":"#f87171",border:`1px solid ${toast.ok?"#34d399":"#f87171"}`,display:"flex",alignItems:"center",gap:12,paddingRight:toast.undoFn?10:18}}>
-          <span>{toast.ok?"✓":"✕"} {toast.msg}</span>
+          <span>{toast.ok?"âœ“":"âœ•"} {toast.msg}</span>
           {toast.undoFn&&(
             <button onClick={()=>{ toast.undoFn(); dismissToast(); }}
               style={{background:"transparent",border:`1px solid ${toast.ok?"#34d399":"#f87171"}`,borderRadius:5,padding:"3px 10px",color:toast.ok?"#34d399":"#f87171",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif",flexShrink:0}}>
-              ↩ Undo
+              â†© Undo
             </button>
           )}
         </div>
@@ -15446,3 +9993,1176 @@ export default function App(){
     </div>
   );
 }
+
+
+function ProjectTracker({projects, activities, subprojects, entries, engineers, isAdmin, isLead, isAcct, isEngineerRole, activitiesLoaded, setActivities, setProjects, setNotifications, showToast, logAction, showConfirm, myProfile, onActivityComment,
+  trackerProj,  setTrackerProj,
+  trackerSub,   setTrackerSub,
+  trackerSearch, setTrackerSearch,
+  trackerStatus, setTrackerStatus,
+  actClipboard,  setActClipboard,
+  insertNotif,
+}){
+  const canEdit = isAdmin || isLead;
+  // Persistent state lifted to parent (survives remounts/minimize)
+  const trackerSearch_ = trackerSearch;
+  const setTrackerSearch_ = setTrackerSearch;
+  const trackerStatusF = trackerStatus;
+  const setTrackerStatusF = setTrackerStatus;
+  // Transient state ظ¤ fine to reset on remount
+  const [editActivity, setEditActivity] = useState(null);
+  const [addModal,     setAddModal]     = useState(null);
+  const [expandedCats, setExpandedCats] = useState({});
+  const [bulkSelected, setBulkSelected] = useState(new Set());
+  const [bulkStatus,   setBulkStatus]   = useState("Completed");
+  // Paste destination state
+  const [pasteTargetProj, setPasteTargetProj] = useState("");
+  const [pasteTargetSub,  setPasteTargetSub]  = useState("");
+  const [dlPanelOpen,    setDlPanelOpen]      = useState(true); // Deadline panel open/closed
+
+  // ظ¤ظ¤ Memoised lookups ظ¤ظ¤
+  const activityHrsMap = useMemo(()=>{
+    const m={};
+    for(const e of entries){
+      if(e.entry_type!=="work"||!e.activity_id) continue;
+      const k=String(e.activity_id);
+      m[k]=(m[k]||0)+e.hours;
+    }
+    return m;
+  },[entries]);
+
+  const projectHrsMap = useMemo(()=>{
+    const m={};
+    for(const e of entries){
+      if(e.entry_type!=="work"||!e.project_id) continue;
+      m[e.project_id]=(m[e.project_id]||0)+e.hours;
+    }
+    return m;
+  },[entries]);
+
+  const actsByProj = useMemo(()=>{
+    const m={};
+    for(const a of activities){
+      if(!m[a.project_id]) m[a.project_id]=[];
+      m[a.project_id].push(a);
+    }
+    return m;
+  },[activities]);
+
+  const getHrs     = useCallback((actId)=>activityHrsMap[String(actId)]||0, [activityHrsMap]);
+  const getProjHrs = useCallback((pid)=>projectHrsMap[pid]||0,              [projectHrsMap]);
+  const toggleCat  = useCallback((cat)=>setExpandedCats(p=>({...p,[cat]:!p[cat]})),[]);
+
+  // ظ¤ظ¤ Callbacks ظ¤ظ¤
+  const saveActivity = useCallback(async(draft)=>{
+    const {id,...fields}=draft;
+    const grp = CAT_TO_GROUP[fields.category]||fields.group_name||"SCADA";
+    const payload={...fields, group_name:grp, category:fields.category||null, updated_at:new Date().toISOString()};
+    const prevActivity=activities.find(a=>a.id===id);
+    const {data,error}=await supabase.from("project_activities").update(payload).eq("id",id).select().single();
+    if(error){showToast("Error: "+error.message,false);return;}
+    setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
+
+    const _now=new Date().toISOString();
+    const _changerIsAdmin=myProfile?.role_type==="admin";
+    const _proj=projects.find(p=>p.id===(fields.project_id||prevActivity?.project_id));
+
+    // ظ¤ظ¤ Notification: activity_assigned ظ¤ظ¤
+    if(fields.assigned_to && fields.assigned_to!==prevActivity?.assigned_to){
+      const assignedEng=engineers.find(e=>e.name===fields.assigned_to);
+      if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
+        const assignMsg=`You were assigned to "${fields.activity_name||data.activity_name}"${_proj?" ┬╖ "+_proj.name:""}`;
+        const assignMeta={recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,assigned_by:myProfile?.name};
+        // Notify engineer ظ¤ fire-and-forget (engineer gets via RT/loadAll; don't add to assigner state)
+        insertNotif({type:"activity_assigned",engineer_id:assignedEng.id,read:false,message:assignMsg,created_at:_now,meta:JSON.stringify(assignMeta)});
+        // Notify project leader (if set, not the changer, and not the assigned engineer)
+        if(_proj?.project_leader){
+          const _ldrEng2=engineers.find(e=>e.name===_proj.project_leader);
+          if(_ldrEng2&&String(_ldrEng2.id)!==String(myProfile?.id)&&String(_ldrEng2.id)!==String(assignedEng.id)){
+            insertNotif({type:"activity_assigned",engineer_id:_ldrEng2.id,read:false,
+              message:`${myProfile?.name||"Admin"} assigned "${fields.activity_name||data.activity_name}" to ${assignedEng.name}${_proj?" ┬╖ "+_proj.name:""}`,
+              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrEng2.id),activity_id:id,project_id:fields.project_id,assigned_to:assignedEng.name,assigned_by:myProfile?.name,role:"project_leader"})});
+          }
+        }
+        // If lead is assigning, also notify all admins (admin already knows ظ¤ they did it)
+        if(!_changerIsAdmin){
+          const adminMsg=`${myProfile?.name||"Lead"} assigned "${fields.activity_name||data.activity_name}" to ${assignedEng.name}${_proj?" ┬╖ "+_proj.name:""}`;
+          const _ap2=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_assigned",engineer_id:adminEng.id,read:false,message:adminMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,assigned_to:assignedEng.name,assigned_by:myProfile?.name})}));
+          if(_ap2.length) supabase.from("notifications").insert(_ap2).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
+        }
+      }
+    }
+
+    // ظ¤ظ¤ Notification: activity_status_changed ظ¤ظ¤
+    if(fields.status && fields.status!==prevActivity?.status){
+      const actName=fields.activity_name||data.activity_name;
+      const statusMsg=`"${actName}" marked ${fields.status}${_proj?" ┬╖ "+_proj.name:""}`;
+      // Notify assigned engineer (if exists and not the changer)
+      if(prevActivity?.assigned_to){
+        const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
+        if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
+          // Fire-and-forget for engineer
+          insertNotif({
+            type:"activity_status_changed",engineer_id:assignedEng.id,read:false,message:statusMsg,created_at:_now,
+            meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})
+          });
+        }
+      }
+      // Notify project leader on status change (if not the changer)
+      if(_proj?.project_leader){
+        const _ldrS=engineers.find(e=>e.name===_proj.project_leader);
+        if(_ldrS&&String(_ldrS.id)!==String(myProfile?.id)){
+          const _ldrAssigned=prevActivity?.assigned_to&&engineers.find(e=>e.name===prevActivity.assigned_to);
+          if(!_ldrAssigned||String(_ldrS.id)!==String(_ldrAssigned.id)){
+            insertNotif({type:"activity_status_changed",engineer_id:_ldrS.id,read:false,
+              message:`${myProfile?.name||"Admin"} marked "${actName}" as ${fields.status}${_proj?" ┬╖ "+_proj.name:""}`,
+              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrS.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name,role:"project_leader"})});
+          }
+        }
+      }
+      // If lead changed status, notify all admins (admin already knows)
+      if(!_changerIsAdmin){
+        const adminStatusMsg=`${myProfile?.name||"Lead"} marked "${actName}" as ${fields.status}${_proj?" ┬╖ "+_proj.name:""}`;
+        const _ap3=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_status_changed",engineer_id:adminEng.id,read:false,message:adminStatusMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,status:fields.status,changed_by:myProfile?.name})}));
+        if(_ap3.length) supabase.from("notifications").insert(_ap3).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
+      }
+    }
+
+    // ظ¤ظ¤ Notification: activity_progress_changed ظ¤ظ¤
+    // Notify assigned engineer + admins (when lead changes) when progress % is updated
+    if(fields.progress!==undefined && fields.progress!==prevActivity?.progress && prevActivity?.assigned_to){
+      const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
+      const actName=fields.activity_name||data.activity_name;
+      const pct=Math.round((fields.progress||0)*100);
+      // Notify engineer
+      if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
+        const progMsg=`"${actName}" progress updated to ${pct}%${_proj?" ┬╖ "+_proj.name:""}`;
+        insertNotif({
+          type:"activity_progress_changed",engineer_id:assignedEng.id,read:false,message:progMsg,created_at:_now,
+          meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name})
+        });
+      }
+      // Notify project leader on progress change (if not the changer or the assigned eng)
+      if(_proj?.project_leader){
+        const _ldrP=engineers.find(e=>e.name===_proj.project_leader);
+        if(_ldrP&&String(_ldrP.id)!==String(myProfile?.id)){
+          const _ldrIsAssigned=assignedEng&&String(_ldrP.id)===String(assignedEng.id);
+          if(!_ldrIsAssigned){
+            insertNotif({type:"activity_progress_changed",engineer_id:_ldrP.id,read:false,
+              message:`"${actName}" progress updated to ${pct}%${_proj?" ┬╖ "+_proj.name:""}`,
+              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrP.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name,role:"project_leader"})});
+          }
+        }
+      }
+      // If lead changed progress, notify all admins (admin already knows)
+      if(!_changerIsAdmin){
+        const adminProgMsg=`${myProfile?.name||"Lead"} updated "${actName}" to ${pct}%${_proj?" ┬╖ "+_proj.name:""}`;
+        const _ap4=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_progress_changed",engineer_id:adminEng.id,read:false,message:adminProgMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,progress:pct,changed_by:myProfile?.name})}));
+        if(_ap4.length) supabase.from("notifications").insert(_ap4).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
+      }
+    }
+
+    // ظ¤ظ¤ Notification: activity_deadline_changed ظ¤ظ¤
+    // Notify assigned engineer AND admins (when lead changes) when deadline moves
+    if(fields.end_date!==undefined && fields.end_date!==prevActivity?.end_date && prevActivity?.assigned_to){
+      const assignedEng=engineers.find(e=>e.name===prevActivity.assigned_to);
+      const actName=fields.activity_name||data.activity_name;
+      const newDeadline=fields.end_date
+        ? new Date(fields.end_date).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})
+        : "removed";
+      if(assignedEng&&String(assignedEng.id)!==String(myProfile?.id)){
+        const dlMsg=`Deadline for "${actName}" changed to ${newDeadline}${_proj?" ┬╖ "+_proj.name:""}`;
+        insertNotif({
+          type:"activity_deadline_changed",engineer_id:assignedEng.id,read:false,message:dlMsg,created_at:_now,
+          meta:JSON.stringify({recipient_engineer_id:String(assignedEng.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})
+        });
+      }
+      // Notify project leader on deadline change (if not the changer or the assigned eng)
+      if(_proj?.project_leader){
+        const _ldrD=engineers.find(e=>e.name===_proj.project_leader);
+        if(_ldrD&&String(_ldrD.id)!==String(myProfile?.id)){
+          const _ldrIsAssignedD=assignedEng&&String(_ldrD.id)===String(assignedEng.id);
+          if(!_ldrIsAssignedD){
+            insertNotif({type:"activity_deadline_changed",engineer_id:_ldrD.id,read:false,
+              message:`Deadline for "${actName}" changed to ${newDeadline}${_proj?" ┬╖ "+_proj.name:""}`,
+              created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(_ldrD.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name,role:"project_leader"})});
+          }
+        }
+      }
+      // If lead changed deadline, notify admins too (admin already knows)
+      if(!_changerIsAdmin){
+        const adminDlMsg=`${myProfile?.name||"Lead"} changed deadline for "${actName}" to ${newDeadline}${_proj?" ┬╖ "+_proj.name:""}`;
+        const _ap5=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_deadline_changed",engineer_id:adminEng.id,read:false,message:adminDlMsg,created_at:_now,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),activity_id:id,project_id:fields.project_id,end_date:fields.end_date,changed_by:myProfile?.name})}));
+        if(_ap5.length) supabase.from("notifications").insert(_ap5).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
+      }
+    }
+
+    setEditActivity(null);
+    logAction("UPDATE","Tracker",`Updated activity: ${fields.activity_name} on ${fields.project_id}`,{id,project_id:fields.project_id,activity:fields.activity_name,status:fields.status,progress:fields.progress});
+    // Auto-assign engineer to project when assigned_to is set (covers sub-site activities too ظ¤ always assign to parent project)
+    if(fields.assigned_to){
+      const eng=engineers.find(e=>e.name===fields.assigned_to);
+      if(eng){
+        const projId=fields.project_id;
+        const proj=projects.find(p=>p.id===projId);
+        const ae=(proj?.assigned_engineers||[]).map(String);
+        if(!ae.includes(String(eng.id))){
+          const newAe=[...ae,String(eng.id)];
+          await supabase.from("projects").update({assigned_engineers:newAe}).eq("id",projId);
+          setProjects(prev=>prev.map(p=>p.id===projId?{...p,assigned_engineers:newAe}:p));
+          showToast(`${fields.assigned_to} added to ${projId} team ظ£ô`);
+          return; // showToast already called
+        }
+      }
+    }
+    showToast("Activity saved ظ£ô");
+  },[activities,setActivities,showToast,logAction,engineers,projects,setProjects,setNotifications,myProfile]);
+
+  const confirmAdd = useCallback(async({category,activity_name,start_date,end_date,assigned_to})=>{
+    if(!addModal) return;
+    const {projId,subId}=addModal;
+    const grp = CAT_TO_GROUP[category]||"General";
+    const {data,error}=await supabase.from("project_activities").insert({
+      project_id:projId, subproject_id:subId||null,
+      group_name:grp, category:category||null,
+      activity_name, status:"Not Started", progress:0,
+      start_date:start_date||null, end_date:end_date||null,
+      assigned_to:assigned_to||null,
+      sort_order:(actsByProj[projId]||[]).length
+    }).select().single();
+    if(error){showToast("Error: "+error.message,false);return;}
+    setActivities(prev=>[...prev,data]);
+    logAction("CREATE","Tracker",`Added activity: ${activity_name} on ${projId}`,{project_id:projId,category,activity:activity_name,assigned_to:assigned_to||null});
+    // Auto-assign engineer to project if not already assigned
+    if(assigned_to){
+      const eng=engineers.find(e=>e.name===assigned_to);
+      if(eng){
+        const proj=projects.find(p=>p.id===projId);
+        const ae=(proj?.assigned_engineers||[]).map(String);
+        if(!ae.includes(String(eng.id))){
+          const newAe=[...ae,String(eng.id)];
+          await supabase.from("projects").update({assigned_engineers:newAe}).eq("id",projId);
+          setProjects(prev=>prev.map(p=>p.id===projId?{...p,assigned_engineers:newAe}:p));
+          showToast(`${assigned_to} added to ${projId} team ظ£ô`);
+        }
+      }
+    }
+    setAddModal(null);
+    showToast("Activity added ظ£ô");
+    if(category) setExpandedCats(p=>({...p,[category]:true}));
+  },[addModal,actsByProj,setActivities,showToast,logAction,engineers,projects,setProjects,setNotifications,myProfile]);
+
+  const bulkUpdateStatus = useCallback(async()=>{
+    if(!bulkSelected.size) return;
+    const ids=[...bulkSelected];
+    const prog=bulkStatus==="Completed"?1:bulkStatus==="In Progress"?0.5:0;
+    const{error}=await supabase.from("project_activities")
+      .update({status:bulkStatus,progress:prog}).in("id",ids);
+    if(error){showToast("Bulk update failed: "+error.message,false);return;}
+    setActivities(prev=>prev.map(a=>ids.includes(a.id)?{...a,status:bulkStatus,progress:prog}:a));
+    setBulkSelected(new Set());
+    showToast(`${ids.length} activit${ids.length===1?"y":"ies"} ظْ ${bulkStatus} ظ£ô`);
+    logAction("UPDATE","Tracker",`Bulk set ${ids.length} activities to ${bulkStatus}`,{count:ids.length,status:bulkStatus});
+  },[bulkSelected,bulkStatus,showToast,logAction]);
+
+  // ظ¤ظ¤ Copy selected activities to clipboard ظ¤ظ¤
+  const copyActivities = useCallback(()=>{
+    if(!bulkSelected.size){showToast("Select activities first",false);return;}
+    const acts=activities.filter(a=>bulkSelected.has(a.id));
+    const fromProj=trackerProj;
+    const fromSub=trackerSub;
+    const fromProjName=projects.find(p=>p.id===fromProj)?.name||fromProj;
+    setActClipboard({acts, fromProj, fromSub, fromProjName});
+    setBulkSelected(new Set());
+    showToast(`${acts.length} activit${acts.length===1?"y":"ies"} copied to clipboard ظ£ô`);
+  },[bulkSelected,activities,trackerProj,trackerSub,projects,setActClipboard,showToast]);
+
+  // ظ¤ظ¤ Paste clipboard activities into target project / sub-site ظ¤ظ¤
+  const pasteActivities = useCallback(async()=>{
+    if(!actClipboard||!actClipboard.acts.length){showToast("Nothing in clipboard",false);return;}
+    const targetProj=pasteTargetProj||trackerProj;
+    if(!targetProj){showToast("Select a target project",false);return;}
+    const targetSub=pasteTargetSub||null;
+    const inserts=actClipboard.acts.map((a,i)=>({
+      project_id:   targetProj,
+      subproject_id:targetSub||null,
+      group_name:   a.group_name||null,
+      category:     a.category||null,
+      activity_name:a.activity_name,
+      status:       "Not Started",   // always reset
+      progress:     0,               // always reset
+      assigned_to:  a.assigned_to||null,
+      start_date:   a.start_date||null,
+      end_date:     a.end_date||null,
+      sort_order:   (actsByProj[targetProj]||[]).length + i,
+    }));
+    const{data,error}=await supabase.from("project_activities").insert(inserts).select();
+    if(error){showToast("Paste failed: "+error.message,false);return;}
+    if(data) setActivities(prev=>[...prev,...data]);
+    // Auto-assign all pasted engineers to the target project
+    const proj=projects.find(p=>p.id===targetProj);
+    let ae=(proj?.assigned_engineers||[]).map(String);
+    let assigned=false;
+    for(const a of actClipboard.acts){
+      if(!a.assigned_to) continue;
+      const eng=engineers.find(e=>e.name===a.assigned_to);
+      if(eng&&!ae.includes(String(eng.id))){
+        ae=[...ae,String(eng.id)];
+        assigned=true;
+      }
+    }
+    if(assigned){
+      await supabase.from("projects").update({assigned_engineers:ae}).eq("id",targetProj);
+      setProjects(prev=>prev.map(p=>p.id===targetProj?{...p,assigned_engineers:ae}:p));
+    }
+    const destName=projects.find(p=>p.id===targetProj)?.name||targetProj;
+    const pastedActIds=(data||[]).map(a=>a.id);
+    // Offer undo ظ¤ clicking removes the pasted activities from UI and DB
+    showToast(
+      `${inserts.length} activit${inserts.length===1?"y":"ies"} pasted into ${destName}`,
+      true,
+      async()=>{
+        setActivities(prev=>prev.filter(a=>!pastedActIds.includes(a.id)));
+        await supabase.from("project_activities").delete().in("id",pastedActIds);
+        showToast("Paste undone ظ£ô");
+      }
+    );
+    logAction("CREATE","Tracker",`Pasted ${inserts.length} activities from ${actClipboard.fromProjName} ظْ ${destName}`,{count:inserts.length,from:actClipboard.fromProj,to:targetProj});
+    setPasteTargetProj(""); setPasteTargetSub("");
+  },[actClipboard,pasteTargetProj,pasteTargetSub,trackerProj,actsByProj,projects,engineers,setActivities,setProjects,showToast,logAction]);
+
+  const deleteActivity = useCallback(async(id)=>{
+    const act=activities.find(a=>a.id===id);
+    showConfirm(`Delete activity "${act?.activity_name||id}"?`,()=>{
+      applyUndo(
+        showToast,"Activity deleted",
+        ()=>setActivities(prev=>prev.filter(a=>a.id!==id)),
+        ()=>{ if(act)setActivities(prev=>[act,...prev]); },
+        async()=>{ const{error}=await supabase.from("project_activities").delete().eq("id",id); return error||null; },
+        ()=>logAction("DELETE","Tracker",`Deleted activity: ${act?.activity_name||id} on ${act?.project_id||""}`,{id,project_id:act?.project_id,activity:act?.activity_name})
+      );
+    },{title:"Delete Activity",confirmLabel:"Delete"});
+  },[setActivities,activities,logAction,showConfirm,showToast]);
+
+  // ظ¤ظ¤ Comment handler ظ¤ delegates to app-level appHandleActivityComment for consistent notification routing ظ¤ظ¤
+  const handleActivityComment = onActivityComment;
+  if(!activitiesLoaded) return(
+    <div style={{padding:32,textAlign:"center",color:"var(--text4)",fontSize:15}}>Loading project trackerظخ</div>
+  );
+
+  // ظ¤ظ¤ OVERVIEW ظ¤ظ¤
+  if(!trackerProj){
+    // Engineers see only projects they are assigned to
+  const baseProjects=isEngineerRole
+    ? projects.filter(p=>(p.assigned_engineers||[]).map(String).includes(String(myProfile?.id))&&(actsByProj[p.id]||[]).length>0)
+    : (canEdit||isAcct)
+      ? projects
+      : projects.filter(p=>(actsByProj[p.id]||[]).length>0);
+    const allTrackerProjects=baseProjects.filter(p=>{
+      if(trackerStatusF!=="ALL" && p.status!==trackerStatusF) return false;
+      if(trackerSearch_){
+        const q=trackerSearch_.toLowerCase();
+        if(!p.id.toLowerCase().includes(q)&&!(p.name||"").toLowerCase().includes(q)&&!(p.client||"").toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+    return(<>
+    <div style={{display:"grid",gap:14}}>
+      <div style={{display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap",justifyContent:"space-between"}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>PROJECT TRACKER</div>
+          <div style={{fontSize:22,fontWeight:800,color:"var(--text0)"}}>{allTrackerProjects.length}{trackerStatusF!=="ALL"&&<span style={{fontSize:13,color:"var(--text4)",fontWeight:400}}> / {baseProjects.length}</span>} <span style={{fontSize:14,fontWeight:400,color:"var(--text3)"}}>projects ┬╖ {activities.length} activities</span></div>
+        </div>
+        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+          {/* Search */}
+          <div>
+            <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>SEARCH</div>
+            <input value={trackerSearch_} onChange={e=>setTrackerSearch_(e.target.value)}
+              placeholder="Search projectsظخ" style={{width:180}}/>
+          </div>
+          {/* Status chips */}
+          <div>
+            <div style={{fontSize:12,color:"var(--text4)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>STATUS</div>
+            <div style={{display:"flex",gap:4}}>
+              {[
+                {v:"ALL",      l:"All",     c:"var(--text2)"},
+                {v:"Active",   l:"Active",  c:"#34d399"},
+                {v:"On Hold",  l:"On Hold", c:"#fb923c"},
+                {v:"Completed",l:"Done",    c:"#a78bfa"},
+              ].map(chip=>{
+                // Show counts from FULL baseProjects (not filtered) so user knows total per status
+                const cnt=chip.v==="ALL"?allTrackerProjects.length:baseProjects.filter(p=>p.status===chip.v).length;
+                const active=trackerStatusF===chip.v;
+                return(
+                  <button type="button" key={chip.v} onClick={()=>setTrackerStatusF(chip.v)}
+                    style={{padding:"6px 12px",borderRadius:20,border:`1px solid ${active?chip.c+"90":"var(--border)"}`,
+                      background:active?chip.c+"18":"transparent",color:active?chip.c:"var(--text3)",
+                      fontSize:13,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",
+                      display:"flex",alignItems:"center",gap:5,transition:"all .15s",whiteSpace:"nowrap"}}>
+                    {chip.l}
+                    <span style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",opacity:.8}}>{cnt}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* ظ¤ظ¤ Deadline Panel ظ¤ظ¤ */}
+      {(()=>{
+        // FIX: build today string from LOCAL date parts (not toISOString which is UTC)
+        const _now=new Date();
+        const _todayStr=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}-${String(_now.getDate()).padStart(2,"0")}`;
+        const _addDays=(n)=>{const d=new Date(_now);d.setDate(_now.getDate()+n);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
+        const _7dStr=_addDays(7);
+        const _14dStr=_addDays(14);
+        // FIX: exclude Cancelled + activities on Completed projects + accountant sees nothing
+        const _inactiveProjIds=new Set(projects.filter(p=>p.status==="Completed"||p.status==="On Hold").map(p=>p.id));
+        const _scopedActs=activities.filter(a=>{
+          if(!a.end_date) return false;
+          if(a.status==="Completed"||a.status==="Cancelled"||a.status==="On Hold") return false;
+          if(a.end_date>_14dStr) return false;
+          if(_inactiveProjIds.has(a.project_id)) return false; // skip On Hold + Completed projects
+          if(isAcct&&!isAdmin) return false; // accountant does not see deadline panel; admin is also isAcct so must exclude explicitly
+          if(isEngineerRole) return !!(a.assigned_to&&myProfile?.name&&a.assigned_to.trim()===myProfile.name.trim());
+          if(isLead&&!isAdmin){ const _ids=new Set(baseProjects.map(p=>p.id)); return _ids.has(a.project_id); }
+          return true; // admin: all
+        });
+        if(!_scopedActs.length) return null;
+        const _overdue  =_scopedActs.filter(a=>a.end_date<_todayStr).sort((a,b)=>a.end_date.localeCompare(b.end_date));
+        const _thisWeek =_scopedActs.filter(a=>a.end_date>=_todayStr&&a.end_date<=_7dStr).sort((a,b)=>a.end_date.localeCompare(b.end_date));
+        const _upcoming =_scopedActs.filter(a=>a.end_date>_7dStr).sort((a,b)=>a.end_date.localeCompare(b.end_date));
+        const _fmtDate=d=>new Date(d+"T12:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"2-digit",month:"short"});
+        // FIX: use string comparison for "Due today" to avoid timezone arithmetic bug
+        const _daysLeft=d=>{
+          if(d===_todayStr) return "Due today";
+          if(d<_todayStr){
+            // count overdue days via string-safe calc
+            const diff=Math.round((new Date(d+"T12:00:00")-new Date(_todayStr+"T12:00:00"))/(1000*60*60*24));
+            return `${Math.abs(diff)}d overdue`;
+          }
+          const diff=Math.round((new Date(d+"T12:00:00")-new Date(_todayStr+"T12:00:00"))/(1000*60*60*24));
+          if(diff===1) return "Due tomorrow";
+          return `${diff}d left`;
+        };
+        // Plain render function ظ¤ NOT a component, no hooks
+        const _renderRow=(a,urgent)=>{
+          const _proj=projects.find(p=>p.id===a.project_id);
+          const _ov=a.end_date<_todayStr;
+          const _col=_ov?"#f87171":urgent?"#fb923c":"#34d399";
+          const _bg=_ov?"#7f1d1d18":urgent?"#78350f18":"#14532d18";
+          return(
+            <div key={a.id}
+              onClick={()=>{setTrackerProj(a.project_id);setTrackerSub(null);}}
+              onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){setTrackerProj(a.project_id);setTrackerSub(null);}}}
+              role="button" tabIndex={0}
+              title={`Open ${_proj?.name||a.project_id}`}
+              style={{display:"flex",alignItems:"center",gap:10,padding:"7px 12px",borderRadius:7,
+                background:_bg,border:`1px solid ${_col}30`,cursor:"pointer",transition:"border-color .15s"}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=_col+"80"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=_col+"30"}>
+              <span style={{fontSize:13,flexShrink:0}}>{_ov?"≡ا¤┤":urgent?"≡ااة":"≡اات"}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <span style={{fontSize:12,fontWeight:700,color:_col,fontFamily:"'IBM Plex Mono',monospace"}}>{_fmtDate(a.end_date)}</span>
+                  <span style={{fontSize:12,color:"var(--text4)"}}>┬╖</span>
+                  <span style={{fontSize:13,fontWeight:600,color:"var(--text0)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.activity_name}</span>
+                </div>
+                <div style={{display:"flex",gap:6,marginTop:2,alignItems:"center"}}>
+                  <span style={{fontSize:11,color:"var(--text4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{_proj?.name||a.project_id}</span>
+                  {a.assigned_to&&!isEngineerRole&&<><span style={{fontSize:11,color:"var(--text4)"}}>┬╖</span><span style={{fontSize:11,color:"var(--info)",fontWeight:600}}>{a.assigned_to}</span></>}
+                </div>
+              </div>
+              <span style={{fontSize:11,fontWeight:700,color:_col,fontFamily:"'IBM Plex Mono',monospace",
+                background:_col+"20",padding:"2px 7px",borderRadius:10,whiteSpace:"nowrap",flexShrink:0}}>
+                {_daysLeft(a.end_date)}
+              </span>
+            </div>
+          );
+        };
+        const _total=_overdue.length+_thisWeek.length+_upcoming.length;
+        return(
+          <div style={{background:"var(--bg1)",border:`1px solid ${_overdue.length?"#f8717140":"var(--border3)"}`,borderRadius:10,overflow:"hidden",marginBottom:2}}>
+            <div onClick={()=>setDlPanelOpen(o=>!o)}
+              style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",cursor:"pointer",
+                background:_overdue.length?"#7f1d1d10":"var(--bg0)",userSelect:"none"}}>
+              <span style={{fontSize:15}}>{_overdue.length?"≡ا¤┤":"≡اôà"}</span>
+              <span style={{fontSize:13,fontWeight:700,color:_overdue.length?"#f87171":"var(--text0)"}}>
+                Deadlines
+                {_overdue.length>0&&<span style={{marginLeft:6,background:"#f8717130",color:"#f87171",fontSize:11,padding:"1px 7px",borderRadius:8,fontWeight:700}}>{_overdue.length} overdue</span>}
+                {_thisWeek.length>0&&<span style={{marginLeft:6,background:"#fb923c20",color:"#fb923c",fontSize:11,padding:"1px 7px",borderRadius:8,fontWeight:700}}>{_thisWeek.length} this week</span>}
+                {_upcoming.length>0&&<span style={{marginLeft:6,background:"#34d39920",color:"#34d399",fontSize:11,padding:"1px 7px",borderRadius:8,fontWeight:700}}>{_upcoming.length} upcoming</span>}
+              </span>
+              <span style={{marginLeft:"auto",fontSize:12,color:"var(--text4)"}}>{dlPanelOpen?"ظû▓":"ظû╝"} {_total} ┬╖ click to {dlPanelOpen?"collapse":"expand"}</span>
+            </div>
+            {dlPanelOpen&&(
+              <div style={{padding:"10px 12px",display:"grid",gap:5}}>
+                {_overdue.length>0&&<>
+                  <div style={{fontSize:11,fontWeight:700,color:"#f87171",textTransform:"uppercase",letterSpacing:".08em",padding:"4px 4px 2px"}}>≡ا¤┤ Overdue</div>
+                  {_overdue.map(a=>_renderRow(a,false))}
+                </>}
+                {_thisWeek.length>0&&<>
+                  <div style={{fontSize:11,fontWeight:700,color:"#fb923c",textTransform:"uppercase",letterSpacing:".08em",padding:"4px 4px 2px",marginTop:_overdue.length?6:0}}>≡ااة Due This Week</div>
+                  {_thisWeek.map(a=>_renderRow(a,true))}
+                </>}
+                {_upcoming.length>0&&<>
+                  <div style={{fontSize:11,fontWeight:700,color:"#34d399",textTransform:"uppercase",letterSpacing:".08em",padding:"4px 4px 2px",marginTop:(_overdue.length||_thisWeek.length)?6:0}}>≡اات Next 14 Days</div>
+                  {_upcoming.map(a=>_renderRow(a,false))}
+                </>}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+        {allTrackerProjects.map(p=>{
+          const projActs=actsByProj[p.id]||[];
+          const hasSubs=subprojects.some(s=>s.project_id===p.id);
+          const totalHrs=getProjHrs(p.id);
+          const overallPct=projActs.length>0?Math.round(projActs.reduce((s,a)=>s+a.progress,0)/projActs.length*100):0;
+          const barColor=overallPct>=90?"#34d399":overallPct>=60?"var(--info)":overallPct>=30?"#fb923c":"#f87171";
+          const done=projActs.filter(a=>a.status==="Completed").length;
+          const active=projActs.filter(a=>a.status==="In Progress").length;
+          const pending=projActs.filter(a=>a.status==="Not Started").length;
+          return(
+          <div key={p.id} onClick={()=>setTrackerProj(p.id)}
+            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:10,padding:"14px 16px",cursor:"pointer",transition:"border-color .15s"}}
+            onMouseEnter={e=>e.currentTarget.style.borderColor="var(--info)"}
+            onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border3)"}>
+            {/* Header */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+              <div style={{flex:1,minWidth:0,paddingRight:8}}>
+                <div style={{fontSize:14,fontWeight:700,color:"var(--text0)",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name||p.id}</div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--info)"}}>{p.id}</span>
+                  {p.status!=="Active"&&<span style={{fontSize:11,fontWeight:600,padding:"1px 6px",borderRadius:3,
+                    background:p.status==="On Hold"?"#fb923c15":"#a78bfa15",
+                    color:p.status==="On Hold"?"#fb923c":"#a78bfa"}}>{p.status}</span>}
+                </div>
+                {p.project_leader&&<div style={{fontSize:12,color:"var(--info)",marginTop:2,fontWeight:700}}>Leader: {p.project_leader}</div>}
+                {p.pm&&<div style={{fontSize:12,color:"#a78bfa",marginTop:1}}>PM: <span style={{fontWeight:600}}>{p.pm}</span></div>}
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:800,color:barColor,lineHeight:1}}>{overallPct}%</div>
+                <div style={{fontSize:11,color:"var(--text4)",marginTop:2}}>{totalHrs}h logged</div>
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div style={{background:"var(--bg1)",borderRadius:4,height:5,overflow:"hidden",marginBottom:10}}>
+              <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4,transition:"width .4s"}}/>
+            </div>
+            {/* Activity chips */}
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {done>0&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"#34d39915",color:"#34d399",fontWeight:600,border:"1px solid #34d39930"}}>{done} Done</span>}
+              {active>0&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"var(--info)15",color:"var(--info)",fontWeight:600,border:"1px solid var(--info)30"}}>{active} Active</span>}
+              {pending>0&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text3)",fontWeight:600}}>{pending} Pending</span>}
+              {hasSubs&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"#a78bfa15",color:"#a78bfa",fontWeight:600,border:"1px solid #a78bfa30"}}>{subprojects.filter(s=>s.project_id===p.id).length} sub-sites</span>}
+              {projActs.length===0&&canEdit&&(
+                <span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"transparent",color:"var(--info)",border:"1px dashed var(--border3)",cursor:"pointer"}}
+                  onClick={e=>{e.stopPropagation();setTrackerProj(p.id);}}>
+                  + Add activities
+                </span>
+              )}
+              {projActs.length===0&&!canEdit&&<span style={{fontSize:11,color:"var(--text4)",fontStyle:"italic"}}>No activities yet</span>}
+            </div>
+          </div>);
+        })}
+      </div>
+    </div>
+    {addModal&&<AddActivityModal projId={addModal.projId} subId={addModal.subId} defaultCat={addModal.defaultCat} engineers={engineers} onSave={confirmAdd} onClose={()=>setAddModal(null)}/>}
+    </>);
+  }
+
+  // ظ¤ظ¤ PROJECT DETAIL ظ¤ظ¤
+  const selProj=projects.find(p=>p.id===trackerProj);
+  if(!selProj) return null;
+  const projSubs=subprojects.filter(s=>s.project_id===trackerProj);
+  const hasSubs=projSubs.length>0;
+  const projActs=actsByProj[trackerProj]||[];
+  const visActs=trackerSub
+    ? projActs.filter(a=>String(a.subproject_id)===String(trackerSub))
+    : projActs;
+
+  // Group by category ظ¤ ordered by TAXONOMY_GROUPS definition so SCADA categories stay together
+  // Build ordered list: for each group in order, add its categories that have activities
+  const ORDERED_GROUPS = ["SCADA","RTU-PLC","Protection","General"];
+  const orderedCats = [];
+  ORDERED_GROUPS.forEach(grp=>{
+    (TAXONOMY_GROUPS[grp]||[]).forEach(cat=>{
+      if(visActs.some(a=>(a.category===cat)||(a.group_name===cat&&!a.category))){
+        orderedCats.push(cat);
+      }
+    });
+  });
+  // Also add any categories not in taxonomy (custom ones) at the end
+  const knownCats = new Set(orderedCats);
+  visActs.forEach(a=>{
+    const cat = a.category||(CAT_TO_GROUP[a.group_name]?null:a.group_name)||null;
+    if(cat&&!knownCats.has(cat)){ orderedCats.push(cat); knownCats.add(cat); }
+  });
+  const catNames = orderedCats;
+  // Activity belongs to a category if: a.category===cat OR (no category and group_name===cat)
+  const getActsForCat = cat => visActs.filter(a=>
+    a.category===cat || ((!a.category)&&(a.group_name===cat))
+  );
+  const uncategorised=visActs.filter(a=>!a.group_name&&!a.category);
+
+  const overallPct=projActs.length>0?Math.round(projActs.reduce((s,a)=>s+a.progress,0)/projActs.length*100):0;
+  const barColor=overallPct>=90?"#34d399":overallPct>=60?"var(--info)":overallPct>=30?"#fb923c":"#f87171";
+  const totalHrs=getProjHrs(trackerProj);
+
+  return(<>
+  <div style={{display:"grid",gap:14}}>
+    {/* Breadcrumb */}
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      <button className="bg" style={{fontSize:13}} onClick={()=>{setTrackerProj(null);setTrackerSub(null);setExpandedCats({});}}>ظ All Projects</button>
+      <span style={{color:"var(--text4)"}}>/</span>
+      <span style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>{selProj.name||trackerProj}</span>
+      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--info)"}}>{trackerProj}</span>
+      {hasSubs&&trackerSub&&(
+        <><span style={{color:"var(--text4)"}}>/</span>
+        <span style={{fontSize:14,color:"#a78bfa"}}>{projSubs.find(s=>String(s.id)===String(trackerSub))?.name}</span>
+        <button className="bg" style={{fontSize:13}} onClick={()=>setTrackerSub(null)}>All Sites</button></>
+      )}
+      <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,color:barColor}}>{overallPct}%</div>
+        <div style={{fontSize:13,color:"var(--text4)"}}>{totalHrs}h logged</div>
+        {canEdit&&<button className="bp" style={{fontSize:13}} onClick={()=>setAddModal({projId:trackerProj,subId:trackerSub||null})}>+ Add Activity</button>}
+      </div>
+    </div>
+
+    {/* Progress bar */}
+    <div style={{background:"var(--bg2)",borderRadius:4,height:8,overflow:"hidden"}}>
+      <div style={{height:"100%",width:`${overallPct}%`,background:barColor,borderRadius:4,transition:"width .5s"}}/>
+    </div>
+
+    {/* Sub-site tabs */}
+    {hasSubs&&(
+    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+      <button onClick={()=>{setTrackerSub(null);setExpandedCats({});}}
+        style={{fontSize:13,padding:"4px 12px",borderRadius:5,border:`1px solid ${!trackerSub?"var(--info)":"var(--border)"}`,background:!trackerSub?"var(--bg3)":"transparent",color:!trackerSub?"var(--info)":"var(--text3)",cursor:"pointer"}}>
+        All Sites
+      </button>
+      {projSubs.map(sp=>{
+        const spActs=projActs.filter(a=>String(a.subproject_id)===String(sp.id));
+        const spPct=spActs.length>0?Math.round(spActs.reduce((s,a)=>s+a.progress,0)/spActs.length*100):0;
+        const isSel=String(trackerSub)===String(sp.id);
+        const sc=spPct>=90?"#34d399":spPct>=60?"var(--info)":spPct>=30?"#fb923c":"#f87171";
+        return(
+        <button key={sp.id} onClick={()=>{setTrackerSub(sp.id);setExpandedCats({});}}
+          style={{fontSize:13,padding:"4px 10px",borderRadius:5,border:`1px solid ${isSel?sc:"var(--border)"}`,background:isSel?sc+"20":"transparent",color:isSel?sc:"var(--text3)",cursor:"pointer"}}>
+          {sp.name} <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{spPct}%</span>
+        </button>);
+      })}
+    </div>)}
+
+    {/* ظ¤ظ¤ Activity Clipboard Paste Bar ظ¤ظ¤ */}
+    {actClipboard&&canEdit&&(
+      <div style={{display:"flex",gap:10,alignItems:"center",padding:"12px 16px",background:"#a78bfa15",border:"1px solid #a78bfa40",borderRadius:10,flexWrap:"wrap"}}>
+        
+        <div style={{flex:1,minWidth:200}}>
+          <div style={{fontSize:14,fontWeight:700,color:"#a78bfa"}}>
+            {actClipboard.acts.length} activit{actClipboard.acts.length===1?"y":"ies"} in clipboard
+          </div>
+          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
+            From: <span style={{color:"var(--text0)",fontWeight:600}}>{actClipboard.fromProjName}</span>
+            {actClipboard.fromSub&&<span> ظ║ {subprojects.find(s=>String(s.id)===String(actClipboard.fromSub))?.name}</span>}
+            <span style={{marginLeft:8,fontSize:12,color:"var(--text4)"}}>┬╖ Status resets to Not Started on paste</span>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <div>
+            <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:3}}>Target Project</div>
+            <select value={pasteTargetProj||trackerProj||""} onChange={e=>setPasteTargetProj(e.target.value)} style={{fontSize:13,width:160}}>
+              {projects.filter(p=>p.status==="Active").map(p=><option key={p.id} value={p.id}>{p.name||p.id}</option>)}
+            </select>
+          </div>
+          {(()=>{
+            const tProj=pasteTargetProj||trackerProj;
+            const tSubs=subprojects.filter(s=>s.project_id===tProj);
+            if(!tSubs.length) return null;
+            return(
+              <div>
+                <div style={{fontSize:11,color:"var(--text4)",fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginBottom:3}}>Sub-site (optional)</div>
+                <select value={pasteTargetSub} onChange={e=>setPasteTargetSub(e.target.value)} style={{fontSize:13,width:140}}>
+                  <option value="">ظ¤ No sub-site ظ¤</option>
+                  {tSubs.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            );
+          })()}
+          <button className="bp" style={{fontSize:13,padding:"7px 18px",alignSelf:"flex-end"}} onClick={pasteActivities}>
+            ظآ Paste {actClipboard.acts.length}
+          </button>
+          <button className="bg" style={{fontSize:13,alignSelf:"flex-end"}} onClick={()=>{setActClipboard(null);setPasteTargetProj("");setPasteTargetSub("");}}>
+            ظ£ـ Clear
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Category accordion sections ظ¤ grouped by TAXONOMY order */}
+    {canEdit&&bulkSelected.size>0&&(
+      <div style={{display:"flex",gap:8,alignItems:"center",padding:"8px 14px",background:"#0ea5e915",border:"1px solid #0ea5e930",borderRadius:8,flexWrap:"wrap"}}>
+        <span style={{fontSize:13,fontWeight:700,color:"var(--info)"}}>{bulkSelected.size} selected</span>
+        <span style={{color:"var(--text4)",fontSize:13}}>ظْ Set to:</span>
+        <select value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)}
+          style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:5,padding:"4px 8px",color:"var(--text0)",fontSize:13}}>
+          {["Not Started","In Progress","On Hold","Completed"].map(s=><option key={s}>{s}</option>)}
+        </select>
+        <button className="bp" style={{fontSize:13,padding:"4px 14px"}} onClick={bulkUpdateStatus}>Apply</button>
+        <button style={{fontSize:13,padding:"4px 14px",borderRadius:6,border:"1px solid #a78bfa50",background:"#a78bfa15",color:"#a78bfa",cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600}}
+          onClick={copyActivities}>
+          ≡اôï Copy selection
+        </button>
+        <button className="bg" style={{fontSize:13,padding:"4px 10px"}} onClick={()=>setBulkSelected(new Set())}>ظ£ـ Clear</button>
+      </div>
+    )}
+    <div style={{display:"grid",gap:8}}>
+      {catNames.map(cat=>{
+        const catActs=getActsForCat(cat);
+        const catPct=Math.round(catActs.reduce((s,a)=>s+a.progress,0)/catActs.length*100);
+        const catDone=catActs.filter(a=>a.status==="Completed").length;
+        const isOpen=expandedCats[cat]!==false;
+        const catGroup=CAT_TO_GROUP[cat]||null;
+        const GROUP_COLORS_MAP={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
+        const catColor=GROUP_COLORS_MAP[catGroup]||(catPct>=90?"#34d399":catPct>=60?"var(--info)":catPct>=30?"#fb923c":"#f87171");
+        return(
+        <div key={cat} style={{background:"var(--bg2)",border:`1px solid ${catColor}30`,borderRadius:8,overflow:"hidden"}}>
+          {/* Category header ظ¤ clickable to collapse */}
+          <div onClick={()=>toggleCat(cat)}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",background:"var(--bg0)"}}
+            onMouseEnter={e=>e.currentTarget.style.background="var(--bg3)"}
+            onMouseLeave={e=>e.currentTarget.style.background="var(--bg0)"}>
+            <span style={{fontSize:13,color:"var(--text4)",transition:"transform .2s",display:"inline-block",transform:isOpen?"rotate(90deg)":"rotate(0deg)"}}>ظû╢</span>
+            {catGroup&&<span style={{fontSize:11,padding:"1px 6px",borderRadius:3,background:catColor+"20",color:catColor,fontWeight:700,flexShrink:0}}>{catGroup}</span>}
+            <span style={{fontSize:13,fontWeight:700,color:catColor,flex:1}}>{cat}</span>
+            {/* Mini progress bar */}
+            <div style={{width:80,height:5,background:"var(--bg1)",borderRadius:3,overflow:"hidden"}}>
+              <div style={{height:"100%",width:`${catPct}%`,background:catColor,borderRadius:3}}/>
+            </div>
+            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:catColor,width:32,textAlign:"right"}}>{catPct}%</span>
+            <span style={{fontSize:12,color:"var(--text4)",width:60,textAlign:"right"}}>{catDone}/{catActs.length} done</span>
+            {canEdit&&<button className="bp" style={{fontSize:12,padding:"1px 7px",marginLeft:4}}
+              onClick={e=>{e.stopPropagation();setAddModal({projId:trackerProj,subId:trackerSub||null,defaultCat:cat});}}>+</button>}
+          </div>
+          {/* Activity rows */}
+          {isOpen&&(
+          <table style={{margin:0}}>
+            <thead><tr>
+              {canEdit&&<th style={{width:28}}></th>}
+              <th>Activity</th><th>Status</th><th>Progress</th>
+              <th>Assigned</th><th>Dates</th><th>Hours</th>
+              {(canEdit||isEngineerRole)&&<th style={{width:36}}></th>}
+              {canEdit&&<th style={{width:28}}></th>}
+            </tr></thead>
+            <tbody>
+              {catActs.map(a=>(
+                <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)}
+                  isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}
+                  isSelected={bulkSelected.has(a.id)}
+                  onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}
+                  onComment={handleActivityComment} myProfile={myProfile} isEngineerRole={isEngineerRole}/>
+              ))}
+            </tbody>
+          </table>)}
+        </div>
+        );
+      })}
+
+      {/* Uncategorised activities */}
+      {uncategorised.length>0&&(
+      <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:8,overflow:"hidden"}}>
+        <div style={{padding:"8px 14px",background:"var(--bg0)",fontSize:13,color:"var(--text3)",fontWeight:700}}>UNCATEGORISED</div>
+        <table style={{margin:0}}>
+          <thead><tr>
+            {canEdit&&<th style={{width:28}}></th>}
+            <th>Activity</th><th>Status</th><th>Progress</th>
+            <th>Assigned</th><th>Dates</th><th>Hours</th>
+            {(canEdit||isEngineerRole)&&<th style={{width:36}}></th>}
+            {canEdit&&<th style={{width:28}}></th>}
+          </tr></thead>
+          <tbody>
+            {uncategorised.map(a=>(
+              <ActivityRow key={a.id} a={a} actHrs={getHrs(a.id)}
+                isAdmin={canEdit} onEdit={setEditActivity} onDelete={deleteActivity}
+                isSelected={bulkSelected.has(a.id)}
+                onSelect={canEdit?(id=>setBulkSelected(prev=>{const s=new Set(prev);s.has(id)?s.delete(id):s.add(id);return s;})):null}
+                onComment={handleActivityComment} myProfile={myProfile} isEngineerRole={isEngineerRole}/>
+            ))}
+          </tbody>
+        </table>
+      </div>)}
+
+      {visActs.length===0&&(
+        <div style={{textAlign:"center",padding:"40px 24px",background:"var(--bg2)",borderRadius:8,border:"1px dashed var(--border3)"}}>
+          
+          <div style={{fontSize:15,fontWeight:600,color:"var(--text0)",marginBottom:6}}>No activities yet</div>
+          <div style={{fontSize:13,color:"var(--text4)",marginBottom:canEdit?18:0}}>
+            {trackerSub
+              ? "No activities have been added to this sub-site yet."
+              : "This project has no tracker activities."}
+          </div>
+          {canEdit&&(
+            <button className="bp" style={{fontSize:13,padding:"7px 18px"}}
+              onClick={()=>setAddModal({projId:trackerProj,subId:trackerSub||null})}>
+              + Add First Activity
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+
+    {/* Summary strip */}
+    <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+      {[
+        {label:"Completed",  count:visActs.filter(a=>a.status==="Completed").length,  color:"#34d399",bg:"var(--bg3)"},
+        {label:"In Progress",count:visActs.filter(a=>a.status==="In Progress").length, color:"var(--info)",bg:"var(--bg3)"},
+        {label:"Not Started",count:visActs.filter(a=>a.status==="Not Started").length, color:"var(--text3)",bg:"var(--bg3)"},
+        {label:"On Hold",    count:visActs.filter(a=>a.status==="On Hold").length,     color:"#fb923c",bg:"var(--bg3)"},
+      ].filter(s=>s.count>0).map(s=>(
+        <div key={s.label} style={{display:"flex",gap:6,alignItems:"center",background:s.bg,border:`1px solid ${s.color}25`,borderRadius:6,padding:"5px 10px"}}>
+          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:16,fontWeight:700,color:s.color}}>{s.count}</span>
+          <span style={{fontSize:13,color:"var(--text3)"}}>{s.label}</span>
+        </div>
+      ))}
+      <div style={{marginLeft:"auto",fontSize:13,color:"var(--text4)"}}>Click row to edit ┬╖ Click category header to collapse</div>
+    </div>
+  </div>
+
+  {/* Edit modal */}
+  {editActivity&&(
+    <ActivityEditModal
+      act={{...editActivity, category: editActivity.category||editActivity.group_name||""}}
+      onSave={saveActivity}
+      onClose={()=>setEditActivity(null)}
+      engineers={engineers}
+      onComment={handleActivityComment}
+      myProfile={myProfile}/>
+  )}
+
+  {/* Add modal */}
+  {addModal&&(
+    <AddActivityModal
+      projId={addModal.projId} subId={addModal.subId}
+      defaultCat={addModal.defaultCat}
+      onSave={confirmAdd}
+      onClose={()=>setAddModal(null)}/>
+  )}
+  </>);
+}
+
+
+
+/* ظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـ
+   SUB-PROJECT MODAL (add / edit)
+   ظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـ */
+function SubProjectModal({projectId, sub, engineers, onSave, onClose}){
+  const isEdit = !!sub;
+  const [draft, setDraft] = useState(sub
+    ? {...sub}
+    : {project_id:projectId, name:"", pm_name:"", pm_comments:"", pendings:""}
+  );
+  const engList = engineers.filter(e=>e.role_type!=="accountant");
+  return(
+  <div className="modal-ov" onClick={onClose}>
+    <div className="modal" style={{maxWidth:440}} onClick={e=>e.stopPropagation()}>
+      <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:16}}>
+        {isEdit?"Edit Sub-site":"Add Sub-site"}
+        <span style={{fontSize:13,color:"#a78bfa",marginLeft:8,fontWeight:400}}>Project: {projectId}</span>
+      </h3>
+      <div style={{display:"grid",gap:10}}>
+        <div>
+          <label style={{fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>SUB-SITE NAME <span style={{color:"#f87171"}}>*</span></label>
+          <input value={draft.name} onChange={e=>setDraft(p=>({...p,name:e.target.value}))}
+            placeholder="e.g. Ipotesti, Craiova, Braduظخ"
+            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13,boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>BU ROMANIA PM</label>
+          <input value={draft.pm_name||""} onChange={e=>setDraft(p=>({...p,pm_name:e.target.value}))}
+            placeholder="e.g. Cosmin, Irena, Alexandaظخ"
+            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text0)",padding:"6px 8px",fontSize:13,boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>ASSIGNED ENGINEERS</label>
+          <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"8px 10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,maxHeight:140,overflowY:"auto"}}>
+            {engList.map(e=>{
+              const assignedArr = (draft.assigned_engineers||[]).map(String);
+              const sel = assignedArr.includes(String(e.id));
+              return(
+              <label key={e.id} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"2px 4px",borderRadius:3,background:sel?"var(--bg3)":"transparent"}}>
+                <input type="checkbox" checked={sel} onChange={()=>setDraft(p=>{
+                  const cur=(p.assigned_engineers||[]).map(String);
+                  return {...p, assigned_engineers: sel ? cur.filter(x=>x!==String(e.id)) : [...cur,String(e.id)]};
+                })} style={{accentColor:"var(--info)"}}/>
+                <span style={{fontSize:13,color:sel?"var(--info)":"var(--text2)"}}>{e.name}</span>
+              </label>);
+            })}
+          </div>
+        </div>
+        <div>
+          <label style={{fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>PM COMMENTS</label>
+          <textarea value={draft.pm_comments||""} onChange={e=>setDraft(p=>({...p,pm_comments:e.target.value}))} rows={2}
+            placeholder="Comments from BU Romania PMظخ"
+            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"var(--text2)",padding:"6px 8px",fontSize:13,resize:"vertical",boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:13,color:"var(--text2)",fontWeight:600,display:"block",marginBottom:4}}>PENDING ITEMS</label>
+          <textarea value={draft.pendings||""} onChange={e=>setDraft(p=>({...p,pendings:e.target.value}))} rows={2}
+            placeholder="e.g. Waiting for IP list, IOA addressesظخ"
+            style={{width:"100%",background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:4,color:"#f87171",padding:"6px 8px",fontSize:13,resize:"vertical",boxSizing:"border-box"}}/>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:10,marginTop:16,justifyContent:"flex-end"}}>
+        <button className="bg" onClick={onClose}>Cancel</button>
+        <button className="bp" disabled={!draft.name.trim()} onClick={()=>onSave(draft)}>
+          {isEdit?"Save Changes":"Add Sub-site"}
+        </button>
+      </div>
+    </div>
+  </div>);
+}
+
+/* ظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـ
+   PROJECTS TAB ظ¤ standalone component (prevents hang)
+   ظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـ */
+function ProjectsTab({projects, subprojects, entries, engineers, expandedProj, setExpandedProj,
+  setShowProjModal, setEditProjModal, setSubProjModal, deleteProject, deleteSubProject,
+  activities, setActivities, supabase, showToast, isAdmin, isLead, isAcct, showConfirm}){
+  const [actModal,setActModal] = React.useState(null); // {projId, act:null|object}
+  const [actDraft,setActDraft] = React.useState({});
+  const [projSearch,setProjSearch]   = React.useState("");
+  const [projStatus,setProjStatus]   = React.useState("ALL");
+  const [projType,setProjType]       = React.useState("ALL");
+  const [projPhase,setProjPhase]     = React.useState("ALL");
+  const [projBilling,setProjBilling] = React.useState("ALL");
+  const canEdit = isAdmin||isLead;
+  const canManageActs = isAdmin||isLead;
+
+  const openActModal=(projId,act=null)=>{
+    setActDraft(act?{...act}:{project_id:projId,group_name:"SCADA",category:"Templates",activity_name:"",status:"Not Started",progress:0,assigned_to:"",remarks:""});
+    setActModal({projId,act});
+  };
+  const saveAct=async()=>{
+    if(!actDraft.activity_name?.trim()){if(showToast)showToast("Activity name required",false);return;}
+    if(actModal.act){
+      const{id,...fields}=actDraft;
+      const{data,error}=await supabase.from("project_activities").update(fields).eq("id",id).select().single();
+      if(error){if(showToast)showToast("Error: "+error.message,false);return;}
+      if(setActivities) setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
+    } else {
+      const{data,error}=await supabase.from("project_activities").insert(actDraft).select().single();
+      if(error){if(showToast)showToast("Error: "+error.message,false);return;}
+      if(setActivities) setActivities(prev=>[...prev,data]);
+    }
+    setActModal(null);
+    if(showToast)showToast("Activity saved ظ£ô");
+  };
+  const delAct=async(id)=>{
+    const act=(activities||[]).find(a=>a.id===id);
+    showConfirm("Delete this activity?",()=>{
+      applyUndo(
+        showToast,"Activity deleted",
+        ()=>{ if(setActivities)setActivities(prev=>prev.filter(a=>a.id!==id)); },
+        ()=>{ if(setActivities&&act)setActivities(prev=>[act,...prev]); },
+        async()=>{ const{error}=await supabase.from("project_activities").delete().eq("id",id); return error||null; },
+        null
+      );
+    },{title:"Delete Activity",confirmLabel:"Delete"});
+  };
+
+  const projHrsMap = useMemo(()=>{
+    const m={};
+    for(const e of entries){ if(e.entry_type==="work"&&e.project_id) m[e.project_id]=(m[e.project_id]||0)+e.hours; }
+    return m;
+  },[entries]);
+
+  return(
+  <div style={{display:"grid",gap:12}}>
+    <div className="card" style={{padding:0,overflow:"hidden"}}>
+      {/* ظ¤ظ¤ Header row ظ¤ظ¤ */}
+      <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+        <div>
+          <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Projects</div>
+          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>
+            {projects.filter(p=>{
+              const ms=projStatus==="ALL"||p.status===projStatus;
+              const mt=projType==="ALL"||p.type===projType;
+              const mph=projPhase==="ALL"||p.phase===projPhase;
+              const mb=projBilling==="ALL"||(projBilling==="Billable"?p.billable:!p.billable);
+              const mq=!projSearch||(p.name||"").toLowerCase().includes(projSearch.toLowerCase())||(p.id||"").toLowerCase().includes(projSearch.toLowerCase())||(p.client||"").toLowerCase().includes(projSearch.toLowerCase());
+              return ms&&mt&&mph&&mb&&mq;
+            }).length} of {projects.length} projects
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <input value={projSearch} onChange={e=>setProjSearch(e.target.value)} placeholder="Search name, ID, clientظخ"
+            style={{width:200,padding:"7px 12px",borderRadius:7,border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--text0)",fontSize:13}}/>
+          {canEdit&&<button className="bp" onClick={()=>setShowProjModal(true)}>+ New Project</button>}
+        </div>
+      </div>
+      {/* ظ¤ظ¤ Filter bar ظ¤ظ¤ */}
+      <div style={{padding:"10px 20px",borderBottom:"1px solid var(--border)",background:"var(--bg1)",display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end"}}>
+        {/* Status */}
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Status</div>
+          <div style={{display:"flex",gap:4}}>
+            {[["ALL","All"],["Active","Active"],["On Hold","On Hold"],["Completed","Done"]].map(([v,l])=>{
+              const cnt=v==="ALL"?projects.length:projects.filter(p=>p.status===v).length;
+              const col=v==="Active"?"#34d399":v==="On Hold"?"#fb923c":v==="Completed"?"#a78bfa":"var(--text2)";
+              const active=projStatus===v;
+              return(<button key={v} onClick={()=>setProjStatus(v)}
+                style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${active?col+"90":"var(--border)"}`,
+                  background:active?col+"18":"transparent",color:active?col:"var(--text3)",
+                  fontSize:12,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",whiteSpace:"nowrap"}}>
+                {l} <span style={{fontSize:11,opacity:.8}}>{cnt}</span>
+              </button>);
+            })}
+          </div>
+        </div>
+        {/* Type */}
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Type</div>
+          <div style={{display:"flex",gap:4}}>
+            {[["ALL","All"],["Renewable Energy","Renewable"],["Industrial","Industrial"]].map(([v,l])=>{
+              const col=v==="Renewable Energy"?"#34d399":v==="Industrial"?"#818cf8":"var(--text2)";
+              const active=projType===v;
+              return(<button key={v} onClick={()=>setProjType(v)}
+                style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${active?col+"90":"var(--border)"}`,
+                  background:active?col+"18":"transparent",color:active?col:"var(--text3)",
+                  fontSize:12,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",whiteSpace:"nowrap"}}>
+                {l}
+              </button>);
+            })}
+          </div>
+        </div>
+        {/* Billing */}
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Billing</div>
+          <div style={{display:"flex",gap:4}}>
+            {[["ALL","All"],["Billable","Billable"],["Internal","Internal"]].map(([v,l])=>{
+              const col=v==="Billable"?"#34d399":v==="Internal"?"var(--text3)":"var(--text2)";
+              const active=projBilling===v;
+              return(<button key={v} onClick={()=>setProjBilling(v)}
+                style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${active?col+"90":"var(--border)"}`,
+                  background:active?col+"18":"transparent",color:active?col:"var(--text3)",
+                  fontSize:12,fontWeight:active?700:500,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",whiteSpace:"nowrap"}}>
+                {l}
+              </button>);
+            })}
+          </div>
+        </div>
+        {/* Phase */}
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Phase</div>
+          <select value={projPhase} onChange={e=>setProjPhase(e.target.value)}
+            style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"4px 10px",color:"var(--text0)",fontSize:12,fontWeight:600,outline:"none",cursor:"pointer",minWidth:120}}>
+            <option value="ALL">All Phases</option>
+            {["Design","Basic Engineering","Detailed Engineering","Software","FAT","Commissioning","Closed"].map(ph=><option key={ph}>{ph}</option>)}
+          </select>
+        </div>
+        {/* Clear all */}
+        {(projStatus!=="ALL"||projType!=="ALL"||projPhase!=="ALL"||projBilling!=="ALL"||projSearch)&&(
+          <button onClick={()=>{setProjStatus("ALL");setProjType("ALL");setProjPhase("ALL");setProjBilling("ALL");setProjSearch("");}}
+            style={{padding:"4px 12px",borderRadius:20,border:"1px solid #f8717160",background:"#f8717112",color:"#f87171",
+              fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",alignSelf:"flex-end",marginBottom:1}}>
+            ظ£ـ Clear filters
+          </button>
+        )}
+      </div>
+      <table>
+        <thead><tr>
+          <th style={{width:28}}></th>
+          <th>Name</th><th>No.</th><th>PM</th><th>Client</th><th>Phase</th>
+          <th>Status</th><th>Billing</th><th>Hours</th>
+          <th>Sub-sites</th>
+          <th style={{width:110}}>Actions</th>
+        </tr></thead>
+        <tbody>{projects.filter(p=>{
+          const ms=projStatus==="ALL"||p.status===projStatus;
+          const mt=projType==="ALL"||p.type===projType;
+          const mph=projPhase==="ALL"||p.phase===projPhase;
+          const mb=projBilling==="ALL"||(projBilling==="Billable"?p.billable:!p.billable);
+          const mq=!projSearch||(p.name||"").toLowerCase().includes(projSearch.toLowerCase())||(p.id||"").toLowerCase().includes(projSearch.toLowerCase())||(p.client||"").toLowerCase().includes(projSearch.toLowerCase());
+          return ms&&mt&&mph&&mb&&mq;
+        }).map(p=>{
+          const pSubs = subprojects.filter(s=>s.project_id===p.id);
+          const isExp = expandedProj[p.id];
+          const hrs   = projHrsMap[p.id]||0;
+          return(<React.Fragment key={p.id}>
+            <tr>
+              <td style={{textAlign:"center"}}>
+                {pSubs.length>0&&(
+                  <button onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}
+                    style={{background:"none",border:"none",color:"#a78bfa",cursor:"pointer",fontSize:13,padding:0,
+                      transition:"transform .2s",display:"inline-block",transform:isExp?"rotate(90deg)":"rotate(0deg)"}}>ظû╢</button>
+                )}
+              </td>
+              <td style={{fontSize:13,fontWeight:600}}>{p.name||p.id}</td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)"}}>{p.id}</td>
+              <td style={{fontSize:13,color:"#a78bfa"}}>{p.pm||"ظ¤"}</td>
+              <td style={{color:"var(--text2)",fontSize:13}}>{p.client}</td>
+              <td style={{color:"#60a5fa",fontSize:13}}>{p.phase}</td>
+              <td><span style={{fontSize:12,padding:"2px 6px",borderRadius:3,fontWeight:700,
+                background:p.status==="Active"?"#05603a30":p.status==="On Hold"?"#7c2d1230":"var(--border)",
+                color:p.status==="Active"?"#34d399":p.status==="On Hold"?"#fb923c":"#60a5fa"}}>{p.status}</span></td>
+              <td><span style={{fontSize:12,padding:"2px 6px",borderRadius:3,fontWeight:700,
+                background:p.billable?"var(--bg3)":"#fb923c20",color:p.billable?"var(--info)":"#fb923c"}}>
+                {p.billable?"Billable":"Non-Bill"}</span></td>
+              <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{hrs}h</td>
+              <td>
+                {pSubs.length>0
+                  ? <span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"#a78bfa",
+                      fontWeight:700,cursor:"pointer"}}
+                      onClick={()=>setExpandedProj(prev=>({...prev,[p.id]:!prev[p.id]}))}>
+                      {pSubs.length} sub-site{pSubs.length>1?"s":""}
+                    </span>
+                  : <span style={{fontSize:12,color:"var(--text4)"}}>ظ¤</span>
+                }
+              </td>
+              <td><div style={{display:"flex",gap:4}}>
+                {canEdit&&<button className="be" title="Edit project" onClick={()=>setEditProjModal({...p})}>ظ£</button>}
+                {canEdit&&<button style={{fontSize:13,padding:"2px 7px",borderRadius:4,background:"var(--bg3)",
+                  border:"1px solid #a78bfa30",color:"#a78bfa",cursor:"pointer"}}
+                  title="Add sub-site" onClick={()=>setSubProjModal({projectId:p.id,sub:null})}>+ظèـ</button>}
+                {isAdmin&&<button className="bd" title="Delete project" onClick={()=>deleteProject(p.id)}>ظ£ـ</button>}
+              </div></td>
+            </tr>
+            {/* Sub-project rows */}
+            {isExp&&pSubs.map(sp=>(
+              <tr key={sp.id} style={{background:"var(--bg2)"}}>
+                <td></td>
+                <td colSpan={2} style={{paddingLeft:24}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{color:"var(--text4)",fontSize:13}}>ظ¤¤</span>
+                    <span style={{fontSize:13,color:"#a78bfa",fontWeight:600}}>{sp.name}</span>
+                  </div>
+                </td>
+                <td style={{fontSize:13,color:"var(--text2)"}}>{sp.pm_name||"ظ¤"}</td>
+                <td colSpan={2} style={{fontSize:13,color:"var(--info)"}}>
+                  {(sp.assigned_engineers||[]).map(eid=>engineers.find(e=>String(e.id)===String(eid))?.name).filter(Boolean).join(", ")||"ظ¤"}
+                </td>
+                <td colSpan={2} style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",
+                  maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sp.pendings||""}</td>
+                <td></td>
+                <td><div style={{display:"flex",gap:4}}>
+                  {canEdit&&<button className="be" style={{fontSize:13}} onClick={()=>setSubProjModal({projectId:p.id,sub:sp})}>ظ£</button>}
+                  {isAdmin&&<button className="bd" style={{fontSize:13}} onClick={()=>deleteSubProject(sp.id)}>ظ£ـ</button>}
+                </div></td>
+              </tr>
+            ))}
+          </React.Fragment>);
+        })}</tbody>
+      </table>
+    </div>
+  </div>);
+}
+
+
+
+/* ظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـ
+   FINANCE MODULE COMPONENTS ظ¤ Excel-matched tabs
+   ظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـظـ */
+
