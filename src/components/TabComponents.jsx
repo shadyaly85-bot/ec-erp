@@ -3,8 +3,8 @@ import { FUNCTION_CATS, FUNC_COLORS } from "../constants.js";
 import { supabase } from "../supabase";
 
 /* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-   PROJECT TRACKER â€” standalone component
-/* â”€â”€ Shared helpers (module-level, no hooks) â”€â”€ */
+   PROJECT TRACKER — standalone component
+/* ---- Shared helpers (module-level, no hooks) ---- */
 function FunctionsTab({entries, engineers, funcYear, setFuncYear, funcEngId, setFuncEngId, deleteEntry, isAdmin, isLead, isAcct, year, setShowFuncModal, isMonthFrozen}){
 
   const {funcEntries, yearFuncs, totalFuncHrs, catTotals, maxCat, engFuncMap} = useMemo(()=>{
@@ -32,7 +32,7 @@ engineers.forEach(eng=>{
   return(
 <div style={{display:"grid",gap:20}}>
 
-  {/* â”€â”€ Page header â”€â”€ */}
+  {/* ---- Page header ---- */}
   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
     <div>
       <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>FUNCTION HOURS</div>
@@ -69,7 +69,7 @@ engineers.forEach(eng=>{
           <div style={{background:"var(--bg3)",borderRadius:4,height:8,overflow:"hidden"}}>
             <div style={{height:"100%",width:`${pct}%`,background:FUNC_COLORS[cat]||"var(--info)",borderRadius:4,transition:"width .4s",minWidth:hrs>0?4:0}}/>
           </div>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,color:hrs>0?(FUNC_COLORS[cat]||"var(--info)"):"var(--text4)",fontWeight:700,textAlign:"right"}}>{hrs>0?hrs+"h":"â€”"}</div>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,color:hrs>0?(FUNC_COLORS[cat]||"var(--info)"):"var(--text4)",fontWeight:700,textAlign:"right"}}>{hrs>0?hrs+"h":"—"}</div>
         </div>);
       })}
     </div>
@@ -86,15 +86,15 @@ engineers.forEach(eng=>{
       <thead><tr>
         <th>Engineer</th>
         <th style={{textAlign:"right"}}>Total</th>
-        {FUNCTION_CATS.map(c=><th key={c} style={{textAlign:"right",maxWidth:70,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:FUNC_COLORS[c]}} title={c}>{c.split("â€”")[0].split("&")[0].trim().slice(0,11)}</th>)}
+        {FUNCTION_CATS.map(c=><th key={c} style={{textAlign:"right",maxWidth:70,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:FUNC_COLORS[c]}} title={c}>{c.split("—")[0].split("&")[0].trim().slice(0,11)}</th>)}
       </tr></thead>
       <tbody>{engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.is_active!==null&&(!e.termination_date||String(e.termination_date).slice(0,10)>new Date().toISOString().slice(0,10))).map(eng=>{
         const em=engFuncMap[eng.id]||{total:0,cats:{}};
         return(<tr key={eng.id}>
           <td><div style={{fontWeight:600}}>{eng.name}</div><div style={{fontSize:12,color:"var(--text4)"}}>{eng.role}</div></td>
-          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{em.total||"â€”"}</td>
+          <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{em.total||"—"}</td>
           {FUNCTION_CATS.map(c=>(
-            <td key={c} style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:em.cats[c]>0?(FUNC_COLORS[c]||"var(--info)"):"var(--text4)"}}>{em.cats[c]||"â€”"}</td>
+            <td key={c} style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:em.cats[c]>0?(FUNC_COLORS[c]||"var(--info)"):"var(--text4)"}}>{em.cats[c]||"—"}</td>
           ))}
         </tr>);
       })}</tbody>
@@ -118,7 +118,7 @@ engineers.forEach(eng=>{
           <td style={{fontWeight:600}}>{eng?.name||"?"}</td>
           <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:(FUNC_COLORS[cat]||"#6b7280")+"20",color:FUNC_COLORS[cat]||"#6b7280",fontWeight:700}}>{cat}</span></td>
           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#a78bfa"}}>{e.hours}h</td>
-          <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"â€”"}</td>
+          <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
           {isAdmin&&<td>{isMonthFrozen(e.date)?<span title="Month frozen" style={{fontSize:13,color:"#93c5fd",padding:"0 6px"}}>â‌„</span>:<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>âœ•</button>}</td>}
         </tr>);
       })}</tbody>
@@ -129,9 +129,9 @@ engineers.forEach(eng=>{
 }
 
 /* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-   KPIs TAB â€” standalone component
+   KPIs TAB — standalone component
    â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
-/* â”€â”€ KPI rating helpers â€” module-level so JSX render can access them â”€â”€ */
+/* ---- KPI rating helpers — module-level so JSX render can access them ---- */
 const kpiRatingLabel=s=>s<=40?"Under Performer":s<=75?"Competent":s<=95?"Performer":"High Performer";
 const kpiRatingColor=s=>s<=40?"#f87171":s<=75?"#fb923c":s<=95?"var(--info)":"#34d399";
 const kpiRatingBg=   s=>s<=40?"#7f1d1d20":s<=75?"var(--bg3)":s<=95?"var(--bg3)":"var(--bg3)";
@@ -225,7 +225,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       setNotifications&&setNotifications(prev=>prev.filter(n=>n.id!==notifId));
       if(_notif&&setNotifHistory) setNotifHistory(prev=>[{..._notif,read:true},...prev].slice(0,200));
     }
-    // 4. Send vacation_approved notification â€” direct insert, no helper, no prop chain
+    // 4. Send vacation_approved notification — direct insert, no helper, no prop chain
     if(entry){
       const requesterEng=engineers.find(e=>String(e.id)===String(entry.engineer_id));
       const _payload={
@@ -236,7 +236,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       };
       const{error:ne}=await supabase.from("notifications").insert(_payload);
       if(ne){
-        console.warn("[EC-ERP] vacation_approved insert failed:",ne.message,"â€” trying fallback without engineer_id column");
+        console.warn("[EC-ERP] vacation_approved insert failed:",ne.message,"— trying fallback without engineer_id column");
         const{engineer_id:_eid,..._rest}=_payload;
         const _meta={...JSON.parse(_rest.meta||"{}"),_eng_id:String(_eid)};
         const{error:ne2}=await supabase.from("notifications").insert({..._rest,meta:JSON.stringify(_meta)});
@@ -249,8 +249,8 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       }
       logAction("UPDATE","TimeEntry",`Approved vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     } else {
-      console.error("[EC-ERP] approveVacation â€” entry not found in state! entryId:",entryId,"entries count:",entries.length);
-      showToast("âڑ  Approval saved but entry not found â€” refresh and check",false);
+      console.error("[EC-ERP] approveVacation — entry not found in state! entryId:",entryId,"entries count:",entries.length);
+      showToast("âڑ  Approval saved but entry not found — refresh and check",false);
     }
     showToast("Vacation approved âœ“");
   };
@@ -289,7 +289,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
       }
       logAction("DELETE","TimeEntry",`Rejected vacation for ${requesterEng?.name||entry.engineer_id} on ${entry.date}`,{entry_id:entryId,engineer_id:entry.engineer_id,engineer_name:requesterEng?.name,date:entry.date});
     } else {
-      console.error("[EC-ERP] rejectVacation â€” entry not found! entryId:",entryId);
+      console.error("[EC-ERP] rejectVacation — entry not found! entryId:",entryId);
     }
     showToast("Vacation request rejected",false)
   };
@@ -319,22 +319,22 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   // Improvement tips per metric
   const TIPS={
     A:[
-      {icon:"ًں“‹",tip:"Log hours on billable projects every day â€” even 1h entries count."},
+      {icon:"ًں“‹",tip:"Log hours on billable projects every day — even 1h entries count."},
       {icon:"ًںژ“",tip:"Keep knowledge sessions to ~10% of total time (Training & R&D function entries)."},
-      {icon:"ًں¤‌",tip:"Log BD activities: tender reviews, proposals, and client meetings as Function â†’ BD/Sales."},
+      {icon:"ًں¤‌",tip:"Log BD activities: tender reviews, proposals, and client meetings as Function → BD/Sales."},
     ],
     B:[
-      {icon:"âœچï¸ڈ",tip:"Add a meaningful activity note (>5 chars) to every single work entry â€” aim for 100%."},
+      {icon:"âœچï¸ڈ",tip:"Add a meaningful activity note (>5 chars) to every single work entry — aim for 100%."},
       {icon:"ًں“پ",tip:"Work across multiple active projects; each distinct project boosts your score."},
-      {icon:"ًں“‌",tip:"Log lesson-learned and progress-report writing as Function â†’ Documentation."},
+      {icon:"ًں“‌",tip:"Log lesson-learned and progress-report writing as Function → Documentation."},
     ],
     C:[
-      {icon:"ًں“ڑ",tip:"Attend internal or external training sessions and log them as Function â†’ Training Received."},
-      {icon:"ًں‘¨â€چًںڈ«",tip:"Run at least one knowledge-sharing session per quarter â†’ Function â†’ Training Given."},
-      {icon:"ًں”¬",tip:"Contribute to R&D or tool-building â†’ Function â†’ R&D & Innovation."},
+      {icon:"ًں“ڑ",tip:"Attend internal or external training sessions and log them as Function → Training Received."},
+      {icon:"ًں‘¨â€چًںڈ«",tip:"Run at least one knowledge-sharing session per quarter → Function → Training Given."},
+      {icon:"ًں”¬",tip:"Contribute to R&D or tool-building → Function → R&D & Innovation."},
     ],
     D:[
-      {icon:"ًں“…",tip:"Submit at least one entry every working week â€” gaps penalise your compliance score heavily."},
+      {icon:"ًں“…",tip:"Submit at least one entry every working week — gaps penalise your compliance score heavily."},
       {icon:"âڈ°",tip:"Post timesheets by Friday; your alert day is currently set to remind you."},
       {icon:"âœ…",tip:"If you have no project work in a week, log a function entry or leave entry to stay compliant."},
     ],
@@ -358,7 +358,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
               <div style={{height:"100%",width:`${Math.min(100,score)}%`,background:color,borderRadius:3,transition:"width .8s ease"}}/>
             </div>
           </div>
-          <span style={{fontSize:14,color:"var(--text4)",transition:"transform .2s",transform:open?"rotate(90deg)":"rotate(0deg)"}}>â–¶</span>
+          <span style={{fontSize:14,color:"var(--text4)",transition:"transform .2s",transform:open?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
         </div>
         {open&&(
           <div style={{padding:"0 16px 14px",borderTop:`1px solid ${color}20`}}>
@@ -396,7 +396,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
   return(
   <div style={{display:"grid",gap:16}}>
 
-    {/* â”€â”€ Header â”€â”€ */}
+    {/* ---- Header ---- */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
       <div>
         <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>PERFORMANCE</div>
@@ -552,7 +552,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         {/* 4 metric cards */}
         <MetricCard id="A" label="A آ· Utilization / Efficiency" weight="30%" score={k.utilScore} color="var(--info)">
           <StatRow label="Billable utilization" value={`${k.billPct}%`} sub={`${k.billWork}h / ${k.totalHrs}h total`} color={k.billPct>=70?"#34d399":"#fb923c"}/>
-          <StatRow label="Knowledge capture" value={`${k.knowledgePct}%`} sub="Target: 8â€“12%" color={k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c"}/>
+          <StatRow label="Knowledge capture" value={`${k.knowledgePct}%`} sub="Target: 8—12%" color={k.knowledgePct>=8&&k.knowledgePct<=12?"#34d399":"#fb923c"}/>
           <StatRow label="BD / Sales support" value={`${k.salesBD}h`} sub="Tenders + proposals + BD meetings"/>
         </MetricCard>
 
@@ -563,8 +563,8 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         </MetricCard>
 
         <MetricCard id="C" label="C آ· Development Goal" weight="20%" score={k.devScore} color="#34d399">
-          <StatRow label="Training received" value={`${k.trainingReceived}h`} sub="Target â‰¥8h/yr" color={k.trainingReceived>=8?"#34d399":"#fb923c"}/>
-          <StatRow label="Training given" value={`${k.trainingGiven}h`} sub="Knowledge sharing sessions â€” target â‰¥4h"/>
+          <StatRow label="Training received" value={`${k.trainingReceived}h`} sub="Target ≥8h/yr" color={k.trainingReceived>=8?"#34d399":"#fb923c"}/>
+          <StatRow label="Training given" value={`${k.trainingGiven}h`} sub="Knowledge sharing sessions — target ≥4h"/>
           <StatRow label="Mentoring & coaching" value={`${k.mentoring}h`} sub="People development"/>
           <StatRow label="R&D & innovation" value={`${k.rnd}h`} sub="Tools, models, work instructions"/>
         </MetricCard>
@@ -579,7 +579,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
         {isAdmin&&(
         <div className="card">
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>Manager Notes <span style={{fontSize:12,fontWeight:400,color:"var(--text4)"}}>â€” admin only</span></div>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>Manager Notes <span style={{fontSize:12,fontWeight:400,color:"var(--text4)"}}>— admin only</span></div>
             <button className="bp" style={{fontSize:13,padding:"5px 16px"}} onClick={()=>{
               try{localStorage.setItem("ec_kpi_notes",JSON.stringify(kpiNotes));}catch(err){}
               showToast("Notes saved âœ“");
@@ -606,7 +606,7 @@ function KPIsTab({entries,engineers,projects,kpiYear,setKpiYear,kpiEngId,setKpiE
     {!selKPI&&canManageKPI&&(
       <div className="card" style={{padding:0,overflow:"hidden"}}>
         <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border3)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>TEAM KPI SCORECARD â€” {kpiYear}</span>
+          <span style={{fontSize:13,fontWeight:700,color:"var(--text2)"}}>TEAM KPI SCORECARD — {kpiYear}</span>
           <span style={{fontSize:13,color:"var(--text4)"}}>{engKPIs.length} engineers آ· Avg: <span style={{color:kpiRatingColor(Math.round(engKPIs.reduce((s,k)=>s+k.totalScore,0)/Math.max(1,engKPIs.length))),fontWeight:700}}>{Math.round(engKPIs.reduce((s,k)=>s+k.totalScore,0)/Math.max(1,engKPIs.length))}</span></span>
         </div>
         <div style={{overflowX:"auto"}}>

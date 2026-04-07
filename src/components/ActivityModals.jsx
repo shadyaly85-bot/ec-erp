@@ -14,7 +14,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
   const [commentText, setCommentText] = useState("");
   const [submitting,  setSubmitting]  = useState(false);
 
-  // â”€â”€ LOCAL COMMENTS STATE â”€â”€
+  // ---- LOCAL COMMENTS STATE ----
   // Must be local state (not derived from act.comments prop) so that:
   //   a) comments accumulate visually while the modal is open
   //   b) clicking "Save Activity" includes the latest comments in the payload
@@ -43,7 +43,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
 
   const submitComment=async()=>{
     if(!commentText.trim()||!onComment) return;
-    // If no real comments yet and remarks has content â†’ auto-migrate remarks as first entry
+    // If no real comments yet and remarks has content → auto-migrate remarks as first entry
     const legacyBase = (localComments.length===0 && act.remarks && act.remarks.trim())
       ? [{
           id:"legacy_"+Date.now().toString(36),
@@ -89,7 +89,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
     };
     const next=[...localComments,legacy];
     setSubmitting(true);
-    const err=await onComment(act.id, next, null); // migration â€” no notification
+    const err=await onComment(act.id, next, null); // migration — no notification
     if(!err){
       setLocalComments(next);
       setDraft(p=>({...p,remarks:""}));
@@ -100,7 +100,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
   const removeComment=async cid=>{
     if(!onComment) return;
     const next=localComments.filter(c=>c.id!==cid);
-    const err=await onComment(act.id, next, null); // deletion â€” no notification
+    const err=await onComment(act.id, next, null); // deletion — no notification
     if(!err) setLocalComments(next);
   };
 
@@ -205,8 +205,8 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
           <label style={LBL}>ASSIGNED TO</label>
           {engineers&&engineers.length>0?(
             <select value={draft.assigned_to||""} onChange={e=>setDraft(p=>({...p,assigned_to:e.target.value}))} style={INP}>
-              <option value="">â€” Unassigned â€”</option>
-              {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} â€” {e.role}</option>)}
+              <option value="">— Unassigned —</option>
+              {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} — {e.role}</option>)}
             </select>
           ):(
             <input value={draft.assigned_to||""} onChange={e=>setDraft(p=>({...p,assigned_to:e.target.value}))}
@@ -222,14 +222,14 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
             style={{...INP,color:"var(--text2)",resize:"vertical"}}/>
         </div>
 
-        {/* â”€â”€ Comment Thread â”€â”€ */}
+        {/* ---- Comment Thread ---- */}
         <div style={{borderTop:"1px solid var(--border3)",paddingTop:12,marginTop:2}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
             <label style={{...LBL,marginBottom:0}}>COMMENTS</label>
             {comments.length>0&&<span style={{fontSize:11,fontFamily:"'IBM Plex Mono',monospace",background:"#a78bfa20",color:"#a78bfa",padding:"1px 7px",borderRadius:10,fontWeight:700}}>{comments.length}</span>}
           </div>
 
-          {/* â”€â”€ Legacy Remarks Migration Banner â”€â”€ */}
+          {/* ---- Legacy Remarks Migration Banner ---- */}
           {hasLegacyRemark&&(
             <div style={{background:"#fb923c08",border:"1px solid #fb923c40",borderRadius:8,
               padding:"10px 12px",marginBottom:12,display:"flex",gap:10,alignItems:"flex-start"}}>
@@ -240,7 +240,7 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4,flexWrap:"wrap"}}>
                   <span style={{fontSize:13,fontWeight:700,color:"var(--text0)"}}>Admin</span>
-                  <span style={{fontSize:11,padding:"1px 6px",borderRadius:4,background:"#fb923c20",color:"#fb923c",fontWeight:600}}>From Remarks â€” not yet saved to comments</span>
+                  <span style={{fontSize:11,padding:"1px 6px",borderRadius:4,background:"#fb923c20",color:"#fb923c",fontWeight:600}}>From Remarks — not yet saved to comments</span>
                 </div>
                 <div style={{fontSize:13,color:"var(--text1)",background:"var(--bg3)",borderRadius:"0 8px 8px 8px",
                   padding:"7px 11px",lineHeight:1.55,borderLeft:"2px solid #fb923c",marginBottom:8}}>
@@ -333,8 +333,8 @@ function ActivityEditModal({act, onSave, onClose, engineers, onComment, myProfil
   </div>);
 }
 
-/* â”€â”€ Add Activity modal â”€â”€ */
-/* â”€â”€ Add Activity modal â”€â”€ */
+/* ---- Add Activity modal ---- */
+/* ---- Add Activity modal ---- */
 function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers}){
   // Determine initial group from defaultCat
   const initGroup = defaultCat ? (CAT_TO_GROUP[defaultCat]||TAXONOMY_GROUP_NAMES[0]) : TAXONOMY_GROUP_NAMES[0];
@@ -432,8 +432,8 @@ function AddActivityModal({projId, subId, defaultCat, onSave, onClose, engineers
         <div>
           <label style={LBL}>ASSIGNED TO <span style={{color:"var(--text3)",fontWeight:400}}>(optional)</span></label>
           <select value={assignedTo} onChange={e=>setAssignedTo(e.target.value)} style={INP}>
-            <option value="">â€” Unassigned â€”</option>
-            {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} â€” {e.role}</option>)}
+            <option value="">— Unassigned —</option>
+            {engineers.filter(e=>e.role_type!=="accountant").map(e=><option key={e.id} value={e.name}>{e.name} — {e.role}</option>)}
           </select>
         </div>)}
       </div>
@@ -478,14 +478,14 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
     if(error){if(showToast)showToast("Error: "+error.message,false);return;}
     if(setActivities)setActivities(prev=>[...prev,data]);
     await autoAssignEngineer(assigned_to);
-    // â”€â”€ Notification: activity_assigned â”€â”€
+    // ---- Notification: activity_assigned ----
     if(assigned_to){
       const aEng=engineers.find(e=>e.name===assigned_to);
       if(aEng&&String(aEng.id)!==String(myProfile?.id)){
         const aProj=projects.find(p=>p.id===projId);
         const _addNow=new Date().toISOString();
         const _addIsAdmin=myProfile?.role_type==="admin";
-        // Notify engineer â€” fire-and-forget
+        // Notify engineer — fire-and-forget
         insertNotif({
           type:"activity_assigned",engineer_id:aEng.id,read:false,
           message:`You were assigned to "${activity_name}"${aProj?" آ· "+aProj.name:""}`,
@@ -501,7 +501,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
               created_at:_addNow,meta:JSON.stringify({recipient_engineer_id:String(_ldrEng.id),project_id:projId,assigned_to:aEng.name,assigned_by:myProfile?.name,role:"project_leader"})});
           }
         }
-        // If lead is creating + assigning, notify all admins (admin already knows â€” they did it)
+        // If lead is creating + assigning, notify all admins (admin already knows — they did it)
         if(!_addIsAdmin){
           const _adminAddMsg=`${myProfile?.name||"Lead"} assigned "${activity_name}" to ${aEng.name}${aProj?" آ· "+aProj.name:""}`;
           const _ap1=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({type:"activity_assigned",engineer_id:adminEng.id,read:false,message:_adminAddMsg,created_at:_addNow,meta:JSON.stringify({recipient_engineer_id:String(adminEng.id),project_id:projId,assigned_to:aEng.name,assigned_by:myProfile?.name})}));
@@ -522,7 +522,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
     if(error){if(showToast)showToast("Error: "+error.message,false);return;}
     if(setActivities)setActivities(prev=>prev.map(a=>a.id===data.id?data:a));
     await autoAssignEngineer(fields.assigned_to);
-    // â”€â”€ Notifications for saveAct (EditProjActivities modal) â”€â”€
+    // ---- Notifications for saveAct (EditProjActivities modal) ----
     const _saProj=projects.find(p=>p.id===(fields.project_id||prevAct?.project_id));
     const _saNow=new Date().toISOString();
     const _saIsAdmin=myProfile?.role_type==="admin";
@@ -596,7 +596,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
       </div>
       {projActs.length===0&&(
         <div style={{textAlign:"center",padding:"28px 0",color:"var(--border)",fontSize:13,border:"1px dashed #0f1e2e",borderRadius:6}}>
-          No activities yet â€” add the first one above.
+          No activities yet — add the first one above.
         </div>
       )}
       <div style={{display:"grid",gap:5,maxHeight:320,overflowY:"auto"}}>
@@ -627,7 +627,7 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
           </div>);
         })}
       </div>
-      {/* Shared modals â€” same as Tracker */}
+      {/* Shared modals — same as Tracker */}
       {addModal&&<AddActivityModal projId={projId} subId={null} defaultCat={null}
         onSave={confirmAdd} onClose={()=>setAddModal(false)} engineers={engineers}/>}
       {editAct&&<ActivityEditModal act={editAct}
@@ -639,6 +639,6 @@ function EditProjActivities({projId, activities, setActivities, engineers, isEng
 }
 
 
-/* â”€â”€ Single activity row â”€â”€ */
+/* ---- Single activity row ---- */
 
 export { ActivityEditModal, AddActivityModal };

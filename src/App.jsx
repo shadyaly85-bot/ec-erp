@@ -6,7 +6,7 @@ import { fmtEGP, fmtEGPsigned, JournalLedger, BalanceSheetView, ExpensesView, Ca
 import { LOGO_SRC, LogoImg, PDF_STYLE, pdfHeader, pdfFooter, generatePDF, buildVacationPDF, buildTimesheetPDF, buildInvoicePDF, buildFinancePDF } from './pdfHelpers.jsx';
 import { ActivityEditModal, AddActivityModal } from './components/ActivityModals.jsx';
 import { ActivityRow, ProjectTracker } from './components/ProjectTracker.jsx';
-import { ProjectTasksReport, VacationReport } from './components/Reports.jsx';
+import { ProjectTasksReport, VacationReport, TrackerProgressReport, AssignmentReport } from './components/Reports.jsx';
 import { FunctionsTab, KPIsTab } from './components/TabComponents.jsx';
 import { applyUndo, ConfirmModal, SignupScreen, Lbl, ProjectsView, SubProjectModal, ProjectsTab } from './components/UIComponents.jsx';
 
@@ -19,7 +19,7 @@ import { applyUndo, ConfirmModal, SignupScreen, Lbl, ProjectsView, SubProjectMod
    PROJECT ACTIVITY TAXONOMY
    â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 const ACTIVITY_TAXONOMY = {
-  /* â”€â”€ SCADA â”€â”€ */
+  /* ---- SCADA ---- */
   "Templates": [
     "Block Template","Turbine Template","ESS Template",
     "Inverter MA Template","Inverter MB Template","Inverter ME Template",
@@ -67,7 +67,7 @@ const ACTIVITY_TAXONOMY = {
     "110 kV Equipment Symbol","33 kV Equipment Symbol","20 kV Equipment Symbol","0.4 kV Equipment Symbol",
     "Animated Status Symbol","Alarm Indicator Symbol","Custom Symbol","Other Symbol",
   ],
-  /* â”€â”€ RTU-PLC â”€â”€ */
+  /* ---- RTU-PLC ---- */
   "RTU Configuration": [
     "Hardware Configuration","Communication Configuration",
     "Application & Protocol Configuration","RTU Settings",
@@ -82,9 +82,9 @@ const ACTIVITY_TAXONOMY = {
     "PLC Communication (Modbus TCP)","PLC Communication (Profibus)","PLC Communication (Profinet)",
     "PLC Communication (EtherNet/IP)","PLC Communication (IEC-61850)",
     "HMI Integration","PLC Alarm Configuration","PLC Data Logging",
-    "PLC Control Logic â€” Inverter","PLC Control Logic â€” Transformer",
-    "PLC Control Logic â€” Generator","PLC Control Logic â€” Feeder",
-    "PLC Control Logic â€” BESS","PLC Control Logic â€” Weather Station",
+    "PLC Control Logic — Inverter","PLC Control Logic — Transformer",
+    "PLC Control Logic — Generator","PLC Control Logic — Feeder",
+    "PLC Control Logic — BESS","PLC Control Logic — Weather Station",
     "PLC Interlock Logic","PLC Sequence Logic","PLC FAT Testing","PLC SAT Testing",
     "PLC Factory Acceptance Test","PLC Site Acceptance Test",
     "PLC Backup & Version Control","Other PLC",
@@ -97,7 +97,7 @@ const ACTIVITY_TAXONOMY = {
     "FAT Preparation","FAT Execution","SAT Preparation","SAT Execution",
     "Site Support","Remote Commissioning","Loop Check","Punch List Resolution","Other Commissioning",
   ],
-  /* â”€â”€ Protection â”€â”€ */
+  /* ---- Protection ---- */
   "Protection Relays": [
     "Siemens 7SJ82 Configuration","Siemens 7SJ82 IEC 61850 SCD",
     "Siemens 7SJ82 Protection Functions","Siemens 7SJ82 Protection Settings",
@@ -115,7 +115,7 @@ const ACTIVITY_TAXONOMY = {
     "End-to-End Testing","Trip Circuit Verification","Protection Commissioning",
     "COMTRADE Analysis","Other Protection Testing",
   ],
-  /* â”€â”€ General â”€â”€ */
+  /* ---- General ---- */
   "Documentation": [
     "TQ Register","Operating Manual","As-Built Documentation",
     "Test Procedures","Project Handover","Lessons Learned","Other Documentation",
@@ -128,7 +128,7 @@ const ACTIVITY_TAXONOMY = {
 };
 const TAXONOMY_CATS = Object.keys(ACTIVITY_TAXONOMY);
 
-/* â”€â”€ Category Groups â”€â”€ */
+/* ---- Category Groups ---- */
 const TAXONOMY_GROUPS = {
   "SCADA":      ["Templates","Database","Displays","Reports","Dashboard","GIS","Symbols"],
   "RTU-PLC":    ["RTU Configuration","PLC Programming","PPC","Commissioning"],
@@ -143,18 +143,18 @@ const CAT_TO_GROUP = {};
 Object.entries(TAXONOMY_GROUPS).forEach(([g,cats])=>cats.forEach(c=>{CAT_TO_GROUP[c]=g;}));
 
 /* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-   PROJECT TRACKER â€” standalone component (no IIFE, no re-render loops)
+   PROJECT TRACKER — standalone component (no IIFE, no re-render loops)
    â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 const STATUS_COLOR={"Completed":"#34d399","In Progress":"var(--info)","Not Started":"var(--text3)","On Hold":"#fb923c"};
 const STATUS_BG={"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started":"#1e293b40","On Hold":"#78350f30"};
 
-/* â”€â”€ Inline category/activity editor modal â”€â”€ */
+/* ---- Inline category/activity editor modal ---- */
 
 export default function App(){
   const [session,setSession]         = useState(null);
   const [authLoading,setAuthLoading] = useState(true);
 
-  // â”€â”€ Theme â”€â”€
+  // ---- Theme ----
   const [isDark,setIsDark] = useState(()=>localStorage.getItem("erp_theme")!=="light");
   const [menuOpen,setMenuOpen] = useState(false); // mobile sidebar toggle
   useEffect(()=>{
@@ -173,7 +173,7 @@ export default function App(){
   const [entries,setEntries]         = useState([]);
   const [loadedYears,setLoadedYears] = useState(new Set()); // tracks which years are in entries state
   const [notifications,setNotifications] = useState([]);
-  // Panel ALWAYS starts closed â€” user opens manually by clicking the bell header
+  // Panel ALWAYS starts closed — user opens manually by clicking the bell header
   // sessionStorage remembers if user left it open (not closed)
   const [notifPanelOpen,setNotifPanelOpen] = useState(false);
   const [bellOpen,setBellOpen]             = useState(false);
@@ -181,16 +181,16 @@ export default function App(){
   const [bellTab,setBellTab]               = useState("active"); // "active" | "history"
   const [frozenMonths,setFrozenMonths]     = useState([]); // [{id,year,month,frozen_at,frozen_by}]
 
-  // â”€â”€ insertNotif â€” App scope: accessible by bell buttons, KPIsTab, poll â”€â”€
+  // ---- insertNotif — App scope: accessible by bell buttons, KPIsTab, poll ----
   const insertNotif=async(payload)=>{
     const{error}=await supabase.from("notifications").insert(payload);
     if(error){
       if(error.message&&(error.message.includes("engineer_id")||error.message.includes("column")||error.message.includes("does not exist"))){
-        console.warn("[EC-ERP] engineer_id column not found â€” retrying without it.");
+        console.warn("[EC-ERP] engineer_id column not found — retrying without it.");
         const{engineer_id,...rest}=payload;
         const metaObj=engineer_id!=null?{...JSON.parse(rest.meta||"{}"),_eng_id:String(engineer_id)}:JSON.parse(rest.meta||"{}");
         const{error:err2}=await supabase.from("notifications").insert({...rest,meta:JSON.stringify(metaObj)});
-        if(err2){console.error("[EC-ERP] Notification insert failed (both attempts):",err2.message);showToast("âڑ  Notification not sent â€” run SQL migration in Admin â†’ Info",false);}
+        if(err2){console.error("[EC-ERP] Notification insert failed (both attempts):",err2.message);showToast("âڑ  Notification not sent — run SQL migration in Admin → Info",false);}
         return err2||null;
       }
       console.error("[EC-ERP] Notification insert failed:",payload.type,error.message);
@@ -199,14 +199,14 @@ export default function App(){
     return error||null;
   };
 
-  // â”€â”€ isMonthFrozen: check if a date string falls in a frozen month â”€â”€
+  // ---- isMonthFrozen: check if a date string falls in a frozen month ----
   const isMonthFrozen=React.useCallback((dateStr)=>{
     if(!dateStr||!frozenMonths.length) return false;
     const d=new Date(dateStr+'T12:00:00');
     return frozenMonths.some(fm=>Number(fm.year)===d.getFullYear()&&Number(fm.month)===d.getMonth());
   },[frozenMonths]);
 
-  // â”€â”€ toggleFreezeMonth: admin only â”€â”€
+  // ---- toggleFreezeMonth: admin only ----
   const toggleFreezeMonth=async(yr,mo)=>{
     const existing=frozenMonths.find(fm=>Number(fm.year)===yr&&Number(fm.month)===mo);
     const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -219,7 +219,7 @@ export default function App(){
         logAction("UPDATE","TimesheetFreeze",`Unfroze ${MONTHS_[mo]} ${yr}`,{year:yr,month:mo});
         // Notify all active engineers + leads
         const _now=new Date().toISOString();
-        const _msg=`ًں”“ ${MONTHS_[mo]} ${yr} has been unfrozen â€” you can now edit time entries for this month`;
+        const _msg=`ًں”“ ${MONTHS_[mo]} ${yr} has been unfrozen — you can now edit time entries for this month`;
         engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.role_type!=="admin"&&String(e.id)!==String(myProfile?.id)).forEach(e=>{
           insertNotif({type:"project_status",engineer_id:e.id,read:false,message:_msg,created_at:_now,meta:JSON.stringify({action:"month_unfrozen",year:yr,month:mo})});
         });
@@ -234,7 +234,7 @@ export default function App(){
         logAction("UPDATE","TimesheetFreeze",`Froze ${MONTHS_[mo]} ${yr}`,{year:yr,month:mo});
         // Notify all active engineers + leads
         const _now=new Date().toISOString();
-        const _msg=`â‌„ ${MONTHS_[mo]} ${yr} has been frozen â€” you cannot add, edit or delete time entries for this month`;
+        const _msg=`â‌„ ${MONTHS_[mo]} ${yr} has been frozen — you cannot add, edit or delete time entries for this month`;
         engineers.filter(e=>e.is_active!==false&&e.is_active!==0&&e.role_type!=="admin"&&String(e.id)!==String(myProfile?.id)).forEach(e=>{
           insertNotif({type:"project_status",engineer_id:e.id,read:false,message:_msg,created_at:_now,meta:JSON.stringify({action:"month_frozen",year:yr,month:mo})});
         });
@@ -242,7 +242,7 @@ export default function App(){
     }
   };
 
-  // â”€â”€ reloadNotifications â€” App scope: accessible by poll useEffect + bell â”€â”€
+  // ---- reloadNotifications — App scope: accessible by poll useEffect + bell ----
   const reloadNotifications=async()=>{
     if(!supabase||!myProfile?.id) return;
     const _profId=myProfile.id;
@@ -266,11 +266,11 @@ export default function App(){
     setNotifPanelOpen(prev=>!prev);
   },[]);
   const [myProfile,setMyProfile]     = useState(null);
-  const myProfileRef = React.useRef(null); // always current â€” used inside stale closures (realtime handler)
+  const myProfileRef = React.useRef(null); // always current — used inside stale closures (realtime handler)
   const [loading,setLoading]         = useState(false);
 
   const [view,setView]               = useState("dashboard");
-  const [teamViewMode,setTeamViewMode] = useState("grid"); // "org" | "grid" â€” default grid for instant load
+  const [teamViewMode,setTeamViewMode] = useState("grid"); // "org" | "grid" — default grid for instant load
   const [orgNodes,setOrgNodes]         = useState([]); // [{id,engineer_id,name,title,parent_id,is_external,sort_order}]
   const [orgLoaded,setOrgLoaded]       = useState(false);
   const [orgEditing,setOrgEditing]     = useState(false);
@@ -306,8 +306,8 @@ export default function App(){
   const [xlsxReady,setXlsxReady]           = useState(!!window.XLSX);
   const [showProjModal,setShowProjModal]   = useState(false);
   const [editProjModal,setEditProjModal]   = useState(null);
-  const [subProjModal,setSubProjModal]     = useState(null);  // {projectId, sub?} â€” add/edit sub-project
-  const [expandedProj,setExpandedProj]     = useState({});    // {projId: bool} â€” show sub-projects in table
+  const [subProjModal,setSubProjModal]     = useState(null);  // {projectId, sub?} — add/edit sub-project
+  const [expandedProj,setExpandedProj]     = useState({});    // {projId: bool} — show sub-projects in table
   const [showEngModal,setShowEngModal]     = useState(false);
   const [engSearch,setEngSearch]           = useState("");
   const [editEngModal,setEditEngModal]     = useState(null);
@@ -319,11 +319,11 @@ export default function App(){
   const [funcEngId,setFuncEngId]           = useState("all");
   const [kpiEngId,setKpiEngId]            = useState(null);
   const [kpiNotes,setKpiNotes]             = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_kpi_notes')||'{}');}catch{return{};}}); // {engId: {A:"",B:"",C:"",D:"",general:""}}
-  // Per-engineer vacation entitlement: { year: { engId: days } }  â€” admin enters each person's allowance
+  // Per-engineer vacation entitlement: { year: { engId: days } }  — admin enters each person's allowance
   const [vacationBalances,setVacationBalances] = useState(()=>{try{return JSON.parse(localStorage.getItem('ec_vacation_balances')||'{}');}catch{return {};}});
   useEffect(()=>{ localStorage.setItem('ec_vacation_balances',JSON.stringify(vacationBalances)); },[vacationBalances]);
   const setVacBalance=(yr,engId,days)=>setVacationBalances(prev=>({...prev,[yr]:{...(prev[yr]||{}),[engId]:Math.max(0,days)}}));
-  // Tracker persistent state â€” lifted here so it survives browser minimize/tab-switch/remount
+  // Tracker persistent state — lifted here so it survives browser minimize/tab-switch/remount
   const [trackerProj,  setTrackerProj]   = useState(null);
   const [trackerSub,   setTrackerSub]    = useState(null);
   const [trackerSearch,setTrackerSearch] = useState("");
@@ -336,7 +336,7 @@ export default function App(){
   const [showFuncModal,setShowFuncModal]   = useState(false);
   const [newFunc,setNewFunc]               = useState({engineer_id:"",date:new Date().toISOString().slice(0,10),function_category:FUNCTION_CATS[0],hours:2,activity:""});
 
-  // â”€â”€ Finance Module State â”€â”€
+  // ---- Finance Module State ----
   const [staff,setStaff]                   = useState([]);
   const [journalEntries,setJournalEntries]   = useState([]);
   const [fixedAssets,setFixedAssets]         = useState([]);
@@ -362,7 +362,7 @@ export default function App(){
   const [showPwdModal,setShowPwdModal]     = useState(false);
   const [confirmDlg,  setConfirmDlg]       = useState(null);
 
-  // Styled in-app confirm â€” replaces window.confirm everywhere
+  // Styled in-app confirm — replaces window.confirm everywhere
   const showConfirm = useCallback((message, onConfirm, {title, confirmLabel="Delete", danger=true, icon}={})=>{
     setConfirmDlg({message, title, confirmLabel, danger, icon:icon||(danger?"ًں—‘":"âڑ "),
       onConfirm:()=>{ setConfirmDlg(null); onConfirm(); },
@@ -387,7 +387,7 @@ export default function App(){
   };
   const dismissToast=()=>{ if(_toastTimer.current) clearTimeout(_toastTimer.current); setToast(null); };
 
-  // Global Escape key â€” closes topmost open modal (placed here so all state vars are in scope)
+  // Global Escape key — closes topmost open modal (placed here so all state vars are in scope)
   useEffect(()=>{
     const handler=e=>{
       if(e.key!=="Escape") return;
@@ -409,7 +409,7 @@ export default function App(){
   },[confirmDlg,showPwdModal,subProjModal,editProjModal,showProjModal,
      editEngModal,showEngModal,showStaffModal,showExpModal,showFuncModal,editEntry,modalDate]);;
 
-  // On-demand year fetch â€” loads a year's entries only when user navigates to it
+  // On-demand year fetch — loads a year's entries only when user navigates to it
   const [entriesLoading,setEntriesLoading] = useState(false);
   useEffect(()=>{
     if(!session||!year||loadedYears.has(year)) return;
@@ -430,7 +430,7 @@ export default function App(){
       });
   },[year,session]); // eslint-disable-line
 
-  // â”€â”€ Activity logger â€” fire-and-forget, never blocks UI â”€â”€
+  // ---- Activity logger — fire-and-forget, never blocks UI ----
   const logAction=useCallback((action,module,detail,meta={})=>{
     if(!session?.user) return;
     const entry={
@@ -439,7 +439,7 @@ export default function App(){
       user_role:myProfile?.role_type||"unknown",
       action,module,detail,
       meta:JSON.stringify(meta),
-      created_at:new Date().toISOString(),  // explicit â€” don't rely on DB default
+      created_at:new Date().toISOString(),  // explicit — don't rely on DB default
     };
     supabase.from("activity_log").insert(entry).select()
       .then(({data,error})=>{
@@ -464,11 +464,11 @@ export default function App(){
   const role      = myProfile?.role_type||"engineer";
   const isAdmin   = role==="admin";
   // isEngActive: checks termination_date (from engineers row OR synced from staff).
-  // Does NOT rely on is_active column â€” works with no DB migration.
+  // Does NOT rely on is_active column — works with no DB migration.
   const TODAY_STR = new Date().toISOString().slice(0,10);
   const isEngActive = (e) => {
     if(!e) return false;
-    // termination_date strictly in the past (before today) â†’ inactive; last day counts as active
+    // termination_date strictly in the past (before today) → inactive; last day counts as active
     if(e.termination_date && String(e.termination_date).slice(0,10) < TODAY_STR) return false;
     // explicit is_active false
     if(e.is_active===false) return false;
@@ -485,7 +485,7 @@ export default function App(){
   const canEdit   = true;   // everyone can edit/delete their own entries
   const canReport = canViewFinance || isLead; // senior + accountant + lead see Reports
   const canPostHours = !isSenior || isAdmin; // senior_management view-only; accountant CAN post their own vacation
-  const canInvoice= isAcct; // ONLY admin + accountant see invoices â€” NOT senior
+  const canInvoice= isAcct; // ONLY admin + accountant see invoices — NOT senior
   // Redirect away from old mysettings page (merged into Admin â€؛ Info)
   useEffect(()=>{
     if(view==="mysettings") setView("dashboard");
@@ -513,7 +513,7 @@ export default function App(){
     // Find lead's node in org chart
     const myNode = orgNodes.find(n=>String(n.engineer_id)===String(myProfile.id));
     const result  = new Set([String(myProfile.id)]);
-    if(!myNode) return result; // not in org chart â†’ only self
+    if(!myNode) return result; // not in org chart → only self
     // BFS down from lead's node
     const q    = [myNode.id];
     const seen = new Set([myNode.id]);
@@ -531,7 +531,7 @@ export default function App(){
     return result;
   },[isAdmin,isAcct,isSenior,isLead,myProfile,orgNodes]);
 
-  // Hash routing â€” sync URL hash â†” view state so refresh restores position
+  // Hash routing — sync URL hash â†” view state so refresh restores position
   useEffect(()=>{
     const hash = window.location.hash.slice(1);
     const valid = ["dashboard","timesheet","projects","team","reports","admin","import"];
@@ -541,7 +541,7 @@ export default function App(){
     if(session) window.location.hash = view;
   },[view,session]);
 
-  /* â”€â”€ AUTH â”€â”€ */
+  /* ---- AUTH ---- */
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setAuthLoading(false);});
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_,s)=>setSession(s));
@@ -549,14 +549,14 @@ export default function App(){
   },[]);
   useEffect(()=>{if(session)loadAll();},[session]);
 
-  // â”€â”€ Poll notifications every 30s â€” works even if Supabase Realtime is disabled â”€â”€
+  // ---- Poll notifications every 30s — works even if Supabase Realtime is disabled ----
   useEffect(()=>{
     if(!session||!myProfile?.id) return;
     const _t=setInterval(()=>reloadNotifications(),15000);
     return()=>clearInterval(_t);
   },[session,myProfile?.id]);
 
-  // Real-time sync â€” keep data current when teammates make changes
+  // Real-time sync — keep data current when teammates make changes
   useEffect(()=>{
     if(!session) return;
     const cutoff=(()=>{const d=new Date();d.setMonth(d.getMonth()-18);return d.toISOString().slice(0,10);})();
@@ -593,7 +593,7 @@ export default function App(){
       .on("postgres_changes",{event:"DELETE",schema:"public",table:"projects"},({old:row})=>{
         setProjects(prev=>prev.filter(p=>p.id!==row.id));
       })
-      // notifications â€” live bell updates without refresh
+      // notifications — live bell updates without refresh
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications"},({new:row})=>{
         if(row.read) return;
         const _meId=String(myProfileRef.current?.id||"");
@@ -660,7 +660,7 @@ export default function App(){
         setLoadedYears(new Set([today.getFullYear(), today.getFullYear()-1]));
       }
       if(profR.data){ setMyProfile(profR.data); myProfileRef.current=profR.data; setBrowseEngId(profR.data.id); }
-      // â”€â”€ Notification loading â€” server-side scoped â”€â”€
+      // ---- Notification loading — server-side scoped ----
       // The notifications table has a top-level engineer_id column (the recipient).
       // Personal: fetch only rows addressed to this user.
       // Broadcast (admin/lead): also fetch rows with engineer_id=null (alerts, signups).
@@ -671,12 +671,12 @@ export default function App(){
         const dismissedKeys=new Set(JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"));
 
         // 1. Personal active (unread) notifications
-        // Try server-side filter (requires engineer_id column â€” run SQL migration if failing)
+        // Try server-side filter (requires engineer_id column — run SQL migration if failing)
         const _ninetyAgo=new Date(Date.now()-90*24*60*60*1000).toISOString();
         const _thirtyAgo=new Date(Date.now()-30*24*60*60*1000).toISOString(); // kept for backward compat
         let personalNotifs=[], historyNotifs=[];
 
-        // â”€â”€ Always use full-table meta-scan â€” works before AND after migration â”€â”€
+        // ---- Always use full-table meta-scan — works before AND after migration ----
         // engineer_id column may exist but be null on older rows, so we can't rely on
         // server-side filter alone. Fetch all and match by engineer_id OR meta fields.
         const _matchId=n=>{
@@ -688,18 +688,18 @@ export default function App(){
         };
         const _isBroadcast=n=>n.type==="new_signup"||n.type==="overdue_alert"||(n.type==="timesheet_alert"&&!n.engineer_id);
 
-        // Active (unread) â€” fetch all unread, filter client-side
+        // Active (unread) — fetch all unread, filter client-side
         const{data:allN}=await supabase.from("notifications")
           .select("*").eq("read",false).order("created_at",{ascending:false}).limit(300);
         personalNotifs=(allN||[]).filter(n=>_matchId(n)||(_isLeadOrAdmin&&_isBroadcast(n)));
 
-        // History (read, last 90 days) â€” persistent 3-month window
+        // History (read, last 90 days) — persistent 3-month window
         const{data:allH}=await supabase.from("notifications")
           .select("*").eq("read",true).gte("created_at",_ninetyAgo)
           .order("created_at",{ascending:false}).limit(500);
-        // Include broadcasts (null engineer_id) in history for lead/admin â€” same logic as active
+        // Include broadcasts (null engineer_id) in history for lead/admin — same logic as active
         historyNotifs=(allH||[]).filter(n=>_matchId(n)||(_isLeadOrAdmin&&_isBroadcast(n)));
-        // â”€â”€ Auto-purge: admin/lead only â€” delete ALL notifications older than 90 days â”€â”€
+        // ---- Auto-purge: admin/lead only — delete ALL notifications older than 90 days ----
         // Fire-and-forget, non-blocking. Engineers cannot purge admin notifications.
         if(_isLeadOrAdmin){
           supabase.from("notifications").delete()
@@ -716,7 +716,7 @@ export default function App(){
           if(n.type==="timesheet_alert"){
             let alertKey=null; try{alertKey=JSON.parse(n.meta||"{}").alert_key;}catch{}
             if(alertKey){
-              // Composite key: alert_key + engineer_id â€” each recipient keeps their own copy
+              // Composite key: alert_key + engineer_id — each recipient keeps their own copy
               const compositeKey=alertKey+"__"+(n.engineer_id||"broadcast");
               if(dismissedKeys.has(alertKey)){toDelete.push(n.id);return;}
               if(seenKeys.has(compositeKey)){
@@ -734,7 +734,7 @@ export default function App(){
       if(staffR.data){
         const sData=staffR.data;
         setStaff(sData);
-        // Sync termination_date from staff â†’ engineers by name match
+        // Sync termination_date from staff → engineers by name match
         if(engsR.data){
           setEngineers(prev=>prev.map(eng=>{
             const match=sData.find(s=>s.name?.trim().toLowerCase()===eng.name?.trim().toLowerCase());
@@ -747,7 +747,7 @@ export default function App(){
       if(journalR.data) setJournalEntries(journalR.data);
       if(assetsR.data) setFixedAssets(assetsR.data);
       if(accountsR?.data) setAccounts(accountsR.data);
-      // Load activity log for admin â€” use profR.data directly (myProfile state is stale here)
+      // Load activity log for admin — use profR.data directly (myProfile state is stale here)
       if(profR.data?.role_type==="admin"){
         setLogLoading(true);
         (async()=>{
@@ -775,14 +775,14 @@ export default function App(){
     if(activitiesLoaded) return;
     try{
       // Fetch subprojects and activities in parallel
-      // Attempt 1: with sort_order (preferred â€” allows manual reordering)
+      // Attempt 1: with sort_order (preferred — allows manual reordering)
       const [spRes,actRes]=await Promise.all([
         supabase.from("project_subprojects").select("*").order("name"),
         supabase.from("project_activities").select("*").order("sort_order"),
       ]);
       if(spRes.data)  setSubprojects(spRes.data);
       if(actRes.error&&actRes.error.message&&actRes.error.message.includes("sort_order")){
-        // Fallback: sort_order column may not exist yet in DB â€” fetch without ordering
+        // Fallback: sort_order column may not exist yet in DB — fetch without ordering
         const{data:actData}=await supabase.from("project_activities").select("*");
         if(actData) setActivities(actData);
       } else if(actRes.data){
@@ -790,7 +790,7 @@ export default function App(){
       }
       setActivitiesLoaded(true);
     }catch(e){
-      // Network / table doesn't exist â€” try simple fetch without order
+      // Network / table doesn't exist — try simple fetch without order
       try{
         const{data:actData}=await supabase.from("project_activities").select("*");
         const{data:spData}=await supabase.from("project_subprojects").select("*");
@@ -833,7 +833,7 @@ export default function App(){
     if(session&&!activitiesLoaded){ loadTrackerData(); }
   },[session,activitiesLoaded,loadTrackerData]);
 
-  // â”€â”€â”€ Org Chart loader â”€â”€â”€
+  // ------ Org Chart loader ------
   const loadOrgChart = useCallback(async()=>{
     if(!session) return;
     const{data}=await supabase.from("org_chart").select("*").order("sort_order");
@@ -851,7 +851,7 @@ export default function App(){
       if(n.type==="vacation_request") return isLead; // leads see it in count; admin uses pendingVacCount
       return true;
     }).length;
-    // Pending vacation approvals â€” admin uses entries (always accurate even before bell loads)
+    // Pending vacation approvals — admin uses entries (always accurate even before bell loads)
     const pendingVacCount=isAdmin
       ? entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL").length
       : 0;
@@ -872,13 +872,13 @@ export default function App(){
         }
       }catch(e){}
     }
-    // Mark as read (moves to history) â€” NEVER hard-delete so history survives redeploy
+    // Mark as read (moves to history) — NEVER hard-delete so history survives redeploy
     await supabase.from("notifications").update({read:true}).eq("id",id);
     setNotifications(prev=>prev.filter(x=>x.id!==id));
     setNotifHistory(prev=>[{...n,read:true},...prev.filter(x=>x.id!==id)].slice(0,200));
   },[notifications,setNotifHistory]);
 
-  // â”€â”€ Activity comment handler â€” lifted to App scope so ALL surfaces share one notification path â”€â”€
+  // ---- Activity comment handler — lifted to App scope so ALL surfaces share one notification path ----
   const appHandleActivityComment=useCallback(async(actId, comments, notifyCtx)=>{
     const{error}=await supabase.from("project_activities").update({comments}).eq("id",actId);
     if(!error){
@@ -930,7 +930,7 @@ export default function App(){
           };
           const{data:nd,error:ne}=await supabase.from("notifications").insert(notif).select().single();
           if(ne&&ne.message&&(ne.message.includes("engineer_id")||ne.message.includes("column")||ne.message.includes("does not exist"))){
-            // Fallback: engineer_id column may not exist â€” store in meta
+            // Fallback: engineer_id column may not exist — store in meta
             const{engineer_id:_eid,..._rC}=notif;
             const{data:nd2}=await supabase.from("notifications").insert({..._rC,meta:JSON.stringify({...JSON.parse(_rC.meta||"{}"),_eng_id:String(_eid)})}).select().single();
             if(nd2&&String(recipId)===String(myProfile?.id)) setNotifications(prev=>[nd2,...prev]);
@@ -942,7 +942,7 @@ export default function App(){
         }
       }
     } else {
-      showToast("Comment error â€” the 'comments' column may not exist yet. Run the SQL migration in Admin â†’ Info.",false);
+      showToast("Comment error — the 'comments' column may not exist yet. Run the SQL migration in Admin → Info.",false);
     }
     return error||null;
   },[supabase,setActivities,setNotifications,showToast,engineers,projects,myProfile]);
@@ -959,14 +959,14 @@ export default function App(){
       }catch(e){}
     }
     const ids=toRemove.map(n=>n.id);
-    // Mark as read (moves to history) â€” NEVER hard-delete
+    // Mark as read (moves to history) — NEVER hard-delete
     await supabase.from("notifications").update({read:true}).in("id",ids);
     setNotifications(prev=>prev.filter(n=>n.type!==type));
     setNotifHistory(prev=>[...toRemove.map(n=>({...n,read:true})),...prev].slice(0,200));
   },[notifications,setNotifHistory]);
 
   const markAllRead=async()=>{
-    // Mark all unread as read â†’ moves them to history
+    // Mark all unread as read → moves them to history
     const unread=notifications.filter(n=>!n.read);
     if(!unread.length) return;
     const ids=unread.map(n=>n.id);
@@ -975,7 +975,7 @@ export default function App(){
     setNotifications([]);
   };
 
-  /* â”€â”€ WEEKEND SAVE â”€â”€ */
+  /* ---- WEEKEND SAVE ---- */
   // saveWeekendFor: saves weekend for any engineer by id (admin can set for others)
   const saveWeekendFor=async(engId,days)=>{
     await supabase.from("engineers").update({weekend_days:JSON.stringify(days)}).eq("id",engId);
@@ -1010,11 +1010,11 @@ export default function App(){
 
   const addEntry=async date=>{
     if(!isDateAllowed(date)){showToast("Cannot post hours outside the allowed date range",false);return;}
-    // Freeze check â€” functions are always allowed, only work/leave are blocked
+    // Freeze check — functions are always allowed, only work/leave are blocked
     if(newEntry.type!=="function"&&isMonthFrozen(date)){
       const _d=new Date(date+"T12:00:00");
       const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
-      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen â€” contact admin to unlock`,false);
+      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen — contact admin to unlock`,false);
       return;
     }
     const proj=projects.find(p=>p.id===newEntry.projectId);
@@ -1035,9 +1035,9 @@ export default function App(){
     // Validate: project must still be Active
     if(!isLeave&&!isFunc){
       const targetProj=projects.find(p=>p.id===newEntry.projectId);
-      if(!targetProj){showToast("Project not found â€” it may have been deleted. Please refresh.",false);return;}
-      if((targetProj.status||"").trim()!=="Active"){showToast(`Cannot post hours â€” project is ${targetProj.status||"inactive"}`,false);return;}
-      // Assignment check â€” no role exemptions:
+      if(!targetProj){showToast("Project not found — it may have been deleted. Please refresh.",false);return;}
+      if((targetProj.status||"").trim()!=="Active"){showToast(`Cannot post hours — project is ${targetProj.status||"inactive"}`,false);return;}
+      // Assignment check — no role exemptions:
       const ae=(targetProj.assigned_engineers||[]).map(String);
       if(!ae.includes(String(engId))){
         const targetEngName=engineers.find(e=>String(e.id)===String(engId))?.name||"Engineer";
@@ -1085,7 +1085,7 @@ export default function App(){
       // so each admin's server-side scoped load query picks it up
       const _adminVacPayloads=engineers.filter(e=>e.role_type==="admin").map(adminEng=>({...notif,engineer_id:adminEng.id}));
       if(_adminVacPayloads.length) supabase.from("notifications").insert(_adminVacPayloads).select().then(({data:rows})=>{if(rows){const _my=rows.find(r=>String(r.engineer_id)===String(myProfile?.id));if(_my)setNotifications(prev=>[_my,...prev]);}});
-      // Notify the engineer's direct lead (if any) â€” uses reverse BFS of mySubEngIds logic
+      // Notify the engineer's direct lead (if any) — uses reverse BFS of mySubEngIds logic
       (async()=>{
         // Fetch org chart fresh if not loaded yet (avoids lazy-load race condition)
         let _nodes=orgNodes||[];
@@ -1098,7 +1098,7 @@ export default function App(){
         const _leadEng=engineers.filter(e=>e.role_type==="lead").find(le=>{
           const _leadNode=_nodes.find(n=>String(n.engineer_id)===String(le.id));
           if(!_leadNode) return false;
-          // BFS down from lead node â€” check if engId appears anywhere in subtree
+          // BFS down from lead node — check if engId appears anywhere in subtree
           const _q=[_leadNode.id];const _seen=new Set([_leadNode.id]);
           while(_q.length){
             const _nid=_q.shift();
@@ -1126,13 +1126,13 @@ export default function App(){
           setNotifications(prev=>[ndL,...prev]);
         }
       })();
-      showToast("Vacation request submitted â€” pending admin approval âœ“");
+      showToast("Vacation request submitted — pending admin approval âœ“");
     } else {
       const hasNote = !!(newEntry.activity && newEntry.activity.trim().length > 2);
       const isWorkEntry = !isLeave && !isFunc;
       if(isWorkEntry && !hasNote){
-        // Post succeeded but no description â€” show amber warning
-        showToast("Hours posted â€” no description added. Add a note to improve your KPI score.",false);
+        // Post succeeded but no description — show amber warning
+        showToast("Hours posted — no description added. Add a note to improve your KPI score.",false);
       } else {
         showToast("Hours posted âœ“");
       }
@@ -1153,7 +1153,7 @@ export default function App(){
   };
 
 
-  /* â”€â”€ Copy a day's entries to clipboard â”€â”€ */
+  /* ---- Copy a day's entries to clipboard ---- */
   const copyDay = date => {
     const dayEntries = entries.filter(e=>
       e.date===date &&
@@ -1165,15 +1165,15 @@ export default function App(){
     showToast(`Copied ${dayEntries.length} entr${dayEntries.length===1?"y":"ies"} from ${date} âœ“`);
   };
 
-  /* â”€â”€ Paste clipboard entries to target date â”€â”€ */
+  /* ---- Paste clipboard entries to target date ---- */
   const pasteDay = async targetDate => {
     if(!clipboard||!clipboard.entries.length){showToast("Nothing in clipboard",false);return;}
     if(!isDateAllowed(targetDate)){showToast("Cannot post to locked date",false);return;}
-    // Freeze check â€” block paste into frozen months (function entries are never in clipboard)
+    // Freeze check — block paste into frozen months (function entries are never in clipboard)
     if(isMonthFrozen(targetDate)){
       const _d=new Date(targetDate+"T12:00:00");
       const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
-      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen â€” cannot paste into a frozen month`,false);
+      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen — cannot paste into a frozen month`,false);
       return;
     }
     const engId = canEditAny?viewEngId:myProfile.id;
@@ -1182,13 +1182,13 @@ export default function App(){
       if(e.entry_type==="work"&&e.project_id){
         const proj=projects.find(p=>p.id===e.project_id);
         if(!proj||(proj.status||"").trim()!=="Active"){
-          showToast(`Cannot paste â€” project ${proj?.name||e.project_id} (${e.project_id}) is no longer active`,false);return;
+          showToast(`Cannot paste — project ${proj?.name||e.project_id} (${e.project_id}) is no longer active`,false);return;
         }
         const ae=(proj.assigned_engineers||[]).map(String);
         if(!ae.includes(String(engId))){
           const nm=engineers.find(x=>String(x.id)===String(engId))?.name||"Engineer";
           const projName=proj?.name||e.project_id;
-          showToast(`Cannot paste â€” ${nm} is not assigned to ${projName} (${e.project_id})`,false);return;
+          showToast(`Cannot paste — ${nm} is not assigned to ${projName} (${e.project_id})`,false);return;
         }
       }
     }
@@ -1220,7 +1220,7 @@ export default function App(){
       const _onBehalf2 = String(engId)!==String(myProfile?.id) ? ` on behalf of ${_engName2}` : "";
       // Add entries to UI immediately
       setEntries(prev=>[...data,...prev]);
-      // Show toast with undo â€” clicking Undo removes from UI and deletes from DB
+      // Show toast with undo — clicking Undo removes from UI and deletes from DB
       showToast(
         `Pasted ${data.length} entr${data.length===1?"y":"ies"} to ${targetDate}`,
         true,
@@ -1239,7 +1239,7 @@ export default function App(){
     if(isMonthFrozen(editEntry.date)){
       const _d=new Date(editEntry.date+"T12:00:00");
       const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
-      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen â€” contact admin to unlock`,false);
+      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen — contact admin to unlock`,false);
       return;
     }
     if(!canEditAny && String(editEntry.engineer_id)!==String(myProfile?.id)) { showToast("You can only edit your own entries",false); return; }
@@ -1269,30 +1269,30 @@ export default function App(){
     const _editOnBehalf = editEntry?.engineer_id && String(editEntry.engineer_id)!==String(myProfile?.id) ? ` on behalf of ${_editEngName}` : "";
     const _prevEntry = entries.find(e=>e.id===editEntry?.id)||{};
     const _entryChanges=[];
-    if(_prevEntry.hours!==payload.hours) _entryChanges.push(`hours: ${_prevEntry.hours}â†’${payload.hours}`);
-    if(_prevEntry.project_id!==payload.project_id) _entryChanges.push(`project: ${_prevEntry.project_id||"â€”"}â†’${payload.project_id||"â€”"}`);
+    if(_prevEntry.hours!==payload.hours) _entryChanges.push(`hours: ${_prevEntry.hours}→${payload.hours}`);
+    if(_prevEntry.project_id!==payload.project_id) _entryChanges.push(`project: ${_prevEntry.project_id||"—"}→${payload.project_id||"—"}`);
     if(payload.activity&&_prevEntry.activity!==payload.activity) _entryChanges.push(`note: "${payload.activity}"`);
-    logAction("UPDATE","TimeEntry",`Updated entry on ${editEntry?.date}${_editOnBehalf}${_entryChanges.length?" â€” "+_entryChanges.join(", "):""}`,{id:editEntry?.id,engineer_id:editEntry?.engineer_id,engineer_name:_editEngName,date:editEntry?.date,changes:_entryChanges});
+    logAction("UPDATE","TimeEntry",`Updated entry on ${editEntry?.date}${_editOnBehalf}${_entryChanges.length?" — "+_entryChanges.join(", "):""}`,{id:editEntry?.id,engineer_id:editEntry?.engineer_id,engineer_name:_editEngName,date:editEntry?.date,changes:_entryChanges});
   };
 
   const deleteEntry=async(id, engineerId)=>{
     if(!canEditAny && String(engineerId)!==String(myProfile?.id)){ showToast("You can only delete your own entries",false); return; }
     const entry=entries.find(e=>e.id===id);
     if(!entry) return;
-    // â”€â”€ FREEZE CHECK â”€â”€
+    // ---- FREEZE CHECK ----
     if(isMonthFrozen(entry.date)){
       const _d=new Date(entry.date+"T12:00:00");
       const _mn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][_d.getMonth()];
-      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen â€” contact admin to unlock`,false);
+      showToast(`â‌„ ${_mn} ${_d.getFullYear()} is frozen — contact admin to unlock`,false);
       return;
     }
-    // â”€â”€ APPROVED LEAVE LOCK â”€â”€
+    // ---- APPROVED LEAVE LOCK ----
     // Once annual leave is approved (no longer PENDING_APPROVAL), only admin can delete it.
-    // Engineers must contact their admin to cancel approved leave â€” this preserves the approval audit trail.
+    // Engineers must contact their admin to cancel approved leave — this preserves the approval audit trail.
     const isApprovedLeave = entry.entry_type==="leave"
       && entry.leave_type==="Annual Leave"
       && entry.activity!=="PENDING_APPROVAL";
-    // Only admin can cancel approved leave â€” lead and engineer must request through admin
+    // Only admin can cancel approved leave — lead and engineer must request through admin
     if(isApprovedLeave && !isAdmin){
       showToast("Approved annual leave cannot be deleted. Contact admin to cancel.",false);
       return;
@@ -1305,11 +1305,11 @@ export default function App(){
     // Detect pending vacation (submitted but not yet approved)
     const isPendingLeave=entry.entry_type==="leave"&&entry.leave_type==="Annual Leave"&&entry.activity==="PENDING_APPROVAL";
     showConfirm(_confirmMsg,()=>{
-      // 1. INSTANT UI remove â€” synchronous, user sees it gone at once
+      // 1. INSTANT UI remove — synchronous, user sees it gone at once
       setEntries(prev=>prev.filter(e=>e.id!==id));
-      // 2. Show undo toast IMMEDIATELY (synchronous â€” no await delay)
+      // 2. Show undo toast IMMEDIATELY (synchronous — no await delay)
       let _undone=false;
-      showToast("Entry deleted â€” Undo?",false,()=>{
+      showToast("Entry deleted — Undo?",false,()=>{
         _undone=true;
         setEntries(prev=>{const _ids=new Set(prev.map(e=>e.id));return _ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));});
         showToast("Undo successful âœ“");
@@ -1320,7 +1320,7 @@ export default function App(){
         const{error:_delErr}=await supabase.from("time_entries").delete().eq("id",id);
         if(_delErr){
           setEntries(prev=>{const _ids=new Set(prev.map(e=>e.id));return _ids.has(entry.id)?prev:[entry,...prev].sort((a,b)=>b.date.localeCompare(a.date));});
-          showToast("Delete failed â€” restored: "+_delErr.message,false);
+          showToast("Delete failed — restored: "+_delErr.message,false);
           return;
         }
         // 4. Send notification after DB delete confirms
@@ -1345,11 +1345,11 @@ export default function App(){
     },{title:isApprovedLeave?"Cancel Approved Leave":isPendingLeave?"Remove Vacation Request":"Delete Time Entry",confirmLabel:"Delete"});
   };
 
-  /* â”€â”€ FUNCTION ENTRIES & KPI ALERTS â”€â”€ */
+  /* ---- FUNCTION ENTRIES & KPI ALERTS ---- */
   const addFunctionEntry=useCallback(async()=>{
     if(!newFunc.engineer_id){showToast("Select an engineer",false);return;}
     if(!newFunc.hours||newFunc.hours<=0){showToast("Enter hours > 0",false);return;}
-    // function_category column requires SQL migration â€” try with it, fallback without
+    // function_category column requires SQL migration — try with it, fallback without
     const basePayload={
       engineer_id:newFunc.engineer_id,
       project_id:null,
@@ -1375,12 +1375,12 @@ export default function App(){
     showToast("Function hours posted âœ“");
     const _funcEngName=engineers.find(e=>String(e.id)===String(newFunc.engineer_id))?.name||newFunc.engineer_id;
     const _funcOnBehalf=String(newFunc.engineer_id)!==String(myProfile?.id)?` on behalf of ${_funcEngName}`:"";
-    logAction("CREATE","TimeEntry",`Posted function ${newFunc.hours}h â€” ${newFunc.function_category} for ${newFunc.date}${_funcOnBehalf}`,{engineer_id:newFunc.engineer_id,engineer_name:_funcEngName,category:newFunc.function_category,hours:newFunc.hours,date:newFunc.date});
+    logAction("CREATE","TimeEntry",`Posted function ${newFunc.hours}h — ${newFunc.function_category} for ${newFunc.date}${_funcOnBehalf}`,{engineer_id:newFunc.engineer_id,engineer_name:_funcEngName,category:newFunc.function_category,hours:newFunc.hours,date:newFunc.date});
     setShowFuncModal(false);
     setNewFunc({engineer_id:"",date:new Date().toISOString().slice(0,10),function_category:FUNCTION_CATS[0],hours:2,activity:""});
   },[newFunc,showToast]);
 
-  // Check for engineers who haven't posted hours by Friday â€” only alerts on Fri/Sat/Sun
+  // Check for engineers who haven't posted hours by Friday — only alerts on Fri/Sat/Sun
   const checkTimesheetAlerts=useCallback(async(engs,allE,staffList=[],currentNotifs=[],_orgNodes=[])=>{
     if(!isAdmin&&!isLead) return;
     const today=new Date();
@@ -1417,11 +1417,11 @@ export default function App(){
         if(staffMatch.active===false) return;
         if(staffMatch.termination_date&&String(staffMatch.termination_date).slice(0,10)<todayStr) return;
       }
-      // â”€â”€ KEY FIX: skip engineers not in org chart â”€â”€
+      // ---- KEY FIX: skip engineers not in org chart ----
       if(_nodes.length&&!_orgEngIds.has(String(eng.id))) return;
       const hasWeekHours=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&(e.entry_type==="work"||e.task_category==="Function"));
       const onApprovedLeave=allE.some(e=>String(e.engineer_id)===String(eng.id)&&e.date>=weekStartStr&&e.date<=fridayStr&&e.entry_type==="leave"&&e.activity!=="PENDING_APPROVAL");
-      if(!hasWeekHours&&!onApprovedLeave) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} â†’ Fri ${fridayStr})`});
+      if(!hasWeekHours&&!onApprovedLeave) laggards.push({eng,type:"weekly",label:`No hours posted this week (Mon ${weekStartStr} → Fri ${fridayStr})`});
     });
     if(laggards.length===0) return;
 
@@ -1431,7 +1431,7 @@ export default function App(){
       ...JSON.parse(localStorage.getItem("ec_dismissed_alerts")||"[]"),
     ]);
 
-    // â”€â”€ KEY FIX: send per-recipient (admin + scoped lead) not as broadcast â”€â”€
+    // ---- KEY FIX: send per-recipient (admin + scoped lead) not as broadcast ----
     // Build reverse BFS helper: given engineer id, find which lead manages them
     const _findLead=(engId)=>{
       if(!_nodes.length) return null;
@@ -1533,7 +1533,7 @@ export default function App(){
     },2500);
   },[session,engineers.length,entries.length,activities.length]); // eslint-disable-line
 
-  /* â”€â”€ FINANCE CRUD â”€â”€ */
+  /* ---- FINANCE CRUD ---- */
   const STAFF_DEPTS=["Engineering","Management","Finance","Operations","IT","Administration","Other"];
   const STAFF_TYPES=["full_time","part_time","contractor","intern"];
   const EXP_CATS=["Office Rent & Utilities","Salaries","Software & Subscriptions","Travel & Transportation","Equipment & Supplies","Other"];
@@ -1541,7 +1541,7 @@ export default function App(){
   const saveStaff=useCallback(async()=>{
     const raw=editStaff?{...editStaff}:{...newStaff};
     if(!raw.name.trim()){showToast("Name required",false);return;}
-    // ONLY columns that exist in the staff table â€” strip engineer-only fields
+    // ONLY columns that exist in the staff table — strip engineer-only fields
     const staffPayload={
       name:            raw.name.trim(),
       department:      raw.department||"Engineering",
@@ -1555,7 +1555,7 @@ export default function App(){
       notes:           raw.notes||"",
     };
     if(editStaff){
-      // â”€â”€ EDIT staff â”€â”€
+      // ---- EDIT staff ----
       const{data,error}=await supabase.from("staff").update(staffPayload).eq("id",editStaff.id).select().single();
       if(error){showToast("Error: "+error.message,false);return;}
       setStaff(prev=>prev.map(s=>s.id===data.id?data:s));
@@ -1569,23 +1569,23 @@ export default function App(){
       showToast("Staff updated âœ“");setEditStaff(null);setShowStaffModal(false);
       const _sprev=staff.find(s=>s.id===editStaff.id)||{};
       const _schanges=[];
-      if(_sprev.role!==data.role) _schanges.push(`role: "${_sprev.role||"â€”"}"â†’"${data.role||"â€”"}"`);
-      if(_sprev.department!==data.department) _schanges.push(`dept: ${_sprev.department}â†’${data.department}`);
-      if(String(_sprev.active)!==String(data.active)) _schanges.push(`active: ${_sprev.active}â†’${data.active}`);
-      if(_sprev.termination_date!==data.termination_date) _schanges.push(`termination: ${_sprev.termination_date||"none"}â†’${data.termination_date||"none"}`);
-      if(_sprev.salary_egp!==data.salary_egp) _schanges.push(`salary EGP: ${_sprev.salary_egp||0}â†’${data.salary_egp||0}`);
-      logAction("UPDATE","Staff",`Updated staff: ${data.name}${_schanges.length?" â€” "+_schanges.join(", "):""}`,{id:data.id,name:data.name,department:data.department,role:data.role,changes:_schanges});
+      if(_sprev.role!==data.role) _schanges.push(`role: "${_sprev.role||"—"}"→"${data.role||"—"}"`);
+      if(_sprev.department!==data.department) _schanges.push(`dept: ${_sprev.department}→${data.department}`);
+      if(String(_sprev.active)!==String(data.active)) _schanges.push(`active: ${_sprev.active}→${data.active}`);
+      if(_sprev.termination_date!==data.termination_date) _schanges.push(`termination: ${_sprev.termination_date||"none"}→${data.termination_date||"none"}`);
+      if(_sprev.salary_egp!==data.salary_egp) _schanges.push(`salary EGP: ${_sprev.salary_egp||0}→${data.salary_egp||0}`);
+      logAction("UPDATE","Staff",`Updated staff: ${data.name}${_schanges.length?" — "+_schanges.join(", "):""}`,{id:data.id,name:data.name,department:data.department,role:data.role,changes:_schanges});
     } else {
-      // â”€â”€ ADD staff â”€â”€
+      // ---- ADD staff ----
       const{data,error}=await supabase.from("staff").insert(staffPayload).select().single();
       if(error){showToast("Error: "+error.message,false);return;}
       setStaff(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)));
-      // Auto-create engineer record â€” check by name OR email to prevent duplication
+      // Auto-create engineer record — check by name OR email to prevent duplication
       const existsEngByName=engineers.find(e=>e.name?.trim().toLowerCase()===data.name?.trim().toLowerCase());
       const existsEngByEmail=raw.email?.trim()?engineers.find(e=>e.email?.trim().toLowerCase()===raw.email.trim().toLowerCase()):null;
       const existsEng=existsEngByName||existsEngByEmail;
       // Also check: if staff record already existed before this insert (was added via Add Member previously)
-      // In that case the engineer record already exists â€” just show the linked message
+      // In that case the engineer record already exists — just show the linked message
       if(!existsEng&&raw.email?.trim()){
         const engAttempts=[
           {name:data.name,email:raw.email.trim().toLowerCase(),role:data.role||ROLES_LIST[0],
@@ -1605,17 +1605,17 @@ export default function App(){
         }
         if(ed){
           setEngineers(prev=>[...prev,ed].sort((a,b)=>a.name.localeCompare(b.name)));
-          showToast("Member added âœ“ â€” appears in Team + Finance");
+          showToast("Member added âœ“ — appears in Team + Finance");
           logAction("CREATE","Staff",`Added staff+engineer: ${data.name}`,{id:data.id,name:data.name,role:data.role,department:data.department});
         } else {
-          showToast("Staff added âœ“ â€” set salary in Finance â€؛ Staff");
+          showToast("Staff added âœ“ — set salary in Finance â€؛ Staff");
           logAction("CREATE","Staff",`Added staff (no engineer link): ${data.name}`,{id:data.id,name:data.name});
         }
       } else if(existsEng){
-        showToast("Staff added âœ“ â€” linked to existing engineer profile");
+        showToast("Staff added âœ“ — linked to existing engineer profile");
         logAction("CREATE","Staff",`Added staff (linked to existing engineer): ${data.name}`,{id:data.id,name:data.name});
       } else {
-        showToast("Staff added âœ“ â€” provide email to grant system access");
+        showToast("Staff added âœ“ — provide email to grant system access");
         logAction("CREATE","Staff",`Added staff (no email/access): ${data.name}`,{id:data.id,name:data.name});
       }
       setShowStaffModal(false);
@@ -1645,17 +1645,17 @@ export default function App(){
       if(!error&&data){
         const _prev=expenses.find(e=>e.id===data.id)||{};
         const _expChanges=[];
-        if(_prev.description!==data.description) _expChanges.push(`desc: "${_prev.description}"â†’"${data.description}"`);
-        if(_prev.category!==data.category) _expChanges.push(`category: ${_prev.category}â†’${data.category}`);
-        if(_prev.amount_egp!==data.amount_egp) _expChanges.push(`EGP: ${_prev.amount_egp||0}â†’${data.amount_egp||0}`);
-        if(_prev.amount_usd!==data.amount_usd) _expChanges.push(`USD: ${_prev.amount_usd||0}â†’${data.amount_usd||0}`);
+        if(_prev.description!==data.description) _expChanges.push(`desc: "${_prev.description}"→"${data.description}"`);
+        if(_prev.category!==data.category) _expChanges.push(`category: ${_prev.category}→${data.category}`);
+        if(_prev.amount_egp!==data.amount_egp) _expChanges.push(`EGP: ${_prev.amount_egp||0}→${data.amount_egp||0}`);
+        if(_prev.amount_usd!==data.amount_usd) _expChanges.push(`USD: ${_prev.amount_usd||0}→${data.amount_usd||0}`);
         setExpenses(prev=>prev.map(e=>e.id===data.id?data:e));showToast("Expense updated");setEditExp(null);setShowExpModal(false);
-        logAction("UPDATE","Expense",`Updated expense: ${data.description}${_expChanges.length?" â€” "+_expChanges.join(", "):""}`,{id:data.id,category:data.category,amount_usd:data.amount_usd,amount_egp:data.amount_egp,changes:_expChanges});
+        logAction("UPDATE","Expense",`Updated expense: ${data.description}${_expChanges.length?" — "+_expChanges.join(", "):""}`,{id:data.id,category:data.category,amount_usd:data.amount_usd,amount_egp:data.amount_egp,changes:_expChanges});
       }
       else showToast(error?.message||"Error",false);
     } else {
       const{data,error}=await supabase.from("expenses").insert(payload).select().single();
-      if(!error&&data){setExpenses(prev=>[data,...prev]);showToast("Expense added");setShowExpModal(false);setNewExp({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:egpRate,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});logAction("CREATE","Expense",`Added expense: "${payload.description}" â€” ${payload.category} آ· EGP ${payload.amount_egp||0} / USD ${payload.amount_usd||0}`,{category:payload.category,amount_usd:payload.amount_usd,amount_egp:payload.amount_egp,month:payload.month,year:payload.year});}
+      if(!error&&data){setExpenses(prev=>[data,...prev]);showToast("Expense added");setShowExpModal(false);setNewExp({category:"Office Rent & Utilities",description:"",amount_usd:0,amount_egp:0,currency:"USD",entry_rate:egpRate,month:new Date().getMonth(),year:new Date().getFullYear(),notes:""});logAction("CREATE","Expense",`Added expense: "${payload.description}" — ${payload.category} آ· EGP ${payload.amount_egp||0} / USD ${payload.amount_usd||0}`,{category:payload.category,amount_usd:payload.amount_usd,amount_egp:payload.amount_egp,month:payload.month,year:payload.year});}
       else showToast(error?.message||"Error",false);
     }
   },[editExp,newExp,showToast]);
@@ -1673,7 +1673,7 @@ export default function App(){
     },{title:"Delete Expense",confirmLabel:"Delete"});
   },[expenses,logAction,showConfirm,showToast]);
 
-  /* â”€â”€ EXCEL IMPORT â”€â”€ */
+  /* ---- EXCEL IMPORT ---- */
   const importTimesheets=async files=>{
     setImporting(true);
     setImportLog([]);
@@ -1684,7 +1684,7 @@ export default function App(){
     let localProjects=[...projects];
     let localEngineers=[...engineers];
 
-    // Cache of nameâ†’project to avoid duplicate inserts across rows
+    // Cache of name→project to avoid duplicate inserts across rows
     const projCache={};
     const findOrCreateProject=async(rawName)=>{
       const clean=rawName.trim().replace(/\s+/g," ");
@@ -1699,7 +1699,7 @@ export default function App(){
         cleanLower.includes(p.name.toLowerCase().replace(/\s+/g," "))
       );
       if(proj){ projCache[cleanLower]=proj; return proj; }
-      // Auto-create â€” use "Industrial" type (matches DB constraint)
+      // Auto-create — use "Industrial" type (matches DB constraint)
       // Make a safe ID: alphanumeric + hyphens only, max 30 chars
       const projId=clean.replace(/[^a-zA-Z0-9]/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").substring(0,30);
       addLog("info",`    ًں“پ Creating project: ${clean}`);
@@ -1726,13 +1726,13 @@ export default function App(){
       try{
         const buf=await file.arrayBuffer();
         const XLSX=window.XLSX;
-        if(!XLSX){addLog("error","SheetJS not loaded â€” go back and wait for âœ“ XLSX READY, then try again");break;}
+        if(!XLSX){addLog("error","SheetJS not loaded — go back and wait for âœ“ XLSX READY, then try again");break;}
         const wb=XLSX.read(new Uint8Array(buf),{type:"array",cellDates:true});
         const ws=wb.Sheets[wb.SheetNames[0]];
         const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
 
 
-        // â”€â”€ FIX: Detect column layout â€” standard (col 0) vs shifted (col 4, Shehab-style) â”€â”€
+        // ---- FIX: Detect column layout — standard (col 0) vs shifted (col 4, Shehab-style) ----
         // Standard: row[0]=Date/Name, row[1]=email value, row[2]=task...
         // Shifted:  row[4]=Name label, row[5]=Name value, row[6]=task...
         let colOffset=0;
@@ -1764,15 +1764,15 @@ export default function App(){
           setEngineers(prev=>[...prev,eng].sort((a,b)=>a.name.localeCompare(b.name)));
           addLog("ok",`  âœ“ Created engineer: ${engName}`);
         } else {
-          addLog("info",`  â†’ Existing engineer: ${eng.name}`);
+          addLog("info",`  → Existing engineer: ${eng.name}`);
         }
 
-        // â”€â”€ LOCAL DATE HELPER: always use local year/month/day, never toISOString() â”€â”€
-        // SheetJS cellDates:true returns Date at local midnight â€” toISOString() shifts in UTC+ zones
+        // ---- LOCAL DATE HELPER: always use local year/month/day, never toISOString() ----
+        // SheetJS cellDates:true returns Date at local midnight — toISOString() shifts in UTC+ zones
         const localDateStr=(d)=>{
-          // Add 12 hours then use UTC methods â€” handles SheetJS storing local midnight as UTC
+          // Add 12 hours then use UTC methods — handles SheetJS storing local midnight as UTC
           // e.g. Egypt UTC+2: "2026-02-01 local" stored as "2026-01-31T22:00Z"
-          // +12h â†’ "2026-02-01T10:00Z" â†’ getUTCFullYear/Month/Date = 2026/1/1 = Feb 1 âœ“
+          // +12h → "2026-02-01T10:00Z" → getUTCFullYear/Month/Date = 2026/1/1 = Feb 1 âœ“
           const shifted=new Date(d.getTime()+12*3600*1000);
           const yy=shifted.getUTCFullYear();
           const mm=String(shifted.getUTCMonth()+1).padStart(2,"0");
@@ -1797,7 +1797,7 @@ export default function App(){
           return "";
         };
 
-        // â”€â”€ DETECT IMPORT MONTH â”€â”€
+        // ---- DETECT IMPORT MONTH ----
         // SheetJS with cellDates:true + raw:true returns date cells as Date objects OR serial numbers
         // depending on browser/version. Handle all cases explicitly.
         // Strategy: try every possible representation of the Month cell and all early data rows.
@@ -1807,7 +1807,7 @@ export default function App(){
           if(!raw) return null;
           // SheetJS stores date cells as UTC midnight of the LOCAL date
           // e.g. Egypt UTC+2: Feb 1 00:00 local = Jan 31 22:00 UTC
-          // getMonth() on this UTC date returns January â€” WRONG
+          // getMonth() on this UTC date returns January — WRONG
           // Fix: add 12 hours before reading so we safely land in the correct UTC day
           if(typeof raw==="object"&&raw!==null&&typeof raw.getFullYear==="function"){
             const shifted=new Date(raw.getTime()+12*3600*1000);
@@ -1843,7 +1843,7 @@ export default function App(){
         const monthStart=`${yrStr}-${moStr}-01`;
         const lastDay=new Date(importYear,importMonth+1,0).getDate();
         const monthEnd=`${yrStr}-${moStr}-${String(lastDay).padStart(2,"0")}`;
-        addLog("info",`  ًں“… Month: ${moStr}/${yrStr} (${monthStart} â†’ ${monthEnd})`);
+        addLog("info",`  ًں“… Month: ${moStr}/${yrStr} (${monthStart} → ${monthEnd})`);
 
         // Delete existing entries for this engineer+month
         const {data:existingRows,error:fetchErr}=await supabase
@@ -1858,10 +1858,10 @@ export default function App(){
             const {error:delErr}=await supabase.from("time_entries").delete().in("id",ids);
             if(delErr) addLog("warn",`  âڑ  Delete failed: ${delErr.message}`);
             else{ setEntries(prev=>prev.filter(e=>!ids.includes(e.id))); addLog("ok",`  âœ“ Cleared ${ids.length} old entries`); }
-          } else { addLog("ok","  âœ“ No existing entries â€” fresh import"); }
+          } else { addLog("ok","  âœ“ No existing entries — fresh import"); }
         }
 
-        // â”€â”€ PARSE DATA ROWS â”€â”€
+        // ---- PARSE DATA ROWS ----
         let inserted=0, skipped=0, leaveCnt=0;
         let firstDaySeen=false; // track when engineer's first working day appears
 
@@ -1879,10 +1879,10 @@ export default function App(){
           const dateStr=parseCellDate(rawD);
           if(!dateStr||dateStr==="NaN-NaN-NaN") continue;
 
-          // â”€â”€ STOP: skip rows outside the import month (e.g. Mar rows in a Feb sheet) â”€â”€
+          // ---- STOP: skip rows outside the import month (e.g. Mar rows in a Feb sheet) ----
           if(dateStr<monthStart||dateStr>monthEnd){ skipped++; continue; }
 
-          // Read task/hours/project/details â€” use colOffset for shifted layouts
+          // Read task/hours/project/details — use colOffset for shifted layouts
           const task       =String(row[colOffset+2]||"").trim();
           const hoursRaw   =row[colOffset+3];
           const projName   =String(row[colOffset+4]||"").trim();
@@ -1893,7 +1893,7 @@ export default function App(){
           const detailsLower=taskDetails.toLowerCase();
           const hours=typeof hoursRaw==="number"?hoursRaw:(hoursRaw?parseFloat(String(hoursRaw)):0);
 
-          // â”€â”€ WEEKEND: day-of-week check (local noon to avoid UTC shift) â”€â”€
+          // ---- WEEKEND: day-of-week check (local noon to avoid UTC shift) ----
           const dow=new Date(dateStr+"T12:00:00").getDay(); // 0=Sunâ€¦5=Fri,6=Sat
           let engWeekend=[5,6];
           try{ engWeekend=eng.weekend_days?JSON.parse(eng.weekend_days):[5,6]; }catch(_){}
@@ -1909,28 +1909,28 @@ export default function App(){
           // Skip empty weekend rows
           if(allEmpty&&engWeekend.includes(dow)) continue;
 
-          // â”€â”€ VACATION: explicit vacation keyword in task, regardless of project column â”€â”€
-          // (some engineers put "Vacation" in both task AND project â€” detect by task only)
+          // ---- VACATION: explicit vacation keyword in task, regardless of project column ----
+          // (some engineers put "Vacation" in both task AND project — detect by task only)
           const isVacationTask=taskLower==="vacation"||taskLower==="annual leave"
             ||taskLower==="sick leave"||taskLower==="unpaid leave";
           const isVacationDetail=detailsLower.includes("vacation");
 
-          // â”€â”€ PUBLIC HOLIDAY / NATIONAL DAY â”€â”€
+          // ---- PUBLIC HOLIDAY / NATIONAL DAY ----
           const isHoliday=(taskLower.includes("holiday")||taskLower.includes("national day")
             ||detailsLower.includes("holiday"))&&!projName;
 
-          // â”€â”€ TRAINING with no project â†’ Training External leave â”€â”€
+          // ---- TRAINING with no project → Training External leave ----
           const isTrainingNoProj=(taskLower==="training"||taskLower.includes("training"))
             &&!projName&&hours>0;
 
-          // â”€â”€ FIRST DAY marker â†’ skip it as a plain note (no leave, no work) â”€â”€
+          // ---- FIRST DAY marker → skip it as a plain note (no leave, no work) ----
           const isFirstDayMarker=taskLower.includes("first day")||taskLower.includes("(first day)");
 
-          // â”€â”€ IMPLICIT ABSENCE: empty workday row â”€â”€
+          // ---- IMPLICIT ABSENCE: empty workday row ----
           // Only count as absence if we've seen at least one working day (avoids pre-employment period)
           const isImplicitAbsence=allEmpty&&!engWeekend.includes(dow)&&firstDaySeen;
 
-          // â”€â”€ CLASSIFY â”€â”€
+          // ---- CLASSIFY ----
           if(isHoliday){
             const {error:lErr}=await supabase.from("time_entries").upsert({
               engineer_id:eng.id,date:dateStr,hours:8,
@@ -1964,7 +1964,7 @@ export default function App(){
           }
 
           if(isFirstDayMarker){
-            // First day orientation â€” log as Training External, mark employment start
+            // First day orientation — log as Training External, mark employment start
             const leaveHours=(hours>0&&hours<=24)?hours:8;
             const {error:lErr}=await supabase.from("time_entries").upsert({
               engineer_id:eng.id,date:dateStr,hours:leaveHours,
@@ -1985,13 +1985,13 @@ export default function App(){
             continue;
           }
 
-          // â”€â”€ WORK ENTRY: must have task + hours + project â”€â”€
+          // ---- WORK ENTRY: must have task + hours + project ----
           if(!task||isNaN(hours)||hours<=0||!projName) continue;
           firstDaySeen=true;
 
           const proj=await findOrCreateProject(projName);
 
-          // Map task â†’ category/type
+          // Map task → category/type
           let cat="Software", typ="SCADA Development";
           const tl=task.toLowerCase();
           if(tl.includes("hmi"))                         {cat="Software";typ="HMI Development";}
@@ -2010,7 +2010,7 @@ export default function App(){
           else if(tl.includes("site")||tl.includes("support")){cat="Commissioning";typ="Site Support";}
           else if(tl.includes("bess")||tl.includes("a8000")||tl.includes("a 8000")){cat="Software";typ="PLC Programming";}
 
-          const activity=taskDetails||(task+(projName?` â€” ${projName}`:""));
+          const activity=taskDetails||(task+(projName?` — ${projName}`:""));
 
           const {error:eErr}=await supabase.from("time_entries").upsert({
             engineer_id:eng.id,
@@ -2028,7 +2028,7 @@ export default function App(){
         addLog("error",`  âœ• Parse error: ${err.message}`);
       }
     }
-    addLog("info","âœ… All files processed â€” refreshing...");
+    addLog("info","âœ… All files processed — refreshing...");
     await loadAll();
     setImporting(false);
     logAction("IMPORT","Import",`Imported ${files.length} timesheet file(s)`,{files:files.map(f=>f.name)});
@@ -2048,7 +2048,7 @@ export default function App(){
       setEntries(prev=>prev.filter(e=>!selectedEntries.has(e.id)));
       setSelectedEntries(new Set());
       let _undone=false;
-      showToast(`${ids.length} entr${ids.length===1?"y":"ies"} deleted â€” Undo?`,false,()=>{
+      showToast(`${ids.length} entr${ids.length===1?"y":"ies"} deleted — Undo?`,false,()=>{
         _undone=true;
         setEntries(prev=>[...saved,...prev].sort((a,b)=>b.date.localeCompare(a.date)));
         showToast("Undo successful âœ“");
@@ -2058,7 +2058,7 @@ export default function App(){
         const{error}=await supabase.from("time_entries").delete().in("id",ids);
         if(error){
           setEntries(prev=>[...saved,...prev].sort((a,b)=>b.date.localeCompare(a.date)));
-          showToast("Bulk delete failed â€” restored: "+error.message,false);
+          showToast("Bulk delete failed — restored: "+error.message,false);
           return;
         }
         logAction("DELETE","TimeEntry",`Bulk deleted ${ids.length} time entries`,{count:ids.length});
@@ -2066,7 +2066,7 @@ export default function App(){
     },{title:"Bulk Delete Entries",confirmLabel:`Delete ${ids.length}`});
   };
 
-  /* â”€â”€ PROJECT CRUD â”€â”€ */
+  /* ---- PROJECT CRUD ---- */
   const addProject=async()=>{
     if(!newProj.id||!newProj.name){showToast("Number and name required",false);return;}
     const projToInsert={...newProj,assigned_engineers:newProj.assigned_engineers||[]};
@@ -2076,8 +2076,8 @@ export default function App(){
     setShowProjModal(false);
     setNewProj({id:"",name:"",type:"Renewable Energy",client:"",origin:"Romania HQ",phase:"Design",billable:true,rate_per_hour:85,status:"Active"});
     showToast("Project created âœ“");
-    logAction("CREATE","Project",`Created project ${newProj.id} â€” ${newProj.name}`,{project_id:newProj.id,name:newProj.name});
-    // â”€â”€ Notify project leader + assigned engineers on creation â”€â”€
+    logAction("CREATE","Project",`Created project ${newProj.id} — ${newProj.name}`,{project_id:newProj.id,name:newProj.name});
+    // ---- Notify project leader + assigned engineers on creation ----
     const _now=new Date().toISOString();
     const _projName=newProj.name||newProj.id;
     const _notified=new Set([String(myProfile?.id)]);
@@ -2102,7 +2102,7 @@ export default function App(){
         created_at:_now,
         meta:JSON.stringify({project_id:newProj.id,project_name:_projName,changed_by:myProfile?.name})});
     });
-    // If LEAD creates project, notify all admins (admin creating â†’ they already know)
+    // If LEAD creates project, notify all admins (admin creating → they already know)
     if(!isAdmin){
       const _adminProjMsg=`${myProfile?.name||"Lead"} created project "${_projName}"`;
       engineers.filter(e=>e.role_type==="admin"&&!_notified.has(String(e.id))).forEach(adm=>{
@@ -2136,7 +2136,7 @@ export default function App(){
       setActivities(prev=>prev.map(a=>a.project_id===origId?{...a,project_id:newId}:a));
       setSubprojects(prev=>prev.map(s=>s.project_id===origId?{...s,project_id:newId}:s));
       setEditProjModal(null); showToast("Project ID renamed & entries re-linked âœ“");
-      logAction("UPDATE","Project",`Renamed project ${origId} â†’ ${newId}`,{old_id:origId,new_id:newId});
+      logAction("UPDATE","Project",`Renamed project ${origId} → ${newId}`,{old_id:origId,new_id:newId});
     } else {
       const{id,...fields}=rest;
       let {data,error}=await supabase.from("projects").update(fields).eq("id",id).select().single();
@@ -2144,7 +2144,7 @@ export default function App(){
         const{assigned_engineers:_ae,...fieldsNoAE}=fields;
         const res=await supabase.from("projects").update(fieldsNoAE).eq("id",id).select().single();
         data=res.data; error=res.error;
-        if(!error) showToast("âڑ  Saved â€” but run the 'Assigned Engineers' migration in Admin â€؛ Info to enable assignment tracking",false);
+        if(!error) showToast("âڑ  Saved — but run the 'Assigned Engineers' migration in Admin â€؛ Info to enable assignment tracking",false);
       }
       if(error){showToast("Error: "+error.message,false);return;}
       if(data){
@@ -2153,11 +2153,11 @@ export default function App(){
       setEditProjModal(null); showToast("Project updated âœ“");
       const _pprev=projects.find(p=>p.id===editProjModal?.id)||{};
       const _pchanges=[];
-      if(_pprev.name!==rest.name) _pchanges.push(`name: "${_pprev.name}"â†’"${rest.name}"`);
-      if(_pprev.client!==rest.client) _pchanges.push(`client: "${_pprev.client||"â€”"}"â†’"${rest.client||"â€”"}"`);
-      if(_pprev.billable!==rest.billable) _pchanges.push(`billable: ${_pprev.billable}â†’${rest.billable}`);
-      if(_pprev.status!==rest.status) _pchanges.push(`status: ${_pprev.status||"â€”"}â†’${rest.status||"â€”"}`);
-      // â”€â”€ Helper: notify leader + all assigned (excluding self and already-notified) â”€â”€
+      if(_pprev.name!==rest.name) _pchanges.push(`name: "${_pprev.name}"→"${rest.name}"`);
+      if(_pprev.client!==rest.client) _pchanges.push(`client: "${_pprev.client||"—"}"→"${rest.client||"—"}"`);
+      if(_pprev.billable!==rest.billable) _pchanges.push(`billable: ${_pprev.billable}→${rest.billable}`);
+      if(_pprev.status!==rest.status) _pchanges.push(`status: ${_pprev.status||"—"}→${rest.status||"—"}`);
+      // ---- Helper: notify leader + all assigned (excluding self and already-notified) ----
       const _notifyTeam=(type,message,meta,skipIds=[])=>{
         const _skip=new Set([String(myProfile?.id),...skipIds.map(String)]);
         if(rest.project_leader){
@@ -2174,22 +2174,22 @@ export default function App(){
         });
       };
 
-      // 1. STATUS CHANGE â†’ notify leader + team
+      // 1. STATUS CHANGE → notify leader + team
       if(_pprev.status!==rest.status){
-        const _emoji=rest.status==="On Hold"?"âڈ¸":rest.status==="Completed"?"âœ…":rest.status==="Active"?"â–¶":"ًں”„";
+        const _emoji=rest.status==="On Hold"?"âڈ¸":rest.status==="Completed"?"âœ…":rest.status==="Active"?"▶":"ًں”„";
         _notifyTeam("project_status",
-          `${_emoji} Project "${rest.name||rest.id}" status: ${_pprev.status||"â€”"} â†’ ${rest.status}`,
+          `${_emoji} Project "${rest.name||rest.id}" status: ${_pprev.status||"—"} → ${rest.status}`,
           {project_id:rest.id,project_name:rest.name,old_status:_pprev.status,new_status:rest.status,changed_by:myProfile?.name});
       }
 
-      // 2. PHASE CHANGE â†’ notify leader + team
+      // 2. PHASE CHANGE → notify leader + team
       if(_pprev.phase!==rest.phase&&rest.phase){
         _notifyTeam("project_phase",
-          `ًں“‹ Project "${rest.name||rest.id}" phase: ${_pprev.phase||"â€”"} â†’ ${rest.phase}`,
+          `ًں“‹ Project "${rest.name||rest.id}" phase: ${_pprev.phase||"—"} → ${rest.phase}`,
           {project_id:rest.id,project_name:rest.name,old_phase:_pprev.phase,new_phase:rest.phase,changed_by:myProfile?.name});
       }
 
-      // 3. PROJECT LEADER CHANGE â†’ notify new leader + old leader
+      // 3. PROJECT LEADER CHANGE → notify new leader + old leader
       if(_pprev.project_leader!==rest.project_leader){
         if(rest.project_leader){
           const _newLeaderEng=engineers.find(e=>e.name===rest.project_leader);
@@ -2211,7 +2211,7 @@ export default function App(){
         }
       }
 
-      // 4. TEAM ASSIGNMENT CHANGE â†’ notify added engineers, notify removed engineers
+      // 4. TEAM ASSIGNMENT CHANGE → notify added engineers, notify removed engineers
       if(JSON.stringify((_pprev.assigned_engineers||[]).slice().sort())!==JSON.stringify((rest.assigned_engineers||[]).slice().sort())){
         const _prevIds=new Set((_pprev.assigned_engineers||[]).map(String));
         const _newIds=new Set((rest.assigned_engineers||[]).map(String));
@@ -2237,7 +2237,7 @@ export default function App(){
         });
       }
 
-      logAction("UPDATE","Project",`Updated project ${editProjModal?.id}${_pchanges.length?" â€” "+_pchanges.join(", "):""}`,{project_id:editProjModal?.id,changes:_pchanges});
+      logAction("UPDATE","Project",`Updated project ${editProjModal?.id}${_pchanges.length?" — "+_pchanges.join(", "):""}`,{project_id:editProjModal?.id,changes:_pchanges});
     }
   };
   const deleteProject=async id=>{
@@ -2281,7 +2281,7 @@ export default function App(){
     },{title:"Delete Project",confirmLabel:"Delete Project",icon:"ًں—‘"});
   };
 
-  /* â”€â”€ SUB-PROJECT CRUD â”€â”€ */
+  /* ---- SUB-PROJECT CRUD ---- */
   const addSubProject=async(draft)=>{
     const pid=draft.project_id||draft.projectId;
     const{name,pm_name,pm_comments,pendings,assigned_engineers}=draft;
@@ -2322,13 +2322,13 @@ export default function App(){
     },{title:"Delete Sub-Site",confirmLabel:"Delete Sub-Site"});
   };
 
-  /* â”€â”€ ENGINEER CRUD â”€â”€ */
+  /* ---- ENGINEER CRUD ---- */
   const addEngineer=async()=>{
     if(!newEng.name.trim()){showToast("Name required",false);return;}
     if(!newEng.email.trim()){showToast("Email required",false);return;}
 
     // Try inserting with progressively fewer columns until one works
-    // This handles ANY schema state â€” missing columns, wrong types, constraints
+    // This handles ANY schema state — missing columns, wrong types, constraints
     const attempts=[
       // Attempt 1: full payload with all optional columns
       {name:newEng.name.trim(),email:newEng.email.trim().toLowerCase(),
@@ -2345,7 +2345,7 @@ export default function App(){
       {name:newEng.name.trim(),email:newEng.email.trim().toLowerCase(),
        role:newEng.role||ROLES_LIST[0],level:newEng.level||"Mid",
        role_type:newEng.role_type||"engineer"},
-      // Attempt 4: absolute minimum â€” just name, role, level, role_type
+      // Attempt 4: absolute minimum — just name, role, level, role_type
       {name:newEng.name.trim(),
        role:newEng.role||ROLES_LIST[0],level:newEng.level||"Mid",
        role_type:newEng.role_type||"engineer"},
@@ -2386,7 +2386,7 @@ export default function App(){
 
     setShowEngModal(false);
     setNewEng({name:"",role:ROLES_LIST[0],level:"Mid",email:"",role_type:"engineer",is_active:true,join_date:null,termination_date:null,weekend_days:JSON.stringify(DEFAULT_WEEKEND)});
-    showToast("Member added âœ“ â€” set salary in Finance â€؛ Staff");
+    showToast("Member added âœ“ — set salary in Finance â€؛ Staff");
     logAction("CREATE","Engineer",`Added engineer: ${data.name}`,{id:data.id,name:data.name,role_type:data.role_type,role:data.role});
   };
   const saveEditEngineer=async()=>{
@@ -2423,13 +2423,13 @@ export default function App(){
     setEditEngModal(null); showToast("Updated âœ“");
     const _prev=engineers.find(e=>e.id===id)||{};
     const _changes=[];
-    if(_prev.name!==merged.name) _changes.push(`name: "${_prev.name}"â†’"${merged.name}"`);
-    if(_prev.role!==merged.role) _changes.push(`job role: "${_prev.role||"â€”"}"â†’"${merged.role||"â€”"}"`);
-    if(_prev.role_type!==merged.role_type) _changes.push(`access: ${_prev.role_type}â†’${merged.role_type}`);
-    if(_prev.level!==merged.level) _changes.push(`level: "${_prev.level||"â€”"}"â†’"${merged.level||"â€”"}"`);
-    if(String(_prev.is_active)!==String(merged.is_active)) _changes.push(`active: ${_prev.is_active}â†’${merged.is_active}`);
-    if(_prev.termination_date!==merged.termination_date) _changes.push(`termination: ${_prev.termination_date||"none"}â†’${merged.termination_date||"none"}`);
-    logAction("UPDATE","Engineer",`Updated engineer: ${merged.name}${_changes.length?" â€” "+_changes.join(", "):""}`,{id,name:merged.name,role_type:merged.role_type,is_active:merged.is_active,termination_date:merged.termination_date||null,changes:_changes});
+    if(_prev.name!==merged.name) _changes.push(`name: "${_prev.name}"→"${merged.name}"`);
+    if(_prev.role!==merged.role) _changes.push(`job role: "${_prev.role||"—"}"→"${merged.role||"—"}"`);
+    if(_prev.role_type!==merged.role_type) _changes.push(`access: ${_prev.role_type}→${merged.role_type}`);
+    if(_prev.level!==merged.level) _changes.push(`level: "${_prev.level||"—"}"→"${merged.level||"—"}"`);
+    if(String(_prev.is_active)!==String(merged.is_active)) _changes.push(`active: ${_prev.is_active}→${merged.is_active}`);
+    if(_prev.termination_date!==merged.termination_date) _changes.push(`termination: ${_prev.termination_date||"none"}→${merged.termination_date||"none"}`);
+    logAction("UPDATE","Engineer",`Updated engineer: ${merged.name}${_changes.length?" — "+_changes.join(", "):""}`,{id,name:merged.name,role_type:merged.role_type,is_active:merged.is_active,termination_date:merged.termination_date||null,changes:_changes});
   };
   const deleteEngineer=async id=>{
     const eng=engineers.find(e=>e.id===id);
@@ -2450,7 +2450,7 @@ export default function App(){
           await supabase.from("time_entries").delete().eq("engineer_id",id);
           // Clean notifications: direct engineer_id field (vacation) + activity_comment via meta pattern
           await supabase.from("notifications").delete().eq("engineer_id",id);
-          // Note: activity_comment notifications store recipient in meta â€” orphaned rows cleaned by RLS or periodic admin archive
+          // Note: activity_comment notifications store recipient in meta — orphaned rows cleaned by RLS or periodic admin archive
           const{error}=await supabase.from("engineers").delete().eq("id",id);
           return error||null;
         },
@@ -2459,7 +2459,7 @@ export default function App(){
     },{title:"Delete Engineer",confirmLabel:"Delete Engineer"});
   };
 
-  /* â”€â”€ DERIVED STATS â”€â”€ */
+  /* ---- DERIVED STATS ---- */
   const monthEntries=useMemo(()=>entries.filter(e=>{
     // Parse as local noon to avoid UTC midnight shifting month/year in UTC+ timezones
     const d=new Date(e.date+"T12:00:00");
@@ -2574,10 +2574,10 @@ export default function App(){
       &&d.getMonth()===entryFilter.month&&d.getFullYear()===entryFilter.year;
   }),[entries,entryFilter,mySubEngIds]);
 
-  /* â”€â”€ PDF builds â”€â”€ */
+  /* ---- PDF builds ---- */
   const buildUtilizationPDF=()=>{
     const pdfStats=visibleEngStats; // scoped for lead, full for admin/acct
-    generatePDF(`Team Utilization â€” ${MONTHS[month]} ${year}`,[
+    generatePDF(`Team Utilization — ${MONTHS[month]} ${year}`,[
       `<div class="section"><div class="st">KPIs</div><div class="kg">
         <div class="kp"><div class="kv">${fmtPct(overallUtil)}</div><div class="kl">Utilization</div></div>
         <div class="kp"><div class="kv">${fmtPct(billabilityPct)}</div><div class="kl">Billability</div></div>
@@ -2599,7 +2599,7 @@ export default function App(){
     const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
     const period=`${MONTHS[month]} ${year}`;
 
-    // â”€â”€ DERIVED METRICS â”€â”€
+    // ---- DERIVED METRICS ----
     const nonBillableHrs=totalWorkHrs-totalBillable;
     const nonBillablePct=totalWorkHrs?Math.round(nonBillableHrs/totalWorkHrs*100):0;
     const avgRate=totalBillable>0?totalRevenue/totalBillable:0;
@@ -2608,7 +2608,7 @@ export default function App(){
     const uniqueEngineers=[...new Set(workEntries.map(e=>e.engineer_id))].length;
     const avgHrsPerEntry=workEntries.length?(totalWorkHrs/workEntries.length).toFixed(1):0;
 
-    // â”€â”€ PREVIOUS MONTH COMPARISON â”€â”€
+    // ---- PREVIOUS MONTH COMPARISON ----
     const prevMonth=month===0?11:month-1;
     const prevYear=month===0?year-1:year;
     const prevWE=entries.filter(e=>{const d=new Date(e.date+"T12:00:00");return d.getFullYear()===prevYear&&d.getMonth()===prevMonth&&e.entry_type==="work";});
@@ -2616,19 +2616,19 @@ export default function App(){
     const prevCatMap={};
     prevWE.forEach(e=>{const g=e.task_category||CAT_TO_GROUP[e.task_type]||"General";prevCatMap[g]=(prevCatMap[g]||0)+e.hours;});
 
-    // â”€â”€ TOP ACTIVITIES â”€â”€
+    // ---- TOP ACTIVITIES ----
     const actMap={};
     workEntries.forEach(e=>{
       if(!e.activity)return;
       const k=`${e.task_type||""}|||${e.activity}`;
-      if(!actMap[k])actMap[k]={task:e.task_type||"â€”",activity:e.activity,hrs:0,count:0,billable:0};
+      if(!actMap[k])actMap[k]={task:e.task_type||"—",activity:e.activity,hrs:0,count:0,billable:0};
       actMap[k].hrs+=e.hours; actMap[k].count++;
       const p=projects.find(x=>x.id===e.project_id);
       if(p&&p.billable)actMap[k].billable+=e.hours;
     });
     const topActivities=Object.values(actMap).sort((a,b)=>b.hrs-a.hrs).slice(0,12);
 
-    // â”€â”€ ENGINEER أ— CATEGORY MATRIX â”€â”€
+    // ---- ENGINEER أ— CATEGORY MATRIX ----
     const activeEngs=visibleEngStats.filter(e=>e.workHrs>0); // scoped for lead
     const allCats=taskStats.map(t=>t.category);
     const engCatMatrix=activeEngs.map(eng=>{
@@ -2641,20 +2641,20 @@ export default function App(){
       return{...eng,catHrs,topCat};
     });
 
-    // â”€â”€ COLORS â”€â”€
+    // ---- COLORS ----
     const CLRS=["#0ea5e9","#a78bfa","#34d399","#fb923c","#f87171","#e879f9","#facc15","#4ade80","#f472b6","#60a5fa","#2dd4bf","#f97316"];
     const ccm={};taskStats.forEach((t,i)=>{ccm[t.category]=CLRS[i%CLRS.length];});
 
-    // â”€â”€ SECTION 1: EXECUTIVE KPIs â”€â”€
+    // ---- SECTION 1: EXECUTIVE KPIs ----
     const hrsVsPrev=prevTotalHrs>0?totalWorkHrs-prevTotalHrs:null;
-    const s1=`<div class="section"><div class="st">Executive Summary â€” ${period}</div>
+    const s1=`<div class="section"><div class="st">Executive Summary — ${period}</div>
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px">
         ${[
           {l:"Total Hours",    v:totalWorkHrs+"h",          c:"#0ea5e9", sub:uniqueEngineers+" engineers آ· "+workEntries.length+" entries"},
           {l:"Billable Hours", v:totalBillable+"h",         c:"#34d399", sub:fmtPct(billabilityPct)+" of total"},
           {l:"Non-Billable",   v:nonBillableHrs+"h",        c:"#fb923c", sub:fmtPct(nonBillablePct)+" of total"},
-          {l:"Utilization",    v:fmtPct(overallUtil),       c:overallUtil>=70?"#34d399":"#f87171", sub:"Benchmark â‰¥ 70%"},
-          {l:"Revenue",        v:fmtCurrency(totalRevenue), c:"#38bdf8", sub:avgRate>0?"$"+Math.round(avgRate)+"/h avg rate":"â€”"},
+          {l:"Utilization",    v:fmtPct(overallUtil),       c:overallUtil>=70?"#34d399":"#f87171", sub:"Benchmark ≥ 70%"},
+          {l:"Revenue",        v:fmtCurrency(totalRevenue), c:"#38bdf8", sub:avgRate>0?"$"+Math.round(avgRate)+"/h avg rate":"—"},
         ].map(k=>`<div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;text-align:center">
           <div style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:700;color:${k.c};line-height:1">${k.v}</div>
           <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-top:4px;font-weight:600">${k.l}</div>
@@ -2664,14 +2664,14 @@ export default function App(){
       <div style="background:#f8fafc;border-radius:6px;padding:8px 14px;display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#64748b;align-items:center">
         <span>ًں“‹ Avg ${avgHrsPerEntry}h per entry</span>
         <span>آ·</span><span>ًں—‚ ${uniqueTaskTypes} task types across ${taskStats.length} categories</span>
-        ${hrsVsPrev!==null?`<span style="margin-left:auto;font-weight:700;color:${hrsVsPrev>=0?"#16a34a":"#dc2626"}">${hrsVsPrev>=0?"â–² +":"â–¼ "}${hrsVsPrev}h vs ${MONTHS[prevMonth]} ${prevYear}</span>`:""}
+        ${hrsVsPrev!==null?`<span style="margin-left:auto;font-weight:700;color:${hrsVsPrev>=0?"#16a34a":"#dc2626"}">${hrsVsPrev>=0?"▲ +":"▼ "}${hrsVsPrev}h vs ${MONTHS[prevMonth]} ${prevYear}</span>`:""}
       </div>
     </div>`;
 
-    // â”€â”€ SECTION 2: CATEGORY VISUAL DISTRIBUTION â”€â”€
+    // ---- SECTION 2: CATEGORY VISUAL DISTRIBUTION ----
     const s2=`<div class="section"><div class="st">Task Category Distribution</div>
       <div style="font-size:11px;color:#64748b;margin-bottom:10px;padding:6px 10px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:0 4px 4px 0">
-        âڑ، Industry benchmarks for engineering firms: Billable â‰¥ 70% آ· Internal overhead â‰¤ 20% آ· Training / R&D â‰¤ 10%
+        âڑ، Industry benchmarks for engineering firms: Billable ≥ 70% آ· Internal overhead ≤ 20% آ· Training / R&D ≤ 10%
       </div>
       ${taskStats.map((cat,i)=>{
         const pct=totalWorkHrs?Math.round(cat.hours/totalWorkHrs*100):0;
@@ -2688,7 +2688,7 @@ export default function App(){
             <div style="display:flex;gap:10px;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap">
               <span style="color:${col};font-weight:700">${cat.hours}h</span>
               <span style="background:${col}22;color:${col};padding:1px 6px;border-radius:3px;font-weight:700">${pct}%</span>
-              ${delta!==null?`<span style="font-size:10px;color:${delta>=0?"#16a34a":"#dc2626"}">${delta>=0?"â–²+":"â–¼"}${delta}h</span>`:""}
+              ${delta!==null?`<span style="font-size:10px;color:${delta>=0?"#16a34a":"#dc2626"}">${delta>=0?"▲+":"▼"}${delta}h</span>`:""}
             </div>
           </div>
           <div style="background:#e2e8f0;height:9px;border-radius:5px;overflow:hidden;display:flex">
@@ -2706,7 +2706,7 @@ export default function App(){
       }).join("")}
     </div>`;
 
-    // â”€â”€ SECTION 3: BILLABILITY & EFFICIENCY â”€â”€
+    // ---- SECTION 3: BILLABILITY & EFFICIENCY ----
     const s3=`<div class="section"><div class="st">Billability &amp; Efficiency Analysis</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
         <div>
@@ -2719,7 +2719,7 @@ export default function App(){
             return`<div style="margin-bottom:10px">
               <div style="display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px">
                 <span style="font-weight:600;color:#334155">${r.l}</span>
-                <span style="font-family:'IBM Plex Mono',monospace;color:${r.c};font-weight:700">${r.h}h â€” ${w}%</span>
+                <span style="font-family:'IBM Plex Mono',monospace;color:${r.c};font-weight:700">${r.h}h — ${w}%</span>
               </div>
               <div style="background:#e2e8f0;height:7px;border-radius:4px;overflow:hidden">
                 <div style="height:100%;width:${w}%;background:${r.c};border-radius:4px"></div>
@@ -2735,7 +2735,7 @@ export default function App(){
             <span style="font-weight:700;color:${billabilityPct>=70?"#166534":"#92400e"}">
               ${billabilityPct>=70?"âœ… Billability target met":"âڑ  Below 70% billability target"}
             </span>
-            <div style="color:#64748b;margin-top:2px">Current: ${fmtPct(billabilityPct)} آ· Target: â‰¥ 70% آ· Gap: ${billabilityPct>=70?"None":"+"+(70-billabilityPct)+"% needed"}</div>
+            <div style="color:#64748b;margin-top:2px">Current: ${fmtPct(billabilityPct)} آ· Target: ≥ 70% آ· Gap: ${billabilityPct>=70?"None":"+"+(70-billabilityPct)+"% needed"}</div>
           </div>
         </div>
         <div>
@@ -2763,8 +2763,8 @@ export default function App(){
       </div>
     </div>`;
 
-    // â”€â”€ SECTION 4: TASK TYPE DEEP DIVE â”€â”€
-    const s4=`<div class="section"><div class="st">Task Type Detail â€” Within Each Category</div>
+    // ---- SECTION 4: TASK TYPE DEEP DIVE ----
+    const s4=`<div class="section"><div class="st">Task Type Detail — Within Each Category</div>
       ${taskStats.map(cat=>{
         const col=ccm[cat.category]||"#0ea5e9";
         const subs=Object.entries(cat.tasks).sort((a,b)=>b[1].hrs-a[1].hrs);
@@ -2789,7 +2789,7 @@ export default function App(){
       }).join("")}
     </div>`;
 
-    // â”€â”€ SECTION 5: ENGINEER أ— CATEGORY MATRIX â”€â”€
+    // ---- SECTION 5: ENGINEER أ— CATEGORY MATRIX ----
     const s5=engCatMatrix.length>0?`<div class="section"><div class="st">Engineer أ— Task Category Matrix</div>
       <div style="overflow-x:auto">
       <table style="font-size:11px;width:100%">
@@ -2805,16 +2805,16 @@ export default function App(){
           <td style="text-align:right;padding:5px 6px;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700">${eng.workHrs}h</td>
           <td style="text-align:right;padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${eng.billability>=70?"#16a34a":eng.billability>=40?"#d97706":"#dc2626"}">${eng.billability}%</td>
           ${allCats.map(c=>{const h=eng.catHrs[c]||0;const col=ccm[c]||"#0ea5e9";
-            return`<td style="text-align:right;padding:5px 5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:${h>0?col:"#cbd5e1"}">${h>0?h+"h":"â€”"}</td>`;
+            return`<td style="text-align:right;padding:5px 5px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:${h>0?col:"#cbd5e1"}">${h>0?h+"h":"—"}</td>`;
           }).join("")}
-          <td style="padding:5px 8px;font-size:10px;color:#64748b">${eng.topCat?eng.topCat[0]+" ("+eng.topCat[1]+"h)":"â€”"}</td>
+          <td style="padding:5px 8px;font-size:10px;color:#64748b">${eng.topCat?eng.topCat[0]+" ("+eng.topCat[1]+"h)":"—"}</td>
         </tr>`).join("")}</tbody>
       </table>
       </div>
     </div>`:"";
 
-    // â”€â”€ SECTION 6: TOP ACTIVITIES â”€â”€
-    const s6=topActivities.length>0?`<div class="section"><div class="st">Top Activities by Hours â€” What the Team Is Actually Working On</div>
+    // ---- SECTION 6: TOP ACTIVITIES ----
+    const s6=topActivities.length>0?`<div class="section"><div class="st">Top Activities by Hours — What the Team Is Actually Working On</div>
       <table>
         <thead><tr>
           <th style="text-align:left">Task Type</th><th style="text-align:left">Activity Description</th>
@@ -2829,7 +2829,7 @@ export default function App(){
             <td style="font-weight:600;color:#0f172a">${a.activity}</td>
             <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#0ea5e9;font-weight:700">${a.hrs}h</td>
             <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8">${a.count}أ—</td>
-            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${bp>=70?"#16a34a":bp>=40?"#d97706":"#94a3b8"}">${a.hrs>0?bp+"%":"â€”"}</td>
+            <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${bp>=70?"#16a34a":bp>=40?"#d97706":"#94a3b8"}">${a.hrs>0?bp+"%":"—"}</td>
             <td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8">${pct}%</td>
           </tr>`;
         }).join("")}</tbody>
@@ -2837,14 +2837,14 @@ export default function App(){
     </div>`:"";
 
     generatePDF(
-      `Task Analysis Report â€” ${period}`,
+      `Task Analysis Report — ${period}`,
       [s1,s2,s3,s4,s5,s6],
       `Task &amp; Productivity Analysis آ· ${period} آ· Confidential`
     );
   };
   const buildMonthlyPDF=()=>{
     const pdfStats=visibleEngStats; // scoped for lead, full for admin/acct
-    generatePDF(`Monthly Management Report â€” ${MONTHS[month]} ${year}`,[
+    generatePDF(`Monthly Management Report — ${MONTHS[month]} ${year}`,[
       `<div class="section"><div class="st">Summary</div><div class="kg">
         <div class="kp"><div class="kv">${fmtPct(overallUtil)}</div><div class="kl">Team Utilization</div></div>
         <div class="kp"><div class="kv">${fmtPct(billabilityPct)}</div><div class="kl">Billability</div></div>
@@ -2857,12 +2857,12 @@ export default function App(){
         <td style="color:#0ea5e9">${fmtCurrency(e.revenue)}</td><td>${e.leaveDays}d</td></tr>`).join("")}</tbody></table></div>`,
       `<div class="section"><div class="st">Projects</div><table><thead><tr><th>No.</th><th>Project</th><th>PM</th><th>Phase</th><th>Hours</th><th>Revenue</th></tr></thead>
       <tbody>${projStats.filter(p=>p.hours>0).map(p=>`<tr>
-        <td style="color:#0ea5e9;font-size:11px">${p.id}</td><td>${p.name}</td><td style="color:#a78bfa;font-size:11px">${p.pm||"â€”"}</td><td>${p.phase||""}</td>
-        <td>${p.hours}h</td><td>${p.billable?fmtCurrency(p.revenue):"â€”"}</td></tr>`).join("")}</tbody></table></div>`],
+        <td style="color:#0ea5e9;font-size:11px">${p.id}</td><td>${p.name}</td><td style="color:#a78bfa;font-size:11px">${p.pm||"—"}</td><td>${p.phase||""}</td>
+        <td>${p.hours}h</td><td>${p.billable?fmtCurrency(p.revenue):"—"}</td></tr>`).join("")}</tbody></table></div>`],
       "Prepared for Senior Management");
   };
 
-  /* â”€â”€ LOADING â”€â”€ */
+  /* ---- LOADING ---- */
   if(authLoading) return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"var(--bg0)",gap:16}}>
       <img src={LOGO_SRC} alt="ENEVO Group" style={{width:110,height:110,borderRadius:18,opacity:0.9}}/>
@@ -2870,7 +2870,7 @@ export default function App(){
     </div>
   );
 
-  /* â”€â”€ AUTH SCREEN â”€â”€ */
+  /* ---- AUTH SCREEN ---- */
   if(!session) return(
     <div style={{minHeight:"100vh",background:"var(--bg0)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Sans',sans-serif"}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');*{box-sizing:border-box;margin:0;padding:0}input,select{background:var(--input-bg);border:1px solid var(--border3);color:var(--text1);padding:10px 14px;border-radius:7px;font-family:'IBM Plex Sans',sans-serif;font-size:15px;outline:none;width:100%;transition:border-color .2s}input:focus,select:focus{border-color:var(--info)}select option{background:var(--input-bg)}.bp{background:linear-gradient(135deg,#0ea5e9,#0369a1);border:none;color:#fff;padding:11px;border-radius:7px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center}.bp:hover{opacity:.85}`}</style>
@@ -2899,7 +2899,7 @@ export default function App(){
   /* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
      MAIN LAYOUT
   â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
-  // â”€â”€ Minimal SVG nav icons â€” consistent stroke weight, engineering-grade â”€â”€
+  // ---- Minimal SVG nav icons — consistent stroke weight, engineering-grade ----
   const NavIcon=({id,active})=>{
     const c=active?"var(--info)":"var(--text3)";
     const s={width:17,height:17,display:"block",flexShrink:0};
@@ -2954,7 +2954,7 @@ export default function App(){
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        /* â”€â”€ DARK THEME (default) â”€â”€ */
+        /* ---- DARK THEME (default) ---- */
         :root{
           --bg0:#07101e;--bg1:#0c1829;--bg2:#060e1c;--bg3:#0d1e33;
           --bg1g:linear-gradient(135deg,#0c1829,#0d1e34);
@@ -2970,7 +2970,7 @@ export default function App(){
           --modal-bg:#0c1829;--card-hover:#0d1e34;
           --th-bg:#060e1c;--tr-hover:#0d1e33;
         }
-        /* â”€â”€ LIGHT THEME â”€â”€ */
+        /* ---- LIGHT THEME ---- */
         body.light{
           --bg0:#eef2f7;--bg1:#ffffff;--bg2:#f5f8fc;--bg3:#e8eef6;
           --bg1g:linear-gradient(135deg,#ffffff,#f0f5fb);
@@ -3026,7 +3026,7 @@ export default function App(){
         .metric{background:var(--bg1g);border:1px solid var(--border);border-radius:10px;padding:18px;line-height:1.4}/* light mode sidebar text override */
         body.light .nb{color:#94a3b8}
         body.light .nb:hover,body.light .nb.a{color:#38bdf8;background:#2d3f55}
-        /* â”€â”€ Light mode component overrides â”€â”€ */
+        /* ---- Light mode component overrides ---- */
         body.light{color-scheme:light}
         body.light .bd{border-color:#fca5a5;color:#dc2626}
         body.light .bd:hover{background:#fee2e240}
@@ -3042,7 +3042,7 @@ export default function App(){
         body.light input:focus,body.light select:focus,body.light textarea:focus{box-shadow:0 0 0 3px #0ea5e920}
         body.light .rpt-card{box-shadow:0 1px 4px #0000000a}
         body.light .wc{box-shadow:inset 0 1px 3px #0000000a}
-        /* â”€â”€ RESPONSIVE / MOBILE â”€â”€ */
+        /* ---- RESPONSIVE / MOBILE ---- */
         .hamburger{display:none;position:fixed;top:14px;left:14px;z-index:300;
           background:var(--info);border:none;border-radius:8px;width:40px;height:40px;
           cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;box-shadow:0 2px 12px #0005}
@@ -3066,17 +3066,17 @@ export default function App(){
         }
       `}</style>
 
-      {/* â”€â”€ Hamburger (mobile only) â”€â”€ */}
+      {/* ---- Hamburger (mobile only) ---- */}
       <button className="hamburger" onClick={()=>setMenuOpen(o=>!o)} aria-label="Menu">
         <span style={{transform:menuOpen?"rotate(45deg) translate(5px,5px)":"none"}}/>
         <span style={{opacity:menuOpen?0:1}}/>
         <span style={{transform:menuOpen?"rotate(-45deg) translate(5px,-5px)":"none"}}/>
       </button>
-      {/* â”€â”€ Sidebar overlay (mobile tap-to-close) â”€â”€ */}
+      {/* ---- Sidebar overlay (mobile tap-to-close) ---- */}
       {menuOpen&&<div className="sidebar-overlay" onClick={()=>setMenuOpen(false)}/>}
 
       <div style={{display:"flex"}}>
-        {/* â”€â”€ Sidebar â”€â”€ */}
+        {/* ---- Sidebar ---- */}
         <div className={`app-sidebar${menuOpen?" sidebar-open":""}`} style={{width:215,background:"var(--sidebar)",borderRight:`1px solid var(--sidebar-border)`,minHeight:"100vh",padding:"20px 10px",position:"fixed",top:0,left:0,bottom:0,overflowY:"auto",zIndex:menuOpen?200:50,transition:"background .3s, transform .25s"}}>
           <div style={{marginBottom:16,paddingLeft:6,paddingRight:6}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -3085,7 +3085,7 @@ export default function App(){
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",letterSpacing:".15em",fontWeight:600}}>ENEVO-ERP</div>
                 <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",lineHeight:1.1}}>ENEVO GROUP</div>
               </div>
-              {/* â”€â”€ Bell notification button â€” lives in sidebar header, no overlap â”€â”€ */}
+              {/* ---- Bell notification button — lives in sidebar header, no overlap ---- */}
               {session&&!loading&&(()=>{
                 const bellCount=unreadCount;
                 const typeIcon=t=>t==="activity_comment"?"ًں’¬":t==="vacation_approved"?"âœ“":t==="vacation_rejected"?"âœ•":t==="vacation_request"?"âڈ³":t==="project_status"?"ًں”„":t==="project_phase"?"ًں“‹":t==="project_leader"?"â­گ":t==="project_assigned"?"ًں‘¤":t==="timesheet_alert"?"âڈ°":t==="overdue_alert"?"âڑ ":t==="activity_assigned"?"ًں“‹":t==="activity_status_changed"?"â†؛":t==="activity_progress_changed"?"â—‰":t==="activity_deadline_changed"?"ًں“…":t==="vacation_cancelled"?"âœ•":t==="new_signup"?"ًں‘¤":"â€¢";
@@ -3106,7 +3106,7 @@ export default function App(){
                         {bellCount>99?"99+":bellCount}
                       </span>}
                     </button>
-                    {/* Dropdown â€” opens to the right of sidebar */}
+                    {/* Dropdown — opens to the right of sidebar */}
                     {bellOpen&&(
                       <div style={{position:"fixed",top:72,left:220,width:370,maxHeight:520,background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:14,boxShadow:"0 8px 32px #00000060",overflow:"hidden",display:"flex",flexDirection:"column",zIndex:601}}>
                         {/* Header + Tabs */}
@@ -3170,7 +3170,7 @@ export default function App(){
                               <div style={{fontSize:24,marginBottom:6}}>ًں””</div>All caught up
                             </div>
                           )}
-                          {/* Vacation approval queue â€” admin only */}
+                          {/* Vacation approval queue — admin only */}
                           {isAdmin&&bellTab==="active"&&(()=>{
                             const pendingVacs=entries.filter(e=>e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL");
                             if(!pendingVacs.length&&sorted.length===0) return(
@@ -3185,14 +3185,14 @@ export default function App(){
                                 <div key={e.id} style={{padding:"11px 16px",borderBottom:"1px solid var(--border3)",display:"flex",gap:10,alignItems:"flex-start",background:"#78350f08"}}>
                                   <div style={{width:28,height:28,borderRadius:"50%",background:"#f59e0b20",color:"#f59e0b",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700}}>âڈ³</div>
                                   <div style={{flex:1,minWidth:0}}>
-                                    <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:2}}><span style={{color:"#f59e0b"}}>{eng?.name||"Engineer"}</span> â€” Annual Leave</div>
+                                    <div style={{fontSize:13,fontWeight:600,color:"var(--text0)",marginBottom:2}}><span style={{color:"#f59e0b"}}>{eng?.name||"Engineer"}</span> — Annual Leave</div>
                                     <div style={{fontSize:11,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace",marginBottom:7}}>{e.date}</div>
                                     <div style={{display:"flex",gap:5}}>
                                       <button onClick={async()=>{
                                         setEntries(prev=>prev.map(x=>x.id===e.id?{...x,activity:null}:x));
                                         await supabase.from("time_entries").update({activity:null}).eq("id",e.id);
                                         if(matchedNotif){
-                                          // Mark as read â†’ moves to admin's history
+                                          // Mark as read → moves to admin's history
                                           await supabase.from("notifications").update({read:true}).eq("id",matchedNotif.id);
                                           setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));
                                           setNotifHistory(prev=>[{...matchedNotif,read:true},...prev].slice(0,200));
@@ -3204,7 +3204,7 @@ export default function App(){
                                         setEntries(prev=>prev.filter(x=>x.id!==e.id));
                                         await supabase.from("time_entries").delete().eq("id",e.id);
                                         if(matchedNotif){
-                                          // Mark as read â†’ moves to admin's history
+                                          // Mark as read → moves to admin's history
                                           await supabase.from("notifications").update({read:true}).eq("id",matchedNotif.id);
                                           setNotifications(prev=>prev.filter(n=>n.id!==matchedNotif.id));
                                           setNotifHistory(prev=>[{...matchedNotif,read:true},...prev].slice(0,200));
@@ -3218,7 +3218,7 @@ export default function App(){
                               );
                             });
                           })()}
-                          {/* All other notifications â€” active tab */}
+                          {/* All other notifications — active tab */}
                           {bellTab==="active"&&sorted.map(n=>{
                             const ic=typeIcon(n.type);const cl=typeColor(n.type);const lbl=typeLabel(n.type);
                             return(
@@ -3253,7 +3253,7 @@ export default function App(){
                               </div>
                             );
                           })}
-                          {/* History tab â€” past read notifications */}
+                          {/* History tab — past read notifications */}
                           {bellTab==="history"&&(
                             <div>
                               <div style={{fontSize:11,color:"var(--text4)",textAlign:"center",padding:"5px 0 4px",borderBottom:"1px solid var(--border3)",background:"var(--bg0)",letterSpacing:".04em"}}>
@@ -3276,7 +3276,7 @@ export default function App(){
                                       <div style={{fontSize:12,color:"var(--text3)",lineHeight:1.45}}>{n.message}</div>
                                     </div>
                                     <button onClick={()=>{
-                                      // Remove from UI only â€” DB row stays as read history (90-day window)
+                                      // Remove from UI only — DB row stays as read history (90-day window)
                                       setNotifHistory(prev=>prev.filter(x=>x.id!==n.id));
                                     }} style={{background:"transparent",border:"none",color:"var(--text4)",cursor:"pointer",fontSize:12,padding:"2px 3px",flexShrink:0}}
                                       title="Delete from history"
@@ -3301,7 +3301,7 @@ export default function App(){
             <button key={n.id} className={`nb ${view===n.id?"a":""}`} onClick={()=>{setView(n.id);setMenuOpen(false);setBellOpen(false);}}>
               <NavIcon id={n.id} active={view===n.id}/>
               {n.label}
-              {/* notification badges moved to bell icon â€” top right */}
+              {/* notification badges moved to bell icon — top right */}
             </button>
           ))}
           <div style={{marginTop:14,borderTop:`1px solid var(--border)`,paddingTop:12,paddingLeft:6,paddingRight:6}}>
@@ -3347,7 +3347,7 @@ export default function App(){
         </div>
 
 
-        {/* â”€â”€ Main Content â”€â”€ */}
+        {/* ---- Main Content ---- */}
         <div className="app-content" style={{marginLeft:215,flex:1,padding:"24px 28px",maxWidth:"calc(100vw - 215px)",background:"var(--bg2)",color:"var(--text1)",minHeight:"100vh",transition:"background .3s"}}>
           {loading&&<div style={{textAlign:"center",padding:60,color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>Loadingâ€¦</div>}
           {!loading&&<>
@@ -3356,7 +3356,7 @@ export default function App(){
           {view==="dashboard"&&(
             <div style={{display:"grid",gap:20}}>
 
-              {/* â”€â”€ Page header + controls â”€â”€ */}
+              {/* ---- Page header + controls ---- */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>
@@ -3393,7 +3393,7 @@ export default function App(){
                 </div>
               </div>
 
-              {/* â”€â”€ ENGINEER personal view â”€â”€ */}
+              {/* ---- ENGINEER personal view ---- */}
               {!isAdmin&&!isAcct&&!isLead&&(()=>{
                 const myE=monthEntries.filter(e=>String(e.engineer_id)===String(myProfile?.id));
                 const myWork=myE.filter(e=>e.entry_type==="work").reduce((s,e)=>s+e.hours,0);
@@ -3419,7 +3419,7 @@ export default function App(){
                   </div>
                   <div className="card" style={{padding:0,overflow:"hidden"}}>
                     <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px"}}>
-                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>My Work Log â€” {MONTHS[month]} {year}</div>
+                      <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>My Work Log — {MONTHS[month]} {year}</div>
                     </div>
                     <table>
                       <thead><tr><th>Date</th><th>Project</th><th>Task</th><th>Activity</th><th>Hrs</th></tr></thead>
@@ -3427,19 +3427,19 @@ export default function App(){
                         const p=projects.find(x=>x.id===e.project_id);
                         return<tr key={e.id}>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.date}</td>
-                          <td style={{color:"var(--info)",fontWeight:600}}>{p?.id||"â€”"}</td>
-                          <td style={{color:"var(--text2)"}}>{e.task_type||"â€”"}</td>
-                          <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"â€”"}</td>
+                          <td style={{color:"var(--info)",fontWeight:600}}>{p?.id||"—"}</td>
+                          <td style={{color:"var(--text2)"}}>{e.task_type||"—"}</td>
+                          <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{e.hours}h</td>
                         </tr>;
-                      })}{myE.length===0&&<tr><td colSpan={5} style={{textAlign:"center",color:"var(--text4)",padding:24}}>No entries for {MONTHS[month]} {year} â€” go to Post Hours to log time.</td></tr>}
+                      })}{myE.length===0&&<tr><td colSpan={5} style={{textAlign:"center",color:"var(--text4)",padding:24}}>No entries for {MONTHS[month]} {year} — go to Post Hours to log time.</td></tr>}
                       </tbody>
                     </table>
                   </div>
                 </>;
               })()}
 
-              {/* â”€â”€ ADMIN / LEAD / ACCOUNTANT full dashboard â”€â”€ */}
+              {/* ---- ADMIN / LEAD / ACCOUNTANT full dashboard ---- */}
               {(isAdmin||isAcct||isLead)&&(()=>{
                 const dEntries=dashProjFilter==="ALL"?monthEntries:monthEntries.filter(e=>e.project_id===dashProjFilter);
                 const dWork=dEntries.filter(e=>e.entry_type==="work");
@@ -3452,15 +3452,15 @@ export default function App(){
                 const billColor=dBillPct>=80?"#34d399":dBillPct>=60?"#fb923c":"#f87171";
 
                 return<>
-                {/* â”€â”€ Non-billable warning â”€â”€ */}
+                {/* ---- Non-billable warning ---- */}
                 {(isAdmin||isAcct)&&dWorkHrs>0&&dBillHrs===0&&(
                   <div style={{background:"var(--warn-bg)",border:"1px solid #fb923c40",borderRadius:10,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-                    <span style={{fontSize:14,color:"#fb923c"}}>âڑ  All hours are showing as non-billable â€” projects may need the billable flag set.</span>
-                    <button className="bg" style={{fontSize:13,borderColor:"#fb923c",color:"#fb923c",whiteSpace:"nowrap",flexShrink:0}} onClick={()=>setView("reports")}>Fix in Reports â†’</button>
+                    <span style={{fontSize:14,color:"#fb923c"}}>âڑ  All hours are showing as non-billable — projects may need the billable flag set.</span>
+                    <button className="bg" style={{fontSize:13,borderColor:"#fb923c",color:"#fb923c",whiteSpace:"nowrap",flexShrink:0}} onClick={()=>setView("reports")}>Fix in Reports →</button>
                   </div>
                 )}
 
-                {/* â”€â”€ Hero metrics â”€â”€ */}
+                {/* ---- Hero metrics ---- */}
                 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
                   {[
                     {l:"Total Work Hours",  v:dWorkHrs+"h",  c:"var(--text0)",  sub:`${dEntries.filter(e=>e.entry_type==="work").length} entries آ· ${[...new Set(dWork.map(e=>e.engineer_id))].length} engineers`,show:true},
@@ -3478,7 +3478,7 @@ export default function App(){
                   ))}
                 </div>
 
-                {/* â”€â”€ Team Utilization + Task Distribution â”€â”€ */}
+                {/* ---- Team Utilization + Task Distribution ---- */}
                 <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:14}}>
 
                   {/* Team Utilization */}
@@ -3541,7 +3541,7 @@ export default function App(){
                   </div>
                 </div>
 
-                {/* â”€â”€ Active Projects â”€â”€ */}
+                {/* ---- Active Projects ---- */}
                 <div className="card" style={{padding:0,overflow:"hidden"}}>
                   <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>
@@ -3560,11 +3560,11 @@ export default function App(){
                         <tr key={p.id}>
                           <td style={{fontWeight:600,color:"var(--text0)"}}>{p.name||p.id}</td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{p.id}</td>
-                          <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{p.phase||"â€”"}</span></td>
+                          <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{p.phase||"—"}</span></td>
                           <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--text0)"}}>{p.hours}h</td>
                           {(isAdmin||isAcct)&&<>
                             <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,background:p.billable?"#05603a30":"#fb923c20",color:p.billable?"#34d399":"#fb923c"}}>{p.billable?"BILLABLE":"NON-BILL"}</span></td>
-                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:600}}>{p.billable?fmtCurrency(p.revenue):"â€”"}</td>
+                            <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:600}}>{p.billable?fmtCurrency(p.revenue):"—"}</td>
                           </>}
                         </tr>
                       ))}
@@ -3575,14 +3575,14 @@ export default function App(){
                   </table>
                 </div>
 
-                {/* â”€â”€ Deadlines + Workload â”€â”€ */}
+                {/* ---- Deadlines + Workload ---- */}
                 {(isAdmin||isLead)&&activitiesLoaded&&(()=>{
                   // Dashboard uses local date (not UTC toISOString) to avoid timezone shift
                   const _dn=new Date();
                   const todayStr=`${_dn.getFullYear()}-${String(_dn.getMonth()+1).padStart(2,"0")}-${String(_dn.getDate()).padStart(2,"0")}`;
                   const _addD=(n)=>{const d=new Date(_dn);d.setDate(_dn.getDate()+n);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
                   const in30Str=_addD(30); // Extended to 30 days (was 14)
-                  // Build set of On Hold / Completed project IDs â€” exclude from all deadline views
+                  // Build set of On Hold / Completed project IDs — exclude from all deadline views
                   const _inactiveDashProjIds=new Set(projects.filter(p=>p.status==="On Hold"||p.status==="Completed").map(p=>p.id));
                   const upcoming=activities.filter(a=>
                     a.end_date&&a.end_date>=todayStr&&a.end_date<=in30Str&&
@@ -3689,7 +3689,7 @@ export default function App(){
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>{isAcct?"REVIEW":"POST HOURS"}</div>
                   <h1 style={{fontSize:26,fontWeight:800,color:"var(--text0)",lineHeight:1}}>{isAcct?"Hours Review":"Post Hours"}</h1>
                   <p style={{color:"var(--text3)",fontSize:14,marginTop:4,fontFamily:"'IBM Plex Mono',monospace"}}>
-                    Allowed: {minPostDate()} â†’ {maxPostDate()}
+                    Allowed: {minPostDate()} → {maxPostDate()}
                     
                   </p>
                 </div>
@@ -3709,7 +3709,7 @@ export default function App(){
                       <button className="bg" style={{padding:"7px 10px"}} onClick={()=>{const d=new Date(weekOf);d.setDate(d.getDate()-7);setWeekOf(fmt(d));}}>â†گ</button>
                       <input type="date" style={{width:140}} value={weekOf} onChange={e=>setWeekOf(e.target.value)}
                         min={minPostDate()} max={maxPostDate()}/>
-                      <button className="bg" style={{padding:"7px 10px"}} onClick={()=>{const d=new Date(weekOf);d.setDate(d.getDate()+7);setWeekOf(fmt(d));}}>â†’</button>
+                      <button className="bg" style={{padding:"7px 10px"}} onClick={()=>{const d=new Date(weekOf);d.setDate(d.getDate()+7);setWeekOf(fmt(d));}}>→</button>
                       <button className="bg" style={{fontSize:13}} onClick={()=>setWeekOf(fmt(today))}>Today</button>
                       {canPostHours&&(()=>{
                         // Count entries in previous week
@@ -3748,7 +3748,7 @@ export default function App(){
                               }
                               if(allInserted.length>0){
                                 const copiedIds=allInserted.map(e=>e.id);
-                                const skipMsg=skipped>0?` (${skipped} days skipped â€” already filled or locked)`:"";
+                                const skipMsg=skipped>0?` (${skipped} days skipped — already filled or locked)`:"";
                                 // Add to UI first, then offer undo via toast
                                 setEntries(prev=>[...allInserted,...prev]);
                                 showToast(
@@ -3761,7 +3761,7 @@ export default function App(){
                                   }
                                 );
                               } else {
-                                showToast("No entries copied â€” all days already filled or locked",false);
+                                showToast("No entries copied — all days already filled or locked",false);
                               }
                             }}>
                             âژک Copy Last Week <span style={{fontSize:11,opacity:.7}}>({prevEntries.length})</span>
@@ -3788,7 +3788,7 @@ export default function App(){
                     <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:17,fontWeight:700,color:s.c}}>{s.v}</div>
                     <div style={{fontSize:13,color:"var(--text4)"}}>{s.l}</div>
                   </div>)}
-                  {/* â”€â”€ Vacation balance â€” visible to every role for the viewed engineer â”€â”€ */}
+                  {/* ---- Vacation balance — visible to every role for the viewed engineer ---- */}
                   {(()=>{
                     const entitlement=(vacationBalances[year]||{})[viewEngId]??21;
                     const used=entries.filter(e=>
@@ -3818,7 +3818,7 @@ export default function App(){
                 </div>
               </div>}
 
-              {/* â”€â”€ Weekend Picker â€” visible to all roles, edits viewed engineer's weekend â”€â”€ */}
+              {/* ---- Weekend Picker — visible to all roles, edits viewed engineer's weekend ---- */}
               {viewEng&&(()=>{
                 const pickerEngId = viewEngId||myProfile?.id;
                 const pickerEng = engineers.find(e=>e.id===pickerEngId)||viewEng;
@@ -3835,11 +3835,11 @@ export default function App(){
                       <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"var(--text4)",marginLeft:"auto"}}>
                         {getWorkDaysInMonth(year,month,pickerWd).length} working days آ· {getTargetHrs(year,month,pickerWd)}h target
                       </span>
-                      <span style={{color:"var(--text3)",fontSize:13}}>{showWeekendPicker?"â–²":"â–¼"}</span>
+                      <span style={{color:"var(--text3)",fontSize:13}}>{showWeekendPicker?"▲":"▼"}</span>
                     </div>
                     {showWeekendPicker&&(
                       <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:8,padding:"14px 16px",marginTop:4}}>
-                        {!isOwnProfile&&<div style={{fontSize:13,color:"#fb923c",marginBottom:10}}>âڑ  Editing weekend for <strong>{pickerEng.name}</strong> â€” this affects their utilization target</div>}
+                        {!isOwnProfile&&<div style={{fontSize:13,color:"#fb923c",marginBottom:10}}>âڑ  Editing weekend for <strong>{pickerEng.name}</strong> — this affects their utilization target</div>}
                         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:12}}>
                           {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((name,i)=>{
                             const isOff=pickerWd.includes(i);
@@ -3874,11 +3874,11 @@ export default function App(){
                 );
               })()}
 
-              {/* â”€â”€ Month Freeze Calendar â”€â”€ */}
+              {/* ---- Month Freeze Calendar ---- */}
               {(()=>{
                 const _MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
                 const _curYear=new Date(weekOf+"T12:00:00").getFullYear()||year;
-                // Check if current week's month is frozen â€” show banner
+                // Check if current week's month is frozen — show banner
                 const _weekMonth=new Date(weekOf+"T12:00:00").getMonth();
                 const _weekYear=new Date(weekOf+"T12:00:00").getFullYear();
                 const _weekFrozen=frozenMonths.some(fm=>Number(fm.year)===_weekYear&&Number(fm.month)===_weekMonth);
@@ -3889,7 +3889,7 @@ export default function App(){
                       <div style={{display:"flex",alignItems:"center",gap:10,background:"#1e3a5f",border:"1px solid #3b82f640",borderRadius:8,padding:"8px 14px",marginBottom:8}}>
                         <span style={{fontSize:16}}>â‌„</span>
                         <span style={{fontSize:13,color:"#93c5fd",fontWeight:700}}>
-                          {_MONTHS[_weekMonth]} {_weekYear} is frozen â€” time entries cannot be added, edited or deleted.
+                          {_MONTHS[_weekMonth]} {_weekYear} is frozen — time entries cannot be added, edited or deleted.
                         </span>
                         {isAdmin&&<button onClick={()=>toggleFreezeMonth(_weekYear,_weekMonth)}
                           style={{marginLeft:"auto",padding:"3px 12px",borderRadius:5,border:"1px solid #93c5fd60",background:"transparent",color:"#93c5fd",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif",flexShrink:0}}>
@@ -3897,11 +3897,11 @@ export default function App(){
                         </button>}
                       </div>
                     )}
-                    {/* Month grid â€” admin can click, others see status */}
+                    {/* Month grid — admin can click, others see status */}
                     <div style={{background:"var(--bg1)",border:"1px solid var(--border3)",borderRadius:8,padding:"10px 14px"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
                         <span style={{fontSize:12,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".06em"}}>
-                          â‌„ {isAdmin?"Freeze Control":"Month Status"} â€” {year}
+                          â‌„ {isAdmin?"Freeze Control":"Month Status"} — {year}
                         </span>
                         {!isAdmin&&<span style={{fontSize:11,color:"var(--text4)"}}>ًں”’ locked months cannot be edited</span>}
                       </div>
@@ -3912,7 +3912,7 @@ export default function App(){
                           return(
                             <button key={mi}
                               onClick={isAdmin?()=>toggleFreezeMonth(year,mi):undefined}
-                              title={_frozen?`${mn} ${year} â€” Frozen${isAdmin?" آ· Click to unfreeze":""}`:isAdmin?`Click to freeze ${mn} ${year}`:mn+" "+year}
+                              title={_frozen?`${mn} ${year} — Frozen${isAdmin?" آ· Click to unfreeze":""}`:isAdmin?`Click to freeze ${mn} ${year}`:mn+" "+year}
                               style={{
                                 padding:"5px 2px",borderRadius:6,border:`1px solid ${_frozen?"#3b82f660":_isCurrent?"var(--info)40":"var(--border3)"}`,
                                 background:_frozen?"#1e3a5f":_isCurrent?"var(--info)10":"transparent",
@@ -3942,7 +3942,7 @@ export default function App(){
                   <span style={{color:"#a78bfa",fontWeight:700}}>
                     âژک Clipboard: {clipboard.entries.length} entr{clipboard.entries.length===1?"y":"ies"} from {clipboard.date}
                     <span style={{color:"var(--text2)",fontWeight:400,marginLeft:6}}>
-                      â€” click âژ™ Paste on any allowed day to copy
+                      — click âژ™ Paste on any allowed day to copy
                     </span>
                   </span>
                   <button onClick={()=>setClipboard(null)}
@@ -3950,7 +3950,7 @@ export default function App(){
                 </div>
               )}
 
-              {/* Pending vacation banner â€” shown to engineer/lead/accountant */}
+              {/* Pending vacation banner — shown to engineer/lead/accountant */}
               {(()=>{
                 const myPending=entries.filter(e=>String(e.engineer_id)===String(viewEngId)&&e.entry_type==="leave"&&e.activity==="PENDING_APPROVAL");
                 if(myPending.length===0) return null;
@@ -3970,7 +3970,7 @@ export default function App(){
                 );
               })()}
 
-              {/* Vacation outcomes â€” shown in bell notification (top right) */}
+              {/* Vacation outcomes — shown in bell notification (top right) */}
 
               {/* 7-day week grid */}
               <div className="week-grid-7" style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:7}}>
@@ -4068,7 +4068,7 @@ export default function App(){
                           </div>
                         );
                       })}
-                      {de.length===0&&<div style={{color:"var(--border)",fontSize:12,textAlign:"center",marginTop:16}}>{allowed?"No entries":"â€”"}</div>}
+                      {de.length===0&&<div style={{color:"var(--border)",fontSize:12,textAlign:"center",marginTop:16}}>{allowed?"No entries":"—"}</div>}
                     </div>
                   );
                 })}
@@ -4086,7 +4086,7 @@ export default function App(){
                   };
                   return<>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                  <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Full Month â€” {MONTHS[month]} {year}</div>
+                  <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Full Month — {MONTHS[month]} {year}</div>
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
                     {selectedEntries.size>0&&<button style={{background:"#ef4444",border:"none",borderRadius:6,padding:"5px 12px",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'IBM Plex Sans',sans-serif"}} onClick={bulkDeleteEntries}>ًں—‘ Delete {selectedEntries.size} selected</button>}
                     <select style={{fontSize:13,padding:"5px 10px",width:"auto"}} value={filterProject} onChange={e=>setFilterProject(e.target.value)}>
@@ -4117,11 +4117,11 @@ export default function App(){
                               ?<><span style={{fontWeight:600,color:"var(--text0)"}}>{proj.name||proj.id}</span><span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--info)",marginLeft:4}}>({proj.id})</span></>
                               :<span style={{color:"#fb923c",fontWeight:600}}>âœˆ {e.leave_type||"Leave"}</span>}
                             </td>
-                            <td style={{color:"var(--text2)"}}>{e.task_type||"â€”"}</td>
+                            <td style={{color:"var(--text2)"}}>{e.task_type||"—"}</td>
                             <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                               {isPending
                                 ?<span style={{color:"#f59e0b",fontWeight:700,fontStyle:"normal"}}>âڈ³ Pending Approval</span>
-                                :(e.activity||"â€”")}
+                                :(e.activity||"—")}
                             </td>
                             <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
                             <td>
@@ -4134,10 +4134,10 @@ export default function App(){
                                 const isApprovedLeave=e.entry_type==="leave"&&e.leave_type==="Annual Leave"&&e.activity!=="PENDING_APPROVAL";
                                 const locked=isApprovedLeave&&!isAdmin;
                                 return locked
-                                  ? <span style={{fontSize:11,color:"var(--text4)",fontStyle:"italic"}}>Approved â€” admin only</span>
+                                  ? <span style={{fontSize:11,color:"var(--text4)",fontStyle:"italic"}}>Approved — admin only</span>
                                   : <>{canPostHours&&<button className="be" onClick={()=>setEditEntry({...e,projectId:e.project_id,type:e.entry_type,taskCategory:e.task_category||"Engineering",taskType:e.task_type||"Basic Engineering",leaveType:e.leave_type||"Annual Leave"})}>âœژ</button>}
                                      {canPostHours&&<button className="bd" onClick={()=>deleteEntry(e.id,e.engineer_id)}>âœ•</button>}
-                                     {!canPostHours&&<span style={{fontSize:12,color:"var(--text4)"}}>â€”</span>}</>;
+                                     {!canPostHours&&<span style={{fontSize:12,color:"var(--text4)"}}>—</span>}</>;
                               })()}
                             </div></td>
                           </tr>
@@ -4206,7 +4206,7 @@ export default function App(){
                 </div>
               </div>
 
-              {/* â”€â”€ TOTAL HOURS SUMMARY BOX (shows when any filter active) â”€â”€ */}
+              {/* ---- TOTAL HOURS SUMMARY BOX (shows when any filter active) ---- */}
               {(()=>{
                 // Entries matching both filters
                 const fEntries=monthEntries.filter(e=>
@@ -4219,7 +4219,7 @@ export default function App(){
                 const totalB=fWork.reduce((s,e)=>{const p=projects.find(x=>x.id===e.project_id);return s+(p&&p.billable?e.hours:0);},0);
                 const totalNB=totalW-totalB;
                 const totalL=fLeave.length;
-                // Target hours based on filtered engineers â€” respects join/termination dates
+                // Target hours based on filtered engineers — respects join/termination dates
                 const filtEngs=filterEngineer==="ALL"?scopedEngStats:scopedEngStats.filter(e=>e.id===+filterEngineer);
                 const targetW=filtEngs.reduce((s,eng)=>s+(eng.targetHrs||0),0);
                 const util=targetW?Math.round(totalW/targetW*100):0;
@@ -4283,9 +4283,9 @@ export default function App(){
                         const p=projects.find(x=>x.id===e.project_id);
                         return<tr key={e.id}>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{e.date}</td>
-                          <td style={{fontSize:13,color:"var(--info)"}}>{p?.id||<span style={{color:"var(--text2)"}}>â€”</span>}</td>
-                          <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type||"â€”"}</td>
-                          <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"â€”"}</td>
+                          <td style={{fontSize:13,color:"var(--info)"}}>{p?.id||<span style={{color:"var(--text2)"}}>—</span>}</td>
+                          <td style={{fontSize:13,color:"var(--text2)"}}>{e.task_type||"—"}</td>
+                          <td style={{fontSize:13,color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                           <td style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"var(--info)"}}>{e.hours}h</td>
                         </tr>;
                       })}
@@ -4310,7 +4310,7 @@ export default function App(){
                 ))}
               </div>
 
-              {/* â”€â”€ ORG CHART VIEW â”€â”€ */}
+              {/* ---- ORG CHART VIEW ---- */}
               {teamViewMode==="org"&&(()=>{
 
                 const saveNode = async(node) => {
@@ -4394,7 +4394,7 @@ export default function App(){
                   else showToast("Allow popups to export PDF",false);
                 };
 
-                // OrgCard â€” plain render function (NOT a React component)
+                // OrgCard — plain render function (NOT a React component)
                 const renderOrgCard = (node) => {
                   const eng = node.engineer_id ? engineers.find(e=>String(e.id)===String(node.engineer_id)) : null;
                   const active = eng ? isEngActive(eng) : true;
@@ -4428,7 +4428,7 @@ export default function App(){
                         ? "0 4px 20px #00000080, 0 1px 3px #00000060"
                         : "0 2px 12px #0000001a, 0 1px 4px #00000010",
                     }}>
-                      {/* Edit/delete â€” edit mode only */}
+                      {/* Edit/delete — edit mode only */}
                       {orgEditing&&isAdmin&&(
                         <div style={{position:"absolute",top:6,right:6,display:"flex",gap:3,zIndex:20}}>
                           <button onClick={e=>{e.stopPropagation();setOrgEditNode({...node});}}
@@ -4479,7 +4479,7 @@ export default function App(){
                 };
 
 
-                // â”€â”€ Layout: iterative BFS â€” no recursion, guaranteed termination â”€â”€
+                // ---- Layout: iterative BFS — no recursion, guaranteed termination ----
                 const CARD_W  = 170;
                 const CARD_H  = 165;  // actual card content is ~165px tall
                 const H_GAP   = 40;   // horizontal gap between siblings
@@ -4500,7 +4500,7 @@ export default function App(){
                 Object.values(kidMap).forEach(arr => arr.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)));
                 rootNodes.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
 
-                // BFS to get ordered list of reachable nodes â€” visited set prevents ANY cycle hang
+                // BFS to get ordered list of reachable nodes — visited set prevents ANY cycle hang
                 const bfsOrder = []; // [{id, depth}]
                 const bfsSeen  = new Set();
                 const bfsQ     = rootNodes.map(n=>({id:n.id, depth:0}));
@@ -4572,7 +4572,7 @@ export default function App(){
                           <div style={{fontSize:20,fontWeight:800,color:"var(--text0)",lineHeight:1}}>Organization Chart</div>
                           <div style={{fontSize:13,color:"var(--text3)",marginTop:3,fontFamily:"'IBM Plex Mono',monospace"}}>
                             {orgEditing
-                              ?<span style={{color:"#fb923c",fontWeight:700}}>âڑ  Edit Mode â€” drag cards to rearrange</span>
+                              ?<span style={{color:"#fb923c",fontWeight:700}}>âڑ  Edit Mode — drag cards to rearrange</span>
                               :`${orgNodes.filter(n=>!n.is_external).length} members آ· ${new Date().toLocaleDateString("en-GB",{month:"long",year:"numeric"})}`}
                           </div>
                         </div>
@@ -4637,7 +4637,7 @@ export default function App(){
                             ))}
                           </svg>
 
-                          {/* Card layer â€” absolutely positioned */}
+                          {/* Card layer — absolutely positioned */}
                           {orgNodes.map(node=>{
                             const pos = positions[node.id];
                             if(!pos) return null;
@@ -4699,7 +4699,7 @@ export default function App(){
                             <div style={{fontSize:13,fontWeight:700,color:"var(--text3)",marginBottom:4}}>LINK TO ENGINEER (optional)</div>
                             <select value={orgEditNode.engineer_id||""} onChange={e=>setOrgEditNode(p=>({...p,engineer_id:e.target.value?+e.target.value:null}))}
                               style={{width:"100%",boxSizing:"border-box"}}>
-                              <option value="">â€” External / No link â€”</option>
+                              <option value="">— External / No link —</option>
                               {engineers.map(e=><option key={e.id} value={e.id}>{e.name} آ· {e.role}</option>)}
                             </select>
                           </div>
@@ -4708,7 +4708,7 @@ export default function App(){
                             <div style={{fontSize:13,fontWeight:700,color:"var(--text3)",marginBottom:4}}>REPORTS TO</div>
                             <select value={orgEditNode.parent_id||""} onChange={e=>setOrgEditNode(p=>({...p,parent_id:e.target.value?+e.target.value:null}))}
                               style={{width:"100%",boxSizing:"border-box"}}>
-                              <option value="">â€” Top level (root) â€”</option>
+                              <option value="">— Top level (root) —</option>
                               {orgNodes.filter(n=>n.id!==orgEditNode.id).map(n=>(
                                 <option key={n.id} value={n.id}>{n.name}</option>
                               ))}
@@ -4742,7 +4742,7 @@ export default function App(){
               })()}
 
 
-              {/* â”€â”€ GRID VIEW â”€â”€ */}
+              {/* ---- GRID VIEW ---- */}
               {teamViewMode==="grid"&&<div className="stats-5col" style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
                 {filteredTeam.map(eng=>(
                   <div key={eng.id} className="card" style={{textAlign:"center",cursor:"pointer",padding:"16px 12px",
@@ -4784,7 +4784,7 @@ export default function App(){
                       </div>
                       <div style={{background:"var(--bg2)",borderRadius:6,padding:"7px 4px"}}>
                         <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:"#a78bfa"}}>
-                          {(isAdmin||isAcct)?fmtPct(eng.billability):"â€”"}
+                          {(isAdmin||isAcct)?fmtPct(eng.billability):"—"}
                         </div>
                         <div style={{fontSize:11,color:"var(--text4)"}}>Billability</div>
                       </div>
@@ -4795,7 +4795,7 @@ export default function App(){
                       {(isAdmin||isAcct)&&<span style={{fontSize:12,fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",marginLeft:"auto"}}>{fmtCurrency(eng.revenue)}</span>}
                     </div>
                     {/* Level */}
-                    <div style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"var(--border)",color:"var(--text3)",display:"inline-block",marginBottom:eng.leaveDays>0||((isAdmin||isAcct)&&eng.revenue>0)?4:0}}>{eng.level||"â€”"}</div>
+                    <div style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:"var(--border)",color:"var(--text3)",display:"inline-block",marginBottom:eng.leaveDays>0||((isAdmin||isAcct)&&eng.revenue>0)?4:0}}>{eng.level||"—"}</div>
                     {/* Assigned projects */}
                     {(()=>{
                       const myProjs=projects.filter(p=>p.status==="Active"&&(p.assigned_engineers||[]).map(String).includes(String(eng.id)));
@@ -4824,7 +4824,7 @@ export default function App(){
           {view==="reports"&&canReport&&(
             <div style={{display:"grid",gap:20}}>
 
-              {/* â”€â”€ Page header â”€â”€ */}
+              {/* ---- Page header ---- */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>REPORTING</div>
@@ -4833,7 +4833,7 @@ export default function App(){
                 </div>
               </div>
 
-              {/* â”€â”€ Two-panel layout â”€â”€ */}
+              {/* ---- Two-panel layout ---- */}
               <div className="rpt-two-panel" style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:16,alignItems:"start"}}>
 
                 {/* Left: report navigator */}
@@ -4881,7 +4881,7 @@ export default function App(){
                 {/* Right: content area */}
                 <div style={{minWidth:0}}>
 
-                  {/* â”€â”€ Individual timesheet â”€â”€ */}
+                  {/* ---- Individual timesheet ---- */}
                   {activeRpt==="individual"&&(
                     <div style={{display:"grid",gap:14}}>
                       <div className="card" style={{padding:0,overflow:"hidden"}}>
@@ -4894,7 +4894,7 @@ export default function App(){
                             if(!rptEngId){
                               const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
                               const MONTHS_=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-                              let body=`<h2 style="text-align:center;font-family:'IBM Plex Sans',sans-serif;color:#1e3a5f;margin-bottom:4px">ENEVO GROUP â€” All Timesheets</h2><p style="text-align:center;font-size:12px;color:#64748b;font-family:sans-serif;margin-bottom:24px">${MONTHS_[month]} ${year} آ· Generated ${now} آ· ${engineers.length} engineers</p>`;
+                              let body=`<h2 style="text-align:center;font-family:'IBM Plex Sans',sans-serif;color:#1e3a5f;margin-bottom:4px">ENEVO GROUP — All Timesheets</h2><p style="text-align:center;font-size:12px;color:#64748b;font-family:sans-serif;margin-bottom:24px">${MONTHS_[month]} ${year} آ· Generated ${now} آ· ${engineers.length} engineers</p>`;
                               engineers.forEach((eng,i)=>{
                                 const we=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="work").sort((a,b)=>a.date.localeCompare(b.date));
                                 const le=monthEntries.filter(e=>String(e.engineer_id)===String(eng.id)&&e.entry_type==="leave");
@@ -4902,7 +4902,7 @@ export default function App(){
                                 const rows=we.map(e=>{const p=projects.find(x=>x.id===e.project_id);return`<tr><td style="font-family:monospace">${e.date}</td><td style="color:#0ea5e9">${e.project_id||""}</td><td>${p?.name||""}</td><td>${e.task_type||""}</td><td style="font-style:italic;color:#64748b">${e.activity||""}</td><td style="font-family:monospace;font-weight:700;color:#0ea5e9">${e.hours}h</td></tr>`;}).join("");
                                 body+=`<div style="page-break-before:${i===0?"avoid":"always"};margin-bottom:24px"><div style="background:#1e3a5f;color:#fff;padding:10px 16px;border-radius:6px 6px 0 0;display:flex;justify-content:space-between"><div><div style="font-size:16px;font-weight:700">${eng.name}</div><div style="font-size:11px;color:#93c5fd">${eng.role||""} آ· ${MONTHS_[month]} ${year}</div></div><div style="font-size:22px;font-weight:800;color:#38bdf8">${totalW}h</div></div><table style="width:100%;border-collapse:collapse;font-size:12px;font-family:sans-serif;border:1px solid #e2e8f0;border-top:none"><thead><tr style="background:#f1f5f9"><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">DATE</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJ ID</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">PROJECT</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">TASK</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">ACTIVITY</th><th style="padding:5px 8px;text-align:left;font-size:10px;color:#64748b">HRS</th></tr></thead><tbody>${rows||`<tr><td colspan="6" style="padding:12px;text-align:center;color:#94a3b8">No entries for ${MONTHS_[month]} ${year}</td></tr>`}</tbody><tfoot><tr style="background:#f8fafc"><td colspan="5" style="padding:6px 8px;font-weight:700;font-size:12px">Total آ· ${le.length} leave day${le.length!==1?"s":""}</td><td style="padding:6px 8px;font-family:monospace;font-weight:700;color:#0ea5e9">${totalW}h</td></tr></tfoot></table></div>`;
                               });
-                              const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>All Timesheets â€” ${MONTHS_[month]} ${year}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;color:#1e293b;padding:20px}@media print{body{padding:0}@page{margin:14mm}tr{page-break-inside:avoid}}</style></head><body>${body}<div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP آ· ${now}</div></body></html>`;
+                              const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>All Timesheets — ${MONTHS_[month]} ${year}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;color:#1e293b;padding:20px}@media print{body{padding:0}@page{margin:14mm}tr{page-break-inside:avoid}}</style></head><body>${body}<div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP آ· ${now}</div></body></html>`;
                               const w=window.open("","pdf_merged_"+Date.now());
                               if(w){w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),600);}
                               else showToast("Allow popups to export",false);
@@ -4910,7 +4910,7 @@ export default function App(){
                               const eng=engineers.find(e=>e.id===rptEngId);
                               if(eng) buildTimesheetPDF(eng,monthEntries,projects,month,year);
                             }
-                          }}>â¬‡ {!rptEngId?"All â€” Merged PDF":"Export PDF"}</button>
+                          }}>â¬‡ {!rptEngId?"All — Merged PDF":"Export PDF"}</button>
                         </div>
                         <div style={{padding:"16px 20px"}}>
                           <select value={rptEngId||"ALL"} onChange={e=>setRptEngId(e.target.value==="ALL"?null:+e.target.value)}
@@ -4968,7 +4968,7 @@ export default function App(){
                                       <td style={{fontFamily:"'IBM Plex Mono',monospace"}}>{e.date}</td>
                                       <td style={{color:"var(--info)",fontWeight:600}}>{proj?.name||proj?.id}</td>
                                       <td style={{color:"var(--text2)"}}>{e.task_type}</td>
-                                      <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"â€”"}</td>
+                                      <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                                       <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
                                     </tr>;})}
                                   </tbody>
@@ -4981,7 +4981,7 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* â”€â”€ Team Utilization â”€â”€ */}
+                  {/* ---- Team Utilization ---- */}
                   {activeRpt==="utilization"&&(
                     <div className="card" style={{padding:0,overflow:"hidden"}}>
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -5024,7 +5024,7 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* â”€â”€ Task Analysis â”€â”€ */}
+                  {/* ---- Task Analysis ---- */}
                   {activeRpt==="task"&&(()=>{
                     const GC={"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
                     return(
@@ -5093,7 +5093,7 @@ export default function App(){
                     </div>);
                   })()}
 
-                  {/* â”€â”€ Project Tasks Analysis â”€â”€ */}
+                  {/* ---- Project Tasks Analysis ---- */}
                   {activeRpt==="projtasks"&&(
                     <div>
                       <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
@@ -5110,7 +5110,7 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* â”€â”€ Tracker Progress â”€â”€ */}
+                  {/* ---- Tracker Progress ---- */}
                   {activeRpt==="tracker"&&(
                     <div>
                       <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
@@ -5123,7 +5123,7 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* â”€â”€ Assignment â”€â”€ */}
+                  {/* ---- Assignment ---- */}
                   {activeRpt==="assignment"&&(
                     <div>
                       <div className="card" style={{padding:0,overflow:"hidden",marginBottom:14}}>
@@ -5140,7 +5140,7 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* â”€â”€ Vacation â”€â”€ */}
+                  {/* ---- Vacation ---- */}
                   {activeRpt==="vacation"&&<VacationReport
                     engineers={(mySubEngIds ? engineers.filter(e=>mySubEngIds.has(String(e.id))) : engineers).filter(e=>e.is_active!==false&&e.is_active!==0&&e.is_active!==null&&(!e.termination_date||String(e.termination_date).slice(0,10)>new Date().toISOString().slice(0,10)))}
                     leaveEntries={leaveEntries} allEntries={entries}
@@ -5155,13 +5155,13 @@ export default function App(){
                     }}
                   />}
 
-                  {/* â”€â”€ Monthly Management â”€â”€ */}
+                  {/* ---- Monthly Management ---- */}
                   {activeRpt==="monthly"&&(
                     <div className="card" style={{padding:0,overflow:"hidden"}}>
                       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <div>
                           <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Monthly Management Report</div>
-                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Full executive summary â€” {MONTHS[month]} {year}</div>
+                          <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>Full executive summary — {MONTHS[month]} {year}</div>
                         </div>
                         <button className="bp" onClick={buildMonthlyPDF}>â¬‡ Export PDF</button>
                       </div>
@@ -5174,7 +5174,7 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* â”€â”€ Invoice â”€â”€ */}
+                  {/* ---- Invoice ---- */}
                   {activeRpt==="invoice"&&canInvoice&&(()=>{
                     const allWithHours=projStats.filter(p=>p.hours>0);
                     const filteredProjs=invoiceProjId==="ALL"?allWithHours:allWithHours.filter(p=>p.id===invoiceProjId);
@@ -5235,8 +5235,8 @@ export default function App(){
                                 <td style={{fontWeight:600}}>{p.name||p.id}</td>
                                 <td style={{fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{p.id}</td>
                                 <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{p.hours}h</td>
-                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--text3)"}}>{p.billable?`$${p.rate_per_hour}/h`:"â€”"}</td>
-                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:700}}>{p.billable?fmtCurrency(p.revenue):"â€”"}</td>
+                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--text3)"}}>{p.billable?`$${p.rate_per_hour}/h`:"—"}</td>
+                                <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#a78bfa",fontWeight:700}}>{p.billable?fmtCurrency(p.revenue):"—"}</td>
                                 <td style={{textAlign:"right"}}><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:p.billable?"#05603a30":"#fb923c20",color:p.billable?"#34d399":"#fb923c",fontWeight:700}}>{p.billable?"BILL":"NON"}</span></td>
                                 <td><button className="be" style={{fontSize:12,whiteSpace:"nowrap"}}
                                   onClick={()=>buildInvoicePDF(projects,entries,engineers,month,year,p.id)}>
@@ -5267,7 +5267,7 @@ export default function App(){
           {view==="admin"&&(
             <div style={{display:"grid",gap:20}}>
 
-              {/* â”€â”€ Page header â”€â”€ */}
+              {/* ---- Page header ---- */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
                 <div>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>
@@ -5288,41 +5288,41 @@ export default function App(){
 
               {/* Notifications panel moved to bell icon (top right) */}
 
-              {/* â”€â”€ Senior Management: read-only overview banner â”€â”€ */}
+              {/* ---- Senior Management: read-only overview banner ---- */}
               {isSenior&&!isAdmin&&(
                 <div style={{display:"flex",alignItems:"center",gap:14,background:"#0ea5e910",border:"1px solid #0ea5e930",borderRadius:10,padding:"14px 18px"}}>
                   <span style={{fontSize:24}}>ًں‘پ</span>
                   <div>
-                    <div style={{fontSize:15,fontWeight:700,color:"var(--info)"}}>Overview Panel â€” Read Only</div>
+                    <div style={{fontSize:15,fontWeight:700,color:"var(--info)"}}>Overview Panel — Read Only</div>
                     <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>You have visibility across all company data. Changes must be made through the Admin or Lead accounts.</div>
                   </div>
                 </div>
               )}
 
-              {/* â”€â”€ Tab navigation â”€â”€ */}
+              {/* ---- Tab navigation ---- */}
               <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",flexWrap:"wrap"}}>
                 {(()=>{
-                  // Tab definitions â€” order and labels are role-specific
+                  // Tab definitions — order and labels are role-specific
                   const allTabs=[
-                    // â”€â”€ Engineer only â”€â”€
+                    // ---- Engineer only ----
                     {id:"tracker",  label:"My Activities", show:!isAdmin&&!isLead&&!isAcct&&!isSenior},
                     {id:"kpis",     label:"My KPIs",       show:!isAdmin&&!isLead&&!isAcct&&!isSenior},
                     {id:"settings", label:"Info",          show:!isAdmin&&!isLead&&!isAcct&&!isSenior},
-                    // â”€â”€ Lead only â”€â”€
+                    // ---- Lead only ----
                     {id:"tracker",  label:"Project Tracker",   show:isLead&&!isAdmin},
                     {id:"entries",  label:"Team Hours",         show:isLead&&!isAdmin},
                     {id:"functions",label:"Function Hours",     show:isLead&&!isAdmin},
                     {id:"kpis",     label:"Team KPIs",          show:isLead&&!isAdmin},
                     {id:"projects", label:"Manage Projects",    show:isLead&&!isAdmin},
                     {id:"settings", label:"Info",               show:isLead&&!isAdmin},
-                    // â”€â”€ Accountant â”€â”€
+                    // ---- Accountant ----
                     {id:"finance",  label:"Finance",        show:isAcct&&!isAdmin},
                     {id:"entries",  label:"All Entries",    show:isAcct&&!isAdmin},
                     {id:"engineers",label:"Engineers",      show:isAcct&&!isAdmin},
                     {id:"functions",label:"Functions",      show:isAcct&&!isAdmin},
                     {id:"kpis",     label:"KPIs",           show:isAcct&&!isAdmin},
                     {id:"settings", label:"Info",           show:isAcct&&!isAdmin},
-                    // â”€â”€ Senior Management â”€â”€
+                    // ---- Senior Management ----
                     {id:"engineers",label:"Engineers",      show:isSenior&&!isAdmin},
                     {id:"projects", label:"Projects",       show:isSenior&&!isAdmin},
                     {id:"entries",  label:"All Entries",    show:isSenior&&!isAdmin},
@@ -5331,7 +5331,7 @@ export default function App(){
                     {id:"kpis",     label:"KPIs",           show:isSenior&&!isAdmin},
                     {id:"tracker",  label:"Tracker",        show:isSenior&&!isAdmin},
                     {id:"settings", label:"Info",           show:isSenior&&!isAdmin},
-                    // â”€â”€ Admin â”€â”€
+                    // ---- Admin ----
                     {id:"engineers",label:"Engineers",      show:isAdmin},
                     {id:"projects", label:"Projects",       show:isAdmin},
                     {id:"entries",  label:"All Entries",    show:isAdmin},
@@ -5376,7 +5376,7 @@ export default function App(){
 
                   {/* Info bar */}
                   <div style={{background:"#0ea5e908",borderBottom:"1px solid #0ea5e920",padding:"8px 20px",fontSize:13,color:"var(--info)"}}>
-                    â„¹ New registrations default to <strong>Engineer</strong> role â€” update their access role in the dropdown below after they sign up.
+                    â„¹ New registrations default to <strong>Engineer</strong> role — update their access role in the dropdown below after they sign up.
                   </div>
 
                   {/* Engineers table */}
@@ -5411,7 +5411,7 @@ export default function App(){
                             </td>
                             <td style={{color:"var(--text2)"}}>{eng.role}</td>
                             <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:4,background:"var(--bg3)",color:"var(--text2)",fontWeight:600}}>{eng.level}</span></td>
-                            <td style={{color:"var(--text3)",fontSize:13}}>{eng.email||"â€”"}</td>
+                            <td style={{color:"var(--text3)",fontSize:13}}>{eng.email||"—"}</td>
                             <td>
                               {isSenior&&!isAdmin
                                 ?<span style={{fontSize:13,padding:"2px 10px",borderRadius:6,background:"var(--bg3)",color:roleColor,fontWeight:600,border:`1px solid ${roleColor}30`}}>{ROLE_LABELS[eng.role_type||"engineer"]}</span>
@@ -5427,18 +5427,18 @@ export default function App(){
                                     const {data,error}=await supabase.from("engineers").update({role_type:newRole}).eq("id",eng.id).select().single();
                                     if(error){
                                       setEngineers(prev=>prev.map(e=>e.id===eng.id?{...e,role_type:newRole}:e));
-                                      showToast("Role set locally âœ“ â€” To persist: run SQL migration in Admin â€؛ Info tab",false);
+                                      showToast("Role set locally âœ“ — To persist: run SQL migration in Admin â€؛ Info tab",false);
                                       return;
                                     }
                                     if(data) setEngineers(prev=>prev.map(x=>x.id===data.id?data:x));
                                     setPendingRoles(p=>{const n={...p};delete n[eng.id];return n;});
-                                    showToast(`${eng.name} â†’ ${ROLE_LABELS[newRole]} âœ“`);
-                                    logAction("UPDATE","Engineer",`Role changed: ${eng.name} â†’ ${newRole}`,{engineer_id:eng.id,name:eng.name,new_role:newRole});
+                                    showToast(`${eng.name} → ${ROLE_LABELS[newRole]} âœ“`);
+                                    logAction("UPDATE","Engineer",`Role changed: ${eng.name} → ${newRole}`,{engineer_id:eng.id,name:eng.name,new_role:newRole});
                                   }}>Save âœ“</button>
                                 )}
                               </div>}
                             </td>
-                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#f47218",fontWeight:600}}>{wdStr||"â€”"}</td>
+                            <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:"#f47218",fontWeight:600}}>{wdStr||"—"}</td>
                             <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{es?.workHrs||0}h</td>
                             <td>
                               {isSenior&&!isAdmin
@@ -5586,16 +5586,16 @@ export default function App(){
                                     <td>
                                       <div style={{display:"flex",alignItems:"center",gap:6}}>
                                         <div className="av" style={{width:24,height:24,fontSize:10,flexShrink:0}}>{eng?.name?.slice(0,2).toUpperCase()||"?"}</div>
-                                        <span style={{fontWeight:500}}>{eng?.name||"â€”"}</span>
+                                        <span style={{fontWeight:500}}>{eng?.name||"—"}</span>
                                       </div>
                                     </td>
                                     <td>{isLeave
                                       ? <span style={{color:"#fb923c",fontWeight:600}}>{e.leave_type||"Leave"}</span>
                                       : proj ? <span><span style={{color:"var(--info)",fontWeight:600}}>{proj.name}</span> <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text4)"}}>({proj.id})</span></span>
-                                      : <span style={{color:"var(--text4)"}}>â€”</span>}
+                                      : <span style={{color:"var(--text4)"}}>—</span>}
                                     </td>
-                                    <td style={{color:"var(--text2)"}}>{e.task_type||"â€”"}</td>
-                                    <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"â€”"}</td>
+                                    <td style={{color:"var(--text2)"}}>{e.task_type||"—"}</td>
+                                    <td style={{color:"var(--text3)",fontStyle:"italic",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.activity||"—"}</td>
                                     <td style={{textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"var(--info)",fontWeight:700}}>{e.hours}h</td>
                                     <td><span style={{fontSize:12,padding:"2px 7px",borderRadius:4,fontWeight:700,
                                       background:isLeave?"#7c2d1230":"#022c2230",
@@ -5708,12 +5708,12 @@ export default function App(){
               {adminTab==="settings"&&(
                 <div style={{maxWidth:760,display:"grid",gap:16}}>
 
-                  {/* â”€â”€ YOUR ROLE â”€â”€ */}
+                  {/* ---- YOUR ROLE ---- */}
                   {(()=>{
                     const roleMap={
                       admin:      {label:"Admin",           color:"#34d399", desc:"Full system access. Manage engineers, projects, timesheets, Finance, and all settings. Only role that can approve/reject vacations, cancel approved leave, and access the Activity Log. Receives all broadcast alerts (new signups, overdue activities, timesheet alerts)."},
                       lead:       {label:"Lead Engineer",   color:"var(--info)", desc:"Manage your direct-report engineers (org-chart subtree). Post and edit hours for your team, manage tracker activities, view scoped reports, and comment on project activities. Receives timesheet alerts and overdue alerts for your team."},
-                      accountant: {label:"Accountant",      color:"#a78bfa", desc:"Full Finance module read and write access â€” post and edit journal entries, manage payroll, view P&L, balance sheet, fixed assets, and export invoices. View all engineer hours and generate all reports. Submit your own vacation leave and receive bell notifications when approved or rejected. Cannot post work timesheet entries for engineers."},
+                      accountant: {label:"Accountant",      color:"#a78bfa", desc:"Full Finance module read and write access — post and edit journal entries, manage payroll, view P&L, balance sheet, fixed assets, and export invoices. View all engineer hours and generate all reports. Submit your own vacation leave and receive bell notifications when approved or rejected. Cannot post work timesheet entries for engineers."},
                       senior_management:{label:"Senior Management",color:"#fb923c",desc:"Read-only access across all dashboards, reports, and the project tracker. Export PDFs. Cannot add, edit, or delete any data. No notification bell."},
                       engineer:   {label:"Engineer",        color:"var(--text3)", desc:"Post your own hours on assigned projects, view your vacation balance and KPI score, and comment on your assigned activities. You receive bell notifications for vacation approvals/rejections and activity comments addressed to you."},
                     };
@@ -5728,24 +5728,24 @@ export default function App(){
                     </div>);
                   })()}
 
-                  {/* â”€â”€ HOW TO USE â”€â”€ */}
+                  {/* ---- HOW TO USE ---- */}
                   <div className="card">
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>How to Use EC-ERP</div>
                     <div style={{display:"grid",gap:10}}>
                       {[
-                        {title:"Post Work Hours",           show:!isAcct&&!isSenior,             color:"var(--info)",  text:"Go to Post Hours â†’ click any day cell â†’ choose Work â†’ select Project â†’ Sub-site (optional) â†’ Work Group & Category â†’ Activity â†’ enter Hours and Notes. Press âœ“ Post Hours to save. A description is required for a good KPI score. You can only post on projects you are assigned to."},
-                        {title:"Submit Vacation / Leave",   show:!isSenior,                       color:"#34d399",      text:"Go to Post Hours â†’ click the day â†’ choose Leave â†’ select Annual Leave (or other type) â†’ Save. Annual Leave is submitted as PENDING APPROVAL and sent to your admin. You will receive a bell notification (ًں”” top of sidebar) when your request is approved or rejected. Your remaining balance (21 days/year default) updates automatically in the stats bar once approved. Accountants follow the same process."},
-                        {title:"Notification Bell",         show:true,                            color:"#a78bfa",      text:"The ًں”” bell in the top of the sidebar shows your personal notifications. Active tab: unread notifications â€” click أ— to dismiss (moves to History). History tab: last 3 months of read notifications (up to 500). Broadcasts (timesheet alerts, new signups) are visible to admin and lead only. Notifications refresh every 15 seconds automatically."},
+                        {title:"Post Work Hours",           show:!isAcct&&!isSenior,             color:"var(--info)",  text:"Go to Post Hours → click any day cell → choose Work → select Project → Sub-site (optional) → Work Group & Category → Activity → enter Hours and Notes. Press âœ“ Post Hours to save. A description is required for a good KPI score. You can only post on projects you are assigned to."},
+                        {title:"Submit Vacation / Leave",   show:!isSenior,                       color:"#34d399",      text:"Go to Post Hours → click the day → choose Leave → select Annual Leave (or other type) → Save. Annual Leave is submitted as PENDING APPROVAL and sent to your admin. You will receive a bell notification (ًں”” top of sidebar) when your request is approved or rejected. Your remaining balance (21 days/year default) updates automatically in the stats bar once approved. Accountants follow the same process."},
+                        {title:"Notification Bell",         show:true,                            color:"#a78bfa",      text:"The ًں”” bell in the top of the sidebar shows your personal notifications. Active tab: unread notifications — click أ— to dismiss (moves to History). History tab: last 3 months of read notifications (up to 500). Broadcasts (timesheet alerts, new signups) are visible to admin and lead only. Notifications refresh every 15 seconds automatically."},
                         {title:"Undo a Delete",             show:!isSenior,                       color:"#fb923c",      text:"After deleting any time entry you get a 3-second undo window. A toast appears at the bottom of the screen with an â†© Undo button. Click it before the toast disappears to restore the entry. After 3 seconds the delete is committed to the database and cannot be undone. Vacation entries (approved or pending) follow the same 3-second window."},
-                        {title:"View & Comment on Activities", show:!isAcct&&!isSenior,          color:"#a78bfa",      text:"Engineers: My Work â†’ My Activities â€” shows only your assigned projects. Click the ًں’¬ button on any activity to open the comment thread. Type and press Enter. Lead & Admin: Tracker tab â€” click any activity card to edit or comment. Comments notify the assigned engineer, project leader, and all admins (excluding the commenter). Comments survive activity saves and appear in PDF exports."},
-                        {title:"Project Tracker",           show:isAdmin||isLead,                color:"#a78bfa",      text:"Admin/Lead Panel â†’ Tracker. Each project shows activity cards grouped by category. Click any card to edit status, progress, deadline, and assignment. The COMMENTS section in the edit modal is the main communication channel â€” real-time, timestamped, and role-attributed. Export full project PDFs or per-sub-site PDFs from the Tracker Progress Report."},
-                        {title:"Approve / Reject Vacations",show:isAdmin||isLead,                color:"#34d399",      text:"Two paths: (1) KPIs tab â†’ pending vacation section at top â€” shows all pending requests with Approve/Reject buttons. (2) Notification Bell â†’ pending vacations appear at the top of the Active tab with inline âœ“ Approve and âœ• Reject buttons. After actioning, the vacation_request notification moves to your History tab. The engineer receives a bell notification with the outcome."},
-                        {title:"Timesheet Posting Alert",   show:isAdmin||isLead,                color:"#fb923c",      text:"Admin/Lead Panel â†’ KPIs tab â†’ scroll to the âڈ° Timesheet Posting Alert box. Select the day of the week and the hour. On that day after that hour, if any active engineer hasn't posted hours this week, an alert fires into admin and lead bells. Engineers on approved leave are automatically skipped. Settings are saved per-browser via localStorage."},
+                        {title:"View & Comment on Activities", show:!isAcct&&!isSenior,          color:"#a78bfa",      text:"Engineers: My Work → My Activities — shows only your assigned projects. Click the ًں’¬ button on any activity to open the comment thread. Type and press Enter. Lead & Admin: Tracker tab — click any activity card to edit or comment. Comments notify the assigned engineer, project leader, and all admins (excluding the commenter). Comments survive activity saves and appear in PDF exports."},
+                        {title:"Project Tracker",           show:isAdmin||isLead,                color:"#a78bfa",      text:"Admin/Lead Panel → Tracker. Each project shows activity cards grouped by category. Click any card to edit status, progress, deadline, and assignment. The COMMENTS section in the edit modal is the main communication channel — real-time, timestamped, and role-attributed. Export full project PDFs or per-sub-site PDFs from the Tracker Progress Report."},
+                        {title:"Approve / Reject Vacations",show:isAdmin||isLead,                color:"#34d399",      text:"Two paths: (1) KPIs tab → pending vacation section at top — shows all pending requests with Approve/Reject buttons. (2) Notification Bell → pending vacations appear at the top of the Active tab with inline âœ“ Approve and âœ• Reject buttons. After actioning, the vacation_request notification moves to your History tab. The engineer receives a bell notification with the outcome."},
+                        {title:"Timesheet Posting Alert",   show:isAdmin||isLead,                color:"#fb923c",      text:"Admin/Lead Panel → KPIs tab → scroll to the âڈ° Timesheet Posting Alert box. Select the day of the week and the hour. On that day after that hour, if any active engineer hasn't posted hours this week, an alert fires into admin and lead bells. Engineers on approved leave are automatically skipped. Settings are saved per-browser via localStorage."},
                         {title:"Reports & PDF Export",      show:canReport,                      color:"var(--info)",  text:"Reports & PDF in the sidebar. Includes: Team Utilization, Assignment Report, Timesheets, Task Analysis, Tracker Progress (with per-sub-site export), Vacation & Leave, Monthly Management, Invoice Export. Leads see only their team's data. Year selectors show current year آ± 2 and update automatically each year."},
-                        {title:"Finance Module",            show:isAdmin||isAcct,                color:"#a78bfa",      text:"Admin/Finance Panel â†’ Finance. Tabs: Journal (double-entry bookkeeping), Balance Sheet, Expenses, Cash Custody, P&L, Payroll, Fixed Assets, Tax & Social, and Reports. All figures are EGP. The Guide tab has step-by-step month-close instructions. Only admin and accountant can edit â€” senior management is view-only."},
-                        {title:"KPI Score",                 show:!isAcct&&!isSenior,             color:"#fb923c",      text:"My KPIs (or Admin â†’ KPIs). Score is out of 120 â€” covering billable hours, coverage, note quality, function entries, project diversity, and timesheet compliance. Posting hours without a description reduces your note quality score. Aim for 96+ for High Performer. KPI notes are saved automatically and persist across sessions."},
-                        {title:"Org Chart & Lead Scoping",  show:isAdmin,                        color:"var(--info)",  text:"Team page â†’ Org Chart tab â†’ Edit Chart to arrange cards. The org chart controls lead scoping â€” a lead sees only engineers in their subtree across all tabs (Entries, Functions, Reports, KPIs). Engineers' direct lead is used for vacation request routing. Setting the org chart correctly is required before enabling leads."},
-                        {title:"Change Password",           show:true,                            color:"var(--text3)", text:"Your avatar / name button at the bottom of the sidebar â†’ Change Password. Enter your new password twice and confirm. Takes effect immediately â€” you do not need to log out."},
+                        {title:"Finance Module",            show:isAdmin||isAcct,                color:"#a78bfa",      text:"Admin/Finance Panel → Finance. Tabs: Journal (double-entry bookkeeping), Balance Sheet, Expenses, Cash Custody, P&L, Payroll, Fixed Assets, Tax & Social, and Reports. All figures are EGP. The Guide tab has step-by-step month-close instructions. Only admin and accountant can edit — senior management is view-only."},
+                        {title:"KPI Score",                 show:!isAcct&&!isSenior,             color:"#fb923c",      text:"My KPIs (or Admin → KPIs). Score is out of 120 — covering billable hours, coverage, note quality, function entries, project diversity, and timesheet compliance. Posting hours without a description reduces your note quality score. Aim for 96+ for High Performer. KPI notes are saved automatically and persist across sessions."},
+                        {title:"Org Chart & Lead Scoping",  show:isAdmin,                        color:"var(--info)",  text:"Team page → Org Chart tab → Edit Chart to arrange cards. The org chart controls lead scoping — a lead sees only engineers in their subtree across all tabs (Entries, Functions, Reports, KPIs). Engineers' direct lead is used for vacation request routing. Setting the org chart correctly is required before enabling leads."},
+                        {title:"Change Password",           show:true,                            color:"var(--text3)", text:"Your avatar / name button at the bottom of the sidebar → Change Password. Enter your new password twice and confirm. Takes effect immediately — you do not need to log out."},
                       ].filter(i=>i.show!==false).map(item=>(
                         <div key={item.title} style={{background:"var(--bg2)",borderRadius:8,padding:"12px 14px",borderLeft:`3px solid ${item.color}`}}>
                           <div style={{fontSize:13,fontWeight:700,color:item.color,marginBottom:5}}>{item.title}</div>
@@ -5755,23 +5755,23 @@ export default function App(){
                     </div>
                   </div>
 
-                  {/* â”€â”€ WHAT'S NEW â”€â”€ */}
+                  {/* ---- WHAT'S NEW ---- */}
                   <div className="card">
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>What's New</div>
-                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>v6 â€” April 2026 feature release</div>
+                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>v6 — April 2026 feature release</div>
                     <div style={{display:"grid",gap:8}}>
                       {[
-                        {tag:"Bell",      color:"#a78bfa", text:"Single notification bell (ًں””) in the sidebar header â€” single bell for all notifications. Active tab shows unread, History tab shows last 3 months of dismissed notifications. Bell refreshes every 15 seconds and on login."},
+                        {tag:"Bell",      color:"#a78bfa", text:"Single notification bell (ًں””) in the sidebar header — single bell for all notifications. Active tab shows unread, History tab shows last 3 months of dismissed notifications. Bell refreshes every 15 seconds and on login."},
                         {tag:"Vacation",  color:"#34d399", text:"Approve and reject vacations directly from the bell dropdown or the KPIs tab. After actioning, the request moves to admin History. Engineer receives vacation_approved or vacation_rejected bell notification instantly. Admin deleting a pending vacation now also notifies the requester."},
-                        {tag:"Vacation",  color:"#34d399", text:"Approved vacation lock â€” only admin can delete an approved annual leave. Non-admin roles see a clear message directing them to contact admin. Engineers and leads cannot bypass this lock."},
-                        {tag:"Notify",    color:"#34d399", text:"Activity notifications: comment posted â†’ notifies assigned engineer, project leader, and all admins (commenter excluded). Status/progress/deadline changes by lead â†’ admin notified. Activity assigned â†’ engineer notified. All scoped to recipient â€” no user sees another person's notifications."},
+                        {tag:"Vacation",  color:"#34d399", text:"Approved vacation lock — only admin can delete an approved annual leave. Non-admin roles see a clear message directing them to contact admin. Engineers and leads cannot bypass this lock."},
+                        {tag:"Notify",    color:"#34d399", text:"Activity notifications: comment posted → notifies assigned engineer, project leader, and all admins (commenter excluded). Status/progress/deadline changes by lead → admin notified. Activity assigned → engineer notified. All scoped to recipient — no user sees another person's notifications."},
                         {tag:"Notify",    color:"#34d399", text:"Timesheet posting alert: configurable day + hour. Admin and lead receive a bell notification listing engineers who haven't posted hours. Engineers on approved leave are automatically excluded. Settings saved in browser localStorage."},
-                        {tag:"Comments",  color:"#a78bfa", text:"Threaded comment system on every tracker activity â€” timestamped, role-attributed, survives activity saves, visible in PDFs. Engineers can comment on their assigned activities from My Work â†’ My Activities."},
-                        {tag:"Undo",      color:"#fb923c", text:"3-second undo window on all time entry deletes (single and bulk). Entry disappears immediately, undo toast appears â€” click â†© Undo within 3 seconds to restore. After 3 seconds the DB delete commits and notifications fire."},
+                        {tag:"Comments",  color:"#a78bfa", text:"Threaded comment system on every tracker activity — timestamped, role-attributed, survives activity saves, visible in PDFs. Engineers can comment on their assigned activities from My Work → My Activities."},
+                        {tag:"Undo",      color:"#fb923c", text:"3-second undo window on all time entry deletes (single and bulk). Entry disappears immediately, undo toast appears — click â†© Undo within 3 seconds to restore. After 3 seconds the DB delete commits and notifications fire."},
                         {tag:"UI",        color:"var(--info)", text:"All year selectors are now dynamic (current year آ± 2) and consistent styling across all tabs. Timesheet alert box redesigned with labeled columns and full day names. Navigation uses SVG icons."},
-                        {tag:"Projects",  color:"#fb923c", text:"Project Leader field â€” set any lead or admin as the project's responsible leader. Auto-added to team, appears on all cards, reports, and PDFs. Receives comment notifications for all activities in their project."},
+                        {tag:"Projects",  color:"#fb923c", text:"Project Leader field — set any lead or admin as the project's responsible leader. Auto-added to team, appears on all cards, reports, and PDFs. Receives comment notifications for all activities in their project."},
                         {tag:"Reports",   color:"var(--info)", text:"Tracker Progress Report: Active-only default with toggle for On Hold & Completed. Per-sub-site PDF export. Assignment Report: sourced from assigned_engineers list. All reports scoped to lead's org subtree."},
-                        {tag:"Scoping",   color:"var(--text3)", text:"Lead scoping via BFS org chart â€” all entries, functions, reports, KPIs, and PDFs filtered to lead's subtree. Set the org chart correctly to enable this."},
+                        {tag:"Scoping",   color:"var(--text3)", text:"Lead scoping via BFS org chart — all entries, functions, reports, KPIs, and PDFs filtered to lead's subtree. Set the org chart correctly to enable this."},
                       ].map((item,i)=>(
                         <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"8px 0",borderBottom:"1px solid var(--border3)"}}>
                           <span style={{fontSize:11,padding:"2px 8px",borderRadius:4,background:item.color+"18",color:item.color,fontWeight:700,flexShrink:0,marginTop:1}}>{item.tag}</span>
@@ -5781,7 +5781,7 @@ export default function App(){
                     </div>
                   </div>
 
-                  {/* â”€â”€ ROLE ACCESS TABLE â€” admin only â”€â”€ */}
+                  {/* ---- ROLE ACCESS TABLE — admin only ---- */}
                   {isAdmin&&(<div className="card">
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>Role Access Reference</div>
                     <div style={{display:"grid",gap:8}}>
@@ -5801,18 +5801,18 @@ export default function App(){
                   </div>
                   )}
 
-                  {/* â”€â”€ SQL MIGRATIONS (admin only) â”€â”€ */}
+                  {/* ---- SQL MIGRATIONS (admin only) ---- */}
                   {isAdmin&&(
                   <div className="card" style={{borderColor:"#f59e0b40"}}>
                     <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:4}}>Required SQL Migrations</div>
-                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>Run these once in your Supabase SQL editor â€” safe to re-run (IF NOT EXISTS)</div>
+                    <div style={{fontSize:12,color:"var(--text4)",marginBottom:14}}>Run these once in your Supabase SQL editor — safe to re-run (IF NOT EXISTS)</div>
                     {[
                       {label:"Notifications engineer_id", sql:"ALTER TABLE notifications ADD COLUMN IF NOT EXISTS engineer_id BIGINT REFERENCES engineers(id); CREATE INDEX IF NOT EXISTS idx_notifications_eng ON notifications(engineer_id);", desc:"Required for the notification bell. Run this first."},
                       {label:"Backfill engineer_id",      sql:"UPDATE notifications SET engineer_id = CAST(meta->>'engineer_id' AS BIGINT) WHERE engineer_id IS NULL AND meta->>'engineer_id' IS NOT NULL; UPDATE notifications SET engineer_id = CAST(meta->>'recipient_engineer_id' AS BIGINT) WHERE engineer_id IS NULL AND meta->>'recipient_engineer_id' IS NOT NULL;", desc:"Run after adding the column to backfill existing notifications."},
                       {label:"Activity Comments column",  sql:"ALTER TABLE project_activities ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';", desc:"Enables threaded comments on activities."},
                       {label:"Assigned Engineers column", sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS assigned_engineers JSONB DEFAULT '[]';", desc:"Enables team assignment and auto-assign on activity creation."},
                       {label:"Project Leader column",     sql:"ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_leader TEXT;", desc:"Enables the Project Leader field and notification routing."},
-                      {label:"Frozen Months table", sql:"CREATE TABLE IF NOT EXISTS frozen_months (id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, year INTEGER NOT NULL, month INTEGER NOT NULL, frozen_at TIMESTAMPTZ DEFAULT NOW(), frozen_by TEXT, UNIQUE(year,month));", desc:"Required for the month freeze feature. After creating, enable RLS in Supabase Dashboard â†’ Table Editor â†’ frozen_months â†’ RLS â†’ Add policy: allow all authenticated users (USING true WITH CHECK true)."},
+                      {label:"Frozen Months table", sql:"CREATE TABLE IF NOT EXISTS frozen_months (id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, year INTEGER NOT NULL, month INTEGER NOT NULL, frozen_at TIMESTAMPTZ DEFAULT NOW(), frozen_by TEXT, UNIQUE(year,month));", desc:"Required for the month freeze feature. After creating, enable RLS in Supabase Dashboard → Table Editor → frozen_months → RLS → Add policy: allow all authenticated users (USING true WITH CHECK true)."},
                     ].map(m=>(
                       <div key={m.label} style={{background:"var(--bg2)",borderRadius:7,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border3)"}}>
                         <div style={{fontSize:13,fontWeight:700,color:"var(--text1)",marginBottom:3}}>{m.label}</div>
@@ -5875,7 +5875,7 @@ export default function App(){
                         from+=1000;
                       }
 
-                      // Pass 2: entries with NULL created_at â€” these are legacy rows (pre-timestamp fix)
+                      // Pass 2: entries with NULL created_at — these are legacy rows (pre-timestamp fix)
                       // NULL entries cannot be older or newer than anything, so archive them all
                       {
                         let nf=0;
@@ -5889,7 +5889,7 @@ export default function App(){
                         }
                       }
 
-                      // Pass 3: client-side fallback â€” check all rows in case timestamptz stored differently
+                      // Pass 3: client-side fallback — check all rows in case timestamptz stored differently
                       if(!toArchive.length){
                         let af=0;
                         const allRows=[];
@@ -5933,7 +5933,7 @@ export default function App(){
                         deletedOk+=chunk.length;
                       }
                       showToast(`Archived ${insertOk} events, removed ${deletedOk} from live log âœ“`);
-                      logAction("EXPORT","Auth",`Archived activity log â€” retention ${retentionDays}d`,{archived:insertOk,deleted:deletedOk});
+                      logAction("EXPORT","Auth",`Archived activity log — retention ${retentionDays}d`,{archived:insertOk,deleted:deletedOk});
                       // Reload live log
                       setLogLoading(true);
                       const rows=[];let rfrom=0;
@@ -5973,7 +5973,7 @@ export default function App(){
                         .delete().lt("created_at",cutoffISO);
                       if(error){showToast("Prune error: "+error.message,false);return;}
                       showToast(`Pruned archive entries older than 1 year âœ“`);
-                      logAction("DELETE","Auth","Pruned activity archive â€” entries older than 365d",{});
+                      logAction("DELETE","Auth","Pruned activity archive — entries older than 365d",{});
                       setArchiveLog([]); setArchiveLoaded(false);
                     },{title:"Prune Archive",confirmLabel:"Prune Now"});
                   }}
@@ -6042,7 +6042,7 @@ export default function App(){
                       ["â€¢","Engineer","Created automatically from Name + Email in the sheet header"],
                       ["â€¢","Work Hours","Daily task + hours + project mapped to entries"],
                       ["â€¢","Leave Days","Public holidays and leave days detected automatically"],
-                      ["â€¢","Projects","Matched by project name â€” assign missing ones after import"],
+                      ["â€¢","Projects","Matched by project name — assign missing ones after import"],
                       ["â€¢","Task Types","Auto-detected from task description (SCADA, HMI, PLC, etc.)"],
                     ].map(([icon,label,desc])=>(
                       <div key={label} style={{display:"flex",gap:10,marginBottom:10}}>
@@ -6051,7 +6051,7 @@ export default function App(){
                       </div>
                     ))}
                     <div style={{background:"var(--warn-bg)",border:"1px solid #fb923c30",borderRadius:6,padding:"9px 12px",fontSize:13,color:"#fb923c",marginTop:8}}>
-                      âڑ  After importing, go to Admin â†’ All Entries to review and assign project numbers to any unmatched entries.
+                      âڑ  After importing, go to Admin → All Entries to review and assign project numbers to any unmatched entries.
                     </div>
                   </div>
                 </div>
@@ -6100,7 +6100,7 @@ export default function App(){
         const filteredActs = projActs.filter(a=>{
           const matchSub = !newEntry._actSub || String(a.subproject_id)===String(newEntry._actSub);
           const matchCat = !newEntry._actCat || a.category===newEntry._actCat || a.group_name===newEntry._actCat;
-          // Show all activities for this project â€” not just ones assigned to the engineer
+          // Show all activities for this project — not just ones assigned to the engineer
           return matchSub && matchCat;
         });
 
@@ -6146,7 +6146,7 @@ export default function App(){
 
             <div style={{display:"grid",gap:12}}>
 
-              {/* â”€â”€ STEP 1: Entry type â”€â”€ */}
+              {/* ---- STEP 1: Entry type ---- */}
               {step===1&&(
                 <div>
                   <label style={LBL}>WHAT ARE YOU LOGGING?</label>
@@ -6169,7 +6169,7 @@ export default function App(){
                 </div>
               )}
 
-              {/* â”€â”€ STEP 2 for LEAVE: type + hours â”€â”€ */}
+              {/* ---- STEP 2 for LEAVE: type + hours ---- */}
               {step===2&&isLeave&&(
                 <div style={{display:"grid",gap:12}}>
                   <div>
@@ -6184,7 +6184,7 @@ export default function App(){
                 </div>
               )}
 
-              {/* â”€â”€ STEP 2 for FUNCTION: category â”€â”€ */}
+              {/* ---- STEP 2 for FUNCTION: category ---- */}
               {step===2&&isFunc&&(
                 <div style={{display:"grid",gap:12}}>
                   <div>
@@ -6204,7 +6204,7 @@ export default function App(){
                 </div>
               )}
 
-              {/* â”€â”€ STEP 3 for FUNCTION: hours + description â”€â”€ */}
+              {/* ---- STEP 3 for FUNCTION: hours + description ---- */}
               {step===3&&isFunc&&(
                 <div style={{display:"grid",gap:12}}>
                   <div style={{padding:"8px 12px",background:"var(--info)"+"12",borderRadius:6,border:"1px solid #38bdf8"+"40",fontSize:13,color:"var(--info)",fontWeight:700}}>
@@ -6227,7 +6227,7 @@ export default function App(){
                 </div>
               )}
 
-              {/* â”€â”€ STEP 2 for WORK: project + sub-site â”€â”€ */}
+              {/* ---- STEP 2 for WORK: project + sub-site ---- */}
               {step===2&&isWork&&(
                 <div style={{display:"grid",gap:12}}>
                   {(()=>{
@@ -6243,7 +6243,7 @@ export default function App(){
                         <select value={newEntry.projectId}
                           onChange={e=>setNewEntry(p=>({...p,projectId:e.target.value,activityId:null,_actCat:null,_actSub:null}))}
                           style={{...INP,borderColor:!newEntry.projectId?"#f87171":"var(--border)"}}>
-                          <option value="">â€” Select Project â€”</option>
+                          <option value="">— Select Project —</option>
                           {_availProjs.map(p=>(
                             <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
                           ))}
@@ -6258,7 +6258,7 @@ export default function App(){
                       <select value={newEntry._actSub||""}
                         onChange={e=>setNewEntry(p=>({...p,_actSub:e.target.value||null,activityId:null}))}
                         style={INP}>
-                        <option value="">â€” All sub-sites â€”</option>
+                        <option value="">— All sub-sites —</option>
                         {projSubList.map(sid=>{
                           const sp=subprojects.find(s=>String(s.id)===String(sid));
                           return sp?<option key={sid} value={sid}>{sp.name}</option>:null;
@@ -6269,7 +6269,7 @@ export default function App(){
                 </div>
               )}
 
-              {/* â”€â”€ STEP 3 for WORK: group + category + activity â”€â”€ */}
+              {/* ---- STEP 3 for WORK: group + category + activity ---- */}
               {step===3&&isWork&&(
                 <div style={{display:"grid",gap:12}}>
 
@@ -6305,7 +6305,7 @@ export default function App(){
                     </select>
                   </div>
 
-                  {/* Activity â€” from tracker if available, else from taxonomy */}
+                  {/* Activity — from tracker if available, else from taxonomy */}
                   <div>
                     <label style={LBL}>ACTIVITY</label>
                     {filteredActs.length>0?(
@@ -6313,7 +6313,7 @@ export default function App(){
                         onChange={e=>setNewEntry(p=>({...p,activityId:e.target.value||null,
                           taskType:filteredActs.find(a=>String(a.id)===e.target.value)?.activity_name||p.taskType}))}
                         style={{...INP,borderColor:"var(--info)"+"60"}}>
-                        <option value="">â€” General (no specific activity) â€”</option>
+                        <option value="">— General (no specific activity) —</option>
                         {filteredActs
                           .filter(a=>!newEntry.taskCategory||(a.category===newEntry.taskCategory)||(a.group_name===newEntry.taskCategory)||(a.group_name===CAT_TO_GROUP[newEntry.taskCategory]))
                           .map(a=>(
@@ -6339,7 +6339,7 @@ export default function App(){
                 </div>
               )}
 
-              {/* â”€â”€ STEP 4 for WORK: hours + description â”€â”€ */}
+              {/* ---- STEP 4 for WORK: hours + description ---- */}
               {step===4&&isWork&&(
                 <div style={{display:"grid",gap:12}}>
                   {/* Summary badge */}
@@ -6392,7 +6392,7 @@ export default function App(){
                       (step===2&&isFunc&&!newEntry.taskType)
                     }
                     onClick={()=>setNewEntry(p=>({...p,_step:p._step+1}))}>
-                    Next â†’
+                    Next →
                   </Btn>
                 ):(
                   <Btn primary
@@ -6439,7 +6439,7 @@ export default function App(){
               {editEntry.type==="work"?<>
                 <div><Lbl>Project</Lbl>
                   <select value={editEntry.projectId||""} onChange={e=>setEditEntry(p=>({...p,projectId:e.target.value}))}>
-                    <option value="">â€” Select â€”</option>
+                    <option value="">— Select —</option>
                     {projects.map(p=><option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
                   </select>
                 </div>
@@ -6505,7 +6505,7 @@ export default function App(){
                       return {...p,project_leader:name,assigned_engineers:newAe};
                     });
                   }}>
-                    <option value="">â€” None â€”</option>
+                    <option value="">— None —</option>
                     {engineers.filter(e=>isEngActive(e)&&(e.role_type==="lead"||e.role_type==="admin")).map(e=>(
                       <option key={e.id} value={e.name}>{e.name}</option>
                     ))}
@@ -6515,7 +6515,7 @@ export default function App(){
                 <div><Lbl>Origin (HQ / BU)</Lbl><input value={newProj.origin} onChange={e=>setNewProj(p=>({...p,origin:e.target.value}))}/></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><Lbl>Billable?</Lbl><select value={newProj.billable?"yes":"no"} onChange={e=>setNewProj(p=>({...p,billable:e.target.value==="yes"}))}><option value="yes">Yes</option><option value="no">No â€” Internal</option></select></div>
+                <div><Lbl>Billable?</Lbl><select value={newProj.billable?"yes":"no"} onChange={e=>setNewProj(p=>({...p,billable:e.target.value==="yes"}))}><option value="yes">Yes</option><option value="no">No — Internal</option></select></div>
                 <div><Lbl>Rate per Hour ($)</Lbl><input type="number" value={newProj.rate_per_hour} onChange={e=>setNewProj(p=>({...p,rate_per_hour:+e.target.value}))}/></div>
               </div>
               {/* Team assignment */}
@@ -6560,7 +6560,7 @@ export default function App(){
         return(
         <div className="modal-ov" onClick={()=>setEditProjModal(null)}>
           <div className="modal" style={{maxWidth:580,maxHeight:"85vh",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:12}}>Edit Project â€” {editProjModal._origId||editProjModal.id}</h3>
+            <h3 style={{fontSize:17,fontWeight:700,marginBottom:12}}>Edit Project — {editProjModal._origId||editProjModal.id}</h3>
             {/* Tab bar */}
             <div style={{display:"flex",gap:0,marginBottom:14,borderBottom:"1px solid var(--border3)"}}>
               {(isAdmin?[["details","Details"],["team","Team"],["activities","Activities"]]:[["details","Details"],["team","Team"],["activities","Activities"]]).map(([t,l])=>(
@@ -6572,7 +6572,7 @@ export default function App(){
               ))}
             </div>
             <div style={{overflowY:"auto",flex:1}}>
-            {/* â”€â”€ DETAILS TAB â”€â”€ */}
+            {/* ---- DETAILS TAB ---- */}
             {epTab==="details"&&<div style={{display:"grid",gap:11}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
                 <div><Lbl>Project No. <span style={{color:"#f87171",fontSize:12}}>(rename re-links all entries)</span></Lbl>
@@ -6597,9 +6597,9 @@ export default function App(){
                       return {...p,project_leader:name,assigned_engineers:newAe};
                     });
                   }} style={{width:"100%"}}>
-                    <option value="">â€” None â€”</option>
+                    <option value="">— None —</option>
                     {engineers.filter(e=>isEngActive(e)&&(e.role_type==="lead"||e.role_type==="admin")).map(e=>(
-                      <option key={e.id} value={e.name}>{e.name} â€” {ROLE_LABELS[e.role_type]||e.role_type}</option>
+                      <option key={e.id} value={e.name}>{e.name} — {ROLE_LABELS[e.role_type]||e.role_type}</option>
                     ))}
                   </select>
                 </div>
@@ -6611,7 +6611,7 @@ export default function App(){
                 <div><Lbl>Rate per Hour ($)</Lbl><input type="number" value={editProjModal.rate_per_hour} onChange={e=>setEditProjModal(p=>({...p,rate_per_hour:+e.target.value}))}/></div>
               </div>}
             </div>}
-            {/* â”€â”€ TEAM TAB â”€â”€ */}
+            {/* ---- TEAM TAB ---- */}
             {epTab==="team"&&<div>
               <div style={{fontSize:13,color:"var(--text3)",marginBottom:10}}>Select engineers assigned to this project. Only assigned engineers can post hours.</div>
               <div style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,padding:"6px 8px",display:"grid",gridTemplateColumns:"1fr",gap:4,maxHeight:300,overflowY:"auto"}}>
@@ -6647,7 +6647,7 @@ export default function App(){
                     onClick={()=>setEditProjModal(p=>({...p,assigned_engineers:[]}))}>Clear all</button>}
               </div>
             </div>}
-            {/* â”€â”€ ACTIVITIES TAB â”€â”€ */}
+            {/* ---- ACTIVITIES TAB ---- */}
             {epTab==="activities"&&<EditProjActivities
               projId={editProjModal._origId||editProjModal.id}
               activities={activities} setActivities={setActivities}
@@ -6704,7 +6704,7 @@ export default function App(){
                 <div style={{fontSize:13,color:"var(--text4)",marginTop:4}}>
                   {newEng.role_type==="engineer"&&"Can log hours & view own timesheets"}
                   {newEng.role_type==="lead"&&"Engineer + can view all team timesheets"}
-                  {newEng.role_type==="accountant"&&"Full access to Finance tab, invoices & reports â€” no timesheet editing"}
+                  {newEng.role_type==="accountant"&&"Full access to Finance tab, invoices & reports — no timesheet editing"}
                   {newEng.role_type==="admin"&&"Full access to everything including settings"}
                 </div>
               </div>
@@ -6732,7 +6732,7 @@ export default function App(){
       {editEngModal&&(
         <div className="modal-ov" onClick={()=>setEditEngModal(null)}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
-            <h3 style={{fontSize:17,fontWeight:700,marginBottom:18}}>Edit â€” {editEngModal.name}</h3>
+            <h3 style={{fontSize:17,fontWeight:700,marginBottom:18}}>Edit — {editEngModal.name}</h3>
             <div style={{display:"grid",gap:11}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <div><Lbl>Full Name</Lbl><input value={editEngModal.name||""} onChange={e=>setEditEngModal(p=>({...p,name:e.target.value}))}/></div>
@@ -6740,7 +6740,7 @@ export default function App(){
               </div>
               <div><Lbl>Job Title</Lbl>
                 <select value={editEngModal.role||""} onChange={e=>setEditEngModal(p=>({...p,role:e.target.value}))}>
-                  <option value="">â€” Select â€”</option>
+                  <option value="">— Select —</option>
                   {ROLES_LIST.map(r=><option key={r}>{r}</option>)}
                 </select>
               </div>
@@ -6771,7 +6771,7 @@ export default function App(){
       )}
 
 
-      {/* â”€â”€ STAFF MODAL â”€â”€ */}
+      {/* ---- STAFF MODAL ---- */}
       {showStaffModal&&(
         <div className="modal-ov" onClick={()=>{setShowStaffModal(false);setEditStaff(null);}}>
           <div className="modal" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
@@ -6796,12 +6796,12 @@ export default function App(){
                 </div>
                 <div><Lbl>Job Title</Lbl>
                   <select value={(editStaff||newStaff).role||""} onChange={e=>editStaff?setEditStaff(p=>({...p,role:e.target.value})):setNewStaff(p=>({...p,role:e.target.value}))}>
-                    <option value="">â€” Select â€”</option>
+                    <option value="">— Select —</option>
                     {ROLES_LIST.map(r=><option key={r}>{r}</option>)}
                   </select>
                 </div>
               </div>
-              {/* Row 3: Email (for engineer record) + Level â€” new staff only */}
+              {/* Row 3: Email (for engineer record) + Level — new staff only */}
               {!editStaff&&(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <div>
@@ -6815,7 +6815,7 @@ export default function App(){
                   </div>
                 </div>
               )}
-              {/* Row 4: Access Role â€” new staff only */}
+              {/* Row 4: Access Role — new staff only */}
               {!editStaff&&(
                 <div>
                   <Lbl>System Access Role</Lbl>
@@ -6863,7 +6863,7 @@ export default function App(){
         </div>
       )}
 
-      {/* â”€â”€ EXPENSE MODAL â”€â”€ */}
+      {/* ---- EXPENSE MODAL ---- */}
       {showExpModal&&(
         <div className="modal-ov" onClick={()=>{setShowExpModal(false);setEditExp(null);}}>
           <div className="modal" style={{maxWidth:480}} onClick={e=>e.stopPropagation()}>
@@ -6874,7 +6874,7 @@ export default function App(){
                   {["Office Rent & Utilities","Salaries","Software & Subscriptions","Travel & Transportation","Equipment & Supplies","Other"].map(c=><option key={c}>{c}</option>)}
                 </select>
               </div>
-              <div><Lbl>Description</Lbl><input value={(editExp||newExp).description} onChange={e=>editExp?setEditExp(p=>({...p,description:e.target.value})):setNewExp(p=>({...p,description:e.target.value}))} placeholder="e.g. Office Rent â€” Cairo HQ"/></div>
+              <div><Lbl>Description</Lbl><input value={(editExp||newExp).description} onChange={e=>editExp?setEditExp(p=>({...p,description:e.target.value})):setNewExp(p=>({...p,description:e.target.value}))} placeholder="e.g. Office Rent — Cairo HQ"/></div>
               {/* Currency selector + single amount + optional rate */}
               <div>
                 <Lbl>CURRENCY</Lbl>
@@ -6950,17 +6950,17 @@ export default function App(){
       )}
 
 
-      {/* â”€â”€ FUNCTION HOURS MODAL â”€â”€ */}
+      {/* ---- FUNCTION HOURS MODAL ---- */}
       {showFuncModal&&(
         <div className="modal-ov" onClick={()=>setShowFuncModal(false)}>
           <div className="modal" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
             <h3 style={{fontSize:17,fontWeight:700,marginBottom:4}}>Log Function Hours</h3>
-            <p style={{fontSize:13,color:"var(--text4)",marginBottom:16}}>Post non-billable activity hours for an engineer â€” visible in KPI reports.</p>
+            <p style={{fontSize:13,color:"var(--text4)",marginBottom:16}}>Post non-billable activity hours for an engineer — visible in KPI reports.</p>
             <div style={{display:"grid",gap:11}}>
               <div><Lbl>Engineer</Lbl>
                 <select value={newFunc.engineer_id} onChange={e=>setNewFunc(p=>({...p,engineer_id:e.target.value}))}
                   style={{borderColor:!newFunc.engineer_id?"#f87171":""}}>
-                  <option value="">â€” Select Engineer â€”</option>
+                  <option value="">— Select Engineer —</option>
                   {engineers.map(e=><option key={e.id} value={e.id}>{e.name} آ· {e.role}</option>)}
                 </select>
               </div>
@@ -7024,10 +7024,10 @@ export default function App(){
         </div>
       )}
 
-      {/* Confirm Dialog â€” replaces window.confirm */}
+      {/* Confirm Dialog — replaces window.confirm */}
       <ConfirmModal dlg={confirmDlg}/>
 
-      {/* Toast â€” supports optional Undo */}
+      {/* Toast — supports optional Undo */}
       {toast&&(
         <div className="toast" style={{background:toast.ok?"var(--bg3)":"var(--err-bg)",color:toast.ok?"#34d399":"#f87171",border:`1px solid ${toast.ok?"#34d399":"#f87171"}`,display:"flex",alignItems:"center",gap:12,paddingRight:toast.undoFn?10:18}}>
           <span>{toast.ok?"âœ“":"âœ•"} {toast.msg}</span>

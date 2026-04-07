@@ -63,7 +63,7 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
   return(
   <React.Fragment>
     <tr style={{cursor:isEngineerRole&&!canComment?"default":"pointer",background:isSelected?"#0ea5e910":undefined}}
-      title={isEngineerRole&&!canComment?"View only â€” you are not assigned to this activity":undefined}
+      title={isEngineerRole&&!canComment?"View only — you are not assigned to this activity":undefined}
       onClick={()=>{ if(isEngineerRole){ if(canComment) setCommentOpen(o=>!o); } else onEdit(a); }}>
       {onSelect&&<td style={{width:28,paddingLeft:8}} onClick={e=>e.stopPropagation()}>
         <input type="checkbox" checked={!!isSelected} onChange={()=>onSelect(a.id)}
@@ -82,19 +82,19 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
           <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:sc}}>{pct}%</span>
         </div>
       </td>
-      <td style={{fontSize:13,color:"var(--text2)",whiteSpace:"nowrap"}}>{a.assigned_to||"â€”"}</td>
+      <td style={{fontSize:13,color:"var(--text2)",whiteSpace:"nowrap"}}>{a.assigned_to||"—"}</td>
       <td style={{fontSize:12,whiteSpace:"nowrap"}}>
         {(a.start_date||a.end_date)?(
           <div style={{display:"flex",flexDirection:"column",gap:1}}>
-            {a.start_date&&<span style={{color:"var(--text3)"}}>â–¶ {fmtDate(a.start_date)}</span>}
+            {a.start_date&&<span style={{color:"var(--text3)"}}>▶ {fmtDate(a.start_date)}</span>}
             {a.end_date&&<span style={{color:isOverdue?"#f87171":"#fb923c",fontWeight:isOverdue?700:400}}>
               {isOverdue?"âڑ  ":"â–  "}{fmtDate(a.end_date)}
             </span>}
           </div>
-        ):<span style={{color:"var(--text4)"}}>â€”</span>}
+        ):<span style={{color:"var(--text4)"}}>—</span>}
       </td>
-      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:actHrs>0?"var(--info)":"var(--text4)"}}>{actHrs>0?actHrs+"h":"â€”"}</td>
-      {/* Comment bubble â€” visible to admin/lead AND to the assigned engineer */}
+      <td style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:actHrs>0?"var(--info)":"var(--text4)"}}>{actHrs>0?actHrs+"h":"—"}</td>
+      {/* Comment bubble — visible to admin/lead AND to the assigned engineer */}
       {canComment&&<td onClick={e=>e.stopPropagation()} style={{width:36}}>
         <button title={hasComments?`${comments.length} comment${comments.length!==1?"s":""}`:("Add comment")}
           onClick={e=>{e.stopPropagation();setCommentOpen(o=>!o);}}
@@ -109,12 +109,12 @@ function ActivityRow({a, actHrs, isAdmin, onEdit, onDelete, isSelected, onSelect
           {hasComments&&<span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700}}>{comments.length}</span>}
         </button>
       </td>}
-      {/* Delete â€” admin/lead only */}
+      {/* Delete — admin/lead only */}
       {isAdmin&&<td onClick={e=>e.stopPropagation()} style={{width:28}}>
         <button className="bd" style={{fontSize:13,padding:"1px 5px"}} onClick={e=>{e.stopPropagation();onDelete(a.id);}}>âœ•</button>
       </td>}
     </tr>
-    {/* â”€â”€ Inline comment thread â”€â”€ */}
+    {/* ---- Inline comment thread ---- */}
     {commentOpen&&(
     <tr style={{background:"#a78bfa06",borderTop:"1px solid #a78bfa20"}}>
       <td colSpan={99} style={{padding:"12px 18px 14px"}} onClick={e=>e.stopPropagation()}>

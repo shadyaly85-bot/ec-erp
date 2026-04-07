@@ -6,7 +6,7 @@ import { ActivityEditModal, AddActivityModal } from "./ActivityModals.jsx";
 function applyUndo(showToast, label, removeUI, restoreUI, dbDelete, logFn){
   removeUI();
   let undone = false;
-  showToast(label + " â€” Undo?", false, ()=>{
+  showToast(label + " — Undo?", false, ()=>{
     undone = true;
     restoreUI();
     showToast("Undo successful âœ“");
@@ -14,12 +14,12 @@ function applyUndo(showToast, label, removeUI, restoreUI, dbDelete, logFn){
   setTimeout(async()=>{
     if(undone) return;
     const err = await dbDelete();
-    if(err){ restoreUI(); showToast("Delete failed â€” restored", false); }
+    if(err){ restoreUI(); showToast("Delete failed — restored", false); }
     else logFn?.();
   }, 3100);
 }
 
-/* â”€â”€ CONFIRM DIALOG â€” replaces window.confirm everywhere â”€â”€ */
+/* ---- CONFIRM DIALOG — replaces window.confirm everywhere ---- */
 function ConfirmModal({dlg}){
   React.useEffect(()=>{
     if(!dlg) return;
@@ -58,7 +58,7 @@ function SignupScreen({onBack}){
     const {data,error}=await supabase.auth.signUp({email:form.email,password:form.password});
     if(error){setErr(error.message);setLoading(false);return;}
     if(data.user){
-      // New accounts always get 'engineer' â€” only admin can upgrade later
+      // New accounts always get 'engineer' — only admin can upgrade later
       await supabase.from("engineers").insert({
         user_id:data.user.id,name:form.name.trim(),role:form.role,
         level:form.level,email:form.email,role_type:"engineer",
@@ -106,8 +106,8 @@ const Lbl=({children})=><div style={{fontSize:13,color:"var(--text3)",marginBott
    MAIN APP
 â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 
-/* â”€â”€ Projects Page Component (extracted to avoid IIFE hook issues) â”€â”€ */
-/* â”€â”€ Edit Project Activities (standalone component â€” hooks-safe) â”€â”€ */
+/* ---- Projects Page Component (extracted to avoid IIFE hook issues) ---- */
+/* ---- Edit Project Activities (standalone component — hooks-safe) ---- */
 function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setProjStatusFilter,
   monthEntries,projStats,isAdmin,isAcct,isLead,setShowProjModal,setEditProjModal,deleteProject,fmtCurrency,
   activities,setActivities,engineers,supabase,showToast,setProjects,showConfirm}){
@@ -275,7 +275,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
                 {p.pm&&<div><span style={{color:"var(--text4)"}}>PM: </span><span style={{color:"#a78bfa",fontWeight:600}}>{p.pm}</span></div>}
                 {p.client&&<div><span style={{color:"var(--text4)"}}>Client: </span>{p.client}</div>}
                 {p.origin&&<div><span style={{color:"var(--text4)"}}>Origin: </span>{p.origin}</div>}
-                <div><span style={{color:"var(--text4)"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase||"â€”"}</span></div>
+                <div><span style={{color:"var(--text4)"}}>Phase: </span><span style={{color:"#60a5fa"}}>{p.phase||"—"}</span></div>
                 {(isAdmin||isAcct)&&<div><span style={{color:"var(--text4)"}}>Rate: </span>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",color:p.billable?"#a78bfa":"var(--text4)"}}>
                     {p.billable?`$${p.rate_per_hour}/h`:"Non-Billable"}
@@ -325,7 +325,7 @@ function ProjectsView({projects,projSearch,setProjSearch,projStatusFilter,setPro
         })}
       </div>
 
-      {/* Activity Modal â€” reuses same AddActivityModal/ActivityEditModal as Tracker */}
+      {/* Activity Modal — reuses same AddActivityModal/ActivityEditModal as Tracker */}
       {pvActModal&&!pvActModal.act&&(
         <AddActivityModal
           projId={pvActModal.projId} subId={null} defaultCat={null}

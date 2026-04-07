@@ -2,7 +2,7 @@
 import { supabase } from '../supabase.js';
 import { MONTHS, fmtCurrency, fmtPct, fmt, today, DEFAULT_WEEKEND } from '../constants.js';
 
-const fmtEGP = v => v != null ? `EGP ${Math.abs(+v).toLocaleString("en-EG",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "â€”";
+const fmtEGP = v => v != null ? `EGP ${Math.abs(+v).toLocaleString("en-EG",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—";
 const fmtEGPsigned = v => `${+v>=0?"+":"-"} EGP ${Math.abs(+v).toLocaleString("en-EG",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const MO_SHORT = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MAIN_ACCOUNTS = [
@@ -21,13 +21,13 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
   const [selStat, setSelStat] = React.useState("ALL");
   const [showInactiveProj, setShowInactiveProj] = React.useState(false); // Active projects only by default
   const today = new Date();
-  const fmtD = function(d){ return d ? new Date(d+"T12:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}) : "â€”"; };
+  const fmtD = function(d){ return d ? new Date(d+"T12:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}) : "—"; };
   const GC = {"SCADA":"var(--info)","RTU-PLC":"#a78bfa","Protection":"#f87171","General":"#34d399"};
   const SC = {"Completed":"#34d399","In Progress":"var(--info)","Not Started":"var(--text3)","On Hold":"#fb923c"};
   const SB = {"Completed":"#14532d30","In Progress":"#0ea5e920","Not Started":"#1e293b40","On Hold":"#78350f30"};
   const PERIOD_LABEL = {daily:"Daily (Last 24h)",weekly:"Weekly (Last 7 days)",monthly:"Monthly (Last 30 days)",full:"Full Project"};
 
-  // Filter projects by status â€” Active only unless showInactiveProj is checked
+  // Filter projects by status — Active only unless showInactiveProj is checked
   const visibleProjIds = React.useMemo(function(){
     const ids=new Set();
     projects.forEach(function(p){
@@ -101,7 +101,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
           rows+='<tr><td style="padding:5px 6px 5px '+(indentPx+10)+'px;font-size:11px">'+a.activity_name+'</td>'
             +'<td style="padding:5px 6px"><span style="background:'+stBg+';color:'+stC+';padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">'+a.status+'</span></td>'
             +'<td style="padding:5px 6px;white-space:nowrap"><b style="font-size:11px;color:'+pctCol+'">'+pct+'%</b>'+bar+'</td>'
-            +'<td style="padding:5px 6px;font-size:10px;color:#475569">'+(a.assigned_to||"â€”")+'</td>'
+            +'<td style="padding:5px 6px;font-size:10px;color:#475569">'+(a.assigned_to||"—")+'</td>'
             +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap">'+fmtD(a.start_date)+'</td>'
             +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap;color:'+(ov?"#dc2626":"#475569")+';font-weight:'+(ov?"700":"400")+'">'+fmtD(a.end_date)+(ov?" âڑ ":"")+'</td>'
             +'<td style="padding:5px 6px;font-size:10px;color:#64748b">'+(a.remarks||"")+(cs.length?' '+commentHTML:'')+'</td></tr>';
@@ -197,7 +197,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
           +'<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none">'
           +tableHead+'<tbody>'+subSections+unRows+'</tbody></table>';
       } else {
-        // No sub-sites â€” original flat layout
+        // No sub-sites — original flat layout
         var catRows=buildCatRows(g.cats,22);
         body='<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-top:none">'
           +tableHead+'<tbody>'+catRows+'</tbody></table>';
@@ -217,13 +217,13 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
       +'<div>Completed: <b style="color:#16a34a">'+done+'</b>  In Progress: <b style="color:#2563eb">'+inprog+'</b>  On Hold: <b style="color:#ea580c">'+onhold+'</b></div>'
       +'<div>Avg: <b style="font-size:14px">'+avg+'%</b></div></div></div>'
       +(grouped.length===0?'<p style="text-align:center;padding:30px;color:#94a3b8">No activities found.</p>':projHTML)
-      +'<div style="margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP â€” Internal Report â€” '+now+'</div>'
+      +'<div style="margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">ENEVO GROUP — Internal Report — '+now+'</div>'
       +'</body></html>';
     var w=window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
     if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
   };
 
-  // â”€â”€ Build sub-site focused PDF â”€â”€
+  // ---- Build sub-site focused PDF ----
   const buildSubPDF=function(subId,subName){
     var now=today.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
     var label=PERIOD_LABEL[period];
@@ -263,18 +263,18 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
         bodyRows+='<tr><td style="padding:5px 6px 5px 12px;font-size:11px">'+a.activity_name+'</td>'
           +'<td style="padding:5px 6px"><span style="background:'+stBg+';color:'+stC+';padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">'+a.status+'</span></td>'
           +'<td style="padding:5px 6px;white-space:nowrap"><b style="font-size:11px;color:'+pctCol+'">'+pct+'%</b>'+bar+'</td>'
-          +'<td style="padding:5px 6px;font-size:10px;color:#475569">'+(a.assigned_to||"â€”")+'</td>'
+          +'<td style="padding:5px 6px;font-size:10px;color:#475569">'+(a.assigned_to||"—")+'</td>'
           +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap">'+fmtD(a.start_date)+'</td>'
           +'<td style="padding:5px 6px;font-size:10px;white-space:nowrap;color:'+(ov?"#dc2626":"#475569")+';font-weight:'+(ov?"700":"400")+'">'+fmtD(a.end_date)+(ov?" âڑ ":"")+'</td>'
           +'<td style="padding:5px 6px;font-size:10px;color:#64748b">'+(a.remarks||"")+(cs.length?' '+commentHTML:'')+'</td></tr>';
       });
     });
-    var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+subName+' â€” Progress Report</title>'
+    var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+subName+' — Progress Report</title>'
       +'<style>body{font-family:\'Segoe UI\',Arial,sans-serif;margin:0;padding:20px;color:#1e293b}'
       +'@media print{body{padding:0}@page{margin:14mm}table{page-break-inside:auto}tr{page-break-inside:avoid;page-break-after:auto}}</style></head><body>'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f">'
       +'<div><div style="font-size:20px;font-weight:800;color:#1e3a5f">ENEVO GROUP</div>'
-      +'<div style="font-size:15px;font-weight:700;color:#334155;margin-top:2px">Sub-site Report â€” '+subName+'</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#334155;margin-top:2px">Sub-site Report — '+subName+'</div>'
       +'<div style="font-size:12px;color:#7c3aed;font-weight:600;margin-top:2px">Part of: '+(proj?proj.name:projGroup?.pid||"")+(proj&&proj.id?' ('+proj.id+')':'')+'</div>'
       +'<div style="font-size:11px;color:#64748b;margin-top:3px">Period: <b>'+label+'</b> آ· Generated: '+now+'</div></div>'
       +'<div style="text-align:right;font-size:11px;color:#64748b;line-height:1.8">'
@@ -346,7 +346,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
           <button className="bp" onClick={buildPDF} style={{height:36,padding:"0 18px",fontSize:13,fontWeight:700}}>â¬‡ Export PDF</button>
-          {/* Sub-site individual exports â€” only shown when a single project with sub-sites is selected */}
+          {/* Sub-site individual exports — only shown when a single project with sub-sites is selected */}
           {selectedProjSubs.length>0&&(
             <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
               <span style={{fontSize:12,color:"var(--text4)",fontWeight:600,whiteSpace:"nowrap"}}>Sub-sites:</span>
@@ -381,7 +381,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
       );})}
     </div>
     {onhold>0&&<div style={{background:"#78350f15",border:"1px solid #fb923c60",borderRadius:6,padding:"9px 14px",marginBottom:12,fontSize:13,color:"#fb923c"}}>
-      âڑ  {onhold} {onhold===1?"activity":"activities"} On Hold â€” review required
+      âڑ  {onhold} {onhold===1?"activity":"activities"} On Hold — review required
     </div>}
     {grouped.length===0&&<div style={{textAlign:"center",padding:40,color:"var(--text4)",fontSize:14}}>No activities match filters.</div>}
     {grouped.map(function(g){
@@ -462,7 +462,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
                           <div style={{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}}>
                             <span style={{fontSize:12,padding:"2px 7px",borderRadius:3,background:SB[a.status]||"var(--bg3)",color:SC[a.status]||"var(--text3)",fontWeight:600}}>{a.status}</span>
                             {a.assigned_to&&<span style={{fontSize:12,color:"var(--text3)"}}>ًں‘¤ {a.assigned_to}</span>}
-                            {a.start_date&&<span style={{fontSize:12,color:"var(--text4)"}}>â–¶ {fmtD(a.start_date)}</span>}
+                            {a.start_date&&<span style={{fontSize:12,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
                             {a.end_date&&<span style={{fontSize:12,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"âڑ  ":""}âڈژ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
                           </div>
                           {a.remarks&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>{a.remarks}</div>}
@@ -520,7 +520,7 @@ function TrackerProgressReport({activities,projects,subprojects,engineers}){
                           <div style={{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}}>
                             <span style={{fontSize:12,padding:"2px 7px",borderRadius:3,background:SB[a.status]||"var(--bg3)",color:SC[a.status]||"var(--text3)",fontWeight:600}}>{a.status}</span>
                             {a.assigned_to&&<span style={{fontSize:12,color:"var(--text3)"}}>ًں‘¤ {a.assigned_to}</span>}
-                            {a.start_date&&<span style={{fontSize:12,color:"var(--text4)"}}>â–¶ {fmtD(a.start_date)}</span>}
+                            {a.start_date&&<span style={{fontSize:12,color:"var(--text4)"}}>▶ {fmtD(a.start_date)}</span>}
                             {a.end_date&&<span style={{fontSize:12,color:ov?"#f87171":"var(--text4)",fontWeight:ov?700:400}}>{ov?"âڑ  ":""}âڈژ {fmtD(a.end_date)}{ov?" (overdue)":""}</span>}
                           </div>
                           {a.remarks&&<div style={{fontSize:12,color:"var(--text4)",marginTop:4,fontStyle:"italic",padding:"3px 7px",background:"var(--bg3)",borderRadius:3,borderLeft:"2px solid var(--border3)"}}>{a.remarks}</div>}
@@ -566,7 +566,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
   const [showInactive,setShowInactive]=React.useState(false); // default: Active projects only
   const MN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  // Active-only filter applied to projects â€” On Hold and Completed excluded by default
+  // Active-only filter applied to projects — On Hold and Completed excluded by default
   const visibleProjects=React.useMemo(function(){
     return projects.filter(function(p){
       if(showInactive) return true; // show everything when toggled
@@ -574,7 +574,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
     });
   },[projects,showInactive]);
 
-  // Work entries for the selected month â€” month is 0-based to match app state
+  // Work entries for the selected month — month is 0-based to match app state
   const workE=React.useMemo(function(){
     const activeIds=new Set(visibleProjects.map(function(p){return p.id;}));
     return entries.filter(function(e){
@@ -660,7 +660,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
       var proj=projects.find(function(p){return p.id===g.pid;});
       var rows=Object.entries(g.engs).sort(function(a,b){return b[1].hours-a[1].hours;}).map(function(kv){
         var eng=engineers.find(function(e){return String(e.id)===kv[0];});
-        var tasks=Object.entries(kv[1].tasks).map(function(t){return t[0]+": "+t[1]+"h";}).join(", ")||"â€”";
+        var tasks=Object.entries(kv[1].tasks).map(function(t){return t[0]+": "+t[1]+"h";}).join(", ")||"—";
         var hoursStr=kv[1].hours>0?kv[1].hours+"h":"0h (assigned, no hours)";
         var hrsColor=kv[1].hours>0?"#1d4ed8":"#94a3b8";
         return "<tr><td style='padding:5px 8px 5px 20px;font-size:12px'>"+(eng?eng.name:kv[0])+"</td>"
@@ -687,13 +687,13 @@ function AssignmentReport({entries,projects,engineers,month,year}){
       +"</head><body>"
       +"<div style='display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1e3a5f'>"
       +"<div><div style='font-size:20px;font-weight:800;color:#1e3a5f'>ENEVO GROUP</div>"
-      +"<div style='font-size:15px;font-weight:700;color:#334155;margin-top:2px'>Assignment Report â€” "+period+"</div>"
+      +"<div style='font-size:15px;font-weight:700;color:#334155;margin-top:2px'>Assignment Report — "+period+"</div>"
       +"<div style='font-size:11px;color:#64748b;margin-top:3px'>Generated: "+now+(showInactive?" آ· All statuses":" آ· Active projects only")+" آ· Includes assigned engineers with 0 hours</div></div>"
       +"<div style='text-align:right;font-size:11px;color:#64748b;line-height:1.9'>"
       +"<div>"+grouped.length+" projects آ· "+totEngs+" engineers</div>"
       +"<div>Total: <b>"+totHrs+"h</b></div></div></div>"
       +(grouped.length===0?"<p style='text-align:center;color:#94a3b8'>No assignments found.</p>":blocks)
-      +"<div style='margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center'>ENEVO GROUP â€” "+now+"</div>"
+      +"<div style='margin-top:20px;border-top:1px solid #e2e8f0;padding-top:8px;font-size:9px;color:#94a3b8;text-align:center'>ENEVO GROUP — "+now+"</div>"
       +"</body></html>";
     var w=window.open("","pdf_"+Date.now()+"_"+Math.random().toString(36).slice(2));
     if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},600);}
@@ -717,7 +717,7 @@ function AssignmentReport({entries,projects,engineers,month,year}){
               <option value="ALL">All Engineers</option>
               {engineers.map(function(e){return <option key={e.id} value={String(e.id)}>{e.name}</option>;})}
             </select></div>
-          {/* Status toggle â€” Active only by default */}
+          {/* Status toggle — Active only by default */}
           <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",paddingBottom:2}}>
             <input type="checkbox" checked={showInactive} onChange={function(e){setShowInactive(e.target.checked);setSelProj("ALL");}}
               style={{accentColor:"var(--info)",width:15,height:15,cursor:"pointer"}}/>
@@ -795,7 +795,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
   const [showAdd,     setShowAdd]     = React.useState(false);
   const [voucherEntry,setVoucherEntry]= React.useState(null);
 
-  // â”€â”€ Voucher header (shared across all lines in one entry) â”€â”€
+  // ---- Voucher header (shared across all lines in one entry) ----
   const blankHeader = {entry_no:"",entry_date:"",entry_type:"Custody",description:""};
   const blankLine   = {account_name:"",main_account:"",statement_type:"Profit & Loss Sheet",debit:"",credit:""};
   const [vHeader,   setVHeader]  = React.useState(blankHeader);
@@ -828,7 +828,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
     return g;
   },[filtered]);
 
-  // â”€â”€ Voucher totals â”€â”€
+  // ---- Voucher totals ----
   const vDr = vLines.reduce((s,l)=>s+(+l.debit||0),0);
   const vCr = vLines.reduce((s,l)=>s+(+l.credit||0),0);
   const vBal = Math.abs(vDr-vCr)<0.01 && vDr>0;
@@ -933,7 +933,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
       </div>
       )}
 
-      {/* â”€â”€ Voucher View Modal â”€â”€ */}
+      {/* ---- Voucher View Modal ---- */}
       {voucherEntry && (()=>{
         const lines = journalEntries.filter(e=>e.entry_no===voucherEntry);
         const dr = lines.reduce((s,e)=>s+(+e.debit||0),0);
@@ -944,7 +944,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
             <div className="card" style={{width:640,maxHeight:"90vh",overflowY:"auto",padding:24}} onClick={e=>e.stopPropagation()}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
                 <div>
-                  <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>Journal Voucher â€” Entry #{voucherEntry}</div>
+                  <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>Journal Voucher — Entry #{voucherEntry}</div>
                   <div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>{lines[0]?.entry_date} آ· {lines[0]?.entry_type} آ· {lines.length} line{lines.length!==1?"s":""}</div>
                 </div>
                 <button onClick={()=>setVoucherEntry(null)} style={{background:"none",border:"none",color:"var(--text3)",fontSize:22,cursor:"pointer"}}>أ—</button>
@@ -966,7 +966,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                     </tr>
                   ))}
                   <tr style={{background:"var(--bg2)",fontWeight:700}}>
-                    <td colSpan={3} style={{padding:"8px 10px",color:"var(--text0)"}}>TOTAL â€” {bal?"âœ… Balanced":"â‌Œ Unbalanced"}</td>
+                    <td colSpan={3} style={{padding:"8px 10px",color:"var(--text0)"}}>TOTAL — {bal?"âœ… Balanced":"â‌Œ Unbalanced"}</td>
                     <td style={{padding:"8px 10px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#34d399"}}>{fmtEGP(dr)}</td>
                     <td style={{padding:"8px 10px",fontFamily:"'IBM Plex Mono',monospace",textAlign:"right",color:"#f87171"}}>{fmtEGP(cr)}</td>
                   </tr>
@@ -979,7 +979,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
       })()}
 
       {/* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-          NEW JOURNAL ENTRY â€” Double-Entry Voucher Modal
+          NEW JOURNAL ENTRY — Double-Entry Voucher Modal
           Debit + Credit lines in the same window
          â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */}
       {showAdd && canWrite && (
@@ -990,13 +990,13 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
             <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border3)",padding:"16px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
                 <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>New Journal Entry</div>
-                <div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Double-entry â€” Debit and Credit lines in one transaction</div>
+                <div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Double-entry — Debit and Credit lines in one transaction</div>
               </div>
               <button onClick={()=>setShowAdd(false)} style={{background:"none",border:"none",color:"var(--text3)",fontSize:22,cursor:"pointer"}}>أ—</button>
             </div>
 
             <div style={{padding:24}}>
-              {/* â”€â”€ Entry Header Fields â”€â”€ */}
+              {/* ---- Entry Header Fields ---- */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 2fr",gap:10,marginBottom:16}}>
                 <div>
                   <div style={{fontSize:12,color:"var(--text4)",fontWeight:600,marginBottom:4}}>Entry No *</div>
@@ -1025,7 +1025,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                 </div>
               </div>
 
-              {/* â”€â”€ Lines Table â”€â”€ */}
+              {/* ---- Lines Table ---- */}
               <div style={{border:"1px solid var(--border3)",borderRadius:8,overflow:"hidden",marginBottom:12}}>
                 {/* Table header */}
                 <div style={{display:"grid",gridTemplateColumns:"2fr 1.4fr 80px 130px 130px 32px",gap:0,
@@ -1049,7 +1049,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                       <select value={line.account_name}
                         onChange={e=>updateLine(i,"account_name",e.target.value)}
                         style={{...INP,background:"var(--bg1)",fontSize:12}}>
-                        <option value="">â€” Select account â€”</option>
+                        <option value="">— Select account —</option>
                         {acctNames.map(a=><option key={a}>{a}</option>)}
                       </select>
                     </div>
@@ -1106,7 +1106,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                 </div>
               </div>
 
-              {/* â”€â”€ Live Balance Footer â”€â”€ */}
+              {/* ---- Live Balance Footer ---- */}
               <div style={{display:"flex",gap:10,alignItems:"center",padding:"12px 16px",
                 background:vBal?"#05603a20":vDr===0?"var(--bg2)":"#7f1d1d20",
                 border:`1px solid ${vBal?"#34d39940":vDr===0?"var(--border3)":"#f8717140"}`,
@@ -1130,14 +1130,14 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                 </div>
                 <div style={{textAlign:"right"}}>
                   {vBal
-                    ?<span style={{color:"#34d399",fontWeight:700,fontSize:15}}>âœ… Balanced â€” ready to post</span>
+                    ?<span style={{color:"#34d399",fontWeight:700,fontSize:15}}>âœ… Balanced — ready to post</span>
                     :vDr===0&&vCr===0
                     ?<span style={{color:"var(--text4)",fontSize:13}}>Enter amounts above</span>
                     :<span style={{color:"#f87171",fontWeight:700,fontSize:14}}>â‌Œ Entry must balance (Dr = Cr)</span>}
                 </div>
               </div>
 
-              {/* â”€â”€ Action buttons â”€â”€ */}
+              {/* ---- Action buttons ---- */}
               <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                 <button onClick={()=>setShowAdd(false)}
                   style={{background:"var(--bg2)",border:"1px solid var(--border3)",borderRadius:6,
@@ -1178,12 +1178,12 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
       )}
     </div>
 
-    {/* â”€â”€ Edit Journal Line Modal â”€â”€ */}
+    {/* ---- Edit Journal Line Modal ---- */}
     {editLine&&(
       <div style={{position:"fixed",inset:0,background:"#00000090",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100}}
         onClick={()=>setEditLine(null)}>
         <div className="card" style={{width:560,maxHeight:"92vh",overflowY:"auto",padding:24}} onClick={e=>e.stopPropagation()}>
-          <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:16}}>Edit Journal Line â€” #{editLine.entry_no}</h3>
+          <h3 style={{fontSize:16,fontWeight:700,color:"var(--text0)",marginBottom:16}}>Edit Journal Line — #{editLine.entry_no}</h3>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
             {[{label:"Entry No",key:"entry_no",type:"text"},{label:"Date",key:"entry_date",type:"date"},
               {label:"Month",key:"month",type:"number"},{label:"Entry Type",key:"entry_type",type:"text"}].map(({label,key,type})=>(
@@ -1200,7 +1200,7 @@ function JournalLedger({journalEntries, accounts, isAcct, isAdmin, onAdd, onDele
                   main_account:a?.main_account||p.main_account,
                   statement_type:a?.statement_type||p.statement_type}));
               }} style={{width:"100%",boxSizing:"border-box"}}>
-                <option value="">â€” Select account â€”</option>
+                <option value="">— Select account —</option>
                 {acctNames.map(a=><option key={a}>{a}</option>)}
               </select></div>
             <div><label style={{fontSize:12,color:"var(--text3)",fontWeight:700,display:"block",marginBottom:3}}>Main Account</label>
@@ -1361,25 +1361,25 @@ function BalanceSheetView({journalEntries, finYear}) {
               return <Row key={g+a.name} label={a.name} sub={g} dr={a.dr} cr={a.cr} net={Math.abs(net)}/>;
             })
           )}
-          <Row label="Retained Earnings (Current Year)" sub="Net P&L â€” open period" dr={0} cr={0} net={netProfit} isNote/>
+          <Row label="Retained Earnings (Current Year)" sub="Net P&L — open period" dr={0} cr={0} net={netProfit} isNote/>
           <Row label="TOTAL EQUITY" dr={0} cr={0} net={totalEquity+netProfit} isTotal/>
         </tbody></table>
       </div>
 
       {bsCheck>=1 && <div style={{background:"#fb923c15",border:"1px solid #fb923c",borderRadius:8,padding:"10px 16px",fontSize:13,color:"#fb923c"}}>
-        âڑ  Balance Sheet off by EGP {bsCheck.toLocaleString("en-EG",{maximumFractionDigits:2})} â€” may indicate missing entries or opening balance adjustments.
+        âڑ  Balance Sheet off by EGP {bsCheck.toLocaleString("en-EG",{maximumFractionDigits:2})} — may indicate missing entries or opening balance adjustments.
       </div>}
     </div>
   );
 }
 
 /* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-   3. EXPENSES â€” mirrors Excel "expenses" pivot
+   3. EXPENSES — mirrors Excel "expenses" pivot
    â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 function ExpensesView({journalEntries, oldExpenses, egpRate, finYear}) {
   const [viewMode, setViewMode] = React.useState("pivot");
 
-  // P&L data from journal â€” fixed pivot bug (no m[m.length])
+  // P&L data from journal — fixed pivot bug (no m[m.length])
   const {plEntries, revEntries, pivot, activeMonths, totalExpenses, totalRevenue, netPL} = React.useMemo(()=>{
     const yearEntries = finYear ? journalEntries.filter(e=>{
       if(!e.entry_date) return true;
@@ -1407,7 +1407,7 @@ function ExpensesView({journalEntries, oldExpenses, egpRate, finYear}) {
   const monthTotal = mo => plEntries.filter(e=>e.month===mo).reduce((s,e)=>s+(+e.debit),0);
   const monthRev   = mo => revEntries.filter(e=>e.month===mo).reduce((s,e)=>s+(+e.credit),0);
 
-  // Old system expenses (from expenses table) â€” shown as supplementary data
+  // Old system expenses (from expenses table) — shown as supplementary data
   const oldData = React.useMemo(()=>{
     if(!oldExpenses||!oldExpenses.length) return null;
     const totUSD = oldExpenses.reduce((s,e)=>s+(+e.amount_usd||0),0);
@@ -1574,7 +1574,7 @@ function CashCustodyView({journalEntries}) {
   const selectedTx = (selected==="ALL" ? allCustody : (persons[selected]?.transactions||[]))
     .sort((a,b)=>String(a.entry_date).localeCompare(String(b.entry_date)));
 
-  // Dynamic color from name hash â€” no hardcoded names
+  // Dynamic color from name hash — no hardcoded names
   const pColor = n => {
     const PALETTE=["#38bdf8","#a78bfa","#fb923c","#34d399","#facc15","#f87171","#e879f9","#4ade80"];
     let h=0; for(let i=0;i<(n||"").length;i++) h=(h*31+n.charCodeAt(i))&0xffff;
@@ -1600,7 +1600,7 @@ function CashCustodyView({journalEntries}) {
       </div>
       <div className="card" style={{padding:0,overflow:"hidden"}}>
         <div style={{background:"#fb923c15",borderBottom:"2px solid #fb923c",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:13,fontWeight:700,color:"#fb923c"}}>TRANSACTIONS{selected!=="ALL"?` â€” ${selected}`:""}</span>
+          <span style={{fontSize:13,fontWeight:700,color:"#fb923c"}}>TRANSACTIONS{selected!=="ALL"?` — ${selected}`:""}</span>
           {selected!=="ALL"&&<button onClick={()=>setSelected("ALL")} style={{background:"transparent",border:"1px solid var(--border3)",borderRadius:4,padding:"2px 8px",color:"var(--text3)",cursor:"pointer",fontSize:13}}>Show All</button>}
         </div>
         <div style={{overflowX:"auto"}}>
@@ -1828,7 +1828,7 @@ function FixedAssetsView({fixedAssets, loading}) {
 }
 
 /* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-   7. FINANCE REPORTS â€” Monthly PDF-ready summary
+   7. FINANCE REPORTS — Monthly PDF-ready summary
    â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate}) {
   const [reportType, setReportType] = React.useState("pl");
@@ -1837,7 +1837,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
 
   const MONTHS_ = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  // â”€â”€ P&L STATEMENT (journal-based, EGP)
+  // ---- P&L STATEMENT (journal-based, EGP)
   const plReport = React.useMemo(()=>{
     const rev = journalEntries
       .filter(e=>e.statement_type==="Profit & Loss Sheet" && +e.credit>0)
@@ -1852,7 +1852,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
     return {rev,expenses,totExp,net:rev-totExp};
   },[journalEntries]);
 
-  // â”€â”€ PAYROLL SUMMARY (from staff table + journal accruals by month)
+  // ---- PAYROLL SUMMARY (from staff table + journal accruals by month)
   const payrollReport = React.useMemo(()=>{
     const MO_IDX = repMonth; // 1-based
     const activeThisMonth = staff.filter(s=>{
@@ -1886,7 +1886,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
     return {activeThisMonth,grossCost,grossAdmin,taxLine,siLine,mfLine,netSalary,deptMap:Object.values(deptMap)};
   },[journalEntries,staff,repMonth,repYear]);
 
-  // â”€â”€ CASH FLOW (simplified â€” operating + investing)
+  // ---- CASH FLOW (simplified — operating + investing)
   const cashFlow = React.useMemo(()=>{
     const revenue = journalEntries.filter(e=>e.main_account==="Revenue").reduce((s,e)=>s+(+e.credit),0);
     // Cash paid for expenses (from custody/creditor payments)
@@ -1920,12 +1920,12 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
           +items.map(e=>`<tr><td style="padding:6px 16px 6px 32px">${e.name}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#fb923c">${fmtEGP(e.total)}</td></tr>`).join("");
       }).join("");
       generatePDF(
-        `P&L Statement â€” Year to Date ${repYear}`,
-        [`<div class="section"><div class="st">Profit & Loss Statement â€” Year to Date (EGP)</div>
-          <div style="font-size:12px;color:#64748b;margin-bottom:12px;text-align:center">Enevo Egypt LLC â€” All periods up to ${now}</div>
+        `P&L Statement — Year to Date ${repYear}`,
+        [`<div class="section"><div class="st">Profit & Loss Statement — Year to Date (EGP)</div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:12px;text-align:center">Enevo Egypt LLC — All periods up to ${now}</div>
           <table><tbody>
             <tr style="background:#f0fdf4"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#16a34a;font-size:13px">REVENUE</td></tr>
-            <tr><td style="padding:7px 16px 7px 28px">Service Revenue â€” Enevo Group S.R.L.</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:600">${fmtEGP(plReport.rev)}</td></tr>
+            <tr><td style="padding:7px 16px 7px 28px">Service Revenue — Enevo Group S.R.L.</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399;font-weight:600">${fmtEGP(plReport.rev)}</td></tr>
             <tr style="background:#f0fdf4"><td style="padding:8px 16px;font-weight:700;color:#16a34a">TOTAL REVENUE</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#34d399">${fmtEGP(plReport.rev)}</td></tr>
             <tr style="background:#fff7f0"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#dc2626;font-size:13px">EXPENSES</td></tr>
             ${expRows}
@@ -1939,7 +1939,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
       );
     } else if(reportType==="payroll"){
       const accrualSection = payrollReport.grossCost+payrollReport.grossAdmin > 0
-        ? `<div class="section"><div class="st">Payroll Accrual Summary â€” ${mo} ${repYear}</div>
+        ? `<div class="section"><div class="st">Payroll Accrual Summary — ${mo} ${repYear}</div>
            <table><tbody>
              <tr style="background:#f8f0ff"><td colspan="2" style="padding:8px 16px;font-weight:700;font-size:13px">GROSS PAYROLL</td></tr>
              <tr><td style="padding:7px 16px 7px 28px">Cost of Work Staff (Salaries-Cost)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#fb923c">${fmtEGP(payrollReport.grossCost)}</td></tr>
@@ -1955,7 +1955,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
            </tbody></table></div>`
         : `<div class="section"><p style="color:#94a3b8;padding:20px 0;text-align:center">No payroll accrual posted for ${mo} ${repYear}. Post a salary journal entry first.</p></div>`;
       const staffSection = payrollReport.activeThisMonth.length > 0
-        ? `<div class="section"><div class="st">Staff Roster â€” ${mo} ${repYear} (${payrollReport.activeThisMonth.length} active)</div>
+        ? `<div class="section"><div class="st">Staff Roster — ${mo} ${repYear} (${payrollReport.activeThisMonth.length} active)</div>
            <table>
              <thead><tr><th>Name</th><th>Department</th><th>Role</th><th style="text-align:right">USD Salary</th><th style="text-align:right">EGP Salary</th></tr></thead>
              <tbody>${payrollReport.activeThisMonth.map((s,i)=>`
@@ -1963,22 +1963,22 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
                  <td style="padding:6px 12px;font-weight:600">${s.name||""}</td>
                  <td style="padding:6px 12px;color:#64748b;font-size:12px">${s.department||""}</td>
                  <td style="padding:6px 12px;color:#64748b;font-size:12px">${s.role||""}</td>
-                 <td style="text-align:right;padding:6px 12px;font-family:'IBM Plex Mono',monospace;color:#38bdf8;font-size:12px">${s.salary_usd>0?`$${(+s.salary_usd).toLocaleString("en-US",{minimumFractionDigits:2})}`:"â€”"}</td>
-                 <td style="text-align:right;padding:6px 12px;font-family:'IBM Plex Mono',monospace;color:#fb923c;font-size:12px">${s.salary_egp>0?fmtEGP(+s.salary_egp):"â€”"}</td>
+                 <td style="text-align:right;padding:6px 12px;font-family:'IBM Plex Mono',monospace;color:#38bdf8;font-size:12px">${s.salary_usd>0?`$${(+s.salary_usd).toLocaleString("en-US",{minimumFractionDigits:2})}`:"—"}</td>
+                 <td style="text-align:right;padding:6px 12px;font-family:'IBM Plex Mono',monospace;color:#fb923c;font-size:12px">${s.salary_egp>0?fmtEGP(+s.salary_egp):"—"}</td>
                </tr>`).join("")}
              </tbody>
            </table></div>`
         : "";
       generatePDF(
-        `Payroll Summary â€” ${mo} ${repYear}`,
+        `Payroll Summary — ${mo} ${repYear}`,
         [accrualSection, staffSection],
         `Payroll Report آ· ${mo} ${repYear} آ· CONFIDENTIAL`
       );
     } else if(reportType==="cashflow"){
       generatePDF(
-        `Cash Flow Statement â€” ${now}`,
+        `Cash Flow Statement — ${now}`,
         [`<div class="section"><div class="st">Cash Flow Statement (Simplified)</div>
-          <div style="font-size:12px;color:#64748b;margin-bottom:12px">Enevo Egypt LLC â€” Based on all journal entries</div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:12px">Enevo Egypt LLC — Based on all journal entries</div>
           <table><tbody>
             <tr style="background:#f0fdf4"><td colspan="2" style="padding:8px 16px;font-weight:700;color:#16a34a;font-size:13px">A. OPERATING ACTIVITIES</td></tr>
             <tr><td style="padding:7px 16px 7px 28px">Revenue Accrued (Invoice)</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399">${fmtEGP(cashFlow.revenue)}</td></tr>
@@ -2017,7 +2017,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
             <td style="text-align:right;padding:5px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:${runBal>0?"#34d399":"#64748b"}">${fmtEGP(runBal)}</td>
           </tr>`;
         }).join("");
-        return `<div class="section"><div class="st">${p.name} â€” Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div>
+        return `<div class="section"><div class="st">${p.name} — Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div>
           <table>
             <thead><tr><th>Date</th><th>Entry#</th><th>Description</th><th style="text-align:right">Cash Out</th><th style="text-align:right">Back/Spent</th><th style="text-align:right">Running Bal.</th></tr></thead>
             <tbody>${rows}</tbody>
@@ -2056,8 +2056,8 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
       },0);
       const totalNet=Math.max(0,totalCost-totalAcc);
       generatePDF(
-        `Fixed Assets Schedule â€” ${now}`,
-        [`<div class="section"><div class="st">Fixed Assets Depreciation Schedule â€” Straight-Line Method</div>
+        `Fixed Assets Schedule — ${now}`,
+        [`<div class="section"><div class="st">Fixed Assets Depreciation Schedule — Straight-Line Method</div>
           <div style="font-size:11px;color:#64748b;margin-bottom:10px">Enevo Egypt LLC آ· As of ${now}</div>
           <table>
             <thead><tr>
@@ -2111,12 +2111,12 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
         <div className="card">
           <div style={{textAlign:"center",marginBottom:20}}>
             <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>PROFIT & LOSS STATEMENT</div>
-            <div style={{fontSize:13,color:"var(--text4)"}}>Enevo Egypt LLC â€” Year to Date (EGP)</div>
+            <div style={{fontSize:13,color:"var(--text4)"}}>Enevo Egypt LLC — Year to Date (EGP)</div>
           </div>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
             <tbody>
               <tr style={{background:"var(--bg2)"}}><td colSpan={2} style={{padding:"8px 16px",fontWeight:700,color:"#34d399",fontSize:13}}>REVENUE</td></tr>
-              <tr style={{borderBottom:"1px solid var(--border3)"}}><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Service Revenue â€” Enevo Group S.R.L.</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontWeight:600}}>{fmtEGP(plReport.rev)}</td></tr>
+              <tr style={{borderBottom:"1px solid var(--border3)"}}><td style={{padding:"7px 16px 7px 28px",color:"var(--text2)"}}>Service Revenue — Enevo Group S.R.L.</td><td style={{padding:"7px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",color:"#34d399",fontWeight:600}}>{fmtEGP(plReport.rev)}</td></tr>
               <tr><td style={{padding:"8px 16px",fontWeight:700,color:"#34d399"}}>TOTAL REVENUE</td><td style={{padding:"8px 16px",textAlign:"right",fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,color:"#34d399"}}>{fmtEGP(plReport.rev)}</td></tr>
 
               <tr style={{background:"var(--bg2)"}}><td colSpan={2} style={{padding:"8px 16px",fontWeight:700,color:"#f87171",fontSize:13}}>EXPENSES</td></tr>
@@ -2145,7 +2145,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
         <div style={{display:"grid",gap:12}}>
           <div className="card">
             <div style={{textAlign:"center",marginBottom:16}}>
-              <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>PAYROLL SUMMARY â€” {MONTHS_[repMonth-1]} {repYear}</div>
+              <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>PAYROLL SUMMARY — {MONTHS_[repMonth-1]} {repYear}</div>
               <div style={{fontSize:13,color:"var(--text4)"}}>Enevo Egypt LLC</div>
             </div>
             {payrollReport.grossCost+payrollReport.grossAdmin > 0 ? (
@@ -2203,7 +2203,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
         <div className="card">
           <div style={{textAlign:"center",marginBottom:20}}>
             <div style={{fontSize:16,fontWeight:700,color:"var(--text0)"}}>CASH FLOW STATEMENT (Simplified)</div>
-            <div style={{fontSize:13,color:"var(--text4)"}}>Enevo Egypt LLC â€” Based on Journal Entries</div>
+            <div style={{fontSize:13,color:"var(--text4)"}}>Enevo Egypt LLC — Based on Journal Entries</div>
           </div>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
             <tbody>
@@ -2279,7 +2279,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
         <div className="card" style={{padding:0,overflow:"hidden"}}>
           <div style={{background:"var(--bg2)",borderBottom:"2px solid var(--border)",padding:"10px 16px"}}>
             <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>FIXED ASSETS DEPRECIATION SCHEDULE</div>
-            <div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Enevo Egypt LLC â€” Straight-Line Method â€” As of {new Date().toLocaleDateString("en-EG")}</div>
+            <div style={{fontSize:13,color:"var(--text4)",marginTop:2}}>Enevo Egypt LLC — Straight-Line Method — As of {new Date().toLocaleDateString("en-EG")}</div>
           </div>
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
@@ -2333,7 +2333,7 @@ function FinanceReports({journalEntries, fixedAssets, staff, expenses, egpRate})
 }
 
 /* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-   8. ACCOUNTANT WORKFLOW GUIDE â€” How to post entries
+   8. ACCOUNTANT WORKFLOW GUIDE — How to post entries
    â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 function AccountantGuide({journalEntries, staff, egpRate}) {
   const [step, setStep] = React.useState("monthly");
@@ -2365,7 +2365,7 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
   return(
     <div style={{display:"grid",gap:14}}>
       <div style={{background:"#38bdf810",border:"1px solid #38bdf840",borderRadius:8,padding:"12px 16px"}}>
-        <div style={{fontSize:14,fontWeight:700,color:"#38bdf8",marginBottom:4}}>Accountant Workflow Guide â€” How to use the Journal</div>
+        <div style={{fontSize:14,fontWeight:700,color:"#38bdf8",marginBottom:4}}>Accountant Workflow Guide — How to use the Journal</div>
         <div style={{fontSize:13,color:"var(--text2)"}}>Next suggested Entry No: <strong style={{color:"#38bdf8"}}>#{nextEntryNo}</strong> آ· Last salary posted: {MO[lastPostedMonth]||"none"} آ· Next to post: {MO[nextMonth]}</div>
       </div>
 
@@ -2386,12 +2386,12 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
         <div className="card">
           <div style={{fontSize:15,fontWeight:700,color:"var(--text0)",marginBottom:14}}>Monthly Close Checklist</div>
           {[
-            {n:1,title:"Post Salary Accrual",desc:"Go to Journal â†’ Post Entry Line. Use entry type 'Accrued Salaries'. Must post 8 lines per month (see Salary Accrual guide).",done:postedMonths.includes(nextMonth)},
+            {n:1,title:"Post Salary Accrual",desc:"Go to Journal → Post Entry Line. Use entry type 'Accrued Salaries'. Must post 8 lines per month (see Salary Accrual guide).",done:postedMonths.includes(nextMonth)},
             {n:2,title:"Post Custody Expenses",desc:"For every petty cash receipt, post a line: Dr=expense account, Cr=Cash Custody (the person who paid). Use entry type 'Custody'.",done:false},
             {n:3,title:"Post Revenue Invoice",desc:"When invoice is issued to Enevo Group S.R.L., post Dr=Customers, Cr=Revenue. Enter USD amount + exchange rate.",done:false},
             {n:4,title:"Verify Journal Balance",desc:"In Journal, filter by month. Check Debit = Credit strip at top. Must be âœ“ Balanced.",done:false},
-            {n:5,title:"Review Balance Sheet",desc:"Check Balance Sheet â€” Assets = Liabilities + Equity (+ current year profit). No unexplained gaps.",done:false},
-            {n:6,title:"Review Tax Position",desc:"Check Tax tab â€” confirm payroll tax and social insurance liabilities match payroll accrual.",done:false},
+            {n:5,title:"Review Balance Sheet",desc:"Check Balance Sheet — Assets = Liabilities + Equity (+ current year profit). No unexplained gaps.",done:false},
+            {n:6,title:"Review Tax Position",desc:"Check Tax tab — confirm payroll tax and social insurance liabilities match payroll accrual.",done:false},
           ].map(item=>(
             <div key={item.n} style={{display:"flex",gap:12,padding:"10px 0",borderBottom:"1px solid var(--border3)",alignItems:"flex-start"}}>
               <div style={{width:28,height:28,borderRadius:"50%",background:item.done?"#34d39920":"var(--bg2)",border:`2px solid ${item.done?"#34d399":"var(--border3)"}`,display:"flex",alignItems:"center",justifyContent:"center",color:item.done?"#34d399":"var(--text4)",fontWeight:700,fontSize:13,flexShrink:0}}>
@@ -2415,12 +2415,12 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
           </div>
           <div style={{display:"grid",gap:8}}>
             {[
-              {step:"Open Journal â†’ click + Post Entry Line",detail:""},
+              {step:"Open Journal → click + Post Entry Line",detail:""},
               {step:"Entry No",detail:`${nextEntryNo} (next available)`},
               {step:"Date",detail:"Date on the receipt"},
               {step:"Entry Type",detail:"Custody"},
-              {step:"Line 1 â€” Expense side",detail:"Account: Kitchen Supplies آ· Main: Administrative expenses آ· Debit: 3,334.50 آ· Credit: 0"},
-              {step:"Line 2 â€” Custody side",detail:"Account: Omar Faheem آ· Main: Cash Custody آ· Debit: 0 آ· Credit: 3,334.50"},
+              {step:"Line 1 — Expense side",detail:"Account: Kitchen Supplies آ· Main: Administrative expenses آ· Debit: 3,334.50 آ· Credit: 0"},
+              {step:"Line 2 — Custody side",detail:"Account: Omar Faheem آ· Main: Cash Custody آ· Debit: 0 آ· Credit: 3,334.50"},
               {step:"Description",detail:"Purchasing kitchen supplies"},
               {step:"âڑ  Verify balance",detail:"Both lines must have equal Debit/Credit total for entry to balance"},
             ].map((r,i)=>(
@@ -2453,14 +2453,14 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
               </tr></thead>
               <tbody>
                 {[
-                  {n:1,acct:"Salaries-Cost",main:"Operating Costs",stmt:"P&L",dr:"Cost staff gross",cr:"â€”",note:"Dr side: total gross for engineers/leads"},
-                  {n:2,acct:"Social Insurance-Cost",main:"Operating Costs",stmt:"P&L",dr:"SI cost staff",cr:"â€”",note:"24.75% of cost staff gross"},
-                  {n:3,acct:"Salaries-Administrative",main:"Administrative expenses",stmt:"P&L",dr:"Admin gross",cr:"â€”",note:"Dr side: admin/management gross"},
-                  {n:4,acct:"Social Insurance-Administrative",main:"Administrative expenses",stmt:"P&L",dr:"SI admin",cr:"â€”",note:"24.75% of admin gross"},
-                  {n:5,acct:"Accrued Salaries",main:"Accrued Expenses",stmt:"BS",dr:"â€”",cr:"Net payable",note:"Cr: total gross âˆ’ tax âˆ’ SI"},
-                  {n:6,acct:"Payroll Tax",main:"Tax and Social Insurance Authority",stmt:"BS",dr:"â€”",cr:"Tax amount",note:"Per Egyptian income tax brackets"},
-                  {n:7,acct:"Social Insurance Authority",main:"Tax and Social Insurance Authority",stmt:"BS",dr:"â€”",cr:"SI amount",note:"Employee portion (11.25%)"},
-                  {n:8,acct:"Martyrs Families Fund",main:"Tax and Social Insurance Authority",stmt:"BS",dr:"â€”",cr:"MFF amount",note:"Small fixed deduction"},
+                  {n:1,acct:"Salaries-Cost",main:"Operating Costs",stmt:"P&L",dr:"Cost staff gross",cr:"—",note:"Dr side: total gross for engineers/leads"},
+                  {n:2,acct:"Social Insurance-Cost",main:"Operating Costs",stmt:"P&L",dr:"SI cost staff",cr:"—",note:"24.75% of cost staff gross"},
+                  {n:3,acct:"Salaries-Administrative",main:"Administrative expenses",stmt:"P&L",dr:"Admin gross",cr:"—",note:"Dr side: admin/management gross"},
+                  {n:4,acct:"Social Insurance-Administrative",main:"Administrative expenses",stmt:"P&L",dr:"SI admin",cr:"—",note:"24.75% of admin gross"},
+                  {n:5,acct:"Accrued Salaries",main:"Accrued Expenses",stmt:"BS",dr:"—",cr:"Net payable",note:"Cr: total gross âˆ’ tax âˆ’ SI"},
+                  {n:6,acct:"Payroll Tax",main:"Tax and Social Insurance Authority",stmt:"BS",dr:"—",cr:"Tax amount",note:"Per Egyptian income tax brackets"},
+                  {n:7,acct:"Social Insurance Authority",main:"Tax and Social Insurance Authority",stmt:"BS",dr:"—",cr:"SI amount",note:"Employee portion (11.25%)"},
+                  {n:8,acct:"Martyrs Families Fund",main:"Tax and Social Insurance Authority",stmt:"BS",dr:"—",cr:"MFF amount",note:"Small fixed deduction"},
                 ].map(r=>(
                   <tr key={r.n} style={{borderBottom:"1px solid var(--border3)"}}>
                     <td style={{padding:"6px 10px",color:"var(--text4)",fontFamily:"'IBM Plex Mono',monospace"}}>{r.n}</td>
@@ -2492,8 +2492,8 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
           </div>
           {[
             {step:"Entry Type",detail:"Revenue"},
-            {step:"Line 1 â€” Receivable",detail:"Account: Enevo Group S.R.L. آ· Main: Customers آ· BS آ· Debit: EGP amount آ· Credit: 0"},
-            {step:"Line 2 â€” Revenue",detail:"Account: Revenue آ· Main: Revenue آ· P&L آ· Debit: 0 آ· Credit: EGP amount"},
+            {step:"Line 1 — Receivable",detail:"Account: Enevo Group S.R.L. آ· Main: Customers آ· BS آ· Debit: EGP amount آ· Credit: 0"},
+            {step:"Line 2 — Revenue",detail:"Account: Revenue آ· Main: Revenue آ· P&L آ· Debit: 0 آ· Credit: EGP amount"},
             {step:"USD Fields",detail:"Enter USD invoice amount + exchange rate on Line 1. System stores both."},
             {step:"Description",detail:"Accrued Invoice NO. EGY-002 for Feb-2026 equivalent to $106,427.36 USD"},
           ].map((r,i)=>(
@@ -2512,7 +2512,7 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
           <div style={{background:"var(--bg2)",borderRadius:6,padding:"12px 16px",marginBottom:14,fontSize:13,color:"var(--text2)"}}>
             <strong>Example:</strong> 3 laptops purchased for EGP 273,600 (from Eng Shady custody).
           </div>
-          <div style={{fontSize:13,color:"var(--text3)",marginBottom:12}}>Step 1 â€” Post Journal Entry (Fixed Assets + Custody):</div>
+          <div style={{fontSize:13,color:"var(--text3)",marginBottom:12}}>Step 1 — Post Journal Entry (Fixed Assets + Custody):</div>
           {[
             {step:"Line 1",detail:"Account: Computers and Programs آ· Main: Fixed Assets آ· BS آ· Debit: 273,600 آ· Credit: 0"},
             {step:"Line 2",detail:"Account: Eng Shady آ· Main: Cash Custody آ· BS آ· Debit: 273,600 آ· Credit: 0"},
@@ -2522,9 +2522,9 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
               <span style={{fontSize:13,color:"var(--text3)",fontFamily:"'IBM Plex Mono',monospace",fontSize:13}}>{r.detail}</span>
             </div>
           ))}
-          <div style={{fontSize:13,color:"var(--text3)",margin:"12px 0 8px"}}>Step 2 â€” Add to Fixed Asset Register (contact admin to add row to finance_fixed_assets table with asset name, category, cost, purchase date, useful life).</div>
+          <div style={{fontSize:13,color:"var(--text3)",margin:"12px 0 8px"}}>Step 2 — Add to Fixed Asset Register (contact admin to add row to finance_fixed_assets table with asset name, category, cost, purchase date, useful life).</div>
           <div style={{background:"#34d39915",border:"1px solid #34d39940",borderRadius:6,padding:"10px 14px",fontSize:13,color:"#34d399"}}>
-            âœ… The Fixed Assets tab calculates depreciation automatically from the asset register. No manual entry needed for depreciation â€” it's calculated in real-time.
+            âœ… The Fixed Assets tab calculates depreciation automatically from the asset register. No manual entry needed for depreciation — it's calculated in real-time.
           </div>
         </div>
       )}
@@ -2535,10 +2535,10 @@ function AccountantGuide({journalEntries, staff, egpRate}) {
 
 
 /* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-   FINANCE TAB â€” main container
+   FINANCE TAB — main container
    â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 /* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-   ACTIVITY LOG TAB â€” admin only
+   ACTIVITY LOG TAB — admin only
    â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archiveLoaded,
   onRefresh, onArchive, onLoadArchive, onPruneArchive, retentionDays, setRetentionDays}) {
@@ -2559,7 +2559,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
   const actions = React.useMemo(()=>["ALL",...new Set(source.map(l=>l.action))].sort(),[source]);
   const users   = React.useMemo(()=>["ALL",...new Set(source.map(l=>l.user_name).filter(Boolean))].sort(),[source]);
 
-  // Reset page when filters change â€” use separate effect, NOT inside useMemo
+  // Reset page when filters change — use separate effect, NOT inside useMemo
   React.useEffect(()=>{ setPage(0); },[source,modFilter,actFilter,userFilter,dateFrom,dateTo,search]);
 
   const filtered = React.useMemo(()=>{
@@ -2567,7 +2567,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
       if(modFilter!=="ALL"  && l.module!==modFilter)    return false;
       if(actFilter!=="ALL"  && l.action!==actFilter)    return false;
       if(userFilter!=="ALL" && l.user_name!==userFilter) return false;
-      // Compare date portion only â€” avoids timezone-suffix corruption in ISO strings
+      // Compare date portion only — avoids timezone-suffix corruption in ISO strings
       const entryDate = l.created_at ? l.created_at.slice(0,10) : "";
       if(dateFrom && entryDate && entryDate < dateFrom) return false;
       if(dateTo   && entryDate && entryDate > dateTo)   return false;
@@ -2614,7 +2614,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
   return(
     <div style={{display:"grid",gap:16}}>
 
-      {/* â”€â”€ Pill nav â”€â”€ */}
+      {/* ---- Pill nav ---- */}
       <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",width:"fit-content"}}>
         {[
           {id:"live",    label:"Live Log",    count:activityLog.length},
@@ -2633,7 +2633,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
         })}
       </div>
 
-      {/* â”€â”€ Archive management card â”€â”€ */}
+      {/* ---- Archive management card ---- */}
       {tab==="live"&&(()=>{
         const cutoffDate=new Date();cutoffDate.setDate(cutoffDate.getDate()-retentionDays);
         const cutoffStr=cutoffDate.toISOString().slice(0,10);
@@ -2660,7 +2660,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
               color:archivable.length>0?"#f87171":"var(--text4)",
               border:`1px solid ${archivable.length>0?"#f8711840":"var(--border)"}`,
             }}>
-              {archivable.length>0?`${archivable.length} eligible`:"0 eligible â€” all recent"}
+              {archivable.length>0?`${archivable.length} eligible`:"0 eligible — all recent"}
             </span>
             <button onClick={onArchive}
               style={{background:"#f8711820",border:"1px solid #f8711840",borderRadius:7,padding:"7px 16px",color:"#f87171",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"'IBM Plex Sans',sans-serif"}}>
@@ -2673,17 +2673,17 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
           </div>
           {archivable.length===0&&activityLog.length>0&&(
             <div style={{padding:"8px 20px 12px",fontSize:13,color:"var(--text4)"}}>
-              â„¹ All {activityLog.length} entries in the live log are within the last {retentionDays} days. Try reducing the retention window above, or this count reflects what is loaded (up to 5000 rows â€” the DB may have older entries that will still be found during archive).
+              â„¹ All {activityLog.length} entries in the live log are within the last {retentionDays} days. Try reducing the retention window above, or this count reflects what is loaded (up to 5000 rows — the DB may have older entries that will still be found during archive).
             </div>
           )}
         </div>
         );
       })()}
 
-      {/* â”€â”€ Archive load prompt â”€â”€ */}
+      {/* ---- Archive load prompt ---- */}
       {tab==="archive"&&!archiveLoaded&&!archiveLoading&&(
         <div style={{textAlign:"center",padding:24,background:"var(--bg2)",borderRadius:8,border:"1px solid var(--border3)"}}>
-          <div style={{fontSize:14,color:"var(--text2)",marginBottom:10}}>Archive not loaded â€” kept separate to keep the UI fast.</div>
+          <div style={{fontSize:14,color:"var(--text2)",marginBottom:10}}>Archive not loaded — kept separate to keep the UI fast.</div>
           <button className="bp" onClick={onLoadArchive}>Load Archive Data</button>
         </div>
       )}
@@ -2694,7 +2694,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
         <div style={{textAlign:"center",padding:24,color:"var(--text4)"}}>Loading archiveâ€¦</div>
       )}
 
-      {/* â”€â”€ Filter toolbar â”€â”€ */}
+      {/* ---- Filter toolbar ---- */}
       {(tab==="live"||(tab==="archive"&&archiveLog.length>0))&&(
       <div className="card" style={{padding:0,overflow:"hidden"}}>
         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -2729,7 +2729,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
       </div>
       )}
 
-      {/* â”€â”€ KPI strip (live only) â”€â”€ */}
+      {/* ---- KPI strip (live only) ---- */}
       {tab==="live"&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
           {[
@@ -2748,7 +2748,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
         </div>
       )}
 
-      {/* â”€â”€ Table â”€â”€ */}
+      {/* ---- Table ---- */}
       {(loading&&tab==="live") ? (
         <div style={{textAlign:"center",padding:40,color:"var(--text4)"}}>Loadingâ€¦</div>
       ) : (tab==="live"||archiveLog.length>0) ? (
@@ -2771,15 +2771,15 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
                   try{meta=JSON.parse(l.meta||"{}");}catch(e){}
                   const ts = l.created_at
                     ? new Date(l.created_at).toLocaleString("en-EG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})
-                    : "â€”";
+                    : "—";
                   return(
                     <tr key={l.id||i} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
                       <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:"var(--text4)",whiteSpace:"nowrap"}}>{ts}</td>
-                      <td style={{padding:"6px 12px",color:"var(--text1)",fontWeight:500,fontSize:13,whiteSpace:"nowrap"}}>{l.user_name||"â€”"}</td>
-                      <td style={{padding:"6px 12px"}}><span style={{fontSize:11,padding:"2px 5px",borderRadius:3,background:"var(--bg2)",color:"var(--info)",fontWeight:600}}>{l.user_role||"â€”"}</span></td>
+                      <td style={{padding:"6px 12px",color:"var(--text1)",fontWeight:500,fontSize:13,whiteSpace:"nowrap"}}>{l.user_name||"—"}</td>
+                      <td style={{padding:"6px 12px"}}><span style={{fontSize:11,padding:"2px 5px",borderRadius:3,background:"var(--bg2)",color:"var(--info)",fontWeight:600}}>{l.user_role||"—"}</span></td>
                       <td style={{padding:"6px 12px"}}><span style={{fontSize:12,padding:"2px 7px",borderRadius:4,background:actionColor(l.action)+"20",color:actionColor(l.action),fontWeight:700}}>{l.action}</span></td>
                       <td style={{padding:"6px 12px"}}><span style={{fontSize:12,padding:"2px 7px",borderRadius:4,background:moduleColor(l.module)+"15",color:moduleColor(l.module),fontWeight:600}}>{l.module}</span></td>
-                      <td style={{padding:"6px 12px",color:"var(--text2)",fontSize:13,maxWidth:280,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={l.detail}>{l.detail||"â€”"}</td>
+                      <td style={{padding:"6px 12px",color:"var(--text2)",fontSize:13,maxWidth:280,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={l.detail}>{l.detail||"—"}</td>
                       <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:"var(--text4)",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}
                         title={JSON.stringify(meta)}>
                         {Object.keys(meta).length>0 ? Object.entries(meta).slice(0,3).map(([k,v])=>`${k}:${v}`).join(" آ· ") : ""}
@@ -2792,7 +2792,7 @@ function ActivityLogTab({activityLog, archiveLog, loading, archiveLoading, archi
           </div>
           {page_count>1&&(
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",borderTop:"1px solid var(--border3)",background:"var(--bg2)"}}>
-              <span style={{fontSize:13,color:"var(--text4)"}}>Showing {page*PAGE_SIZE+1}â€“{Math.min((page+1)*PAGE_SIZE,filtered.length)} of {filtered.length}</span>
+              <span style={{fontSize:13,color:"var(--text4)"}}>Showing {page*PAGE_SIZE+1}—{Math.min((page+1)*PAGE_SIZE,filtered.length)} of {filtered.length}</span>
               <div style={{display:"flex",gap:4}}>
                 {[{l:"آ«",v:0},{l:"â€¹",v:page-1}].map(b=>(
                   <button key={b.l} onClick={()=>setPage(Math.max(0,b.v))} disabled={page===0}
@@ -2827,7 +2827,7 @@ function FinanceTab({staff, entries, expenses, projects, engineers, egpRate, set
 
   // staffSearch lives here (function scope) so it's not inside the salaries IIFE
   const [staffSearch, setStaffSearch] = React.useState("");
-  // Pay slip state â€” must be at FinanceTab top level (Rules of Hooks)
+  // Pay slip state — must be at FinanceTab top level (Rules of Hooks)
   const [psAdj,       setPsAdj]       = React.useState({});
   const [psSelectAll, setPsSelectAll] = React.useState(true);
   const [psSelected,  setPsSelected]  = React.useState(new Set());
@@ -2932,7 +2932,7 @@ const projProfit=projects.map(p=>{
     ytdData,ytdRev,ytdCost,ytdNet,projProfit,wasEmployed,prorateStaff
   } = derived;
 
-  // â”€â”€ P&L data â€” useMemo at component top level (Rules of Hooks: never inside IIFEs) â”€â”€
+  // ---- P&L data — useMemo at component top level (Rules of Hooks: never inside IIFEs) ----
   const plData = useMemo(()=>{
     const jRevenue  = journalEntries.filter(e=>e.main_account==="Revenue").reduce((s,e)=>s+(+e.credit||0),0);
     const jExpenses = journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet"&&+e.debit>0);
@@ -2974,7 +2974,7 @@ const projProfit=projects.map(p=>{
   return(
 <div style={{display:"grid",gap:20,padding:"4px 0"}}>
 
-  {/* â”€â”€ Page header â”€â”€ */}
+  {/* ---- Page header ---- */}
   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:14}}>
     <div>
       <div style={{fontSize:11,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:4}}>FINANCE & ACCOUNTING</div>
@@ -2983,12 +2983,12 @@ const projProfit=projects.map(p=>{
         {isAdmin?"Full accounting access آ· journal, payroll, P&L":isAcct?"Full accounting access آ· post entries, manage payroll, view reports":"Read-only آ· all figures from posted journal entries"}
       </p>
     </div>
-    {/* EGP rate + month/year controls â€” always visible */}
+    {/* EGP rate + month/year controls — always visible */}
     <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
       <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:6}}>
         <span style={{fontSize:12,color:"var(--text4)",whiteSpace:"nowrap"}}>EGP / $</span>
         <input type="number" value={egpRate} onChange={e=>setEgpRate(Math.max(1,+e.target.value||1))}
-          title="Used for EGP salary â†’ USD conversion only"
+          title="Used for EGP salary → USD conversion only"
           style={{width:64,background:"transparent",border:"none",color:"var(--info)",fontSize:14,fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,textAlign:"right",outline:"none"}}/>
       </div>
       <div style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:6}}>
@@ -3004,13 +3004,13 @@ const projProfit=projects.map(p=>{
       {(finSubTab==="pl"||finSubTab==="salaries")&&(
         <button className="bp" style={{padding:"8px 16px",fontSize:14}} onClick={()=>{
           buildFinancePDF({finMonth,finYear,MONTHS_,monthRevUSD,totalPayrollUSDeff,totalPayrollEGP,totalExpUSD,totalExpEGP,totalCostUSD,netPL,netColor,activeStaff,monthExp,deptList,projProfit,ytdData,ytdRev,ytdCost,ytdNet,fmtCurrency,isAdmin,egpRate});
-          logAction("EXPORT","Finance",`Exported Finance PDF â€” ${MONTHS_[finMonth]} ${finYear}`,{month:finMonth,year:finYear,tab:finSubTab});
+          logAction("EXPORT","Finance",`Exported Finance PDF — ${MONTHS_[finMonth]} ${finYear}`,{month:finMonth,year:finYear,tab:finSubTab});
         }}>â¬‡ Export PDF</button>
       )}
     </div>
   </div>
 
-  {/* â”€â”€ Sub-tab navigation â”€â”€ */}
+  {/* ---- Sub-tab navigation ---- */}
   <div style={{display:"flex",gap:2,background:"var(--bg1)",borderRadius:10,padding:4,border:"1px solid var(--border)",flexWrap:"wrap"}}>
     {[
       {id:"journal",  label:"Journal",     group:"Ledger"},
@@ -3037,7 +3037,7 @@ const projProfit=projects.map(p=>{
     })}
   </div>
 
-  {/* â”€â”€ JOURNAL TAB â”€â”€ */}
+  {/* ---- JOURNAL TAB ---- */}
   {finSubTab==="journal"&&(
     <JournalLedger
       journalEntries={journalEntries}
@@ -3066,8 +3066,8 @@ const projProfit=projects.map(p=>{
         if(error){showToast("Journal post failed: "+error.message,false);return;}
         if(data){
           setJournalEntries(prev=>[...prev,...data]);
-          showToast(`âœ“ Entry #${safeLines[0]?.entry_no} posted â€” ${safeLines.length} line${safeLines.length!==1?"s":""}`);
-          logAction("CREATE","Journal",`Posted entry #${safeLines[0]?.entry_no} â€” ${safeLines.length} lines آ· ${safeLines[0]?.entry_type}`,
+          showToast(`âœ“ Entry #${safeLines[0]?.entry_no} posted — ${safeLines.length} line${safeLines.length!==1?"s":""}`);
+          logAction("CREATE","Journal",`Posted entry #${safeLines[0]?.entry_no} — ${safeLines.length} lines آ· ${safeLines[0]?.entry_type}`,
             {entry_no:safeLines[0]?.entry_no,entry_type:safeLines[0]?.entry_type,lines:safeLines.length,
              total_debit:safeLines.reduce((s,l)=>s+l.debit,0)});
         }
@@ -3075,7 +3075,7 @@ const projProfit=projects.map(p=>{
       onDelete={async(id)=>{
         if(!isAcct&&!isAdmin) return;
         const entry=journalEntries.find(e=>e.id===id);
-        showConfirm(`Delete journal entry #${entry?.entry_no||id} â€” ${entry?.account_name||""}?`,()=>{
+        showConfirm(`Delete journal entry #${entry?.entry_no||id} — ${entry?.account_name||""}?`,()=>{
           applyUndo(
             showToast,`Entry #${entry?.entry_no||id} deleted`,
             ()=>setJournalEntries(prev=>prev.filter(e=>e.id!==id)),
@@ -3116,7 +3116,7 @@ const projProfit=projects.map(p=>{
     />
   )}
 
-  {/* â”€â”€ BALANCE SHEET TAB â”€â”€ */}
+  {/* ---- BALANCE SHEET TAB ---- */}
   {finSubTab==="balance"&&(
     <div>
       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
@@ -3136,10 +3136,10 @@ const projProfit=projects.map(p=>{
           const now=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
           const rows=Object.values(byAcct).sort((a,b)=>a.cat.localeCompare(b.cat)).map(cat=>{
             const itemRows=Object.values(cat.items).map((item,i)=>`<tr style="${i%2?"background:#f8fafc":""}"><td style="padding:6px 16px 6px 28px;color:#334155">${item.name}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399">${item.dr>0?fmtEGP(item.dr):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${item.cr>0?fmtEGP(item.cr):""}</td></tr>`).join("");
-            return `<tr style="background:#f0f7ff"><td colspan="3" style="padding:7px 16px;font-weight:700;color:#0f2a50">${cat.cat}</td></tr>${itemRows}<tr style="background:#e8f4fd"><td style="padding:6px 16px;font-style:italic;color:#64748b">Subtotal â€” ${cat.cat}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#34d399">${cat.dr>0?fmtEGP(cat.dr):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171">${cat.cr>0?fmtEGP(cat.cr):""}</td></tr>`;
+            return `<tr style="background:#f0f7ff"><td colspan="3" style="padding:7px 16px;font-weight:700;color:#0f2a50">${cat.cat}</td></tr>${itemRows}<tr style="background:#e8f4fd"><td style="padding:6px 16px;font-style:italic;color:#64748b">Subtotal — ${cat.cat}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#34d399">${cat.dr>0?fmtEGP(cat.dr):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171">${cat.cr>0?fmtEGP(cat.cr):""}</td></tr>`;
           }).join("");
           generatePDF("Balance Sheet",
-            [`<div class="section"><div class="st">Balance Sheet â€” As of ${now}</div><table><thead><tr><th>Account</th><th style="text-align:right">Debit (EGP)</th><th style="text-align:right">Credit (EGP)</th></tr></thead><tbody>${rows||"<tr><td colspan='3' style='text-align:center;color:#94a3b8;padding:20px'>No balance sheet entries in journal</td></tr>"}</tbody></table></div>`],
+            [`<div class="section"><div class="st">Balance Sheet — As of ${now}</div><table><thead><tr><th>Account</th><th style="text-align:right">Debit (EGP)</th><th style="text-align:right">Credit (EGP)</th></tr></thead><tbody>${rows||"<tr><td colspan='3' style='text-align:center;color:#94a3b8;padding:20px'>No balance sheet entries in journal</td></tr>"}</tbody></table></div>`],
             `Balance Sheet آ· Enevo Egypt LLC آ· ${now}`);
           logAction("EXPORT","Finance",`Exported Balance Sheet PDF`,{tab:"balance"});
         }}>â¬‡ Export PDF</button>
@@ -3148,7 +3148,7 @@ const projProfit=projects.map(p=>{
     </div>
   )}
 
-  {/* â”€â”€ EXPENSES TAB â”€â”€ */}
+  {/* ---- EXPENSES TAB ---- */}
   {finSubTab==="expenses"&&(
     <div>
       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
@@ -3166,10 +3166,10 @@ const projProfit=projects.map(p=>{
           const grandTotal=plE.reduce((s,e)=>s+(+e.debit||0),0);
           const rows=Object.values(catMap).sort((a,b)=>b.total-a.total).map(cat=>{
             const items=Object.values(cat.items).sort((a,b)=>b.total-a.total).map((item,i)=>`<tr style="${i%2?"background:#f8fafc":""}"><td style="padding:6px 16px 6px 28px;color:#334155">${item.name}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#fb923c">${fmtEGP(item.total)}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#94a3b8">${grandTotal?(item.total/grandTotal*100).toFixed(1)+"%":""}</td></tr>`).join("");
-            return`<tr style="background:#fff7ed"><td colspan="3" style="padding:7px 16px;font-weight:700;color:#9a3412">${cat.cat} â€” ${fmtEGP(cat.total)}</td></tr>${items}`;
+            return`<tr style="background:#fff7ed"><td colspan="3" style="padding:7px 16px;font-weight:700;color:#9a3412">${cat.cat} — ${fmtEGP(cat.total)}</td></tr>${items}`;
           }).join("");
           generatePDF("Expenses Report",
-            [`<div class="section"><div class="st">Expense Breakdown (P&L Entries) â€” ${now}</div><table><thead><tr><th>Account</th><th style="text-align:right">Amount (EGP)</th><th style="text-align:right">% of Total</th></tr></thead><tbody>${rows||"<tr><td colspan='3' style='text-align:center;color:#94a3b8;padding:20px'>No expense entries in journal</td></tr>"}<tr style="background:#0f2a50"><td style="padding:8px 16px;font-weight:700;color:#fff">TOTAL EXPENSES</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171;padding:8px 16px">${fmtEGP(grandTotal)}</td><td></td></tr></tbody></table></div>`],
+            [`<div class="section"><div class="st">Expense Breakdown (P&L Entries) — ${now}</div><table><thead><tr><th>Account</th><th style="text-align:right">Amount (EGP)</th><th style="text-align:right">% of Total</th></tr></thead><tbody>${rows||"<tr><td colspan='3' style='text-align:center;color:#94a3b8;padding:20px'>No expense entries in journal</td></tr>"}<tr style="background:#0f2a50"><td style="padding:8px 16px;font-weight:700;color:#fff">TOTAL EXPENSES</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:#f87171;padding:8px 16px">${fmtEGP(grandTotal)}</td><td></td></tr></tbody></table></div>`],
             `Expense Report آ· Enevo Egypt LLC آ· ${now}`);
           logAction("EXPORT","Finance",`Exported Expenses PDF`,{tab:"expenses"});
         }}>â¬‡ Export PDF</button>
@@ -3178,7 +3178,7 @@ const projProfit=projects.map(p=>{
     </div>
   )}
 
-  {/* â”€â”€ CASH CUSTODY TAB â”€â”€ */}
+  {/* ---- CASH CUSTODY TAB ---- */}
   {finSubTab==="custody"&&(
     <div>
       <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",borderRadius:"10px 10px 0 0",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:0}}>
@@ -3199,7 +3199,7 @@ const projProfit=projects.map(p=>{
               runBal+=(+e.credit||0)-(+e.debit||0);
               return`<tr style="${i%2?"background:#f8fafc":""}"><td style="font-family:'IBM Plex Mono',monospace;font-size:11px">${String(e.entry_date||"").slice(0,10)}</td><td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#94a3b8">${e.entry_no||""}</td><td>${e.description||""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#f87171">${+e.credit>0.01?fmtEGP(+e.credit):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#34d399">${+e.debit>0.01?fmtEGP(+e.debit):""}</td><td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;color:${runBal>0?"#34d399":"#64748b"}">${fmtEGP(runBal)}</td></tr>`;
             }).join("");
-            return`<div class="section"><div class="st">${p.name} â€” Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div><table><thead><tr><th>Date</th><th>Entry#</th><th>Description</th><th style="text-align:right">Cash Out</th><th style="text-align:right">Back/Spent</th><th style="text-align:right">Balance</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+            return`<div class="section"><div class="st">${p.name} — Balance: ${fmtEGP(p.totalOut-p.totalBack)}</div><table><thead><tr><th>Date</th><th>Entry#</th><th>Description</th><th style="text-align:right">Cash Out</th><th style="text-align:right">Back/Spent</th><th style="text-align:right">Balance</th></tr></thead><tbody>${rows}</tbody></table></div>`;
           });
           if(!sections.length)sections.push(`<div class="section"><p style="text-align:center;color:#94a3b8;padding:20px">No custody entries found</p></div>`);
           generatePDF("Cash Custody Ledger",sections,`Cash Custody آ· Enevo Egypt LLC آ· ${now}`);
@@ -3210,31 +3210,31 @@ const projProfit=projects.map(p=>{
     </div>
   )}
 
-  {/* â”€â”€ FIXED ASSETS TAB â”€â”€ */}
+  {/* ---- FIXED ASSETS TAB ---- */}
   {finSubTab==="assets"&&(
     <FixedAssetsView fixedAssets={fixedAssets} loading={assetsLoading}/>
   )}
 
-  {/* â”€â”€ TAX & SOCIAL TAB â”€â”€ */}
+  {/* ---- TAX & SOCIAL TAB ---- */}
   {finSubTab==="tax"&&(
     <TaxSocialView journalEntries={journalEntries}/>
   )}
 
-  {/* â”€â”€ REPORTS TAB â”€â”€ */}
+  {/* ---- REPORTS TAB ---- */}
   {finSubTab==="reports"&&(
     <FinanceReports journalEntries={journalEntries} fixedAssets={fixedAssets}
       staff={staff} expenses={expenses} egpRate={egpRate}/>
   )}
 
-  {/* â”€â”€ WORKFLOW GUIDE TAB â”€â”€ */}
+  {/* ---- WORKFLOW GUIDE TAB ---- */}
   {finSubTab==="workflow"&&(
     <AccountantGuide journalEntries={journalEntries} staff={staff} egpRate={egpRate}/>
   )}
 
 
-  {/* â”€â”€ P&L OPERATIONS TAB â€” reconciled journal + engineering view â”€â”€ */}
+  {/* ---- P&L OPERATIONS TAB — reconciled journal + engineering view ---- */}
   {finSubTab==="pl"&&(()=>{
-    // â”€â”€ P&L vars computed at FinanceTab top level (Rules of Hooks â€” no useMemo in IIFE) â”€â”€
+    // ---- P&L vars computed at FinanceTab top level (Rules of Hooks — no useMemo in IIFE) ----
     const netColor = jNetPL>=0?"#34d399":"#f87171";
     const opCosts = expByCategory["Operating Costs"]?.total||0;
     const adminCosts = expByCategory["Administrative expenses"]?.total||0;
@@ -3242,12 +3242,12 @@ const projProfit=projects.map(p=>{
     return(
     <div style={{display:"grid",gap:16}}>
 
-      {/* â”€â”€ Info banner â”€â”€ */}
+      {/* ---- Info banner ---- */}
       <div style={{background:"var(--bg1)",border:"1px solid #38bdf830",borderRadius:10,padding:"10px 16px",fontSize:13,color:"var(--text3)",display:"flex",alignItems:"center",gap:10}}>
-        <span><strong style={{color:"var(--text1)"}}>Journal-based P&L</strong> â€” All figures sourced directly from posted journal entries (EGP). This is the official accounting view for {MONTHS_[finMonth]} {finYear}.</span>
+        <span><strong style={{color:"var(--text1)"}}>Journal-based P&L</strong> — All figures sourced directly from posted journal entries (EGP). This is the official accounting view for {MONTHS_[finMonth]} {finYear}.</span>
       </div>
 
-      {/* â”€â”€ Hero metrics â”€â”€ */}
+      {/* ---- Hero metrics ---- */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
         {[
           {l:"Revenue",          v:fmtEGP(jRevenue),   c:"#34d399",  sub:"From journal credits"},
@@ -3275,7 +3275,7 @@ const projProfit=projects.map(p=>{
         </div>
       )}
 
-      {/* â”€â”€ Expense breakdown â”€â”€ */}
+      {/* ---- Expense breakdown ---- */}
       <div className="card" style={{padding:0,overflow:"hidden"}}>
         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Expense Breakdown</div>
@@ -3336,10 +3336,10 @@ const projProfit=projects.map(p=>{
             {monthPL.map((m,i)=>(
               <tr key={m.mo} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
                 <td style={{padding:"7px 14px",fontWeight:600,color:"var(--text0)"}}>{MONTHS_[+m.mo-1]||""}</td>
-                <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399"}}>{m.rev>0?fmtEGP(m.rev):"â€”"}</td>
-                <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{m.exp>0?fmtEGP(m.exp):"â€”"}</td>
+                <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#34d399"}}>{m.rev>0?fmtEGP(m.rev):"—"}</td>
+                <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{m.exp>0?fmtEGP(m.exp):"—"}</td>
                 <td style={{padding:"7px 14px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:m.net>=0?"#34d399":"#f87171",fontWeight:600}}>{fmtEGP(m.net)}</td>
-                <td style={{padding:"7px 14px",fontSize:12,color:"var(--text4)"}}>{m.rev>0&&m.exp>0?"Revenue+Costs":m.rev>0?"Revenue only":m.exp>0?"Costs only":"â€”"}</td>
+                <td style={{padding:"7px 14px",fontSize:12,color:"var(--text4)"}}>{m.rev>0&&m.exp>0?"Revenue+Costs":m.rev>0?"Revenue only":m.exp>0?"Costs only":"—"}</td>
               </tr>
             ))}
             <tr style={{background:"var(--bg2)",borderTop:"2px solid var(--border)",fontWeight:700}}>
@@ -3353,18 +3353,18 @@ const projProfit=projects.map(p=>{
         </table>
       </div>
 
-      {/* â”€â”€ Engineering ops section â”€â”€ */}
+      {/* ---- Engineering ops section ---- */}
       {(totalBillableHrs>0||totalBillableUSD>0)&&(
         <div className="card" style={{padding:0,overflow:"hidden"}}>
           <div style={{background:"#38bdf815",borderBottom:"2px solid #38bdf8",padding:"10px 16px",fontSize:13,fontWeight:700,color:"#38bdf8"}}>
-            ENGINEERING OPS â€” Billable Hours (time entries, USD)
-            <span style={{fontSize:12,color:"var(--text4)",fontWeight:400,marginLeft:12}}>Management view â€” not accounting</span>
+            ENGINEERING OPS — Billable Hours (time entries, USD)
+            <span style={{fontSize:12,color:"var(--text4)",fontWeight:400,marginLeft:12}}>Management view — not accounting</span>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:0,borderBottom:"1px solid var(--border3)"}}>
             {[
               {l:"Total Billable Hours",v:`${totalBillableHrs.toFixed(1)} hrs`,c:"#38bdf8"},
               {l:"Billed Value (USD)",  v:fmtCurrency(totalBillableUSD),       c:"#34d399"},
-              {l:"Avg Rate",            v:totalBillableHrs?fmtCurrency(totalBillableUSD/totalBillableHrs)+"/hr":"â€”",c:"var(--text2)"},
+              {l:"Avg Rate",            v:totalBillableHrs?fmtCurrency(totalBillableUSD/totalBillableHrs)+"/hr":"—",c:"var(--text2)"},
             ].map((k,i)=>(
               <div key={i} style={{textAlign:"center",padding:"14px 8px",borderRight:i<2?"1px solid var(--border3)":"none"}}>
                 <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:k.c}}>{k.v}</div>
@@ -3393,7 +3393,7 @@ const projProfit=projects.map(p=>{
         </div>
       )}
 
-      {/* â”€â”€ Project P&L â”€â”€ */}
+      {/* ---- Project P&L ---- */}
       {projProfit.length>0&&(
         <div className="card" style={{padding:0,overflow:"hidden"}}>
           <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Project P&L</div><div style={{fontSize:13,color:"var(--text3)"}}>Time entries أ— hourly rate</div></div>
@@ -3422,7 +3422,7 @@ const projProfit=projects.map(p=>{
     );
   })()}
 
-  {/* â”€â”€ SALARIES TAB â€” journal accruals + staff table reconciled â”€â”€ */}
+  {/* ---- SALARIES TAB — journal accruals + staff table reconciled ---- */}
   {finSubTab==="salaries"&&(()=>{
     // Salary accruals from journal, grouped by month
     const salaryAccruals = journalEntries.filter(e=>e.entry_type==="Accrued Salaries");
@@ -3454,7 +3454,7 @@ const projProfit=projects.map(p=>{
     const totalEGP = activeSt.reduce((s,x)=>s+(+x.salary_egp||0),0);
     const totalUSD = activeSt.reduce((s,x)=>s+(+x.salary_usd||0),0);
 
-    // Last posted month vs staff table â€” reconciliation
+    // Last posted month vs staff table — reconciliation
     const lastAccrual = accrualByMonth[accrualByMonth.length-1];
     const lastGross = lastAccrual ? lastAccrual.grossCost + lastAccrual.grossAdmin : 0;
     const reconcileDiff = lastGross - totalEGP;
@@ -3463,12 +3463,12 @@ const projProfit=projects.map(p=>{
     return(
     <div style={{display:"grid",gap:16}}>
 
-      {/* â”€â”€ Hero metrics â”€â”€ */}
+      {/* ---- Hero metrics ---- */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
         {[
           {l:"Active Staff",      v:activeSt.length,                                                               c:"var(--info)",   sub:"Current headcount"},
           {l:"Total EGP Payroll", v:fmtEGP(totalEGP),                                                             c:"#fb923c",       sub:"Monthly gross"},
-          {l:"Total USD Payroll", v:totalUSD>0?`$${totalUSD.toLocaleString("en-US",{minimumFractionDigits:2})}`:"â€”",c:"#38bdf8",    sub:"Monthly USD"},
+          {l:"Total USD Payroll", v:totalUSD>0?`$${totalUSD.toLocaleString("en-US",{minimumFractionDigits:2})}`:"—",c:"#38bdf8",    sub:"Monthly USD"},
           {l:"Journal vs Staff",  v:reconcileOK?"âœ“ Match":`خ” ${fmtEGP(Math.abs(reconcileDiff))}`,                c:reconcileOK?"#34d399":"#f87171",sub:reconcileOK?"Last accrual matches":"Check journal"},
         ].map((k,i)=>(
           <div key={i} style={{background:"var(--bg1)",border:"1px solid var(--border)",borderRadius:12,padding:"18px 16px",borderTop:`3px solid ${k.c}`}}>
@@ -3504,8 +3504,8 @@ const projProfit=projects.map(p=>{
                 {accrualByMonth.map((m,i)=>(
                   <tr key={m.mo} style={{borderBottom:"1px solid var(--border3)",background:i%2===0?"transparent":"var(--bg1)"}}>
                     <td style={{padding:"7px 12px",fontWeight:600,color:"var(--text0)"}}>{MONTHS_[+m.mo-1]||""}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{m.grossCost>0?fmtEGP(m.grossCost):"â€”"}</td>
-                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{m.grossAdmin>0?fmtEGP(m.grossAdmin):"â€”"}</td>
+                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{m.grossCost>0?fmtEGP(m.grossCost):"—"}</td>
+                    <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c"}}>{m.grossAdmin>0?fmtEGP(m.grossAdmin):"—"}</td>
                     <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{fmtEGP(m.siCost+m.siAdmin)}</td>
                     <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#f87171"}}>{fmtEGP(m.tax)}</td>
                     <td style={{padding:"7px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#a78bfa"}}>{fmtEGP(m.mff)}</td>
@@ -3535,7 +3535,7 @@ const projProfit=projects.map(p=>{
       <div className="card" style={{padding:0,overflow:"hidden"}}>
         <div style={{background:"var(--bg0)",borderBottom:"1px solid var(--border)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
           <div>
-            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Staff Table â€” Current Salaries</div>
+            <div style={{fontSize:15,fontWeight:700,color:"var(--text0)"}}>Staff Table — Current Salaries</div>
             <div style={{fontSize:13,color:"var(--text3)",marginTop:2}}>{activeSt.length} active staff members</div>
           </div>
           <input value={staffSearch} onChange={e=>setStaffSearch(e.target.value)}
@@ -3556,7 +3556,7 @@ const projProfit=projects.map(p=>{
                 <td style={{padding:"6px 12px"}}><span style={{fontSize:12,padding:"2px 6px",borderRadius:3,background:"var(--bg3)",color:"var(--info)"}}>{s.role}</span></td>
                 <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#fb923c",fontWeight:600}}>{s.salary_egp?fmtEGP(+s.salary_egp):"\u2014"}</td>
                 <td style={{padding:"6px 12px",fontFamily:"'IBM Plex Mono',monospace",fontSize:13,textAlign:"right",color:"#38bdf8"}}>{s.salary_usd?`$${(+s.salary_usd).toLocaleString("en-US",{minimumFractionDigits:2})}`:"\u2014"}</td>
-                <td style={{padding:"6px 12px",fontSize:13,color:"var(--text4)"}}>{s.join_date||"â€”"}</td>
+                <td style={{padding:"6px 12px",fontSize:13,color:"var(--text4)"}}>{s.join_date||"—"}</td>
                 <td style={{padding:"6px 8px"}}>
                   {(isAdmin||isAcct)&&(
                     <button onClick={()=>{setEditStaff({...s});setShowStaffModal(true);}}
@@ -3584,7 +3584,7 @@ const projProfit=projects.map(p=>{
       </div>
 
       {/* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-          PAY SLIPS â€” Generate individual PDF pay slips
+          PAY SLIPS — Generate individual PDF pay slips
          â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */}
       {(()=>{
         const psStaff = activeSt.filter(s=>wasEmployed(s,finYear,finMonth));
@@ -3626,8 +3626,8 @@ const projProfit=projects.map(p=>{
           const periodStr = MONTHS_LONG[finMonth]+' '+finYear;
           const slipNo = 'EGY-'+finYear+'-'+String(finMonth+1).padStart(2,'0')+'-'+String(psStaff.indexOf(s)+1).padStart(3,'0');
           const now = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-          const fmt  = v=>v>0?fmtEGP(v):'â€”';
-          const fmtU = v=>v>0?'$'+v.toLocaleString('en-US',{minimumFractionDigits:2}):'â€”';
+          const fmt  = v=>v>0?fmtEGP(v):'—';
+          const fmtU = v=>v>0?'$'+v.toLocaleString('en-US',{minimumFractionDigits:2}):'—';
           const isCur = slip.isUSD;
           const cur   = isCur?'USD':'EGP';
 
@@ -3705,10 +3705,10 @@ const projProfit=projects.map(p=>{
   </div>
   <div class="emp">
     <div class="emp-row"><span class="emp-lbl">Employee Name</span><span class="emp-val">${s.name}</span></div>
-    <div class="emp-row"><span class="emp-lbl">Department</span><span class="emp-val">${s.department||'â€”'}</span></div>
-    <div class="emp-row"><span class="emp-lbl">Job Title</span><span class="emp-val">${s.role||'â€”'}</span></div>
+    <div class="emp-row"><span class="emp-lbl">Department</span><span class="emp-val">${s.department||'—'}</span></div>
+    <div class="emp-row"><span class="emp-lbl">Job Title</span><span class="emp-val">${s.role||'—'}</span></div>
     <div class="emp-row"><span class="emp-lbl">Employment Type</span><span class="emp-val">${(s.type||'full_time').replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase())}</span></div>
-    <div class="emp-row"><span class="emp-lbl">Join Date</span><span class="emp-val">${s.join_date||'â€”'}</span></div>
+    <div class="emp-row"><span class="emp-lbl">Join Date</span><span class="emp-val">${s.join_date||'—'}</span></div>
     <div class="emp-row"><span class="emp-lbl">Currency</span><span class="emp-val">${cur}</span></div>
   </div>
   <div class="body">
@@ -3731,7 +3731,7 @@ const projProfit=projects.map(p=>{
     <div><div class="net-lbl">Net Pay</div><div style="color:#93c5fd;font-size:11px;margin-top:3px">${periodStr}</div></div>
     <div><span class="net-val">${netVal}</span><span class="net-cur">${cur}</span></div>
   </div>
-  ${lastMo&&slip.share>0?`<div class="recon">âœ… Computed from journal entry â€” Period: ${periodStr} آ· Accrued Salaries ref: Entry #${journalEntries.find(e=>e.entry_type==='Accrued Salaries'&&+e.month===finMonth+1)?.entry_no||'â€”'}</div>`:''}
+  ${lastMo&&slip.share>0?`<div class="recon">âœ… Computed from journal entry — Period: ${periodStr} آ· Accrued Salaries ref: Entry #${journalEntries.find(e=>e.entry_type==='Accrued Salaries'&&+e.month===finMonth+1)?.entry_no||'—'}</div>`:''}
   <div class="ftr">
     <span>Generated: ${now}</span>
     <span>ENEVO Group آ· Egypt</span>
@@ -3796,7 +3796,7 @@ const projProfit=projects.map(p=>{
               <div style={{background:'var(--bg0)',borderBottom:'1px solid var(--border)',padding:'14px 20px',
                 display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
                 <div>
-                  <div style={{fontSize:15,fontWeight:700,color:'var(--text0)'}}>Pay Slips â€” {MONTHS_[finMonth]} {finYear}</div>
+                  <div style={{fontSize:15,fontWeight:700,color:'var(--text0)'}}>Pay Slips — {MONTHS_[finMonth]} {finYear}</div>
                   <div style={{fontSize:13,color:'var(--text3)',marginTop:2}}>{psStaff.length} employees آ· enter adjustments then generate PDF per person or all at once</div>
                 </div>
                 <div style={{display:'flex',gap:8,alignItems:'center'}}>
@@ -3866,7 +3866,7 @@ const projProfit=projects.map(p=>{
 
 
 /* â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-   FUNCTIONS TAB â€” standalone component
+   FUNCTIONS TAB — standalone component
    â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ */
 
 export { fmtEGP, fmtEGPsigned, JournalLedger, BalanceSheetView, ExpensesView, CashCustodyView, TaxSocialView, FixedAssetsView, FinanceReports, AccountantGuide, ActivityLogTab, FinanceTab };
