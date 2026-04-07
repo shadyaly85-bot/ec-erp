@@ -6950,7 +6950,7 @@ const projProfit=projects.map(p=>{
   const {activeStaff,totalPayrollUSD,totalPayrollEGP,toUSD,
     staffThisMonth,monthExp,monthExpNonSalary,totalExpUSD,totalExpEGP,salaryCatUSD,
     monthRevUSD,totalPayrollUSDeff,totalCostUSD,netPL,netColor,deptList,
-    ytdData,ytdRev,ytdCost,ytdNet,projProfit
+    ytdData,ytdRev,ytdCost,ytdNet,projProfit,wasEmployed,prorateStaff
   } = derived;
 
   const MONTHS_ = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -7218,42 +7218,41 @@ const projProfit=projects.map(p=>{
 
   {/* ── P&L OPERATIONS TAB — reconciled journal + engineering view ── */}
   {finSubTab==="pl"&&(()=>{
-    // ── EGP P&L from journal (the authoritative accounting view)
-    const jRevenue = journalEntries.filter(e=>e.main_account==="Revenue").reduce((s,e)=>s+(+e.credit||0),0);
-    const jExpenses = journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet"&&+e.debit>0);
-    const jTotalExp = jExpenses.reduce((s,e)=>s+(+e.debit),0);
-    const jNetPL = jRevenue - jTotalExp;
+    // ── EGP P&L from journal — memoized to prevent render-time recomputation ──
+    const plData = React.useMemo(()=>{
+      const jRevenue  = journalEntries.filter(e=>e.main_account==="Revenue").reduce((s,e)=>s+(+e.credit||0),0);
+      const jExpenses = journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet"&&+e.debit>0);
+      const jTotalExp = jExpenses.reduce((s,e)=>s+(+e.debit),0);
+      const jNetPL    = jRevenue - jTotalExp;
+      const jRevUSD   = journalEntries.find(e=>e.main_account==="Revenue"&&+e.usd_amount>0)?.usd_amount || 0;
+      const jRevRate  = journalEntries.find(e=>e.main_account==="Revenue"&&+e.exchange_rate>0)?.exchange_rate || egpRate;
+      const allMonths = [...new Set(journalEntries.map(e=>e.month))].sort((a,b)=>+a-+b);
+      const monthPL   = allMonths.map(mo=>({
+        mo,
+        rev: journalEntries.filter(e=>e.main_account==="Revenue"&&+e.month===mo).reduce((s,e)=>s+(+e.credit),0),
+        exp: journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet"&&+e.debit>0&&+e.month===mo).reduce((s,e)=>s+(+e.debit),0),
+      })).map(m=>({...m,net:m.rev-m.exp}));
+      const expByCategory = {};
+      jExpenses.forEach(e=>{
+        if(!expByCategory[e.main_account]) expByCategory[e.main_account]={cat:e.main_account,total:0,items:{}};
+        if(!expByCategory[e.main_account].items[e.account_name]) expByCategory[e.main_account].items[e.account_name]={name:e.account_name,total:0};
+        expByCategory[e.main_account].items[e.account_name].total += +e.debit;
+        expByCategory[e.main_account].total += +e.debit;
+      });
+      const billableEntries = entries.filter(e=>e.entry_type==="work"&&projects.find(p=>String(p.id)===String(e.project_id)&&p.billable!==false));
+      const totalBillableHrs = billableEntries.reduce((s,e)=>s+e.hours,0);
+      const totalBillableUSD = billableEntries.reduce((s,e)=>s+e.hours*(e.rate||0),0);
+      const engHours = {};
+      engineers.forEach(eng=>{
+        const hrs = billableEntries.filter(e=>String(e.engineer_id)===String(eng.id)).reduce((s,e)=>s+e.hours,0);
+        if(hrs>0) engHours[eng.id]={name:eng.name,hrs,usd:billableEntries.filter(e=>String(e.engineer_id)===String(eng.id)).reduce((s,e)=>s+e.hours*(e.rate||0),0)};
+      });
+      return {jRevenue,jExpenses,jTotalExp,jNetPL,jRevUSD,jRevRate,allMonths,monthPL,expByCategory,
+              billableEntries,totalBillableHrs,totalBillableUSD,engHours};
+    },[journalEntries,entries,engineers,projects,egpRate]);
 
-    // Revenue in USD from journal (stored on revenue line)
-    const jRevUSD = journalEntries.find(e=>e.main_account==="Revenue"&&+e.usd_amount>0)?.usd_amount || 0;
-    const jRevRate = journalEntries.find(e=>e.main_account==="Revenue"&&+e.exchange_rate>0)?.exchange_rate || egpRate;
-
-    // Salary accrual from journal (per month, for the YTD table)
-    const allMonths = [...new Set(journalEntries.map(e=>e.month))].sort((a,b)=>+a-+b);
-    const monthPL = allMonths.map(mo=>({
-      mo,
-      rev: journalEntries.filter(e=>e.main_account==="Revenue"&&+e.month===mo).reduce((s,e)=>s+(+e.credit),0),
-      exp: journalEntries.filter(e=>e.statement_type==="Profit & Loss Sheet"&&+e.debit>0&&+e.month===mo).reduce((s,e)=>s+(+e.debit),0),
-    })).map(m=>({...m, net:m.rev-m.exp}));
-
-    // Expense breakdown by category from journal
-    const expByCategory = {};
-    jExpenses.forEach(e=>{
-      if(!expByCategory[e.main_account]) expByCategory[e.main_account]={cat:e.main_account,total:0,items:{}};
-      if(!expByCategory[e.main_account].items[e.account_name]) expByCategory[e.main_account].items[e.account_name]={name:e.account_name,total:0};
-      expByCategory[e.main_account].items[e.account_name].total += +e.debit;
-      expByCategory[e.main_account].total += +e.debit;
-    });
-
-    // Engineering ops view (billable hours from work entries on billable projects)
-    const billableEntries = entries.filter(e=>e.entry_type==="work"&&projects.find(p=>String(p.id)===String(e.project_id)&&p.billable!==false));
-    const totalBillableHrs = billableEntries.reduce((s,e)=>s+e.hours,0);
-    const totalBillableUSD = billableEntries.reduce((s,e)=>s+e.hours*(e.rate||0),0);
-    const engHours = {};
-    engineers.forEach(eng=>{
-      const hrs = billableEntries.filter(e=>String(e.engineer_id)===String(eng.id)).reduce((s,e)=>s+e.hours,0);
-      if(hrs>0) engHours[eng.id]={name:eng.name,hrs,usd:billableEntries.filter(e=>String(e.engineer_id)===String(eng.id)).reduce((s,e)=>s+e.hours*(e.rate||0),0)};
-    });
+    const {jRevenue,jExpenses,jTotalExp,jNetPL,jRevUSD,jRevRate,allMonths,monthPL,expByCategory,
+           billableEntries,totalBillableHrs,totalBillableUSD,engHours} = plData;
 
     const netColor = jNetPL>=0?"#34d399":"#f87171";
     const opCosts = expByCategory["Operating Costs"]?.total||0;
